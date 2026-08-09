@@ -1,0 +1,60 @@
+<svg viewBox="0 0 680 600" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="the ai-hive: a hive of hives">
+  <title>the ai·hive — a hive of hives</title>
+  <desc>A honeycomb where the center is the umbrella ai-hive and six surrounding cells are the artifact hives: knowledge, rules, skills (built), mcp, agents, and workflows — colored by whether they are built, standard-backed, or planned.</desc>
+
+  <rect x="6" y="6" width="668" height="588" rx="28" fill="#FBF6EA" stroke="#EADFC6" stroke-width="2.5"/>
+
+  <text x="340" y="54" font-family="'Poppins','Helvetica Neue',Arial,sans-serif" font-size="30" font-weight="800" letter-spacing="-0.5" fill="#17140F" text-anchor="middle">the ai<tspan fill="#F2A81D">·hive</tspan></text>
+  <text x="340" y="80" font-family="'Poppins','Helvetica Neue',Arial,sans-serif" font-size="14" font-weight="500" letter-spacing="0.4" fill="#7A6B4F" text-anchor="middle">a hive of hives — reusable AI artifacts, orchestrated by Barry</text>
+
+  <g stroke="#17140F" stroke-width="4.5" stroke-linejoin="round" font-family="'Poppins','Helvetica Neue',Arial,sans-serif" text-anchor="middle">
+    <polygon points="57.16,33 0,66 -57.16,33 -57.16,-33 0,-66 57.16,-33" transform="translate(280,211.1)" fill="#F7EFDD"/>
+    <polygon points="57.16,33 0,66 -57.16,33 -57.16,-33 0,-66 57.16,-33" transform="translate(400,211.1)" fill="#F7EFDD"/>
+    <polygon points="57.16,33 0,66 -57.16,33 -57.16,-33 0,-66 57.16,-33" transform="translate(460,315)" fill="#F6DCA0"/>
+    <polygon points="57.16,33 0,66 -57.16,33 -57.16,-33 0,-66 57.16,-33" transform="translate(400,418.9)" fill="#F7EFDD"/>
+    <polygon points="57.16,33 0,66 -57.16,33 -57.16,-33 0,-66 57.16,-33" transform="translate(280,418.9)" fill="#F7EFDD"/>
+    <polygon points="57.16,33 0,66 -57.16,33 -57.16,-33 0,-66 57.16,-33" transform="translate(220,315)" fill="#F7EFDD"/>
+  </g>
+
+  <g font-family="'Poppins','Helvetica Neue',Arial,sans-serif" text-anchor="middle">
+    <text x="280" y="203" font-size="13.5" font-weight="700" fill="#17140F">knowledge-hive</text>
+    <text x="280" y="219" font-size="11" fill="#7A6B4F">context</text>
+    <text x="280" y="235" font-size="10.5" fill="#9A8A6C">planned</text>
+
+    <text x="400" y="203" font-size="13.5" font-weight="700" fill="#17140F">rules-hive</text>
+    <text x="400" y="219" font-size="11" fill="#7A6B4F">instructions</text>
+    <text x="400" y="235" font-size="10.5" font-weight="700" fill="#B9791A">AGENTS.md · next</text>
+
+    <text x="460" y="307" font-size="13.5" font-weight="700" fill="#17140F">skills-hive</text>
+    <text x="460" y="323" font-size="11" fill="#7A6B4F">capabilities</text>
+    <text x="460" y="339" font-size="10.5" font-weight="700" fill="#B9791A">SKILL.md · built</text>
+
+    <text x="400" y="411" font-size="13.5" font-weight="700" fill="#17140F">mcp-hive</text>
+    <text x="400" y="427" font-size="11" fill="#7A6B4F">tools</text>
+    <text x="400" y="443" font-size="10.5" font-weight="700" fill="#B9791A">MCP · next</text>
+
+    <text x="280" y="411" font-size="13.5" font-weight="700" fill="#17140F">agents-hive</text>
+    <text x="280" y="427" font-size="11" fill="#7A6B4F">actors</text>
+    <text x="280" y="443" font-size="10.5" fill="#9A8A6C">Barry's fleet</text>
+
+    <text x="220" y="307" font-size="13" font-weight="700" fill="#17140F">workflows-hive</text>
+    <text x="220" y="323" font-size="11" fill="#7A6B4F">orchestration</text>
+    <text x="220" y="339" font-size="10.5" fill="#9A8A6C">planned</text>
+  </g>
+
+  <polygon points="57.16,33 0,66 -57.16,33 -57.16,-33 0,-66 57.16,-33" transform="translate(340,315)" fill="#17140F" stroke="#17140F" stroke-width="4.5" stroke-linejoin="round"/>
+  <polygon points="32.9,19 0,38 -32.9,19 -32.9,-19 0,-38 32.9,-19" transform="translate(340,300)" fill="none" stroke="#F2A81D" stroke-width="4"/>
+  <polygon points="12.99,7.5 0,15 -12.99,7.5 -12.99,-7.5 0,-15 12.99,-7.5" transform="translate(340,300)" fill="#F2A81D"/>
+  <text x="340" y="356" font-family="'Poppins','Helvetica Neue',Arial,sans-serif" font-size="16" font-weight="800" fill="#F7EFDD" text-anchor="middle">ai<tspan fill="#F2A81D">·hive</tspan></text>
+  <text x="340" y="372" font-family="'Poppins','Helvetica Neue',Arial,sans-serif" font-size="9.5" letter-spacing="0.5" fill="#B79A63" text-anchor="middle">the umbrella</text>
+
+  <rect x="120" y="509" width="14" height="14" rx="2" fill="#F6DCA0" stroke="#17140F" stroke-width="1"/>
+  <text x="140" y="520" font-family="'Poppins','Helvetica Neue',Arial,sans-serif" font-size="11" fill="#17140F" text-anchor="start">built</text>
+  <rect x="196" y="509" width="14" height="14" rx="2" fill="none" stroke="#F2A81D" stroke-width="2.5"/>
+  <text x="216" y="520" font-family="'Poppins','Helvetica Neue',Arial,sans-serif" font-size="11" fill="#17140F" text-anchor="start">standard-backed · build next</text>
+  <rect x="430" y="509" width="14" height="14" rx="2" fill="#F7EFDD" stroke="#17140F" stroke-width="1"/>
+  <text x="450" y="520" font-family="'Poppins','Helvetica Neue',Arial,sans-serif" font-size="11" fill="#17140F" text-anchor="start">planned</text>
+
+  <text x="340" y="548" font-family="'Poppins','Helvetica Neue',Arial,sans-serif" font-size="11" fill="#7A6B4F" text-anchor="middle">Composed &amp; shipped via plugins-hive · scaffolded per initiative in projects-hive</text>
+  <text x="340" y="566" font-family="'Poppins','Helvetica Neue',Arial,sans-serif" font-size="11" fill="#7A6B4F" text-anchor="middle">prompts, evals &amp; hooks fold into the cells above rather than standing alone</text>
+</svg>
