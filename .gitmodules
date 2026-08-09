@@ -1,0 +1,3 @@
+[submodule "hives/skills-hive"]
+	path = hives/skills-hive
+	url = https://github.com/werkrbee/skills-hive.git
