@@ -7,7 +7,7 @@
 > **The House of Hives.** A family of portable, versioned repositories for
 > [werkrbee](https://github.com/werkrbee)'s reusable AI artifacts — each built on
 > an open standard, harness-agnostic, and installable across every major agent
-> harness. Barry, the chief-of-staff orchestrator, is the queen at the center.
+> harness. Barry, the chief-of-staff orchestrator, is the king at the center.
 
 `ai-hive` is the **umbrella index**. It doesn't hold artifacts itself; it points
 to the individual hives, explains how they fit together, and defines the shared
