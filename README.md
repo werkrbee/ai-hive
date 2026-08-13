@@ -14,6 +14,29 @@ to the individual hives, explains how they fit together, and defines the shared
 conventions every hive follows. Think of it as the entry hall of the House of
 Agents — each room (hive) furnishes one layer of an agent system.
 
+## Who reigns over what
+
+<p align="center">
+  <img src="assets/two-thrones.svg" alt="Two thrones: Patricia over governance, Barry over execution" width="600">
+</p>
+
+The colony is ruled by two sovereigns with a clean separation of powers:
+
+- **Patricia, the Queen Bee — governance.** Like a queen's pheromones regulate the
+  hive, Patricia sets the always-on *law* every agent inherits. Her domain is
+  [`rules-hive`](https://github.com/werkrbee/rules-hive) and the **Queen Bee's
+  Charter** (`AGENTS.md`): identity, safety, human-in-the-loop, and the rules of
+  the house. She legislates.
+- **Barry, the King Bee — execution.** Barry takes the Queen's law as given and
+  *runs operations*: decomposing goals, delegating to the fleet, synthesizing
+  results. His domain is [`skills-hive`](https://github.com/werkrbee/skills-hive)
+  and orchestration (`SKILL.md`). He executes.
+
+Everything else is the colony they co-reign over: **the harnesses** are the worker
+bees, **mcp-hive** is their foraging (tools), **knowledge-hive** is the stored
+comb (memory), and **ai-hive** is the colony itself. Patricia governs; Barry acts;
+the humans still own the house.
+
 ## The layered model
 
 An agent system is a stack of reusable artifacts. Each layer has exactly one
