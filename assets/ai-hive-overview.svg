@@ -9,9 +9,9 @@
 
   <g stroke="#17140F" stroke-width="4.5" stroke-linejoin="round" font-family="'Poppins','Helvetica Neue',Arial,sans-serif" text-anchor="middle">
     <polygon points="57.16,33 0,66 -57.16,33 -57.16,-33 0,-66 57.16,-33" transform="translate(280,211.1)" fill="#F7EFDD"/>
-    <polygon points="57.16,33 0,66 -57.16,33 -57.16,-33 0,-66 57.16,-33" transform="translate(400,211.1)" fill="#F7EFDD"/>
+    <polygon points="57.16,33 0,66 -57.16,33 -57.16,-33 0,-66 57.16,-33" transform="translate(400,211.1)" fill="#F6DCA0"/>
     <polygon points="57.16,33 0,66 -57.16,33 -57.16,-33 0,-66 57.16,-33" transform="translate(460,315)" fill="#F6DCA0"/>
-    <polygon points="57.16,33 0,66 -57.16,33 -57.16,-33 0,-66 57.16,-33" transform="translate(400,418.9)" fill="#F7EFDD"/>
+    <polygon points="57.16,33 0,66 -57.16,33 -57.16,-33 0,-66 57.16,-33" transform="translate(400,418.9)" fill="#F6DCA0"/>
     <polygon points="57.16,33 0,66 -57.16,33 -57.16,-33 0,-66 57.16,-33" transform="translate(280,418.9)" fill="#F7EFDD"/>
     <polygon points="57.16,33 0,66 -57.16,33 -57.16,-33 0,-66 57.16,-33" transform="translate(220,315)" fill="#F7EFDD"/>
   </g>
@@ -23,7 +23,7 @@
 
     <text x="400" y="203" font-size="13.5" font-weight="700" fill="#17140F">rules-hive</text>
     <text x="400" y="219" font-size="11" fill="#7A6B4F">instructions</text>
-    <text x="400" y="235" font-size="10.5" font-weight="700" fill="#B9791A">AGENTS.md · next</text>
+    <text x="400" y="235" font-size="10.5" font-weight="700" fill="#B9791A">AGENTS.md · built</text>
 
     <text x="460" y="307" font-size="13.5" font-weight="700" fill="#17140F">skills-hive</text>
     <text x="460" y="323" font-size="11" fill="#7A6B4F">capabilities</text>
@@ -31,11 +31,11 @@
 
     <text x="400" y="411" font-size="13.5" font-weight="700" fill="#17140F">mcp-hive</text>
     <text x="400" y="427" font-size="11" fill="#7A6B4F">tools</text>
-    <text x="400" y="443" font-size="10.5" font-weight="700" fill="#B9791A">MCP · next</text>
+    <text x="400" y="443" font-size="10.5" font-weight="700" fill="#B9791A">MCP · built</text>
 
     <text x="280" y="411" font-size="13.5" font-weight="700" fill="#17140F">agents-hive</text>
     <text x="280" y="427" font-size="11" fill="#7A6B4F">actors</text>
-    <text x="280" y="443" font-size="10.5" fill="#9A8A6C">Barry's fleet</text>
+    <text x="280" y="443" font-size="10.5" font-weight="700" fill="#B9791A">build next</text>
 
     <text x="220" y="307" font-size="13" font-weight="700" fill="#17140F">workflows-hive</text>
     <text x="220" y="323" font-size="11" fill="#7A6B4F">orchestration</text>

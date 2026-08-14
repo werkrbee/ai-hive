@@ -45,9 +45,9 @@ portable artifact worth versioning — and that's what earns a hive:
 | Layer | Hive | Artifact / standard | Status |
 |-------|------|---------------------|--------|
 | Context | `knowledge-hive` | docs, memory, RAG corpora | planned |
-| Instructions | `rules-hive` | `AGENTS.md`, `CLAUDE.md` | **build next** |
+| Instructions | [`rules-hive`](https://github.com/werkrbee/rules-hive) | `AGENTS.md`, `CLAUDE.md` | ✅ **built** |
 | Capabilities | [`skills-hive`](https://github.com/werkrbee/skills-hive) | `SKILL.md` | ✅ **built** |
-| Tools | `mcp-hive` | MCP server configs | **build next** |
+| Tools | [`mcp-hive`](https://github.com/werkrbee/mcp-hive) | MCP server configs | ✅ **built** |
 | Actors | `agents-hive` | subagent / persona defs | planned |
 | Orchestration | `workflows-hive` | recipes / pipelines | planned |
 
@@ -79,19 +79,22 @@ as config *inside* projects than as standalone repos.
 ### 🐝 skills-hive — *capabilities* ✅
 
 Portable `SKILL.md` skills, installable into every major harness. Home of
-**Barry**, the chief-of-staff orchestrator, and the two-axis pattern the other
-hives copy.
+**Barry** (the King Bee, orchestrator) and **Patricia** (the Queen Bee, governance
+guardian), and the two-axis pattern the other hives copy.
 → [github.com/werkrbee/skills-hive](https://github.com/werkrbee/skills-hive)
 
-### rules-hive — *instructions* (build next)
+### rules-hive — *instructions* ✅
 
-Always-on guardrails as portable `AGENTS.md` / `CLAUDE.md` files. The most
-portable sibling to skills, since `AGENTS.md` is a cross-harness standard.
+Always-on guardrails as portable `AGENTS.md` / `CLAUDE.md` files — Patricia's
+domain, home of the **Queen Bee's Charter**. The most portable sibling to skills,
+since `AGENTS.md` is a cross-harness standard.
+→ [github.com/werkrbee/rules-hive](https://github.com/werkrbee/rules-hive)
 
-### mcp-hive — *tools* (build next)
+### mcp-hive — *tools* ✅
 
-A registry of MCP server configs — where agents actually act. Highest-leverage
-hive: skills without tools are just instructions.
+A registry of MCP server configs — where agents actually act. Merges into every
+harness's MCP config from one source of truth.
+→ [github.com/werkrbee/mcp-hive](https://github.com/werkrbee/mcp-hive)
 
 ### agents-hive — *actors*
 
@@ -161,9 +164,9 @@ fully usable on its own, and the umbrella works as a plain index without it.
 ## Roadmap
 
 1. ✅ **skills-hive** — shipped.
-2. **rules-hive** — `AGENTS.md` guardrails (fast, high-portability win).
-3. **mcp-hive** — tool/connector registry (highest leverage).
-4. **agents-hive** — Barry's fleet as durable artifacts.
+2. ✅ **rules-hive** — shipped (`AGENTS.md` guardrails; the Queen Bee's Charter).
+3. ✅ **mcp-hive** — shipped (tool/connector registry).
+4. **agents-hive** — Barry's fleet as durable artifacts (build next).
 5. Then compose everything via **plugins-hive** and scaffold with **projects-hive**.
 
 ## License
