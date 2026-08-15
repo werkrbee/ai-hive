@@ -56,7 +56,7 @@ portable artifact worth versioning — and that's what earns a hive:
 | Role | Hive | Purpose |
 |------|------|---------|
 | Bundles | [`plugins-hive`](https://github.com/werkrbee/plugins-hive) ✅ | package skills + rules + tools + agents into installable packs |
-| Containers | `projects-hive` | scaffolds & workspace templates that assemble hives per initiative |
+| Containers | [`projects-hive`](https://github.com/werkrbee/projects-hive) ✅ | scaffolds & workspace templates that assemble hives per initiative |
 
 Prompts, evals, and hooks intentionally **fold into the cells above** rather than
 standing alone — prompts live inside skills, evals ship beside the skill/agent
@@ -120,8 +120,10 @@ and one command fans out to all four hives (its `werkrbee-core` pack ships Barry
 Patricia, the Charter, core tools, and the review fleet together).
 → [github.com/werkrbee/plugins-hive](https://github.com/werkrbee/plugins-hive)
 
-`projects-hive` (planned) holds scaffolds that assemble the right hives for a
-given initiative.
+**`projects-hive`** ✅ holds scaffolds that assemble the right hives for a given
+initiative — `init.py --name "…"` stands up a workspace and calls plugins-hive to
+wire in the House.
+→ [github.com/werkrbee/projects-hive](https://github.com/werkrbee/projects-hive)
 
 ## Shared conventions
 
@@ -174,7 +176,11 @@ fully usable on its own, and the umbrella works as a plain index without it.
 3. ✅ **mcp-hive** — shipped (tool/connector registry).
 4. ✅ **agents-hive** — shipped (Barry's fleet + Patricia's review agents).
 5. ✅ **plugins-hive** — shipped (bundle all four hives into one installable pack).
-6. **projects-hive** — scaffolds that assemble hives per initiative (build next).
+6. ✅ **projects-hive** — shipped (scaffold an initiative with the whole House assembled).
+
+**The House is complete** — six hives built (skills, rules, mcp, agents, plugins,
+projects) under the ai-hive umbrella, ruled by Barry and Patricia. Future growth
+(knowledge-hive, workflows-hive) can slot in when a real need and a standard appear.
 
 ## License
 
