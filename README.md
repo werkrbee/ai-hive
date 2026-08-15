@@ -150,12 +150,19 @@ you want to pull the whole House in a single clone, add the hives as **git
 submodules** under `hives/`:
 
 ```bash
-# from the ai-hive repo root — add each hive as it ships
-git submodule add https://github.com/werkrbee/skills-hive.git hives/skills-hive
-# git submodule add https://github.com/werkrbee/rules-hive.git  hives/rules-hive
-# git submodule add https://github.com/werkrbee/mcp-hive.git    hives/mcp-hive
+# from the ai-hive repo root — all six hives
+git submodule add https://github.com/werkrbee/skills-hive.git   hives/skills-hive
+git submodule add https://github.com/werkrbee/rules-hive.git    hives/rules-hive
+git submodule add https://github.com/werkrbee/mcp-hive.git      hives/mcp-hive
+git submodule add https://github.com/werkrbee/agents-hive.git   hives/agents-hive
+git submodule add https://github.com/werkrbee/plugins-hive.git  hives/plugins-hive
+git submodule add https://github.com/werkrbee/projects-hive.git hives/projects-hive
 git commit -m "Add hives as submodules"
 ```
+
+With all six under `hives/`, plugins-hive and projects-hive resolve their siblings
+automatically — from `hives/projects-hive` you can run
+`python3 scripts/init.py --name "New Initiative"` and the whole House assembles.
 
 Then anyone can clone everything at once:
 
