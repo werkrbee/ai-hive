@@ -1,3 +1,18 @@
 [submodule "hives/skills-hive"]
 	path = hives/skills-hive
 	url = https://github.com/werkrbee/skills-hive.git
+[submodule "hives/rules-hive"]
+	path = hives/rules-hive
+	url = https://github.com/werkrbee/rules-hive.git
+[submodule "hives/mcp-hive"]
+	path = hives/mcp-hive
+	url = https://github.com/werkrbee/mcp-hive.git
+[submodule "hives/agents-hive"]
+	path = hives/agents-hive
+	url = https://github.com/werkrbee/agents-hive.git
+[submodule "hives/plugins-hive"]
+	path = hives/plugins-hive
+	url = https://github.com/werkrbee/plugins-hive.git
+[submodule "hives/projects-hive"]
+	path = hives/projects-hive
+	url = https://github.com/werkrbee/projects-hive.git
