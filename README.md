@@ -55,7 +55,7 @@ portable artifact worth versioning — and that's what earns a hive:
 
 | Role | Hive | Purpose |
 |------|------|---------|
-| Bundles | `plugins-hive` | package skills + rules + tools + agents into installable packs |
+| Bundles | [`plugins-hive`](https://github.com/werkrbee/plugins-hive) ✅ | package skills + rules + tools + agents into installable packs |
 | Containers | `projects-hive` | scaffolds & workspace templates that assemble hives per initiative |
 
 Prompts, evals, and hooks intentionally **fold into the cells above** rather than
@@ -115,8 +115,13 @@ standard today, so this may live inside projects until one emerges.
 
 ### plugins-hive & projects-hive — *composition*
 
-`plugins-hive` bundles the others into installable packs; `projects-hive` holds
-scaffolds that assemble the right hives for a given initiative.
+**`plugins-hive`** ✅ bundles the others into installable packs — one `pack.json`
+and one command fans out to all four hives (its `werkrbee-core` pack ships Barry,
+Patricia, the Charter, core tools, and the review fleet together).
+→ [github.com/werkrbee/plugins-hive](https://github.com/werkrbee/plugins-hive)
+
+`projects-hive` (planned) holds scaffolds that assemble the right hives for a
+given initiative.
 
 ## Shared conventions
 
@@ -168,7 +173,8 @@ fully usable on its own, and the umbrella works as a plain index without it.
 2. ✅ **rules-hive** — shipped (`AGENTS.md` guardrails; the Queen Bee's Charter).
 3. ✅ **mcp-hive** — shipped (tool/connector registry).
 4. ✅ **agents-hive** — shipped (Barry's fleet + Patricia's review agents).
-5. Then compose everything via **plugins-hive** and scaffold with **projects-hive** (build next).
+5. ✅ **plugins-hive** — shipped (bundle all four hives into one installable pack).
+6. **projects-hive** — scaffolds that assemble hives per initiative (build next).
 
 ## License
 
