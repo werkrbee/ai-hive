@@ -48,7 +48,7 @@ portable artifact worth versioning — and that's what earns a hive:
 | Instructions | [`rules-hive`](https://github.com/werkrbee/rules-hive) | `AGENTS.md`, `CLAUDE.md` | ✅ **built** |
 | Capabilities | [`skills-hive`](https://github.com/werkrbee/skills-hive) | `SKILL.md` | ✅ **built** |
 | Tools | [`mcp-hive`](https://github.com/werkrbee/mcp-hive) | MCP server configs | ✅ **built** |
-| Actors | `agents-hive` | subagent / persona defs | planned |
+| Actors | [`agents-hive`](https://github.com/werkrbee/agents-hive) | subagent / persona defs | ✅ **built** |
 | Orchestration | `workflows-hive` | recipes / pipelines | planned |
 
 **Composition & delivery** (not layers, but how the above ship together):
@@ -96,11 +96,12 @@ A registry of MCP server configs — where agents actually act. Merges into ever
 harness's MCP config from one source of truth.
 → [github.com/werkrbee/mcp-hive](https://github.com/werkrbee/mcp-hive)
 
-### agents-hive — *actors*
+### agents-hive — *actors* ✅
 
-Subagent and persona definitions — literally Barry's fleet as durable artifacts.
-Conceptually core, but agent formats vary by harness, so expect per-harness
-adapters (as in skills-hive).
+Subagent and persona definitions — Barry's fleet (explore, code-review,
+security-review) and Patricia's `charter-review`, as durable artifacts. Agent
+formats vary by harness, so each persona is rendered per harness.
+→ [github.com/werkrbee/agents-hive](https://github.com/werkrbee/agents-hive)
 
 ### workflows-hive — *orchestration*
 
@@ -166,8 +167,8 @@ fully usable on its own, and the umbrella works as a plain index without it.
 1. ✅ **skills-hive** — shipped.
 2. ✅ **rules-hive** — shipped (`AGENTS.md` guardrails; the Queen Bee's Charter).
 3. ✅ **mcp-hive** — shipped (tool/connector registry).
-4. **agents-hive** — Barry's fleet as durable artifacts (build next).
-5. Then compose everything via **plugins-hive** and scaffold with **projects-hive**.
+4. ✅ **agents-hive** — shipped (Barry's fleet + Patricia's review agents).
+5. Then compose everything via **plugins-hive** and scaffold with **projects-hive** (build next).
 
 ## License
 

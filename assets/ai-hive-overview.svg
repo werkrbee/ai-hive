@@ -12,7 +12,7 @@
     <polygon points="57.16,33 0,66 -57.16,33 -57.16,-33 0,-66 57.16,-33" transform="translate(400,211.1)" fill="#F6DCA0"/>
     <polygon points="57.16,33 0,66 -57.16,33 -57.16,-33 0,-66 57.16,-33" transform="translate(460,315)" fill="#F6DCA0"/>
     <polygon points="57.16,33 0,66 -57.16,33 -57.16,-33 0,-66 57.16,-33" transform="translate(400,418.9)" fill="#F6DCA0"/>
-    <polygon points="57.16,33 0,66 -57.16,33 -57.16,-33 0,-66 57.16,-33" transform="translate(280,418.9)" fill="#F7EFDD"/>
+    <polygon points="57.16,33 0,66 -57.16,33 -57.16,-33 0,-66 57.16,-33" transform="translate(280,418.9)" fill="#F6DCA0"/>
     <polygon points="57.16,33 0,66 -57.16,33 -57.16,-33 0,-66 57.16,-33" transform="translate(220,315)" fill="#F7EFDD"/>
   </g>
 
@@ -35,7 +35,7 @@
 
     <text x="280" y="411" font-size="13.5" font-weight="700" fill="#17140F">agents-hive</text>
     <text x="280" y="427" font-size="11" fill="#7A6B4F">actors</text>
-    <text x="280" y="443" font-size="10.5" font-weight="700" fill="#B9791A">build next</text>
+    <text x="280" y="443" font-size="10.5" font-weight="700" fill="#B9791A">built</text>
 
     <text x="220" y="307" font-size="13" font-weight="700" fill="#17140F">workflows-hive</text>
     <text x="220" y="323" font-size="11" fill="#7A6B4F">orchestration</text>
