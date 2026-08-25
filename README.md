@@ -14,6 +14,29 @@ to the individual hives, explains how they fit together, and defines the shared
 conventions every hive follows. Think of it as the entry hall of the House of
 Agents — each room (hive) furnishes one layer of an agent system.
 
+## Mission — build the factory, then the product
+
+werkrbee is a bet on building the **factory**, not one-off products. Instead of
+prompting an agent, shipping one app, and starting over from zero, ai-hive builds the
+reusable layer that *stamps out* agent products — so every next product ships faster and
+stronger. In Allie K. Miller's framing, we invest in the factory behind the task, not
+the task itself.
+
+- **Primitives** → open standards (`SKILL.md`, `AGENTS.md`, MCP) + connectors + reusable skills/rules/agents.
+- **The factory** → the House of Hives (the two-axis pattern, `plugins-hive` packs, `projects-hive` scaffolds).
+- **Products** → `lineup` today; each future product cheaper and stronger than the last.
+
+**Objective:** be a *harness-agnostic factory for AI-agent products* — a portable,
+standard-backed set of layers that lets a small team with agency assemble and ship new
+agent products on any harness, each faster than the last. Success isn't any one product;
+it's the **slope** — the marginal cost of the next product trending toward zero.
+
+**`lineup` is our Basecamp.** Just as Ruby on Rails was hardened by building a real
+product (Basecamp) on it, `lineup` is the first real product we run through the factory
+to prove it works — its job is to stress-test the hives against live data, real
+connectors, and real governance, so every gap it finds improves the factory, not just
+the app. Full write-up: [`docs/factory-thesis.md`](docs/factory-thesis.md).
+
 ## Who reigns over what
 
 <p align="center">
