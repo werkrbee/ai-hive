@@ -37,12 +37,13 @@ to prove it works — its job is to stress-test the hives against live data, rea
 connectors, and real governance, so every gap it finds improves the factory, not just
 the app. Full write-up: [`docs/factory-thesis.md`](docs/factory-thesis.md).
 
-**Interface independence.** The factory produces capabilities; the delivery principle is
-that those capabilities shouldn't be bound to any one interface. A React dashboard is one
-client; the enduring product is the service that understands goals, coordinates werk,
-protects budgets, and delivers results — reachable interchangeably via dashboard, chat,
-voice, or another agent (API + MCP in front; durable execution, replaceable workers, and
-human-controlled budgets behind). Architecture direction: [`docs/interface-independence.md`](docs/interface-independence.md).
+**Interface independence.** The factory produces capabilities; a delivery principle for
+*any* product built on the hives is that those capabilities shouldn't be bound to one
+interface. A dashboard is one client; the enduring product is the service that understands
+goals, coordinates work, protects budgets, and delivers results — reachable interchangeably
+via dashboard, chat, voice, or another agent (API + MCP in front; durable execution,
+replaceable workers, and human-controlled budgets behind). werkrbee/lineup is the worked
+example. Architecture direction: [`docs/interface-independence.md`](docs/interface-independence.md).
 
 ## Who reigns over what
 

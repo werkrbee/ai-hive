@@ -12,13 +12,14 @@ capabilities · tools · actors · orchestration, plus composition/delivery). Re
 first so your addition matches their voice: plain, unhurried, prose over bullets,
 sentence case, two weights, no hype.
 
-**Goal:** Add a new architecture-direction document that makes the case for decoupling
-werkrbee's capabilities from any single interface. React is one way to use the product;
-the enduring product is the *service* that understands goals, coordinates werk, protects
-budgets, and delivers results. Frame it with the Blockbuster→Netflix question: *what
-value remains when the delivery channel changes?* For werkrbee, that value is **trusted
-execution under human direction** — reachable interchangeably via dashboard, chat, voice,
-or another agent.
+**Goal:** Add a new architecture-direction document that makes the case, for *any* product
+built on the hives, for decoupling its capabilities from any single interface. A UI (React,
+say) is one way in; the enduring product is the *service* that understands goals,
+coordinates work, protects budgets, and delivers results. Frame it with the
+Blockbuster→Netflix question: *what value remains when the delivery channel changes?* The
+answer that survives is **trusted execution under human direction** — reachable
+interchangeably via dashboard, chat, voice, or another agent. Keep the principle general
+and use werkrbee/lineup only as a clearly-labeled worked example, not the subject.
 
 **Create** `docs/interface-independence.md` containing, in order:
 
