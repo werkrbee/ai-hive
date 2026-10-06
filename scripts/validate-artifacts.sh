@@ -5,7 +5,8 @@
 # Exit non-zero on any failure (the hook tolerates failures; CI does not).
 set -uo pipefail
 
-cd "$(git rev-parse --show-toplevel)"
+root=$(git rev-parse --show-toplevel) || exit 1
+cd "$root" || exit 1
 
 fail=0
 skills=0

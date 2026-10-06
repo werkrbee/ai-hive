@@ -6,7 +6,8 @@
 # Exit non-zero on any failure.
 set -uo pipefail
 
-cd "$(git rev-parse --show-toplevel)"
+root=$(git rev-parse --show-toplevel) || exit 1
+cd "$root" || exit 1
 
 fail=0
 pass() { echo "ok    $1"; }
