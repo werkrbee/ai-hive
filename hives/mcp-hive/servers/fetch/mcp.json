@@ -1,0 +1,10 @@
+{
+  "name": "fetch",
+  "description": "Fetch and convert web pages to text for the agent.",
+  "transport": "stdio",
+  "config": {
+    "command": "uvx",
+    "args": ["mcp-server-fetch"],
+    "env": {}
+  }
+}

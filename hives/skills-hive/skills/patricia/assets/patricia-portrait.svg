@@ -1,0 +1,24 @@
+<svg viewBox="0 0 280 340" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Patricia, the Queen Bee">
+  <title>Patricia — the Queen Bee</title>
+  <desc>A regal portrait: a crowned queen bee with a jeweled tiara on a hexagon medallion framed in honey, with the name Patricia and the title governance guardian.</desc>
+
+  <rect x="6" y="6" width="268" height="328" rx="24" fill="#FBF6EA" stroke="#EADFC6" stroke-width="2.5"/>
+
+  <polygon transform="translate(140,150)" points="90.06,52 0,104 -90.06,52 -90.06,-52 0,-104 90.06,-52" fill="none" stroke="#F2A81D" stroke-width="3"/>
+  <polygon transform="translate(140,150)" points="82.3,47.5 0,95 -82.3,47.5 -82.3,-47.5 0,-95 82.3,-47.5" fill="#17140F" stroke="#17140F" stroke-width="4.5" stroke-linejoin="round"/>
+
+  <g transform="translate(140,150) scale(2.4) translate(-125,-125)">
+    <ellipse cx="116" cy="120" rx="9.5" ry="5.8" fill="#F7EFDD" opacity="0.95" transform="rotate(-28 116 120)"/>
+    <ellipse cx="134" cy="120" rx="9.5" ry="5.8" fill="#F7EFDD" opacity="0.95" transform="rotate(28 134 120)"/>
+    <rect x="118.5" y="117" width="13" height="27" rx="6.5" fill="#F2A81D"/>
+    <rect x="118.5" y="124.5" width="13" height="3" rx="1" fill="#17140F"/>
+    <rect x="118.5" y="132.5" width="13" height="3" rx="1" fill="#17140F"/>
+    <circle cx="125" cy="115" r="5.2" fill="#17140F" stroke="#F2A81D" stroke-width="1"/>
+    <rect x="112.5" y="105.5" width="25" height="3.2" rx="1.6" fill="#F2A81D"/>
+    <circle cx="116.5" cy="102.5" r="2.5" fill="#F2A81D"/><circle cx="125" cy="100.8" r="2.9" fill="#F2A81D"/><circle cx="133.5" cy="102.5" r="2.5" fill="#F2A81D"/>
+  </g>
+
+  <text x="140" y="286" font-family="'Poppins','Helvetica Neue',Arial,sans-serif" font-size="22" font-weight="800" letter-spacing="1.5" fill="#17140F" text-anchor="middle">PATRICIA</text>
+  <text x="140" y="306" font-family="'Poppins','Helvetica Neue',Arial,sans-serif" font-size="13.5" font-weight="500" fill="#7A6B4F" text-anchor="middle">the Queen Bee</text>
+  <text x="140" y="323" font-family="'Poppins','Helvetica Neue',Arial,sans-serif" font-size="11" font-weight="700" letter-spacing="1.5" fill="#B9791A" text-anchor="middle">GOVERNANCE GUARDIAN</text>
+</svg>

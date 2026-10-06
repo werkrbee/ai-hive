@@ -1,0 +1,10 @@
+{
+  "name": "git",
+  "description": "Inspect and operate on a local git repository.",
+  "transport": "stdio",
+  "config": {
+    "command": "uvx",
+    "args": ["mcp-server-git", "--repository", "${WORKSPACE}"],
+    "env": {}
+  }
+}
