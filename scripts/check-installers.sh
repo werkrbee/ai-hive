@@ -26,7 +26,10 @@ while IFS= read -r -d '' f; do
 done < <(find . -type f -name '*.py' -not -path './.git/*' -print0)
 
 echo "== smoke"
-before=$(git status --porcelain)
+# Snapshot with the real HOME so both sides see the same global git config (excludesFile).
+real_home="$HOME"
+repo_status() { HOME="$real_home" git status --porcelain; }
+before=$(repo_status)
 sandbox=$(mktemp -d)
 trap 'rm -rf "$sandbox"' EXIT
 export HOME="$sandbox/home"
@@ -58,8 +61,8 @@ run "plugins-hive install.py --dry-run" \
 run "projects-hive init.py --dry-run" \
   python3 hives/projects-hive/scripts/init.py --name ci-smoke --dir "$sandbox/new" --hives-dir hives --dry-run
 
-if [ "$(git status --porcelain)" != "$before" ]; then
-  flunk "installers left changes in the repo"; git status --short | sed 's/^/      /'
+if [ "$(repo_status)" != "$before" ]; then
+  flunk "installers left changes in the repo"; repo_status | sed 's/^/      /'
 fi
 
 [ "$fail" -eq 0 ] && echo "OK  installer checks passed"
