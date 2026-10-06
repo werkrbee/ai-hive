@@ -13,19 +13,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Shell syntax check (scripts + installers)
-        run: |
-          found=0
-          while IFS= read -r -d '' f; do
-            found=1
-            bash -n "$f" && echo "ok  $f"
-          done < <(find . -type f -name '*.sh' -not -path './.git/*' -print0)
-          [ "$found" -eq 1 ] || echo "no shell scripts found"
+      - name: Installer checks (syntax + sandboxed smoke install)
+        run: ./scripts/check-installers.sh
 
       - name: Validate SKILL.md / AGENTS.md artifacts
-        run: |
-          chmod +x scripts/validate-artifacts.sh
-          ./scripts/validate-artifacts.sh
+        run: ./scripts/validate-artifacts.sh
 
       - name: ShellCheck (non-blocking)
         continue-on-error: true
