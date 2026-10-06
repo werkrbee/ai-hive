@@ -1,0 +1,42 @@
+<svg viewBox="0 0 760 240" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="agents-hive — portable agent personas">
+  <title>agents-hive — a trio of worker agents at the core</title>
+  <desc>A honeycomb of seven hexagons with three small worker bees at the center cell, six harness cells each holding skill dots, and the wordmark agents-hive.</desc>
+  <rect x="1.5" y="1.5" width="757" height="237" rx="30" fill="#FBF6EA" stroke="#EADFC6" stroke-width="2.5"/>
+  <g transform="translate(30,20.5) scale(0.83)">
+    <g fill="#F7EFDD" stroke="#17140F" stroke-width="4.5" stroke-linejoin="round">
+      <polygon transform="translate(82.75,55.5)"  points="34.64,20 0,40 -34.64,20 -34.64,-20 0,-40 34.64,-20"/>
+      <polygon transform="translate(157.25,55.5)" points="34.64,20 0,40 -34.64,20 -34.64,-20 0,-40 34.64,-20"/>
+      <polygon transform="translate(194.5,120)"   points="34.64,20 0,40 -34.64,20 -34.64,-20 0,-40 34.64,-20"/>
+      <polygon transform="translate(157.25,184.5)" points="34.64,20 0,40 -34.64,20 -34.64,-20 0,-40 34.64,-20"/>
+      <polygon transform="translate(82.75,184.5)"  points="34.64,20 0,40 -34.64,20 -34.64,-20 0,-40 34.64,-20"/>
+      <polygon transform="translate(45.5,120)"     points="34.64,20 0,40 -34.64,20 -34.64,-20 0,-40 34.64,-20"/>
+    </g>
+    <g fill="#E1901A">
+      <circle cx="82.75" cy="47.5" r="3.8"/><circle cx="74.75" cy="61.5" r="3.8"/><circle cx="90.75" cy="61.5" r="3.8"/>
+      <circle cx="149.25" cy="55.5" r="3.8"/><circle cx="165.25" cy="55.5" r="3.8"/>
+      <circle cx="187.5" cy="113" r="3.8"/><circle cx="201.5" cy="113" r="3.8"/><circle cx="187.5" cy="127" r="3.8"/><circle cx="201.5" cy="127" r="3.8"/>
+      <circle cx="157.25" cy="176.5" r="3.8"/><circle cx="149.25" cy="190.5" r="3.8"/><circle cx="165.25" cy="190.5" r="3.8"/>
+      <circle cx="74.75" cy="184.5" r="3.8"/><circle cx="90.75" cy="184.5" r="3.8"/>
+      <circle cx="45.5" cy="112" r="3.8"/><circle cx="37.5" cy="126" r="3.8"/><circle cx="53.5" cy="126" r="3.8"/>
+    </g>
+    <polygon transform="translate(120,120)" points="34.64,20 0,40 -34.64,20 -34.64,-20 0,-40 34.64,-20"
+             fill="#17140F" stroke="#17140F" stroke-width="4.5" stroke-linejoin="round"/>
+    <g>
+      <circle cx="120" cy="103.5" r="1.7" fill="#F2A81D"/>
+      <ellipse cx="120" cy="110" rx="3.6" ry="5" fill="#F2A81D"/>
+      <rect x="116.4" y="109.2" width="7.2" height="1.7" fill="#17140F"/>
+      <circle cx="108" cy="121.5" r="1.7" fill="#F2A81D"/>
+      <ellipse cx="108" cy="128" rx="3.6" ry="5" fill="#F2A81D"/>
+      <rect x="104.4" y="127.2" width="7.2" height="1.7" fill="#17140F"/>
+      <circle cx="132" cy="121.5" r="1.7" fill="#F2A81D"/>
+      <ellipse cx="132" cy="128" rx="3.6" ry="5" fill="#F2A81D"/>
+      <rect x="128.4" y="127.2" width="7.2" height="1.7" fill="#17140F"/>
+    </g>
+  </g>
+  <g font-family="'Poppins','Futura','Century Gothic','Trebuchet MS','Helvetica Neue',Arial,sans-serif">
+    <text x="272" y="128" font-size="66" font-weight="800" letter-spacing="-2" fill="#17140F">agents<tspan fill="#F2A81D">·hive</tspan></text>
+    <rect x="274" y="146" width="52" height="4" rx="2" fill="#F2A81D"/>
+    <text x="274" y="176" font-size="17" font-weight="700" letter-spacing="3.5" fill="#17140F">ONE HIVE · EVERY HARNESS</text>
+    <text x="274" y="201" font-size="14.5" font-weight="500" letter-spacing="0.6" fill="#7A6B4F">Portable agent personas, rendered per harness</text>
+  </g>
+</svg>

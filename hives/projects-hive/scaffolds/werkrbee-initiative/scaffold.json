@@ -1,0 +1,6 @@
+{
+  "name": "werkrbee-initiative",
+  "description": "A ready-to-work initiative workspace, wired to the werkrbee-core pack — Barry (King), Patricia (Queen), the Queen Bee's Charter, core MCP tools, and the review fleet.",
+  "pack": "werkrbee-core",
+  "harnesses": ["claude-code", "cursor", "github-copilot"]
+}

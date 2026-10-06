@@ -1,0 +1,27 @@
+<svg viewBox="0 0 240 240" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="skills-hive — harness monograms">
+  <title>skills-hive — harness monogram cells</title>
+
+  <g fill="#F7EFDD" stroke="#17140F" stroke-width="4.5" stroke-linejoin="round">
+    <polygon transform="translate(82.75,55.5)"  points="34.64,20 0,40 -34.64,20 -34.64,-20 0,-40 34.64,-20"/>
+    <polygon transform="translate(157.25,55.5)" points="34.64,20 0,40 -34.64,20 -34.64,-20 0,-40 34.64,-20"/>
+    <polygon transform="translate(194.5,120)"   points="34.64,20 0,40 -34.64,20 -34.64,-20 0,-40 34.64,-20"/>
+    <polygon transform="translate(157.25,184.5)" points="34.64,20 0,40 -34.64,20 -34.64,-20 0,-40 34.64,-20"/>
+    <polygon transform="translate(82.75,184.5)"  points="34.64,20 0,40 -34.64,20 -34.64,-20 0,-40 34.64,-20"/>
+    <polygon transform="translate(45.5,120)"     points="34.64,20 0,40 -34.64,20 -34.64,-20 0,-40 34.64,-20"/>
+  </g>
+
+  <g font-family="'Poppins','Futura','Helvetica Neue',Arial,sans-serif" font-size="22" font-weight="800" letter-spacing="-0.5" fill="#17140F" text-anchor="middle">
+    <text x="82.75" y="63">Cl</text>
+    <text x="157.25" y="63">Cu</text>
+    <text x="194.5" y="127.5">Cx</text>
+    <text x="157.25" y="192">Co</text>
+    <text x="82.75" y="192">Ge</text>
+    <text x="45.5" y="127.5">Sc</text>
+  </g>
+
+  <polygon transform="translate(120,120)" points="34.64,20 0,40 -34.64,20 -34.64,-20 0,-40 34.64,-20"
+           fill="#17140F" stroke="#17140F" stroke-width="4.5" stroke-linejoin="round"/>
+  <polygon transform="translate(120,120)" points="20.78,12 0,24 -20.78,12 -20.78,-12 0,-24 20.78,-12"
+           fill="none" stroke="#F2A81D" stroke-width="4.5" stroke-linejoin="round"/>
+  <polygon transform="translate(120,120)" points="7.79,4.5 0,9 -7.79,4.5 -7.79,-4.5 0,-9 7.79,-4.5" fill="#F2A81D"/>
+</svg>

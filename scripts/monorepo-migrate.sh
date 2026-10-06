@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Convert ai-hive's git submodules (under hives/) into plain tracked directories — a monorepo.
-# REVIEW BEFORE RUNNING. Run from the repo root on a clean working tree. Best run in Claude
-# Code so it can verify each step. Make a backup/branch first:  git switch -c refactor/monorepo
+# Each hive is restored as ordinary files from the exact commit the superproject recorded,
+# so the migrated tree matches the submodule SHAs. Hive history stays in each hive's own repo.
+# Run from the repo root on a clean working tree, on a branch:  git switch -c refactor/monorepo
 set -euo pipefail
 
 cd "$(git rev-parse --show-toplevel)"
@@ -10,37 +11,44 @@ if [ ! -f .gitmodules ]; then
   echo "No .gitmodules — nothing to migrate."; exit 0
 fi
 
-echo ">> Ensuring submodule contents are present..."
-git submodule update --init --recursive
+if [ -n "$(git status --porcelain)" ]; then
+  echo "Working tree is not clean. Commit or stash first." >&2; exit 1
+fi
 
-# Collect submodule paths from .gitmodules
+echo ">> Ensuring submodule contents are present..."
+git submodule update --init
+
 paths=$(git config -f .gitmodules --get-regexp '^submodule\..*\.path$' | awk '{print $2}')
+tmp=$(mktemp -d)
+trap 'rm -rf "$tmp"' EXIT
 
 for p in $paths; do
-  echo ">> Absorbing $p"
-  # 1. de-register the submodule (removes it from .git/config, empties .git/modules state later)
+  sha=$(git ls-tree HEAD "$p" | awk '$2 == "commit" {print $3}')
+  if [ -z "$sha" ]; then
+    echo "!! $p is not a recorded submodule gitlink; skipping" >&2; continue
+  fi
+  if [ -n "$(git -C "$p" status --porcelain)" ]; then
+    echo "!! $p has uncommitted changes; commit them in the hive first" >&2; exit 1
+  fi
+
+  echo ">> Absorbing $p @ ${sha:0:7}"
+  # 1. export the recorded commit's files before the submodule's git dir goes away
+  mkdir -p "$tmp/$p"
+  git -C "$p" archive "$sha" | tar -x -C "$tmp/$p"
+  # 2. de-register the submodule and drop the gitlink and its internal git dir
   git submodule deinit -f "$p"
-  # 2. remove the gitlink from the index (keep files on disk via re-checkout below)
-  git rm -f "$p" >/dev/null
-  # 3. drop the internal submodule git dir
+  git rm -q -f "$p"
   rm -rf ".git/modules/$p"
-  # 4. restore the working-tree content as plain files from the submodule's last commit
-  #    (git rm removed them; bring them back from the submodule's objects via a fresh checkout)
+  # 3. restore the content as plain files and stage them
+  rm -rf "$p"
+  mkdir -p "$(dirname "$p")"
+  mv "$tmp/$p" "$p"
+  git add "$p"
 done
 
-echo ">> NOTE: after this loop, re-populate hives/ from your local hive working copies"
-echo "   OR from a clean clone of each hive. If the directories are now empty, copy the"
-echo "   hive contents in (minus their .git) before committing. Verify each hives/<name>/"
-echo "   contains real files, not an empty dir."
-
-# 5. remove the submodule manifest
-git rm -f .gitmodules >/dev/null 2>&1 || rm -f .gitmodules
-
-echo ">> Staging migrated hives as plain files..."
-git add hives .gitmodules 2>/dev/null || true
-git add -A hives
+git rm -q -f .gitmodules
 
 echo
-echo ">> Done de-wiring submodules. Review 'git status', confirm every hives/<name>/ has"
-echo "   its files, then: git commit -m 'refactor: consolidate hives into monorepo'"
-echo "   Sanity check: a fresh 'git clone' should need no --recurse-submodules."
+echo ">> Done. Every hive is now plain tracked files. Review 'git status', then:"
+echo "   git commit -m 'refactor: consolidate hives into monorepo'"
+echo "   Sanity check: a fresh 'git clone' needs no --recurse-submodules."

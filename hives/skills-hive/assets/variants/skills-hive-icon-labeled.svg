@@ -1,0 +1,50 @@
+<svg viewBox="0 0 300 250" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="skills-hive — labeled harness fleet">
+  <title>skills-hive — Barry orchestrating labeled harness cells</title>
+
+  <rect x="232.5" y="121.5" width="11" height="7" rx="3" fill="#E1901A"/>
+
+  <g fill="#F7EFDD" stroke="#17140F" stroke-width="4.5" stroke-linejoin="round">
+    <polygon transform="translate(87.75,60.5)"  points="34.64,20 0,40 -34.64,20 -34.64,-20 0,-40 34.64,-20"/>
+    <polygon transform="translate(162.25,60.5)" points="34.64,20 0,40 -34.64,20 -34.64,-20 0,-40 34.64,-20"/>
+    <polygon transform="translate(199.5,125)"   points="34.64,20 0,40 -34.64,20 -34.64,-20 0,-40 34.64,-20"/>
+    <polygon transform="translate(162.25,189.5)" points="34.64,20 0,40 -34.64,20 -34.64,-20 0,-40 34.64,-20"/>
+    <polygon transform="translate(87.75,189.5)"  points="34.64,20 0,40 -34.64,20 -34.64,-20 0,-40 34.64,-20"/>
+    <polygon transform="translate(50.5,125)"     points="34.64,20 0,40 -34.64,20 -34.64,-20 0,-40 34.64,-20"/>
+  </g>
+
+  <polygon transform="translate(261,125)" points="19.05,11 0,22 -19.05,11 -19.05,-11 0,-22 19.05,-11"
+           fill="#F7EFDD" stroke="#17140F" stroke-width="3.5" stroke-linejoin="round"/>
+
+  <g font-family="'Poppins','Helvetica Neue',Arial,sans-serif" font-weight="700" fill="#17140F" text-anchor="middle">
+    <text x="87.75" y="62" font-size="11.5">Claude</text>
+    <text x="162.25" y="62" font-size="11.5">Cursor</text>
+    <text x="199.5" y="121" font-size="10.5">GitHub</text>
+    <text x="199.5" y="133" font-size="10.5">Copilot</text>
+    <text x="162.25" y="192" font-size="11.5">Codex</text>
+    <text x="87.75" y="192" font-size="11.5">Gemini</text>
+    <text x="50.5" y="128" font-size="11.5">Goose</text>
+    <text x="261" y="128" font-size="8.5">Scout</text>
+  </g>
+
+  <g fill="#E1901A">
+    <circle cx="79.75" cy="72.5" r="2.3"/><circle cx="87.75" cy="72.5" r="2.3"/><circle cx="95.75" cy="72.5" r="2.3"/>
+    <circle cx="154.25" cy="72.5" r="2.3"/><circle cx="162.25" cy="72.5" r="2.3"/><circle cx="170.25" cy="72.5" r="2.3"/>
+    <circle cx="154.25" cy="201.5" r="2.3"/><circle cx="162.25" cy="201.5" r="2.3"/><circle cx="170.25" cy="201.5" r="2.3"/>
+    <circle cx="79.75" cy="201.5" r="2.3"/><circle cx="87.75" cy="201.5" r="2.3"/><circle cx="95.75" cy="201.5" r="2.3"/>
+    <circle cx="42.5" cy="137" r="2.3"/><circle cx="50.5" cy="137" r="2.3"/><circle cx="58.5" cy="137" r="2.3"/>
+  </g>
+
+  <polygon transform="translate(125,125)" points="34.64,20 0,40 -34.64,20 -34.64,-20 0,-40 34.64,-20"
+           fill="#17140F" stroke="#17140F" stroke-width="4.5" stroke-linejoin="round"/>
+
+  <g>
+    <ellipse cx="116" cy="118" rx="8.4" ry="5" fill="#F7EFDD" opacity="0.92" transform="rotate(-28 116 118)"/>
+    <ellipse cx="134" cy="118" rx="8.4" ry="5" fill="#F7EFDD" opacity="0.92" transform="rotate(28 134 118)"/>
+    <rect x="119" y="115" width="12" height="24" rx="6" fill="#F2A81D"/>
+    <rect x="119" y="121.5" width="12" height="2.6" rx="1" fill="#17140F"/>
+    <rect x="119" y="128.5" width="12" height="2.6" rx="1" fill="#17140F"/>
+    <circle cx="125" cy="113" r="4.8" fill="#17140F"/>
+    <path d="M118.5,107.5 L120.8,103 L123,107 L125,102 L127,107 L129.2,103 L131.5,107.5 Z" fill="#F2A81D"/>
+    <text x="125" y="156" font-family="'Poppins','Helvetica Neue',Arial,sans-serif" font-size="10" font-weight="700" letter-spacing="1.5" fill="#F7EFDD" text-anchor="middle">BARRY</text>
+  </g>
+</svg>
