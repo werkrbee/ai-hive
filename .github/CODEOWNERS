@@ -1,0 +1,9 @@
+# Code owners — reviewers auto-requested on matching paths.
+# TODO: replace the placeholder with real GitHub handles/teams before relying on enforcement.
+
+* @werkrbee/maintainers
+
+# Governance artifacts get extra scrutiny.
+/hives/rules-hive/   @werkrbee/maintainers
+/GOVERNANCE.md       @werkrbee/maintainers
+/SECURITY.md         @werkrbee/maintainers

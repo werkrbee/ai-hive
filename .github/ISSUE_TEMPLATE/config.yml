@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Security report
+    url: https://github.com/werkrbee/ai-hive/security/advisories/new
+    about: Report a vulnerability privately (do not open a public issue).
+  - name: Roadmap
+    url: https://github.com/werkrbee/ai-hive/blob/main/ROADMAP.md
+    about: See planned work before proposing new scope.

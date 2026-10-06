@@ -1,0 +1,29 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git:*)",
+      "Bash(gh:*)",
+      "Bash(npm:*)",
+      "Bash(npx:*)",
+      "Bash(bash scripts/*)",
+      "Bash(shellcheck:*)",
+      "Edit",
+      "Write"
+    ],
+    "ask": [
+      "Bash(git push:*)",
+      "Bash(gh release:*)",
+      "Bash(rm:*)"
+    ]
+  },
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          { "type": "command", "command": "scripts/validate-artifacts.sh || true" }
+        ]
+      }
+    ]
+  }
+}
