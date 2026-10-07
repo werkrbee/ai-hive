@@ -4,15 +4,15 @@
 
 # ai-hive
 
-> **The House of Hives.** A family of portable, versioned repositories for
+> **The House of Hives.** A family of portable, versioned hives for
 > [werkrbee](https://github.com/werkrbee)'s reusable AI artifacts — each built on
 > an open standard, harness-agnostic, and installable across every major agent
 > harness. Barry, the chief-of-staff orchestrator, is the king at the center.
 
-`ai-hive` is the **umbrella index**. It doesn't hold artifacts itself; it points
-to the individual hives, explains how they fit together, and defines the shared
-conventions every hive follows. Think of it as the entry hall of the House of
-Agents — each room (hive) furnishes one layer of an agent system.
+`ai-hive` is the **House**. Each hive lives under `hives/` as a self-contained
+directory with its own installer; the top level explains how they fit together and
+defines the shared conventions every hive follows. Think of it as the entry hall of
+the House of Agents — each room (hive) furnishes one layer of an agent system.
 
 ## Mission — build the factory, then the product
 
@@ -55,12 +55,12 @@ The colony is ruled by two sovereigns with a clean separation of powers:
 
 - **Patricia, the Queen Bee — governance.** Like a queen's pheromones regulate the
   hive, Patricia sets the always-on *law* every agent inherits. Her domain is
-  [`rules-hive`](https://github.com/werkrbee/rules-hive) and the **Queen Bee's
+  [`rules-hive`](hives/rules-hive) and the **Queen Bee's
   Charter** (`AGENTS.md`): identity, safety, human-in-the-loop, and the rules of
   the house. She legislates.
 - **Barry, the King Bee — execution.** Barry takes the Queen's law as given and
   *runs operations*: decomposing goals, delegating to the fleet, synthesizing
-  results. His domain is [`skills-hive`](https://github.com/werkrbee/skills-hive)
+  results. His domain is [`skills-hive`](hives/skills-hive)
   and orchestration (`SKILL.md`). He executes.
 
 Everything else is the colony they co-reign over: **the harnesses** are the worker
@@ -76,24 +76,24 @@ portable artifact worth versioning — and that's what earns a hive:
 | Layer | Hive | Artifact / standard | Status |
 |-------|------|---------------------|--------|
 | Context | `knowledge-hive` | docs, memory, RAG corpora | planned |
-| Instructions | [`rules-hive`](https://github.com/werkrbee/rules-hive) | `AGENTS.md`, `CLAUDE.md` | ✅ **built** |
-| Capabilities | [`skills-hive`](https://github.com/werkrbee/skills-hive) | `SKILL.md` | ✅ **built** |
-| Tools | [`mcp-hive`](https://github.com/werkrbee/mcp-hive) | MCP server configs | ✅ **built** |
-| Actors | [`agents-hive`](https://github.com/werkrbee/agents-hive) | subagent / persona defs | ✅ **built** |
+| Instructions | [`rules-hive`](hives/rules-hive) | `AGENTS.md`, `CLAUDE.md` | ✅ **built** |
+| Capabilities | [`skills-hive`](hives/skills-hive) | `SKILL.md` | ✅ **built** |
+| Tools | [`mcp-hive`](hives/mcp-hive) | MCP server configs | ✅ **built** |
+| Actors | [`agents-hive`](hives/agents-hive) | subagent / persona defs | ✅ **built** |
 | Orchestration | `workflows-hive` | recipes / pipelines | planned |
 
 **Composition & delivery** (not layers, but how the above ship together):
 
 | Role | Hive | Purpose |
 |------|------|---------|
-| Bundles | [`plugins-hive`](https://github.com/werkrbee/plugins-hive) ✅ | package skills + rules + tools + agents into installable packs |
-| Containers | [`projects-hive`](https://github.com/werkrbee/projects-hive) ✅ | scaffolds & workspace templates that assemble hives per initiative |
+| Bundles | [`plugins-hive`](hives/plugins-hive) ✅ | package skills + rules + tools + agents into installable packs |
+| Containers | [`projects-hive`](hives/projects-hive) ✅ | scaffolds & workspace templates that assemble hives per initiative |
 
 Prompts, evals, and hooks intentionally **fold into the cells above** rather than
 standing alone — prompts live inside skills, evals ship beside the skill/agent
 they test, and hooks are per-harness config.
 
-## Why a hive earns its own repo
+## What earns a hive
 
 A category becomes a hive only when its artifact passes two tests:
 
@@ -103,7 +103,7 @@ A category becomes a hive only when its artifact passes two tests:
 
 That's why `skills-hive`, `rules-hive`, and `mcp-hive` are clear yeses — each has
 a real standard. Categories without one (models, datasets, raw prompts) are better
-as config *inside* projects than as standalone repos.
+as config *inside* projects than as hives of their own.
 
 ## The hives
 
@@ -112,27 +112,27 @@ as config *inside* projects than as standalone repos.
 Portable `SKILL.md` skills, installable into every major harness. Home of
 **Barry** (the King Bee, orchestrator) and **Patricia** (the Queen Bee, governance
 guardian), and the two-axis pattern the other hives copy.
-→ [github.com/werkrbee/skills-hive](https://github.com/werkrbee/skills-hive)
+→ [`hives/skills-hive`](hives/skills-hive)
 
 ### rules-hive — *instructions* ✅
 
 Always-on guardrails as portable `AGENTS.md` / `CLAUDE.md` files — Patricia's
 domain, home of the **Queen Bee's Charter**. The most portable sibling to skills,
 since `AGENTS.md` is a cross-harness standard.
-→ [github.com/werkrbee/rules-hive](https://github.com/werkrbee/rules-hive)
+→ [`hives/rules-hive`](hives/rules-hive)
 
 ### mcp-hive — *tools* ✅
 
 A registry of MCP server configs — where agents actually act. Merges into every
 harness's MCP config from one source of truth.
-→ [github.com/werkrbee/mcp-hive](https://github.com/werkrbee/mcp-hive)
+→ [`hives/mcp-hive`](hives/mcp-hive)
 
 ### agents-hive — *actors* ✅
 
 Subagent and persona definitions — Barry's fleet (explore, code-review,
 security-review) and Patricia's `charter-review`, as durable artifacts. Agent
 formats vary by harness, so each persona is rendered per harness.
-→ [github.com/werkrbee/agents-hive](https://github.com/werkrbee/agents-hive)
+→ [`hives/agents-hive`](hives/agents-hive)
 
 ### workflows-hive — *orchestration*
 
@@ -149,12 +149,12 @@ standard today, so this may live inside projects until one emerges.
 **`plugins-hive`** ✅ bundles the others into installable packs — one `pack.json`
 and one command fans out to all four hives (its `werkrbee-core` pack ships Barry,
 Patricia, the Charter, core tools, and the review fleet together).
-→ [github.com/werkrbee/plugins-hive](https://github.com/werkrbee/plugins-hive)
+→ [`hives/plugins-hive`](hives/plugins-hive)
 
 **`projects-hive`** ✅ holds scaffolds that assemble the right hives for a given
 initiative — `init.py --name "…"` stands up a workspace and calls plugins-hive to
 wire in the House.
-→ [github.com/werkrbee/projects-hive](https://github.com/werkrbee/projects-hive)
+→ [`hives/projects-hive`](hives/projects-hive)
 
 ## Shared conventions
 
@@ -188,8 +188,10 @@ automatically — from `hives/projects-hive` you can run
 hive's own installer under `scripts/` still installs that hive on its own.
 
 The hives were previously separate repositories pulled in as git submodules. They were
-consolidated here at the commits ai-hive had pinned; each hive's history before the
-move stays in its own repository (`github.com/werkrbee/<name>-hive`).
+consolidated here at the commits ai-hive had pinned, and the old repositories
+(`github.com/werkrbee/<name>-hive`) are archived read-only: they keep each hive's
+history before the move, point back here, and take no changes. Develop every hive in
+this repository.
 
 ## Roadmap
 
@@ -201,7 +203,7 @@ move stays in its own repository (`github.com/werkrbee/<name>-hive`).
 6. ✅ **projects-hive** — shipped (scaffold an initiative with the whole House assembled).
 
 **The House is complete** — six hives built (skills, rules, mcp, agents, plugins,
-projects) under the ai-hive umbrella, ruled by Barry and Patricia. Future growth
+projects) under one ai-hive roof, ruled by Barry and Patricia. Future growth
 (knowledge-hive, workflows-hive) can slot in when a real need and a standard appear.
 
 ## License

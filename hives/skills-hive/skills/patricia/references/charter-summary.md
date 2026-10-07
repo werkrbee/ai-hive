@@ -1,7 +1,7 @@
 # Queen's Charter — enforcement summary
 
 A self-contained checklist of the law Patricia enforces, so this skill works even
-where the full [rules-hive](https://github.com/werkrbee/rules-hive) charter isn't
+where the full [rules-hive](https://github.com/werkrbee/ai-hive/tree/main/hives/rules-hive) charter isn't
 installed. The canonical, always-on version is the Queen Bee's Charter
 (`AGENTS.md`) in rules-hive.
 

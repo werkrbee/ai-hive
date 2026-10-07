@@ -54,8 +54,8 @@ snippets** for the rest. Merges are non-destructive — existing servers and oth
 keys are preserved.
 
 ```bash
-git clone https://github.com/werkrbee/mcp-hive.git
-cd mcp-hive
+git clone https://github.com/werkrbee/ai-hive.git
+cd ai-hive/hives/mcp-hive
 
 # Merge all servers into the default harnesses for a project
 python3 scripts/install.py --dir /path/to/your/project

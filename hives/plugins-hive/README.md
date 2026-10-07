@@ -11,10 +11,10 @@
 *Part of the **[ai-hive](https://github.com/werkrbee/ai-hive)** family — werkrbee's House of Hives (skills · rules · tools · agents · and more).*
 
 The **composition** layer of the House of Hives. The four core hives
-([skills](https://github.com/werkrbee/skills-hive),
-[rules](https://github.com/werkrbee/rules-hive),
-[mcp](https://github.com/werkrbee/mcp-hive),
-[agents](https://github.com/werkrbee/agents-hive)) are independently useful — but
+([skills](https://github.com/werkrbee/ai-hive/tree/main/hives/skills-hive),
+[rules](https://github.com/werkrbee/ai-hive/tree/main/hives/rules-hive),
+[mcp](https://github.com/werkrbee/ai-hive/tree/main/hives/mcp-hive),
+[agents](https://github.com/werkrbee/ai-hive/tree/main/hives/agents-hive)) are independently useful — but
 most of the time you want a curated set of all of them at once. A **pack** is that
 curated set, and this installer wires the House together in one shot.
 
@@ -56,13 +56,13 @@ their own harness support. (Fewer patterns forced where they don't fit.)
 
 ## Install
 
-The installer resolves the sibling hive repos and calls each hive's own installer.
+The installer resolves the sibling hives and calls each hive's own installer.
 It looks for the hives in `./hives/` first, then beside
 plugins-hive; override with `--hives-dir`.
 
 ```bash
-git clone https://github.com/werkrbee/plugins-hive.git
-cd plugins-hive
+git clone https://github.com/werkrbee/ai-hive.git
+cd ai-hive/hives/plugins-hive
 
 # See exactly what will run, no changes made
 python3 scripts/install.py werkrbee-core --dry-run --dir /path/to/project
@@ -86,16 +86,10 @@ install into the target project — matching how each hive is normally scoped.
 
 ## Getting the hives
 
-Easiest is the [ai-hive](https://github.com/werkrbee/ai-hive) monorepo, where every hive
-sits beside this one under `hives/`, or clone the four hives beside this repo:
-
-```bash
-git clone https://github.com/werkrbee/skills-hive.git
-git clone https://github.com/werkrbee/rules-hive.git
-git clone https://github.com/werkrbee/mcp-hive.git
-git clone https://github.com/werkrbee/agents-hive.git
-git clone https://github.com/werkrbee/plugins-hive.git
-```
+Every hive lives in the [ai-hive](https://github.com/werkrbee/ai-hive) monorepo,
+beside this one under `hives/`, so one clone gets them all. The hives' former standalone
+repos are archived. If your hives live somewhere else, pass that directory with
+`--hives-dir`.
 
 ## Adding a pack
 

@@ -42,7 +42,7 @@ For trivial, reversible, local actions, don't gate — let the work flow.
 ## The law you keep
 
 Enforced from the **Queen's Charter** (full text lives in
-[rules-hive](https://github.com/werkrbee/rules-hive); a self-contained summary is
+[rules-hive](https://github.com/werkrbee/ai-hive/tree/main/hives/rules-hive); a self-contained summary is
 in [`references/charter-summary.md`](references/charter-summary.md)):
 
 1. **Human-in-the-loop** for anything consequential, irreversible, or externally visible.
@@ -100,6 +100,6 @@ approval, and confirm every consequential step had a human in the loop.
 
 ---
 
-*The full law lives in [rules-hive](https://github.com/werkrbee/rules-hive) (the
+*The full law lives in [rules-hive](https://github.com/werkrbee/ai-hive/tree/main/hives/rules-hive) (the
 Queen Bee's Charter). Barry's fleet lives in
-[skills-hive](https://github.com/werkrbee/skills-hive).*
+[skills-hive](https://github.com/werkrbee/ai-hive/tree/main/hives/skills-hive).*
