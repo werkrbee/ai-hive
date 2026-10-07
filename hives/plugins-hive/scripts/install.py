@@ -3,13 +3,13 @@
 
 A pack is a manifest (packs/<name>/pack.json) that names which skills, rules,
 MCP servers, and agents to install, and for which harnesses. This installer
-resolves the sibling hive repos and invokes each hive's own installer, so the
-whole House ships together.
+resolves the sibling hives (ai-hive's hives/) and invokes each hive's own
+installer, so the whole House ships together.
 
 Usage:
   python3 scripts/install.py werkrbee-core --dir /path/to/project
   python3 scripts/install.py werkrbee-core --dry-run
-  python3 scripts/install.py werkrbee-core --hives-dir ~/Projects
+  python3 scripts/install.py werkrbee-core --hives-dir ~/src/ai-hive/hives
 """
 import argparse
 import json
@@ -46,7 +46,7 @@ def main():
     ap = argparse.ArgumentParser(description="Install a plugins-hive pack across all four hives.")
     ap.add_argument("pack", nargs="?", default="werkrbee-core", help="Pack name under packs/ (default: werkrbee-core)")
     ap.add_argument("--dir", default=".", help="Project directory for rules/mcp/agents (default: current)")
-    ap.add_argument("--hives-dir", default="", help="Where the *-hive repos live (default: ./hives or sibling dirs)")
+    ap.add_argument("--hives-dir", default="", help="Directory containing the *-hive dirs, e.g. ai-hive's hives/ (default: ./hives or sibling dirs)")
     ap.add_argument("--dry-run", action="store_true")
     args = ap.parse_args()
 
@@ -114,7 +114,8 @@ def main():
     print()
     if missing:
         print(f"WARNING: could not find {', '.join(missing)} under {hives_dir}.", file=sys.stderr)
-        print("Clone the missing hives beside plugins-hive, or pass --hives-dir.", file=sys.stderr)
+        print("Every hive ships in the ai-hive monorepo (git clone https://github.com/werkrbee/ai-hive);", file=sys.stderr)
+        print("run this from its hives/plugins-hive, or pass --hives-dir pointing at its hives/.", file=sys.stderr)
         sys.exit(2)
     print(f"Pack '{pack['name']}' installed.")
 
