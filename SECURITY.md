@@ -3,8 +3,9 @@
 ## Reporting a vulnerability
 
 Please report security issues privately — do **not** open a public issue. Use GitHub's
-**private vulnerability reporting** (Security tab → "Report a vulnerability") on this repo, or
-email the maintainers listed in `.github/CODEOWNERS`.
+**private vulnerability reporting**: the Security tab → "Report a vulnerability", or go
+straight to <https://github.com/werkrbee/ai-hive/security/advisories/new>. Only maintainers
+can see the report.
 
 Include what you found, how to reproduce it, and the potential impact. We'll acknowledge
 receipt, investigate, and coordinate a fix and disclosure timeline with you.

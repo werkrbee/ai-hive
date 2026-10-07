@@ -6,5 +6,4 @@ version 2.1.
 In short: be respectful, assume good faith, welcome newcomers, and keep criticism
 constructive and about the work. Harassment and discrimination are not tolerated.
 
-Report unacceptable behavior to the maintainers listed in `.github/CODEOWNERS`. Reports are
-handled confidentially.
+Report unacceptable behavior to werkrbee@gmail.com. Reports are handled confidentially.
