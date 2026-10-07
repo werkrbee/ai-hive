@@ -71,7 +71,7 @@ python3 scripts/install.py werkrbee-core --dry-run --dir /path/to/project
 python3 scripts/install.py werkrbee-core --dir /path/to/project
 
 # If the hives live elsewhere
-python3 scripts/install.py werkrbee-core --dir /path/to/project --hives-dir ~/Projects
+python3 scripts/install.py werkrbee-core --dir /path/to/project --hives-dir ~/src/ai-hive/hives
 ```
 
 One run installs, for each harness in the pack:
