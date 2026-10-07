@@ -1,0 +1,22 @@
+name: Release
+
+# On every push to main, release-please opens or updates a release PR from the
+# Conventional Commits since the last tag. Merging that PR tags vX.Y.Z, updates
+# CHANGELOG.md, and publishes the GitHub Release. The release PR is the human gate.
+
+on:
+  push:
+    branches: [ main ]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  release-please:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: googleapis/release-please-action@v4
+        with:
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
