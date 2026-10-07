@@ -5,13 +5,15 @@ refactor assessment: ai-hive is strong at design-time but the apps built on it (
 proved it needs a **runtime layer**, and the standards it rides (MCP, A2A, SKILL.md,
 AGENTS.md) have advanced. Rationale: `docs/interface-independence.md`, `docs/factory-thesis.md`.
 
-## Sprint 0 — project setup (this sprint)
+## Sprint 0 — project setup (done)
 
 Convert to a monorepo and stand up the open-source + Claude Code lifecycle. See
 `docs/sprints/sprint-0.md`. Done once the repo has governance, CI, Claude Code commands,
 and the roadmap below is tracked as issues.
 
-## P0 — the runtime layer (unblocks every product)
+## P0 — the runtime layer (unblocks every product; this sprint)
+
+Tracked as issues #7–#12, worked in the order set in `docs/sprints/p0.md`.
 
 - **`workflows-hive` (new).** Durable, resumable multi-step recipes. Align with MCP's
   `Tasks` primitive (2026-07-28) and a Temporal-style engine. The missing layer lineup hit.
