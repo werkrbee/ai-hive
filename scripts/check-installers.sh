@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Installer checks. Used by CI; run locally from the repo root before shipping.
-# 1. Syntax: every *.sh parses (bash -n) and every *.py parses.
+# 1. Syntax: every *.sh parses (bash -n), every *.py parses, and every *.ps1 parses with the
+#    PowerShell language parser (needs pwsh; required in CI, skipped locally if missing).
 # 2. Smoke: each hive installer runs end to end in a throwaway HOME and project dir.
 #    Shell installers do a real install; Python installers run with --dry-run.
 # Exit non-zero on any failure.
@@ -25,6 +26,20 @@ while IFS= read -r -d '' f; do
     flunk "$f"
   fi
 done < <(find . -type f -name '*.py' -not -path './.git/*' -print0)
+
+# shellcheck disable=SC2016  # $-expressions are PowerShell, not shell
+ps_parse='$e = $null; $null = [System.Management.Automation.Language.Parser]::ParseFile($env:PS1_FILE, [ref]$null, [ref]$e)
+foreach ($x in $e) { "      line $($x.Extent.StartLineNumber): $($x.Message)" }
+if ($e) { exit 1 }'
+if command -v pwsh >/dev/null; then
+  while IFS= read -r -d '' f; do
+    if PS1_FILE="$f" pwsh -NoProfile -NonInteractive -Command "$ps_parse"; then pass "$f"; else flunk "$f"; fi
+  done < <(find . -type f -name '*.ps1' -not -path './.git/*' -print0)
+elif [ -n "${CI:-}" ]; then
+  flunk "pwsh not found; CI must parse the *.ps1 installers"
+else
+  echo "skip  *.ps1 (pwsh not installed; CI checks them)"
+fi
 
 echo "== smoke"
 # Snapshot with the real HOME so both sides see the same global git config (excludesFile).
