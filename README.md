@@ -172,40 +172,24 @@ reference implementation):
   `install.ps1` (junctions + settings) fan the artifacts into each harness.
 - **Naming** — `<thing>-hive`, all under the `werkrbee` org.
 
-## One-clone setup (optional)
+## Setup
 
-Each hive is its own repo, so you normally install them **independently** — that's
-the default and keeps versioning, issues, and installs clean. GitHub repos are
-two-level (`owner/repo`), so a hive is never a sub-repo of this one; instead, if
-you want to pull the whole House in a single clone, add the hives as **git
-submodules** under `hives/`:
+ai-hive is a monorepo: all six hives live under `hives/` as plain directories, so a
+normal clone gives you the whole House.
 
 ```bash
-# from the ai-hive repo root — all six hives
-git submodule add https://github.com/werkrbee/skills-hive.git   hives/skills-hive
-git submodule add https://github.com/werkrbee/rules-hive.git    hives/rules-hive
-git submodule add https://github.com/werkrbee/mcp-hive.git      hives/mcp-hive
-git submodule add https://github.com/werkrbee/agents-hive.git   hives/agents-hive
-git submodule add https://github.com/werkrbee/plugins-hive.git  hives/plugins-hive
-git submodule add https://github.com/werkrbee/projects-hive.git hives/projects-hive
-git commit -m "Add hives as submodules"
+git clone https://github.com/werkrbee/ai-hive.git
+cd ai-hive
 ```
 
-With all six under `hives/`, plugins-hive and projects-hive resolve their siblings
+With every hive under `hives/`, plugins-hive and projects-hive resolve their siblings
 automatically — from `hives/projects-hive` you can run
-`python3 scripts/init.py --name "New Initiative"` and the whole House assembles.
+`python3 scripts/init.py --name "New Initiative"` and the whole House assembles. Each
+hive's own installer under `scripts/` still installs that hive on its own.
 
-Then anyone can clone everything at once:
-
-```bash
-git clone --recurse-submodules https://github.com/werkrbee/ai-hive.git
-# or, in an existing clone:
-git submodule update --init --recursive
-```
-
-Submodules pin each hive at a specific commit; refresh them with
-`git submodule update --remote`. This is entirely optional — every hive stays
-fully usable on its own, and the umbrella works as a plain index without it.
+The hives were previously separate repositories pulled in as git submodules. They were
+consolidated here at the commits ai-hive had pinned; each hive's history before the
+move stays in its own repository (`github.com/werkrbee/<name>-hive`).
 
 ## Roadmap
 
