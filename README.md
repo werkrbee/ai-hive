@@ -185,7 +185,7 @@ cd ai-hive
 With every hive under `hives/`, plugins-hive and projects-hive resolve their siblings
 automatically — from `hives/projects-hive` you can run
 `python3 scripts/init.py --name "New Initiative"` and the whole House assembles. Each
-hive's own `scripts/install.sh` (or `install.py`) still installs that hive on its own.
+hive's own installer under `scripts/` still installs that hive on its own.
 
 The hives were previously separate repositories pulled in as git submodules. They were
 consolidated here at the commits ai-hive had pinned; each hive's history before the

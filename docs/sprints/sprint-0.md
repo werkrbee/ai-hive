@@ -20,7 +20,7 @@ Turn each item below into a GitHub issue with `/sprint-plan`, then work them wit
       Mirror CLAUDE.md → AGENTS.md at root. (Seeded — verify commands run.)
 - [x] **Release automation.** (#5) Add release-please (or semantic-release) so Conventional
       Commits produce SemVer tags, `CHANGELOG.md`, and GitHub Releases.
-- [x] **Open the roadmap as issues.** (#1–#12) Create issues for each P0 item and attach to a
+- [x] **Open the roadmap as issues.** (#7–#12) Create issues for each P0 item and attach to a
       `P0 — runtime layer` milestone.
 - [x] **Project board.** (#6) Create a GitHub Projects (v2) board; add Sprint 0 + P0 issues.
 
