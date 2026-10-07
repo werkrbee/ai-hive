@@ -120,6 +120,10 @@ npx skills add https://github.com/werkrbee/ai-hive/tree/main/hives/skills-hive -
 npx skills add https://github.com/werkrbee/ai-hive/tree/main/hives/skills-hive --list
 ```
 
+For Cursor, use this option (`-a cursor`) or Option 2 (`--harness cursor`). Cursor
+imports skills from GitHub only as plugins published through a marketplace, and this
+hive doesn't publish one.
+
 ### Option 2 — install script (macOS / Linux)
 
 ```bash
@@ -150,13 +154,7 @@ Mode. For Scout, the script also enables `loadCopilotCliSkills` in
 .\scripts\install.ps1 -Force          # replace an existing target
 ```
 
-### Option 4 — Cursor Remote Rule (Cursor 2.4+)
-
-1. Cursor Settings → **Rules** → **Add Rule** → **Remote Rule (GitHub)**
-2. Enter: `https://github.com/werkrbee/skills-hive`
-3. Select skills to import
-
-### Option 5 — manual copy
+### Option 4 — manual copy
 
 ```bash
 cp -R skills/barry ~/.cursor/skills/barry
