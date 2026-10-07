@@ -203,7 +203,7 @@ this repository.
 6. ✅ **projects-hive** — shipped (scaffold an initiative with the whole House assembled).
 
 **The House is complete** — six hives built (skills, rules, mcp, agents, plugins,
-projects) under the ai-hive umbrella, ruled by Barry and Patricia. Future growth
+projects) under one ai-hive roof, ruled by Barry and Patricia. Future growth
 (knowledge-hive, workflows-hive) can slot in when a real need and a standard appear.
 
 ## License
