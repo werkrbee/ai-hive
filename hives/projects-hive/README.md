@@ -67,7 +67,7 @@ python3 scripts/init.py werkrbee-initiative --name "Q3 Migration" --dir ~/Projec
 
 **Guardrail.** Initiatives default to `~/Projects/<slug>` — never the current
 directory — and `init.py` refuses to scaffold into a path inside any `*-hive`
-repo or a `hives/` tree (which would pollute a submodule). Pass `--force` only if
+repo or a `hives/` tree (which would mix project files into the hives). Pass `--force` only if
 you really mean to.
 
 `init.py`:
@@ -83,7 +83,7 @@ review agents, and Barry + Patricia available — ready to open in any harness.
 ## Getting the hives
 
 projects-hive calls plugins-hive, which calls the four core hives. Easiest is the
-[ai-hive](https://github.com/werkrbee/ai-hive) one-clone (submodules), or clone the
+[ai-hive](https://github.com/werkrbee/ai-hive) monorepo (every hive under `hives/`), or clone the
 repos side by side and pass `--hives-dir` if they live elsewhere.
 
 ## Adding a scaffold

@@ -57,7 +57,7 @@ their own harness support. (Fewer patterns forced where they don't fit.)
 ## Install
 
 The installer resolves the sibling hive repos and calls each hive's own installer.
-It looks for the hives in `./hives/` (git submodules) first, then beside
+It looks for the hives in `./hives/` first, then beside
 plugins-hive; override with `--hives-dir`.
 
 ```bash
@@ -86,8 +86,8 @@ install into the target project — matching how each hive is normally scoped.
 
 ## Getting the hives
 
-Easiest is the [ai-hive](https://github.com/werkrbee/ai-hive) one-clone setup
-(submodules), or clone the four hives beside this repo:
+Easiest is the [ai-hive](https://github.com/werkrbee/ai-hive) monorepo, where every hive
+sits beside this one under `hives/`, or clone the four hives beside this repo:
 
 ```bash
 git clone https://github.com/werkrbee/skills-hive.git

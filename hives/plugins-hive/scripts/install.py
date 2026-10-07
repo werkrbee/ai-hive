@@ -23,7 +23,7 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 def resolve_hives_dir(override):
     if override:
         return Path(override).expanduser().resolve()
-    # Prefer submodules under ./hives, else sibling repos next to plugins-hive.
+    # Prefer ./hives, else sibling dirs next to plugins-hive (ai-hive's hives/ layout).
     if (REPO_ROOT / "hives").is_dir():
         return REPO_ROOT / "hives"
     return REPO_ROOT.parent
