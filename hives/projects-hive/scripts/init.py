@@ -62,7 +62,7 @@ def main():
     subs = {"{{PROJECT_NAME}}": args.name, "{{PROJECT_SLUG}}": slug, "{{DESCRIPTION}}": desc}
 
     # Guardrail: refuse to scaffold inside a hive repo or the hives/ tree — an
-    # initiative dropped in there pollutes the submodule (that's the ai-hive/ai-hive
+    # initiative dropped in there mixes project files into a hive (that's the ai-hive/ai-hive
     # nesting trap). Ancestors named "*-hive" or "hives" are off-limits.
     if not args.force:
         for p in [target, *target.parents]:
