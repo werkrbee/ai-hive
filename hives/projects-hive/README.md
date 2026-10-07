@@ -12,7 +12,7 @@
 
 The **containers** layer of the House of Hives — *where it all comes together per
 initiative*. A **scaffold** is a project template plus a manifest naming which
-[plugins-hive](https://github.com/werkrbee/plugins-hive) pack to install. Running
+[plugins-hive](https://github.com/werkrbee/ai-hive/tree/main/hives/plugins-hive) pack to install. Running
 it creates the project from the template, then fans the pack out to all four core
 hives — so a new initiative starts fully equipped.
 
@@ -52,8 +52,8 @@ than holding harness-specific artifacts.
 ## Use
 
 ```bash
-git clone https://github.com/werkrbee/projects-hive.git
-cd projects-hive
+git clone https://github.com/werkrbee/ai-hive.git
+cd ai-hive/hives/projects-hive
 
 # Preview
 python3 scripts/init.py --name "Payments Revamp" --dry-run
@@ -82,9 +82,9 @@ review agents, and Barry + Patricia available — ready to open in any harness.
 
 ## Getting the hives
 
-projects-hive calls plugins-hive, which calls the four core hives. Easiest is the
-[ai-hive](https://github.com/werkrbee/ai-hive) monorepo (every hive under `hives/`), or clone the
-repos side by side and pass `--hives-dir` if they live elsewhere.
+projects-hive calls plugins-hive, which calls the four core hives. All of them live in
+the [ai-hive](https://github.com/werkrbee/ai-hive) monorepo under `hives/`, so one clone
+gets them all. Pass `--hives-dir` if your hives live somewhere else.
 
 ## Adding a scaffold
 

@@ -12,7 +12,7 @@
 *Part of the **[ai-hive](https://github.com/werkrbee/ai-hive)** family — werkrbee's House of Hives (skills · rules · tools · agents · and more).*
 
 The **instructions** layer of the House of Hives — the domain of **Patricia, the
-Queen Bee**. Where [skills-hive](https://github.com/werkrbee/skills-hive) holds
+Queen Bee**. Where [skills-hive](https://github.com/werkrbee/ai-hive/tree/main/hives/skills-hive) holds
 *what agents can do* (Barry's realm), rules-hive holds *how they must behave*:
 the always-on law every agent inherits, like a queen's pheromones regulating the
 colony. Barry, the King Bee, orchestrates the fleet — but always *within*
@@ -28,7 +28,7 @@ and renders the same ruleset into whatever instruction file each harness reads.
 **The Charter Keeper.** Patricia keeps and enforces the law; how it's maintained,
 amended, and enforced is documented in
 [`rules/queen-charter/references/charter-keeper.md`](rules/queen-charter/references/charter-keeper.md).
-Her enforcement persona is the [`patricia`](https://github.com/werkrbee/skills-hive/tree/main/skills/patricia)
+Her enforcement persona is the [`patricia`](https://github.com/werkrbee/ai-hive/tree/main/hives/skills-hive/skills/patricia)
 skill in skills-hive — the Queen's counterpart to Barry.
 
 ## Repository layout
@@ -61,8 +61,8 @@ current directory by default. It renders the ruleset into each harness's native
 filename (adding Cursor `.mdc` frontmatter automatically).
 
 ```bash
-git clone https://github.com/werkrbee/rules-hive.git
-cd rules-hive
+git clone https://github.com/werkrbee/ai-hive.git
+cd ai-hive/hives/rules-hive
 chmod +x scripts/install.sh
 
 # Into the current project, default harnesses (AGENTS.md, CLAUDE.md, Cursor, Copilot, Gemini)

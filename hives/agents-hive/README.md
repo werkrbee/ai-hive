@@ -12,7 +12,7 @@
 
 The **actors** layer of the House of Hives — *who* does the work. These are the
 durable versions of the fleet **Barry** dispatches (see his
-[`fleet.md`](https://github.com/werkrbee/skills-hive/blob/main/skills/barry/references/fleet.md))
+[`fleet.md`](https://github.com/werkrbee/ai-hive/blob/main/hives/skills-hive/skills/barry/references/fleet.md))
 and the review agents **Patricia** relies on. Each persona is stored once and
 rendered per harness, because agent formats aren't yet a single standard.
 
@@ -55,8 +55,8 @@ into the right file and frontmatter per target (each agent is its own file, so
 nothing is overwritten by merge):
 
 ```bash
-git clone https://github.com/werkrbee/agents-hive.git
-cd agents-hive
+git clone https://github.com/werkrbee/ai-hive.git
+cd ai-hive/hives/agents-hive
 
 # Render all agents into the default harnesses for a project
 python3 scripts/install.py --dir /path/to/your/project

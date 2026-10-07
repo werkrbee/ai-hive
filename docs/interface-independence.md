@@ -72,7 +72,7 @@ affordable — that judgment must not live inside the agent it governs. Approval
 specific action and scope, not a blanket yes. Reserve budgets before execution, reconcile
 actual usage afterward, and track cost per accepted outcome alongside raw token
 consumption. This is the governance layer made operational: a ruleset like the
-[Queen Bee's Charter](https://github.com/werkrbee/rules-hive) sets the law; the service
+[Queen Bee's Charter](https://github.com/werkrbee/ai-hive/tree/main/hives/rules-hive) sets the law; the service
 enforces it with real gates and a real ledger.
 
 ### 5. Build value that compounds across interfaces

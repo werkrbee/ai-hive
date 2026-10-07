@@ -104,27 +104,27 @@ one skill instead of sharing it across all of them.
 
 ### Option 1 — skills CLI (recommended)
 
-Requires [Node.js](https://nodejs.org/). Installs from GitHub once this repo is pushed:
+Requires [Node.js](https://nodejs.org/). Installs straight from this hive's folder in ai-hive on GitHub:
 
 ```bash
 # All skills → Cursor (global)
-npx skills add werkrbee/skills-hive --global -a cursor -y
+npx skills add https://github.com/werkrbee/ai-hive/tree/main/hives/skills-hive --global -a cursor -y
 
 # Barry only → multiple harnesses
-npx skills add werkrbee/skills-hive --global \
+npx skills add https://github.com/werkrbee/ai-hive/tree/main/hives/skills-hive --global \
   -a cursor -a claude-code -a codex -a github-copilot -a goose -a gemini-cli \
   -a opencode -a kiro \
   --skill barry -y
 
-# List skills in repo without installing
-npx skills add werkrbee/skills-hive --list
+# List the skills without installing
+npx skills add https://github.com/werkrbee/ai-hive/tree/main/hives/skills-hive --list
 ```
 
 ### Option 2 — install script (macOS / Linux)
 
 ```bash
-git clone https://github.com/werkrbee/skills-hive.git
-cd skills-hive
+git clone https://github.com/werkrbee/ai-hive.git
+cd ai-hive/hives/skills-hive
 chmod +x scripts/install.sh
 
 # Barry → global Cursor skills dir

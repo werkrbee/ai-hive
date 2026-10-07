@@ -9,7 +9,7 @@ charter itself is [`AGENTS.md`](../AGENTS.md); this is the doc *about* keeping i
 - **Patricia (the Queen) — keeper & enforcer.** She holds the charter, reviews
   plans and actions against it, gates consequential operations, and escalates
   violations. Her persona skill lives in
-  [skills-hive](https://github.com/werkrbee/skills-hive) (`patricia`).
+  [skills-hive](https://github.com/werkrbee/ai-hive/tree/main/hives/skills-hive) (`patricia`).
 - **Barry (the King) — executor.** He runs the fleet *within* the charter. When
   Barry and the charter conflict, the charter wins and the human decides.
 - **The human — sovereign.** Owns the house. Ratifies amendments and makes every

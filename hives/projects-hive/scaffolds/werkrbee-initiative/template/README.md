@@ -3,7 +3,7 @@
 {{DESCRIPTION}}
 
 A **werkrbee initiative**, scaffolded by
-[projects-hive](https://github.com/werkrbee/projects-hive) and wired to the House
+[projects-hive](https://github.com/werkrbee/ai-hive/tree/main/hives/projects-hive) and wired to the House
 of Hives via the `werkrbee-core` pack.
 
 - **Barry** (the King Bee) orchestrates the work — see `.claude/agents/` and the
