@@ -163,7 +163,12 @@ def execute(state_dir, plan, run, crash_after=None):
             print(f"crash after {sid} (simulated); resume with: run.py resume {run['runId']}",
                   file=sys.stderr)
             os._exit(CRASH_EXIT)
-    run.update(status="completed", next=None, result=resolve(plan["output"], run))
+    try:
+        result = resolve(plan["output"], run)
+    except Exception as e:
+        run.update(status="failed", error={"step": None, "message": f"output: {type(e).__name__}: {e}"})
+    else:
+        run.update(status="completed", next=None, result=result)
     save(state_dir, run)
     return run
 
@@ -175,6 +180,9 @@ def report(run):
 
 def cmd_start(args, state_dir):
     plan = load_plan(args.workflow)
+    bad = [kv for kv in args.input if "=" not in kv]
+    if bad:
+        sys.exit(f"--input must be KEY=VALUE: {', '.join(bad)}")
     inputs = dict(kv.split("=", 1) for kv in args.input)
     missing = [k for k in plan["inputs"].get("required", []) if k not in inputs]
     if missing:
