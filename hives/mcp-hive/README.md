@@ -27,6 +27,35 @@ harness's config, so **Barry** and his fleet share one source of truth for tools
 Each server is a small JSON file in the standard MCP shape (`command`, `args`,
 `env`). `${WORKSPACE}` is substituted with the target project path at install time.
 
+## Spec version
+
+The registry targets MCP **[2026-07-28](https://modelcontextprotocol.io/specification/2026-07-28)**,
+the current revision ([changelog](https://modelcontextprotocol.io/specification/2026-07-28/changelog)).
+Every server here is a local stdio launch config, so most of the revision's changes land
+in the client and server, not in these files. What each one means for the registry:
+
+**Stateless core.** The `initialize` handshake and protocol-level sessions are gone; every
+request carries its own protocol version and client capabilities in `_meta`. A config only
+says how to start a server, so it pins no protocol version, and nothing here changes.
+
+**Extensions.** Optional features are now opt-in extensions, negotiated per request through
+an `extensions` capability. An entry can work only as far as both the harness's client and
+the server support an extension, so a server that needs one should say so in its
+`description`.
+
+**Tasks.** Long-running work moved out of the core into the official
+`io.modelcontextprotocol/tasks` extension, with polling and durable task handles. The
+registry doesn't configure it; the planned workflows-hive will build on it.
+
+**MCP Apps.** The `io.modelcontextprotocol/ui` extension renders interactive UI inline in a
+conversation. It's a client capability, so no config change is needed, and servers should still
+return plain text for clients without it.
+
+**Auth hardening.** Clients must validate the `iss` parameter (RFC 9207), keep credentials
+bound to the issuing authorization server, and prefer Client ID Metadata Documents over the
+now-deprecated Dynamic Client Registration. That flow covers HTTP servers only; stdio
+servers take credentials from the environment, which is why secrets go in `env`.
+
 ## Repository layout
 
 ```text
