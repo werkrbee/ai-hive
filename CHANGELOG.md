@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.3.0](https://github.com/werkrbee/ai-hive/compare/v0.2.0...v0.3.0) (2026-10-08)
+
+
+### Features
+
+* **agents-hive:** define the execution-contract schema ([#40](https://github.com/werkrbee/ai-hive/issues/40)) ([a53e945](https://github.com/werkrbee/ai-hive/commit/a53e9452f84aceb87ed1b9a4fa5bed9ad3b55032)), closes [#7](https://github.com/werkrbee/ai-hive/issues/7)
+* **mcp-hive:** resolve remote servers from their Server Cards ([#42](https://github.com/werkrbee/ai-hive/issues/42)) ([9d4ac6e](https://github.com/werkrbee/ai-hive/commit/9d4ac6ecaa80a453e3e4551699afda460afe0c4a)), closes [#9](https://github.com/werkrbee/ai-hive/issues/9)
+
 ## [0.2.0](https://github.com/werkrbee/ai-hive/compare/v0.1.1...v0.2.0) (2026-10-08)
 
 
