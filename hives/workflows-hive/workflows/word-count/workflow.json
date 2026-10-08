@@ -1,0 +1,15 @@
+{
+  "name": "word-count",
+  "version": 1,
+  "description": "Read a text file, then count its words and lines.",
+  "inputs": {
+    "type": "object",
+    "properties": { "path": { "type": "string" } },
+    "required": ["path"]
+  },
+  "steps": [
+    { "id": "read", "worker": "read-text", "input": { "path": "${inputs.path}" } },
+    { "id": "count", "worker": "count-words", "input": { "text": "${steps.read.output}" } }
+  ],
+  "output": "${steps.count.output}"
+}

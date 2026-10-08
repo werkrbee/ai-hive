@@ -2,7 +2,8 @@
 # Installer checks. Used by CI; run locally from the repo root before shipping.
 # 1. Syntax: every *.sh parses (bash -n), every *.py parses, and every *.ps1 parses with the
 #    PowerShell language parser (needs pwsh; required in CI, skipped locally if missing).
-# 2. Smoke: each hive installer runs end to end in a throwaway HOME and project dir.
+# 2. Smoke: each hive installer runs end to end in a throwaway HOME and project dir, and
+#    the workflows-hive engine resumes a run after a simulated crash.
 #    Shell installers do a real install; Python installers run with --dry-run.
 # Exit non-zero on any failure.
 set -uo pipefail
@@ -76,6 +77,26 @@ run "plugins-hive install.py --dry-run" \
   python3 hives/plugins-hive/scripts/install.py --dir "$proj" --hives-dir hives --dry-run
 run "projects-hive init.py --dry-run" \
   python3 hives/projects-hive/scripts/init.py --name ci-smoke --dir "$sandbox/new" --hives-dir hives --dry-run
+
+# workflows-hive: crash after step 1, then resume must skip it and finish step 2.
+runs="$sandbox/runs"
+printf 'one two three\nfour five\n' > "$sandbox/words.txt"
+wf() { python3 hives/workflows-hive/scripts/run.py --state-dir "$runs" "$@" 2>&1; }
+out=$(wf start word-count --input path="$sandbox/words.txt" --crash-after read); code=$?
+run_id=$(printf '%s\n' "$out" | sed -n 's/^start \(run_[0-9a-f]*\).*/\1/p')
+if [ "$code" -eq 75 ] && [ -n "$run_id" ]; then
+  pass "workflows-hive run.py stops after step 1"
+else
+  flunk "workflows-hive run.py stops after step 1"; printf '%s\n' "$out" | sed 's/^/      /'
+fi
+out=$(wf resume "$run_id"); code=$?
+if [ "$code" -eq 0 ] && printf '%s\n' "$out" | grep -q '^skip  read' \
+  && printf '%s\n' "$out" | grep -q '"words": 5' && printf '%s\n' "$out" | grep -q '"tokens"'; then
+  pass "workflows-hive run.py resumes at step 2 and reports result and cost"
+else
+  flunk "workflows-hive run.py resumes at step 2 and reports result and cost"
+  printf '%s\n' "$out" | sed 's/^/      /'
+fi
 
 if [ "$(repo_status)" != "$before" ]; then
   flunk "installers left changes in the repo"; repo_status | sed 's/^/      /'
