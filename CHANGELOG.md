@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.2.0](https://github.com/werkrbee/ai-hive/compare/v0.1.1...v0.2.0) (2026-10-08)
+
+
+### Features
+
+* **workflows-hive:** add a resumable two-step workflow spike ([#37](https://github.com/werkrbee/ai-hive/issues/37)) ([45c10a2](https://github.com/werkrbee/ai-hive/commit/45c10a2787358abcf2d09f600f1791bc14fc3cbc)), closes [#11](https://github.com/werkrbee/ai-hive/issues/11)
+
+
+### Documentation
+
+* add the P0 sprint file ([#33](https://github.com/werkrbee/ai-hive/issues/33)) ([b44e997](https://github.com/werkrbee/ai-hive/commit/b44e9976c6534a48b3e5da549c1a5674cb3d0a32)), closes [#32](https://github.com/werkrbee/ai-hive/issues/32)
+* **mcp-hive:** target the 2026-07-28 MCP spec ([#35](https://github.com/werkrbee/ai-hive/issues/35)) ([64142ca](https://github.com/werkrbee/ai-hive/commit/64142cac3362d5440be015df8d35f5680bdbb3e3)), closes [#8](https://github.com/werkrbee/ai-hive/issues/8)
+* **workflows-hive:** add the hive and its design note ([#36](https://github.com/werkrbee/ai-hive/issues/36)) ([82ecb94](https://github.com/werkrbee/ai-hive/commit/82ecb948592d64ee2e96e47541523e63f03a3447)), closes [#10](https://github.com/werkrbee/ai-hive/issues/10)
+
 ## [0.1.1](https://github.com/werkrbee/ai-hive/compare/v0.1.0...v0.1.1) (2026-10-07)
 
 
