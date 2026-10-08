@@ -48,7 +48,7 @@ the server support an extension, so a server that needs one should say so in its
 registry doesn't configure it; the planned workflows-hive will build on it.
 
 **MCP Apps.** The `io.modelcontextprotocol/ui` extension renders interactive UI inline in a
-conversation. It's a client capability, so no config change is needed, and servers still
+conversation. It's a client capability, so no config change is needed, and servers should still
 return plain text for clients without it.
 
 **Auth hardening.** Clients must validate the `iss` parameter (RFC 9207), keep credentials
