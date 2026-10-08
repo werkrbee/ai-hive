@@ -38,7 +38,10 @@ Run statuses use the Tasks values unchanged: `working`, `input_required`, `compl
 
 A client without the Tasks extension still works. The server must not return a task to
 it, so the tool runs synchronously and returns the result directly, with no resume if
-the connection drops.
+the connection drops. An approval is never skipped on this path: the server asks through
+the core spec's multi round-trip pattern (an `input_required` result, answered when the
+client retries the call), and if the client can't answer, the run fails before the step
+runs.
 
 ## Engine: Temporal evaluated
 
@@ -48,8 +51,9 @@ completion "whether that takes a second or a year". The Temporal Service keeps a
 history of every run, and after a crash a worker replays the workflow code against that
 history to rebuild its state. Side effects live in activities, which retry on their own.
 Workflows receive signals and updates while they run, which covers approvals. It is open
-source (the server and most SDKs are MIT, the Java SDK Apache-2.0), with SDKs for .NET, Go, Java, PHP, Python, Ruby, Rust and
-TypeScript, and it runs self-hosted or as Temporal Cloud.
+source (the server and most SDKs are MIT, the Java SDK Apache-2.0), with SDKs for .NET,
+Go, Java, PHP, Python, Ruby, Rust and TypeScript, and it runs self-hosted or as Temporal
+Cloud.
 
 What it costs us: a Temporal Service to run (or a Cloud account) before the first
 workflow executes. Every other hive installs with Bash or Python and nothing else.
@@ -95,8 +99,8 @@ A plan is the portable definition of a workflow, kept at
 
 Steps run in order. `inputs` is a JSON Schema, and it becomes the tool's `inputSchema`.
 `${…}` references read the run's inputs and the outputs of earlier steps. `worker` names
-the capability that does the step; the execution contract in agents-hive defines what a
-worker is, so this note only names it. `approval: true` pauses before the step runs, and
+the capability that does the step; the execution contract planned for agents-hive will
+define what a worker is, so this note only names it. `approval: true` pauses before the step runs, and
 `budget` caps what the step may spend. A plan that changes in a way an in-flight run
 can't absorb bumps `version`, and a run always finishes on the version it started with.
 
@@ -116,7 +120,7 @@ Each run persists one record, keyed by its run ID:
     "fetch": {
       "status": "completed",
       "attempt": 1,
-      "idempotencyKey": "run_01J9Z…:fetch:1",
+      "idempotencyKey": "run_01J9Z…:fetch",
       "output": "…page text…",
       "cost": { "usd": 0.0, "tokens": 0 },
       "startedAt": "2026-10-08T14:02:11Z",
@@ -132,8 +136,13 @@ Each run persists one record, keyed by its run ID:
 }
 ```
 
-`next` is the step to run on resume. `pending` is set only while the run waits on input,
-and it is what becomes `inputRequests` on `tasks/get`. `cost` is the sum of the step
+`next` is the step to run on resume. A step's `status` is `not_started`, `working`,
+`completed` or `failed`. Its `idempotencyKey` is the run ID and step ID, and never
+changes; `attempt` counts deliberate retries after a recorded failure, and resuming after
+a crash doesn't increase it. `pending` is set only while the run waits on input, and it
+becomes one entry in `inputRequests` on `tasks/get`, keyed by the step ID: an
+elicitation asking whether to run the step. A denied approval fails the run, with the
+denial as its error, and the step never runs. `cost` is the sum of the step
 costs and is reported with the result. `result` or `error` is filled when the run
 reaches a terminal status.
 
@@ -152,5 +161,5 @@ The engine keeps these rules:
 
 The executable spike (a two-step workflow that checkpoints, survives a restart, resumes
 at step two, and reports result and cost) is the next piece of work. The worker
-execution contract belongs to agents-hive. The Temporal engine is built when a product
+execution contract will belong to agents-hive. The Temporal engine is built when a product
 calls for it, against this same contract.
