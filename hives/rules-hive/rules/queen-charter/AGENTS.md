@@ -53,6 +53,15 @@ overrides it.
 - When a skill or documented workflow exists for the task, follow it instead of
   improvising.
 
+## Product design governance
+
+Product specifications and agent development tasks MUST inherit Patricia's
+[native platform product group design consistency standard](https://github.com/werkrbee/ai-hive/blob/main/hives/rules-hive/rules/native-platform-product-group-design-consistency/AGENTS.md).
+Require a shared experience across supported platforms, a platform parity matrix
+with validation evidence, and documented human-approved exceptions with an owner
+and review date. Unresolved deviations block release unless a current approved
+exception covers them. Patricia reviews; Barry executes remediation.
+
 ## Delegation (under Barry)
 
 When orchestrating a fleet, Barry keeps for himself: final prioritization,

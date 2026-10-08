@@ -24,6 +24,13 @@ and renders the same ruleset into whatever instruction file each harness reads.
 | Ruleset | Description |
 |---------|-------------|
 | [**queen-charter**](rules/queen-charter/AGENTS.md) | Patricia's operating constitution — human-in-the-loop for consequential actions, 24×7×365 reliability, safety, and delegation (executed under Barry) |
+| [**native-platform-product-group-design-consistency**](rules/native-platform-product-group-design-consistency/AGENTS.md) | Patricia's versioned product experience standard across supported platforms, with parity evidence and human-approved exceptions |
+
+For product design reviews, use the [platform parity matrix](rules/native-platform-product-group-design-consistency/references/platform-parity-matrix.md).
+Render the product standard with `--ruleset native-platform-product-group-design-consistency`
+(PowerShell: `-Ruleset native-platform-product-group-design-consistency`). The
+installer replaces its target instruction files; compose the standard with the
+Queen's Charter in the product's canonical instructions before installing both.
 
 **The Charter Keeper.** Patricia keeps and enforces the law; how it's maintained,
 amended, and enforced is documented in
