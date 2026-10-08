@@ -99,8 +99,8 @@ A plan is the portable definition of a workflow, kept at
 
 Steps run in order. `inputs` is a JSON Schema, and it becomes the tool's `inputSchema`.
 `${…}` references read the run's inputs and the outputs of earlier steps. `worker` names
-the capability that does the step; the execution contract planned for agents-hive will
-define what a worker is, so this note only names it. `approval: true` pauses before the step runs, and
+the capability that does the step; agents-hive's execution contract for that capability
+defines what the worker accepts, returns, may spend and may do. `approval: true` pauses before the step runs, and
 `budget` caps what the step may spend. A plan that changes in a way an in-flight run
 can't absorb bumps `version`, and a run always finishes on the version it started with.
 
@@ -160,6 +160,6 @@ The engine keeps these rules:
 ## Out of scope here
 
 The reference engine (`scripts/run.py`) implements rules 1 to 4 with the two-step
-`word-count` workflow; approvals, budgets and the MCP Tasks server come later. The worker
-execution contract will belong to agents-hive. The Temporal engine is built when a product
+`word-count` workflow; approvals, budgets and the MCP Tasks server come later. Worker execution
+contracts live in agents-hive. The Temporal engine is built when a product
 calls for it, against this same contract.

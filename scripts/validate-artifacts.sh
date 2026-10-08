@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Validate the repo's portable artifacts. Used by CI and the Claude Code PostToolUse hook.
-# Checks every SKILL.md for YAML frontmatter with the required keys and every AGENTS.md for
-# a top-level heading. Fails if no SKILL.md is found at all (e.g. hives not checked out).
+# Checks every SKILL.md for YAML frontmatter with the required keys, every AGENTS.md
+# for a top-level heading, and every agents-hive execution contract against its schema.
+# Fails if no SKILL.md is found at all (e.g. hives not checked out).
 # Exit non-zero on any failure (the hook tolerates failures; CI does not).
 set -uo pipefail
 
@@ -41,11 +42,16 @@ while IFS= read -r -d '' f; do
   fi
 done < <(find . -path ./.git -prune -o -type f -name 'AGENTS.md' -print0)
 
+# Execution contracts: the validator prints its own FAIL lines.
+if ! contracts_out=$(python3 hives/agents-hive/scripts/validate_contracts.py); then
+  printf '%s\n' "$contracts_out"; fail=1
+fi
+
 if [ "$skills" -eq 0 ]; then
   echo "FAIL  no SKILL.md found — are the hives checked out?"; fail=1
 fi
 
 if [ "$fail" -eq 0 ]; then
-  echo "OK  ${skills} SKILL.md and ${agents} AGENTS.md artifacts valid"
+  echo "OK  ${skills} SKILL.md and ${agents} AGENTS.md artifacts valid; ${contracts_out#OK  }"
 fi
 exit "$fail"

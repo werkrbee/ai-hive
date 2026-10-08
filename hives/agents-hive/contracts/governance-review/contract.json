@@ -1,0 +1,33 @@
+{
+  "capability": "governance-review",
+  "version": 1,
+  "description": "Review a proposed action, plan or change against the Queen Bee's Charter and return a verdict. Reviews only; never does the work.",
+  "inputs": {
+    "type": "object",
+    "required": ["proposal"],
+    "properties": {
+      "proposal": { "type": "string", "description": "The action, plan or diff to review." },
+      "context": { "type": "string", "description": "Who proposes it, why, and the blast radius, if known." }
+    }
+  },
+  "output": {
+    "type": "object",
+    "required": ["verdict", "reason"],
+    "properties": {
+      "verdict": { "enum": ["allow", "allow-with-conditions", "block"], "description": "block means block and escalate to the human." },
+      "reason": { "type": "string" },
+      "conditions": { "type": "array", "items": { "type": "string" }, "description": "Safeguards required before proceeding (allow-with-conditions)." },
+      "violation": { "type": "string", "description": "The Charter rule broken (block)." },
+      "alternative": { "type": "string", "description": "A safer way to reach the goal (block)." }
+    }
+  },
+  "budget": { "usd": 0.5, "tokens": 200000, "seconds": 600 },
+  "permissions": {
+    "granted": ["fs.read"],
+    "approval": []
+  },
+  "fulfilledBy": [
+    { "kind": "skill", "path": "hives/skills-hive/skills/patricia" },
+    { "kind": "agent", "path": "hives/agents-hive/agents/charter-review" }
+  ]
+}

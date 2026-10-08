@@ -1,0 +1,39 @@
+{
+  "capability": "orchestration",
+  "version": 1,
+  "description": "Take a multi-step goal, decompose it, delegate the pieces to other workers, and report one synthesized result. Proposes and executes; governance review decides what is authorized.",
+  "inputs": {
+    "type": "object",
+    "required": ["goal"],
+    "properties": {
+      "goal": { "type": "string", "description": "What done looks like." },
+      "scope": { "type": "string", "description": "Repos, paths and time bounds." },
+      "constraints": { "type": "array", "items": { "type": "string" } }
+    }
+  },
+  "output": {
+    "type": "object",
+    "required": ["summary", "results"],
+    "properties": {
+      "summary": { "type": "string", "description": "The outcome against the goal, in one to three sentences." },
+      "results": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "required": ["workstream", "result"],
+          "properties": { "workstream": { "type": "string" }, "result": { "type": "string" } }
+        }
+      },
+      "decisions": { "type": "array", "items": { "type": "string" }, "description": "Decisions or blockers that need the human." },
+      "nextSteps": { "type": "array", "items": { "type": "string" } }
+    }
+  },
+  "budget": { "usd": 5, "tokens": 2000000, "seconds": 3600 },
+  "permissions": {
+    "granted": ["fs.read", "fs.write", "shell.exec", "net.fetch", "agent.delegate"],
+    "approval": ["vcs.commit", "vcs.push", "vcs.merge", "vcs.release", "vcs.delete-ref", "fs.delete", "deploy", "message.send", "spend"]
+  },
+  "fulfilledBy": [
+    { "kind": "skill", "path": "hives/skills-hive/skills/barry" }
+  ]
+}
