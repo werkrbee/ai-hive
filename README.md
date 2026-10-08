@@ -80,7 +80,7 @@ portable artifact worth versioning — and that's what earns a hive:
 | Capabilities | [`skills-hive`](hives/skills-hive) | `SKILL.md` | ✅ **built** |
 | Tools | [`mcp-hive`](hives/mcp-hive) | MCP server configs | ✅ **built** |
 | Actors | [`agents-hive`](hives/agents-hive) | subagent / persona defs | ✅ **built** |
-| Orchestration | `workflows-hive` | recipes / pipelines | planned |
+| Orchestration | [`workflows-hive`](hives/workflows-hive) | durable workflows over MCP Tasks | in design (P0) |
 
 **Composition & delivery** (not layers, but how the above ship together):
 
@@ -137,7 +137,9 @@ formats vary by harness, so each persona is rendered per harness.
 ### workflows-hive — *orchestration*
 
 Stored multi-step recipes and pipelines. Barry is the runtime version of this;
-`workflows-hive` is the saved version.
+`workflows-hive` is the saved version. In design for P0: durable, resumable workflows
+exposed through MCP Tasks.
+→ [`hives/workflows-hive`](hives/workflows-hive)
 
 ### knowledge-hive — *context*
 
