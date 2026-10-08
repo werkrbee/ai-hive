@@ -126,5 +126,5 @@ running system.
 
 ## Sources
 
-- [Model Context Protocol specification](https://modelcontextprotocol.io/specification/2024-11-05/index)
+- [Model Context Protocol specification](https://modelcontextprotocol.io/specification/2026-07-28)
 - [Temporal documentation](https://docs.temporal.io/)
