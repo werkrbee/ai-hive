@@ -28,6 +28,30 @@ rendered per harness, because agent formats aren't yet a single standard.
 Each agent is a neutral `agent.md`: frontmatter (`name`, `description`, `tools`,
 `model`) plus a system prompt.
 
+## Execution contracts
+
+A contract defines a worker by what it does rather than who it is: the capability it
+provides, the inputs it accepts, the output it returns, a budget for one invocation, and
+the permissions it holds. Any skill or agent that meets the contract can fill the role,
+so workers stay replaceable. Workflow steps in workflows-hive name a capability as their
+`worker`.
+
+| Contract | Fulfilled by | Permissions |
+|----------|--------------|-------------|
+| [**governance-review**](contracts/governance-review/contract.json) | Patricia (skill), `charter-review` (agent) | read only |
+| [**orchestration**](contracts/orchestration/contract.json) | Barry (skill) | read, write, shell, fetch, delegate; commits, pushes, merges, releases, deletes, deploys, messages and spending need approval |
+
+The schema is [`schema/execution-contract.schema.json`](schema/execution-contract.schema.json).
+Permissions come from a fixed vocabulary. Anything a contract doesn't list is denied, and
+the actions the Queen Bee's Charter gates (commit, push, merge, release, ref and file
+deletes, infra changes, deploys, sent messages, spending) can only be listed under
+`approval`, never `granted`. Budgets are ceilings in USD, tokens and seconds; the caller
+stops a worker that would exceed one. The current figures are starting points, to be
+tuned once runs are measured.
+
+`scripts/validate_contracts.py` checks every contract against the schema, including that
+each `fulfilledBy` path exists, and CI runs it.
+
 ## Repository layout
 
 ```text
@@ -37,13 +61,19 @@ agents-hive/
 │   ├── code-review/agent.md
 │   ├── security-review/agent.md
 │   └── charter-review/agent.md
+├── contracts/                    # WHAT a worker must do — execution contracts
+│   ├── governance-review/contract.json
+│   └── orchestration/contract.json
+├── schema/
+│   └── execution-contract.schema.json
 ├── adapters/                     # WHERE they run — harness taxonomy & overrides
 │   ├── claude-code/  cursor/  codex/  gemini-cli/  goose/  opencode/
 │   ├── kiro/  databricks-genie-code/  snowflake-cortex-code/
 │   └── github-copilot/
 │       └── scout/                # sub-harness (child of GitHub Copilot)
 ├── scripts/
-│   └── install.py                # render personas into each harness's agent format
+│   ├── install.py                # render personas into each harness's agent format
+│   └── validate_contracts.py     # check contracts against the schema
 ├── LICENSE
 └── README.md
 ```
@@ -86,6 +116,8 @@ Gemini CLI, Goose, Kiro, and the data-cloud harnesses fall back to `.agents/agen
    optional `tools`, `model`) and a system prompt.
 2. Update the agents table above.
 3. Render it: `python3 scripts/install.py --agent <name> ...`.
+4. If it fills a role, add it to that contract's `fulfilledBy`, or write a new contract
+   under `contracts/<capability>/contract.json` and run `scripts/validate_contracts.py`.
 
 ## Relationship to the other hives
 

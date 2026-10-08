@@ -1,0 +1,93 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/werkrbee/ai-hive/blob/main/hives/agents-hive/schema/execution-contract.schema.json",
+  "title": "Execution contract",
+  "description": "Defines a worker by the capability it provides, what it accepts and returns, what it may spend, and what it may do. Any skill or agent that meets the contract can fill the role.",
+  "type": "object",
+  "required": ["capability", "version", "description", "inputs", "output", "budget", "permissions", "fulfilledBy"],
+  "additionalProperties": false,
+  "properties": {
+    "capability": {
+      "description": "The capability this contract provides, in kebab-case. Workflow steps name it as their worker.",
+      "type": "string",
+      "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$"
+    },
+    "version": {
+      "description": "Bumped when a change would break a caller or a fulfilling worker.",
+      "type": "integer",
+      "minimum": 1
+    },
+    "description": { "type": "string", "minLength": 1 },
+    "inputs": {
+      "description": "JSON Schema for what the worker accepts.",
+      "$ref": "#/$defs/objectSchema"
+    },
+    "output": {
+      "description": "JSON Schema for what the worker returns.",
+      "$ref": "#/$defs/objectSchema"
+    },
+    "budget": {
+      "description": "Ceilings for one invocation. The caller stops the worker when one would be exceeded.",
+      "type": "object",
+      "minProperties": 1,
+      "additionalProperties": false,
+      "properties": {
+        "usd": { "type": "number", "exclusiveMinimum": 0 },
+        "tokens": { "type": "integer", "minimum": 1 },
+        "seconds": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "permissions": {
+      "description": "What the worker may do. Anything in neither list is denied.",
+      "type": "object",
+      "required": ["granted", "approval"],
+      "additionalProperties": false,
+      "properties": {
+        "granted": {
+          "description": "Allowed without asking. Only ungated permissions may appear here.",
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/ungated" }
+        },
+        "approval": {
+          "description": "Allowed only with a human's approval for the specific action.",
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "anyOf": [{ "$ref": "#/$defs/ungated" }, { "$ref": "#/$defs/gated" }] }
+        }
+      }
+    },
+    "fulfilledBy": {
+      "description": "Artifacts in this repo that meet the contract, as paths from the repo root.",
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["kind", "path"],
+        "additionalProperties": false,
+        "properties": {
+          "kind": { "enum": ["skill", "agent"] },
+          "path": { "type": "string", "pattern": "^hives/" }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "objectSchema": {
+      "type": "object",
+      "required": ["type"],
+      "properties": { "type": { "const": "object" } }
+    },
+    "ungated": {
+      "description": "Local, reversible actions.",
+      "enum": ["fs.read", "fs.write", "shell.exec", "net.fetch", "agent.delegate"]
+    },
+    "gated": {
+      "description": "Consequential, irreversible or externally visible actions. The Queen Bee's Charter requires a human for these, so they may only appear under approval.",
+      "enum": [
+        "vcs.commit", "vcs.push", "vcs.merge", "vcs.release", "vcs.delete-ref",
+        "fs.delete", "infra.change", "deploy", "message.send", "spend"
+      ]
+    }
+  }
+}

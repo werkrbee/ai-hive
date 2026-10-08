@@ -41,9 +41,9 @@ def metered(text):
     return {"usd": round(tokens * SIMULATED_USD_PER_1K_TOKENS / 1000, 6), "tokens": tokens}
 
 
-# Workers for the demo workflow. The execution contract in agents-hive will define
-# workers properly; here a worker is a function from (input, idempotency key) to
-# (output, cost). Neither has an external effect, so neither needs the key.
+# Workers for the demo workflow. They are local functions from (input, idempotency key)
+# to (output, cost), with no execution contract in agents-hive yet. Neither has an
+# external effect, so neither needs the key.
 def read_text(inp, _key):
     text = Path(inp["path"]).expanduser().read_text()
     return text, metered(text)
