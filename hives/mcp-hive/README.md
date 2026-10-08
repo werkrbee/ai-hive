@@ -56,8 +56,10 @@ An entry points at a card in one of two ways:
 ```
 
 The [huggingface](servers/huggingface/mcp.json) entry uses the catalog. At install time,
-`install.py` fetches the catalog and the card over HTTPS, validates the card against the
-extension's schema, and writes each harness's remote config from it. `--dry-run` does the
+`install.py` fetches the catalog and the card over HTTPS (refusing redirects to plain
+HTTP), checks the card against the extension's schema, and writes each harness's remote
+config from it. The remote endpoint must be HTTPS too, since that is where the harness
+sends any token the card asks for. `--dry-run` does the
 fetch and validation and shows the config it would write:
 
 ```bash

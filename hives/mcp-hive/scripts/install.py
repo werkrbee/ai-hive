@@ -78,7 +78,7 @@ def resolve_remotes(servers):
         print(f"  remote: {remote['url']}")
         envs = [p[1] for h in remote["headers"] for p in h["parts"] if p[0] == "env"]
         if envs:
-            print(f"  set in your environment: {', '.join(envs)}")
+            print(f"  set in your environment: {', '.join(envs)} (VS Code prompts for these instead)")
         if remote["optional"]:
             print(f"  optional headers not written: {', '.join(remote['optional'])}")
         if remote["versions"] and TARGET_SPEC not in remote["versions"]:
@@ -154,7 +154,7 @@ def remote_headers_toml(r):
         if all(k == "text" for k, _ in parts):
             static[h["name"]] = "".join(t for _, t in parts)
         elif h["name"].lower() == "authorization" and parts[:1] == [("text", "Bearer ")] and len(parts) == 2:
-            lines.append(f'bearer_token_env_var = "{parts[1][1]}"')
+            lines.append(f"bearer_token_env_var = {json.dumps(parts[1][1])}")
         elif len(parts) == 1:
             from_env[h["name"]] = parts[0][1]
         else:
@@ -172,7 +172,7 @@ def print_snippet(fmt, servers, workspace):
         for name, spec in servers.items():
             print(f"[mcp_servers.{name}]")
             if "remote" in spec:
-                print(f'url = "{spec["remote"]["url"]}"')
+                print(f'url = {json.dumps(spec["remote"]["url"])}')
                 for line in remote_headers_toml(spec["remote"]):
                     print(line)
                 print()
@@ -191,13 +191,13 @@ def print_snippet(fmt, servers, workspace):
                 r = spec["remote"]
                 print(f"    name: {name}")
                 print("    type: streamable_http")
-                print(f'    uri: "{r["url"]}"')
+                print(f"    uri: {json.dumps(r['url'])}")
                 static = {h["name"]: "".join(t for _, t in h["parts"])
                           for h in r["headers"] if all(k == "text" for k, _ in h["parts"])}
                 if static:
                     print("    headers:")
                     for k, v in static.items():
-                        print(f'      {k}: "{v}"')
+                        print(f"      {json.dumps(k)}: {json.dumps(v)}")
                 for h in r["headers"]:
                     if h["name"] not in static:
                         print(f"    # set header {h['name']} by hand; it needs a value from the environment")

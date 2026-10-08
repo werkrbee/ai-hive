@@ -35,15 +35,29 @@ class CardError(Exception):
     pass
 
 
-def fetch_json(url, accept):
-    """GET a JSON document. HTTPS only, except plain HTTP to localhost for development."""
+def require_secure(url):
+    """HTTPS only, except plain HTTP to localhost for development."""
     parsed = urlparse(url)
     local = parsed.hostname in ("localhost", "127.0.0.1", "::1")
     if parsed.scheme != "https" and not (parsed.scheme == "http" and local):
         raise CardError(f"{url}: must be https (plain http is allowed only for localhost)")
+
+
+class NoDowngrade(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        require_secure(newurl)
+        return super().redirect_request(req, fp, code, msg, headers, newurl)
+
+
+OPENER = urllib.request.build_opener(NoDowngrade)
+
+
+def fetch_json(url, accept):
+    """GET a JSON document over HTTPS, refusing redirects that drop to plain HTTP."""
+    require_secure(url)
     req = urllib.request.Request(url, headers={"Accept": accept, "User-Agent": "mcp-hive"})
     try:
-        with urllib.request.urlopen(req, timeout=TIMEOUT) as resp:
+        with OPENER.open(req, timeout=TIMEOUT) as resp:
             body = resp.read()
     except urllib.error.HTTPError as e:
         raise CardError(f"{url}: HTTP {e.code}")
@@ -97,7 +111,7 @@ def validate(card):
     if not isinstance(name, str) or not 3 <= len(name) <= 200 or not NAME.match(name):
         err("name must be reverse-DNS with one slash, e.g. com.example/weather")
     version = card.get("version")
-    if not isinstance(version, str) or not version or len(version) > 255:
+    if not isinstance(version, str) or len(version) > 255:
         err("version must be a string of at most 255 characters")
     elif VERSION_RANGE.search(version):
         err(f"version must not be a range: {version}")
@@ -106,6 +120,17 @@ def validate(card):
         err("description must be 1 to 100 characters")
     if "title" in card and (not isinstance(card["title"], str) or not 1 <= len(card["title"]) <= 100):
         err("title must be 1 to 100 characters")
+    if "websiteUrl" in card and not isinstance(card["websiteUrl"], str):
+        err("websiteUrl must be a URL string")
+    repo = card.get("repository")
+    if repo is not None and (not isinstance(repo, dict) or not isinstance(repo.get("url"), str)
+                             or not isinstance(repo.get("source"), str)):
+        err("repository needs url and source")
+    icons = card.get("icons", [])
+    if not isinstance(icons, list) or not all(isinstance(i, dict) and isinstance(i.get("src"), str)
+                                               and i.get("theme", "light") in ("light", "dark")
+                                               for i in icons):
+        err("icons must be a list of {src, optional theme light|dark}")
     remotes = card.get("remotes", [])
     if not isinstance(remotes, list):
         err("remotes must be a list")
@@ -119,15 +144,43 @@ def validate(card):
             err(f"{where}.type must be streamable-http or sse")
         if not isinstance(r.get("url"), str) or not REMOTE_URL.match(r["url"]):
             err(f"{where}.url must start with http(s):// or a {{variable}}")
-        for j, h in enumerate(r.get("headers", [])):
+        headers = r.get("headers", [])
+        if not isinstance(headers, list):
+            err(f"{where}.headers must be a list")
+            headers = []
+        for j, h in enumerate(headers):
             if not isinstance(h, dict) or not isinstance(h.get("name"), str) or not h["name"]:
                 err(f"{where}.headers[{j}] needs a name")
-        if "variables" in r and not isinstance(r["variables"], dict):
-            err(f"{where}.variables must be an object")
+                continue
+            input_problems(h, f"{where}.headers[{j}]", err)
+            check_vars(h.get("variables", {}), f"{where}.headers[{j}].variables", err)
+        check_vars(r.get("variables", {}), f"{where}.variables", err)
         v = r.get("supportedProtocolVersions")
         if v is not None and (not isinstance(v, list) or not all(isinstance(x, str) for x in v)):
             err(f"{where}.supportedProtocolVersions must be a list of strings")
     return errors
+
+
+def input_problems(spec, where, err):
+    if "format" in spec and spec["format"] not in ("string", "number", "boolean", "filepath"):
+        err(f"{where}.format must be string, number, boolean or filepath")
+    if "choices" in spec and (not isinstance(spec["choices"], list)
+                              or not all(isinstance(c, str) for c in spec["choices"])):
+        err(f"{where}.choices must be a list of strings")
+    for key in ("value", "default", "description", "placeholder"):
+        if key in spec and not isinstance(spec[key], str):
+            err(f"{where}.{key} must be a string")
+
+
+def check_vars(variables, where, err):
+    if not isinstance(variables, dict):
+        err(f"{where} must be an object")
+        return
+    for name, spec in variables.items():
+        if not isinstance(spec, dict):
+            err(f"{where}.{name} must be an object")
+        else:
+            input_problems(spec, f"{where}.{name}", err)
 
 
 def env_name(entry, var):
@@ -168,6 +221,8 @@ def resolve(entry_name, card, entry_vars):
         return value
 
     url = VAR.sub(fill_url, remote["url"])
+    # The harness will send the card's headers here, so a card can't steer it to plain HTTP.
+    require_secure(url)
 
     headers, optional = [], []
     for h in remote.get("headers", []):

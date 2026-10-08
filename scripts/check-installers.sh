@@ -49,7 +49,7 @@ repo_status() { HOME="$real_home" git status --porcelain; }
 before=$(repo_status)
 sandbox=$(mktemp -d)
 card_pid=""
-trap '[ -n "$card_pid" ] && kill "$card_pid" 2>/dev/null; rm -rf "$sandbox"' EXIT
+trap '[ -n "$card_pid" ] && { kill "$card_pid"; wait "$card_pid"; } 2>/dev/null; rm -rf "$sandbox"' EXIT
 export HOME="$sandbox/home"
 proj="$sandbox/proj"
 mkdir -p "$HOME" "$proj"
