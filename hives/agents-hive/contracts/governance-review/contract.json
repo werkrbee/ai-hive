@@ -14,7 +14,7 @@
     "type": "object",
     "required": ["verdict", "reason"],
     "properties": {
-      "verdict": { "enum": ["allow", "allow-with-conditions", "block"] },
+      "verdict": { "enum": ["allow", "allow-with-conditions", "block"], "description": "block means block and escalate to the human." },
       "reason": { "type": "string" },
       "conditions": { "type": "array", "items": { "type": "string" }, "description": "Safeguards required before proceeding (allow-with-conditions)." },
       "violation": { "type": "string", "description": "The Charter rule broken (block)." },

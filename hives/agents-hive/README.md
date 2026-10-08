@@ -50,7 +50,9 @@ stops a worker that would exceed one. The current figures are starting points, t
 tuned once runs are measured.
 
 `scripts/validate_contracts.py` checks every contract against the schema, including that
-each `fulfilledBy` path exists, and CI runs it.
+each `fulfilledBy` path exists, and CI runs it. Contracts are declarations today: the
+validator checks them statically, but no harness or the workflows-hive engine enforces
+their permissions or budgets at runtime yet.
 
 ## Repository layout
 

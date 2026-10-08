@@ -74,8 +74,12 @@ def check(path):
     else:
         granted, approval = perms["granted"], perms["approval"]
         for name, items in (("granted", granted), ("approval", approval)):
-            if not isinstance(items, list) or len(items) != len(set(items)):
-                err(f"permissions.{name} must be a list without duplicates")
+            if not isinstance(items, list) or not all(isinstance(p, str) for p in items):
+                err(f"permissions.{name} must be a list of permission names")
+            elif len(items) != len(set(items)):
+                err(f"permissions.{name} has duplicates")
+        if not all(isinstance(x, list) and all(isinstance(p, str) for p in x) for x in (granted, approval)):
+            granted, approval = [], []
         for p in granted:
             if p in GATED:
                 err(f"'{p}' is gated by the Charter; it can only appear under approval")
@@ -92,8 +96,13 @@ def check(path):
         err("fulfilledBy must list at least one skill or agent")
     else:
         for i in impls:
-            kind, rel = i.get("kind"), i.get("path", "")
-            if kind not in ARTIFACT:
+            if not isinstance(i, dict):
+                err("each fulfilledBy entry must be an object with kind and path")
+                continue
+            kind, rel = i.get("kind"), i.get("path")
+            if not isinstance(rel, str) or not rel.startswith("hives/") or ".." in Path(rel).parts:
+                err(f"fulfilledBy path must sit under hives/: {rel!r}")
+            elif kind not in ARTIFACT:
                 err(f"fulfilledBy kind must be skill or agent, not '{kind}'")
             elif not (REPO_ROOT / rel / ARTIFACT[kind]).is_file():
                 err(f"fulfilledBy {kind} not found: {rel}/{ARTIFACT[kind]}")

@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Validate the repo's portable artifacts. Used by CI and the Claude Code PostToolUse hook.
-# Checks every SKILL.md for YAML frontmatter with the required keys, every AGENTS.md for
-# a top-level heading, and every agents-hive execution contract against its schema. Fails if no SKILL.md is found at all (e.g. hives not checked out).
+# Checks every SKILL.md for YAML frontmatter with the required keys, every AGENTS.md
+# for a top-level heading, and every agents-hive execution contract against its schema.
+# Fails if no SKILL.md is found at all (e.g. hives not checked out).
 # Exit non-zero on any failure (the hook tolerates failures; CI does not).
 set -uo pipefail
 
