@@ -159,7 +159,7 @@ The engine keeps these rules:
 
 ## Out of scope here
 
-The executable spike (a two-step workflow that checkpoints, survives a restart, resumes
-at step two, and reports result and cost) is the next piece of work. The worker
+The reference engine (`scripts/run.py`) implements rules 1 to 4 with the two-step
+`word-count` workflow; approvals, budgets and the MCP Tasks server come later. The worker
 execution contract will belong to agents-hive. The Temporal engine is built when a product
 calls for it, against this same contract.
