@@ -48,7 +48,8 @@ real_home="$HOME"
 repo_status() { HOME="$real_home" git status --porcelain; }
 before=$(repo_status)
 sandbox=$(mktemp -d)
-trap 'rm -rf "$sandbox"' EXIT
+card_pid=""
+trap '[ -n "$card_pid" ] && { kill "$card_pid"; wait "$card_pid"; } 2>/dev/null; rm -rf "$sandbox"' EXIT
 export HOME="$sandbox/home"
 proj="$sandbox/proj"
 mkdir -p "$HOME" "$proj"
@@ -72,7 +73,47 @@ run "rules-hive install.sh" bash hives/rules-hive/scripts/install.sh --dir "$pro
 if [ -s "$proj/AGENTS.md" ]; then pass "rules-hive wrote AGENTS.md"; else flunk "rules-hive wrote no AGENTS.md"; fi
 
 run "agents-hive install.py --dry-run" python3 hives/agents-hive/scripts/install.py --dir "$proj" --dry-run
-run "mcp-hive install.py --dry-run" python3 hives/mcp-hive/scripts/install.py --dir "$proj" --dry-run
+# Local servers only; remote entries fetch their Server Card, tested offline below.
+run "mcp-hive install.py --dry-run" python3 hives/mcp-hive/scripts/install.py --dir "$proj" --dry-run \
+  --server filesystem --server git --server fetch
+
+# mcp-hive Server Cards: serve an AI Catalog and a card from localhost, then resolve a
+# registry entry through the catalog. The card requires a secret bearer token.
+cards="$sandbox/cards"
+mkdir -p "$cards/.well-known" "$sandbox/registry/demo"
+cat > "$cards/card.json" <<'JSON'
+{"$schema": "https://static.modelcontextprotocol.io/schemas/v1/server-card.schema.json",
+ "name": "com.example/demo", "version": "1.0.0", "description": "Fixture card.",
+ "remotes": [{"type": "streamable-http", "url": "https://demo.example.com/mcp",
+   "headers": [{"name": "Authorization", "isRequired": true, "isSecret": true,
+     "value": "Bearer {token}", "variables": {"token": {"isSecret": true}}}]}]}
+JSON
+python3 - "$cards" "$sandbox/port" <<'PY' &
+import functools, http.server, sys
+handler = functools.partial(http.server.SimpleHTTPRequestHandler, directory=sys.argv[1])
+handler.func.log_message = lambda *a: None
+srv = http.server.HTTPServer(("127.0.0.1", 0), handler)
+open(sys.argv[2], "w").write(str(srv.server_port))
+srv.serve_forever()
+PY
+card_pid=$!
+for _ in 1 2 3 4 5 6 7 8 9 10; do [ -s "$sandbox/port" ] && break; sleep 0.2; done
+port=$(cat "$sandbox/port" 2>/dev/null)
+printf '{"specVersion": "1.0", "entries": [{"identifier": "urn:air:localhost:mcp:demo",
+  "type": "application/mcp-server-card+json", "url": "http://127.0.0.1:%s/card.json"}]}\n' \
+  "$port" > "$cards/.well-known/ai-catalog.json"
+printf '{"name": "demo", "description": "Fixture.", "discovery": {"catalog":
+  "http://127.0.0.1:%s/.well-known/ai-catalog.json", "identifier": "urn:air:localhost:mcp:demo"}}\n' \
+  "$port" > "$sandbox/registry/demo/mcp.json"
+out=$(python3 hives/mcp-hive/scripts/install.py --servers-dir "$sandbox/registry" --dir "$proj" \
+  --harness claude-code --dry-run 2>&1); code=$?
+if [ "$code" -eq 0 ] && printf '%s\n' "$out" | grep -q '"url": "https://demo.example.com/mcp"' \
+  && printf '%s\n' "$out" | grep -q 'Bearer ${DEMO_TOKEN}'; then
+  pass "mcp-hive install.py resolves a Server Card through an AI Catalog"
+else
+  flunk "mcp-hive install.py resolves a Server Card through an AI Catalog"
+  printf '%s\n' "$out" | sed 's/^/      /'
+fi
 run "plugins-hive install.py --dry-run" \
   python3 hives/plugins-hive/scripts/install.py --dir "$proj" --hives-dir hives --dry-run
 run "projects-hive init.py --dry-run" \

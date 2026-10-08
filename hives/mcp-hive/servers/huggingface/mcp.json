@@ -1,0 +1,9 @@
+{
+  "name": "huggingface",
+  "description": "Search and use the Hugging Face Hub (remote; configured from its Server Card).",
+  "transport": "streamable-http",
+  "discovery": {
+    "catalog": "https://huggingface.co/.well-known/ai-catalog.json",
+    "identifier": "urn:air:huggingface.co:mcp:hub"
+  }
+}
