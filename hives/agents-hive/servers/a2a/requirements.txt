@@ -1,0 +1,6 @@
+# The reference A2A server only. The rest of the repo is standard-library Python.
+# Python 3.13. Pinned; upgrade deliberately and re-run the tests and the conformance run.
+a2a-sdk[http-server,sqlite]==1.2.2
+azure-identity==1.26.0
+pyjwt[crypto]==2.15.1
+uvicorn==0.54.0
