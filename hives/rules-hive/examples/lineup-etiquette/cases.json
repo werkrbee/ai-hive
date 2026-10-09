@@ -1,33 +1,175 @@
 [
-  { "name": "bullpen call to an opted-in player sends on its own",
-    "request": { "action": "message.send", "scope": { "channel": "sms", "audience": "bullpen" },
-                 "trigger": "bullpen.slot-opened", "facts": { "recipient.notifyOptIn": true } },
-    "decision": "auto" },
-  { "name": "bullpen call to a player who never opted in is denied",
-    "request": { "action": "message.send", "scope": { "channel": "sms", "audience": "bullpen" },
-                 "trigger": "bullpen.slot-opened", "facts": { "recipient.notifyOptIn": false } },
-    "decision": "deny" },
-  { "name": "a bullpen text without the slot-opened trigger needs the organizer",
-    "request": { "action": "message.send", "scope": { "channel": "sms", "audience": "bullpen" },
-                 "facts": { "recipient.notifyOptIn": true } },
-    "decision": "human" },
-  { "name": "an organizer blast needs approval",
-    "request": { "action": "message.send", "scope": { "channel": "sms", "audience": "group" },
-                 "facts": { "recipient.notifyOptIn": true } },
-    "decision": "human" },
-  { "name": "a blast to members who didn't opt in is denied, even with approval",
-    "request": { "action": "message.send", "scope": { "channel": "sms", "audience": "group" } },
-    "decision": "deny" },
-  { "name": "an organizer cancelling an event needs approval",
-    "request": { "action": "lineup.event.cancel", "facts": { "actor.role": "organizer" } },
-    "decision": "human" },
-  { "name": "a player can't cancel an event",
-    "request": { "action": "lineup.event.cancel", "facts": { "actor.role": "player" } },
-    "decision": "deny" },
-  { "name": "charging money needs approval (from the Charter)",
-    "request": { "action": "spend" },
-    "decision": "human" },
-  { "name": "reading data runs on its own (from the Charter)",
-    "request": { "action": "fs.read" },
-    "decision": "auto" }
+  {
+    "name": "bullpen call to an opted-in player sends on its own",
+    "request": {
+      "action": "message.send",
+      "scope": {
+        "channel": "sms",
+        "audience": "bullpen"
+      },
+      "trigger": "bullpen.slot-opened",
+      "facts": {
+        "recipient.notifyOptIn": true
+      }
+    },
+    "decision": "auto",
+    "rule": "bullpen.open-slot-call"
+  },
+  {
+    "name": "bullpen call to a player who never opted in is denied",
+    "request": {
+      "action": "message.send",
+      "scope": {
+        "channel": "sms",
+        "audience": "bullpen"
+      },
+      "trigger": "bullpen.slot-opened",
+      "facts": {
+        "recipient.notifyOptIn": false
+      }
+    },
+    "decision": "deny",
+    "rule": "messages.opt-in-only"
+  },
+  {
+    "name": "a bullpen text without the slot-opened trigger needs the organizer",
+    "request": {
+      "action": "message.send",
+      "scope": {
+        "channel": "sms",
+        "audience": "bullpen"
+      },
+      "facts": {
+        "recipient.notifyOptIn": true
+      }
+    },
+    "decision": "human"
+  },
+  {
+    "name": "an organizer blast needs approval",
+    "request": {
+      "action": "message.send",
+      "scope": {
+        "channel": "sms",
+        "audience": "group"
+      },
+      "facts": {
+        "recipient.notifyOptIn": true
+      }
+    },
+    "decision": "human",
+    "rule": "organizer.blast",
+    "present": [
+      "message",
+      "recipient count",
+      "estimated cost"
+    ]
+  },
+  {
+    "name": "a blast to members who didn't opt in is denied, even with approval",
+    "request": {
+      "action": "message.send",
+      "scope": {
+        "channel": "sms",
+        "audience": "group"
+      }
+    },
+    "decision": "deny",
+    "rule": "messages.opt-in-only"
+  },
+  {
+    "name": "an organizer cancelling an event needs approval",
+    "request": {
+      "action": "lineup.event.cancel",
+      "facts": {
+        "actor.role": "organizer"
+      }
+    },
+    "decision": "human"
+  },
+  {
+    "name": "a player can't cancel an event",
+    "request": {
+      "action": "lineup.event.cancel",
+      "facts": {
+        "actor.role": "player"
+      }
+    },
+    "decision": "deny",
+    "rule": "organizers-only.cancel"
+  },
+  {
+    "name": "charging money needs approval (from the Charter)",
+    "request": {
+      "action": "spend"
+    },
+    "decision": "human",
+    "rule": "approve.spend"
+  },
+  {
+    "name": "reading data runs on its own (from the Charter)",
+    "request": {
+      "action": "fs.read"
+    },
+    "decision": "auto"
+  },
+  {
+    "name": "an opt-in of 1 is not true, so a bullpen call is denied",
+    "request": {
+      "action": "message.send",
+      "scope": {
+        "channel": "sms",
+        "audience": "bullpen"
+      },
+      "trigger": "bullpen.slot-opened",
+      "facts": {
+        "recipient.notifyOptIn": 1
+      }
+    },
+    "decision": "deny",
+    "rule": "messages.opt-in-only"
+  },
+  {
+    "name": "an email blast to members who didn't opt in is denied too",
+    "request": {
+      "action": "message.send",
+      "scope": {
+        "channel": "email",
+        "audience": "group"
+      },
+      "facts": {
+        "recipient.notifyOptIn": false
+      }
+    },
+    "decision": "deny"
+  },
+  {
+    "name": "a cancel with no known role is denied",
+    "request": {
+      "action": "lineup.event.cancel"
+    },
+    "decision": "deny",
+    "rule": "organizers-only.cancel"
+  },
+  {
+    "name": "an organizer removing a member needs approval",
+    "request": {
+      "action": "lineup.member.remove",
+      "facts": {
+        "actor.role": "organizer"
+      }
+    },
+    "decision": "human",
+    "rule": "member.remove"
+  },
+  {
+    "name": "a player can't remove a member",
+    "request": {
+      "action": "lineup.member.remove",
+      "facts": {
+        "actor.role": "player"
+      }
+    },
+    "decision": "deny"
+  }
 ]

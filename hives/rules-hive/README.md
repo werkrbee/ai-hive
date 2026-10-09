@@ -41,14 +41,15 @@ prose. The schema is [`schema/approval-policy.schema.json`](schema/approval-poli
 A policy is a list of mandates, shaped after the mandates in
 [AP2](https://github.com/google-agentic-commerce/AP2) (v0.2.0), whose authorization model
 is written for payments but meant to apply more generally. Each mandate covers one action
-and a list of typed constraints that must all hold:
+and a list of typed constraints that must all hold. The type names follow AP2's, but these
+are unsigned policy, not AP2's signed SD-JWT credentials.
 
 - **Open mandate** (`mandate.action.open.1`): the agent may act on its own.
-- **Closed mandate** (`mandate.action.closed.1`): a human approves the specific action
-  first. `present` lists what the approval request must show them.
+- **Closed mandate** (`mandate.action.1`): bound to one specific action, which a human
+  approves first. `present` lists what the approval request must show them.
 - **Constraints:** `action.scope` (where it applies, e.g. channel and audience),
   `action.trigger` (the event it responds to) and `action.condition` (a fact that must
-  hold, e.g. a member opted in). A fact the request doesn't supply never holds.
+  hold, e.g. a member opted in). Values compare strictly, so `1` is not `true`.
 
 Actions come from the permission vocabulary in agents-hive's execution-contract schema,
 so a contract and a policy speak the same language: a contract says what a worker may do
@@ -58,7 +59,11 @@ at all, and the policy says when it may do it without asking. A product policy c
 
 A request is decided in this order. A matching **prohibition** denies it, even with a
 human's approval. Otherwise a matching open mandate lets the agent act, and otherwise a
-matching closed mandate sends it to a human. Anything else is denied.
+matching closed mandate sends it to a human, showing the `present` items of every closed
+mandate that matched. Anything else is denied. A fact the request leaves out never
+satisfies a mandate, and never gets a request out from under a prohibition. A policy's
+own entries are checked before those of the policy it extends, and it can't redeclare an
+action that policy already declares.
 
 The Charter's policy has open mandates for the five local, reversible permissions and
 closed mandates for the ten gated ones. An open mandate for a gated action is an
@@ -67,15 +72,17 @@ why and where it was decided.
 
 [`examples/lineup-etiquette/`](examples/lineup-etiquette/policy.json) is a worked
 example taken from [lineup's house rules](https://github.com/werkrbee/lineup/blob/main/rules/lineup-etiquette/AGENTS.md).
-Texts go only to members who opted in, and that holds even with approval. Organizer
-blasts, cancellations and removals need the organizer, and only organizers may cancel.
+Messages go only to members who opted in, on every channel, and that holds even with
+approval. Organizer blasts, cancellations, removals and group deletes need the organizer's
+approval, and only organizers may make them.
 The bullpen open-slot call, a carve-out that used to live in prose, is an open mandate
 scoped to the bullpen, triggered by `bullpen.slot-opened`, and limited to members who
 opted in.
 
 `scripts/check_policy.py` checks each policy against the schema and the vocabulary, then
 runs the `cases.json` beside it: each case is a request and the decision the policy must
-reach. CI runs it. Policies are declarations today: nothing enforces them at runtime yet.
+reach, optionally with the rule that must decide it and what the approval must present.
+CI runs it. Policies are declarations today: nothing enforces them at runtime yet.
 
 ## Repository layout
 

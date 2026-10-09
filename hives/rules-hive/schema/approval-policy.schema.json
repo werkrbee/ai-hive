@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/werkrbee/ai-hive/blob/main/hives/rules-hive/schema/approval-policy.schema.json",
   "title": "Approval policy",
-  "description": "The Charter's approval rules as data. Each mandate says, for one action in one scope, whether an agent may act on its own (open) or needs a human to approve the specific action (closed). Shaped after AP2 v0.2.0 mandates: a versioned type, and a list of typed constraints that must all hold. Anything no mandate covers is denied, and prohibitions win over mandates.",
+  "description": "The Charter's approval rules as data. Each mandate says, for one action in one scope, whether an agent may act on its own (open) or needs a human to approve the specific action (closed). Shaped after AP2 v0.2.0 mandates: a versioned type, open or closed, and a list of typed constraints that must all hold. Unlike AP2 mandates these are unsigned policy, not SD-JWT credentials. Anything no mandate covers is denied, and prohibitions win over mandates.",
   "type": "object",
   "required": ["policy", "version", "description", "mandates"],
   "additionalProperties": false,
@@ -20,11 +20,12 @@
       "type": "string"
     },
     "extends": {
-      "description": "A policy this one adds to, as a path from the repo root or an https URL. Its actions, prohibitions and mandates apply too.",
-      "type": "string"
+      "description": "A policy this one adds to, as a path from the repo root. Its actions, prohibitions and mandates apply too, after this policy's own.",
+      "type": "string",
+      "pattern": "^hives/"
     },
     "actions": {
-      "description": "Actions this policy adds to the permission vocabulary in agents-hive's execution-contract schema. Product actions are namespaced, e.g. lineup.event.cancel.",
+      "description": "Actions this policy adds to the permission vocabulary in agents-hive's execution-contract schema. Product actions are namespaced, e.g. lineup.event.cancel. An action can't be redeclared, here or by a policy that extends this one.",
       "type": "array",
       "items": {
         "type": "object",
@@ -41,7 +42,7 @@
       }
     },
     "prohibitions": {
-      "description": "Actions that are denied whatever any mandate says, even with a human's approval. A prohibition applies when its constraints hold and its unless conditions don't all hold.",
+      "description": "Actions that are denied whatever any mandate says, even with a human's approval. A prohibition applies when its constraints hold and its unless conditions don't all hold. A fact the request leaves out counts as matching a prohibition's constraints, so it can't be escaped by omission.",
       "type": "array",
       "items": {
         "type": "object",
@@ -75,8 +76,8 @@
       "properties": {
         "id": { "$ref": "#/$defs/id" },
         "type": {
-          "description": "open: the agent may act without asking while every constraint holds (AP2's open mandate). closed: a human approves the specific action before it runs (AP2's closed mandate).",
-          "enum": ["mandate.action.open.1", "mandate.action.closed.1"]
+          "description": "Named like AP2's vct values. mandate.action.open.1: the agent may act without asking while every constraint holds, like AP2's open mandate. mandate.action.1: bound to one specific action; AP2 closes a mandate to one transaction, and here the binding is a human approving that action before it runs.",
+          "enum": ["mandate.action.1", "mandate.action.open.1"]
         },
         "action": { "$ref": "#/$defs/action" },
         "constraints": { "$ref": "#/$defs/constraints" },
@@ -98,7 +99,7 @@
       }
     },
     "constraints": {
-      "description": "Typed constraints that must all hold, like AP2's constraints array. A fact the request doesn't supply never holds.",
+      "description": "Typed constraints that must all hold, like AP2's constraints array. In a mandate or an unless list, a fact the request doesn't supply never holds. Values compare strictly (true is not 1).",
       "type": "array",
       "items": {
         "oneOf": [

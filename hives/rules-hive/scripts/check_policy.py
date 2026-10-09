@@ -12,9 +12,13 @@ How a request is decided:
   1. A prohibition whose constraints hold, and whose unless conditions don't all hold,
      denies it, even with a human's approval.
   2. Otherwise an open mandate whose constraints all hold lets the agent act on its own.
-  3. Otherwise a closed mandate whose constraints all hold means a human approves it.
+  3. Otherwise a closed mandate whose constraints all hold means a human approves it. The
+     approval request shows the present items of every closed mandate that matched.
   4. Otherwise it is denied.
-A fact the request doesn't supply never holds. A policy's extends chain is merged in.
+A fact the request doesn't supply never satisfies a mandate or an unless condition, and
+never lets a request escape a prohibition. Facts compare strictly: 1 is not true.
+A policy's own entries come before those of the policy it extends, so the most specific
+rule is the one reported.
 
 Standard library only.
 
@@ -37,7 +41,7 @@ CORE_NAMESPACES = {a.split(".")[0] for a in UNGATED | GATED}
 KEBAB = re.compile(SCHEMA["properties"]["policy"]["pattern"])
 ID = re.compile(SCHEMA["$defs"]["id"]["pattern"])
 ACTION_ID = re.compile(SCHEMA["properties"]["actions"]["items"]["properties"]["id"]["pattern"])
-OPEN, CLOSED = SCHEMA["$defs"]["mandate"]["properties"]["type"]["enum"]
+CLOSED, OPEN = SCHEMA["$defs"]["mandate"]["properties"]["type"]["enum"]
 DECISIONS = {"auto", "human", "deny"}
 
 
@@ -103,7 +107,7 @@ def check(path):
         if key not in p:
             err(f"missing '{key}'")
     name = p.get("policy")
-    if not isinstance(name, str) or not KEBAB.match(name):
+    if not isinstance(name, str) or not KEBAB.fullmatch(name):
         err("policy must be kebab-case")
     elif name != path.parent.name:
         err(f"policy '{name}' doesn't match its directory '{path.parent.name}'")
@@ -118,14 +122,19 @@ def check(path):
     if not isinstance(actions, list):
         err("actions must be a list")
         actions = []
+    declared = set()
     for i, a in enumerate(actions):
         at = f"actions[{i}]"
         if not isinstance(a, dict):
             err(f"{at} must be an object")
             continue
+        if isinstance(a.get("id"), str):
+            if a["id"] in declared:
+                err(f"{at}.id '{a['id']}' is declared twice")
+            declared.add(a["id"])
         unknown(a, ("id", "description", "gated"), at, err)
         aid = a.get("id")
-        if not isinstance(aid, str) or not ACTION_ID.match(aid):
+        if not isinstance(aid, str) or not ACTION_ID.fullmatch(aid):
             err(f"{at}.id must be a dotted name such as lineup.event.cancel")
         elif aid.split(".")[0] in CORE_NAMESPACES:
             err(f"{at}.id '{aid}' uses a core namespace; use the product's own, e.g. lineup.")
@@ -151,7 +160,7 @@ def check(path):
             for r in required:
                 if r not in m:
                     err(f"{at}: missing '{r}'")
-            if "id" in m and (not isinstance(m["id"], str) or not ID.match(m["id"])):
+            if "id" in m and (not isinstance(m["id"], str) or not ID.fullmatch(m["id"])):
                 err(f"{at}.id must be lowercase words joined by dots or hyphens")
             if "action" in m and not isinstance(m["action"], str):
                 err(f"{at}.action must be a string")
@@ -185,8 +194,8 @@ def resolve(path, seen=()):
     merged = {"actions": {}, "prohibitions": [], "mandates": []}
     ext = p.get("extends")
     if ext:
-        if ext.startswith("https://"):
-            raise PolicyError(f"{rel}: extends {ext} is remote; the checker only follows repo paths")
+        if not ext.startswith("hives/"):
+            raise PolicyError(f"{rel}: extends {ext}: must be a path from the repo root, under hives/")
         target = (REPO_ROOT / ext).resolve()
         if REPO_ROOT not in target.parents or not target.is_file():
             raise PolicyError(f"{rel}: extends {ext}: no such policy in the repo")
@@ -195,9 +204,13 @@ def resolve(path, seen=()):
             raise PolicyError(f"{rel}: extends {ext}, which is invalid ({problems[0]})")
         merged = resolve(target, seen + (path,))
     for a in p.get("actions", []):
+        if a["id"] in merged["actions"]:
+            raise PolicyError(f"{rel}: action '{a['id']}' is already declared by {ext}; "
+                              "a policy can't redefine an action it extends")
         merged["actions"][a["id"]] = a["gated"]
-    merged["prohibitions"] += p.get("prohibitions", [])
-    merged["mandates"] += p.get("mandates", [])
+    # Own entries first, so the most specific rule is the one that decides and is reported.
+    merged["prohibitions"] = p.get("prohibitions", []) + merged["prohibitions"]
+    merged["mandates"] = p.get("mandates", []) + merged["mandates"]
     return merged
 
 
@@ -228,34 +241,48 @@ def check_merged(merged):
     return errors
 
 
-def holds(c, req):
+def same(a, b):
+    """Strict equality: true is not 1, and 1 is not 1.0."""
+    return type(a) is type(b) and a == b
+
+
+def holds(c, req, missing=False):
+    """Whether constraint c holds for req. missing is the answer when req lacks the fact."""
     kind = c["type"]
     if kind == "action.scope":
         scope = req.get("scope", {})
-        return all(scope.get(dim) in values for dim, values in c["scope"].items())
+        return all(scope[dim] in values if dim in scope else missing
+                   for dim, values in c["scope"].items())
     if kind == "action.trigger":
-        return req.get("trigger") in c["events"]
+        return req["trigger"] in c["events"] if "trigger" in req else missing
     facts = req.get("facts", {})
     if c["field"] not in facts:
-        return False
+        return missing
     value = facts[c["field"]]
-    return value == c["equals"] if "equals" in c else value in c["in"]
+    return same(value, c["equals"]) if "equals" in c else any(same(value, x) for x in c["in"])
 
 
 def decide(merged, req):
-    """Return (decision, id of the rule that decided it)."""
+    """Return (decision, id of the deciding rule, what a human approval must present)."""
     action = req.get("action")
     for p in merged["prohibitions"]:
-        if p["action"] == action and all(holds(c, req) for c in p.get("constraints", [])):
+        # A prohibition can't be escaped by leaving a fact out.
+        if p["action"] == action and all(holds(c, req, missing=True) for c in p.get("constraints", [])):
             unless = p.get("unless", [])
             if not unless or not all(holds(c, req) for c in unless):
-                return "deny", p["id"]
-    for kind, decision in ((OPEN, "auto"), (CLOSED, "human")):
-        for m in merged["mandates"]:
-            if m["type"] == kind and m["action"] == action \
-                    and all(holds(c, req) for c in m.get("constraints", [])):
-                return decision, m["id"]
-    return "deny", None
+                return "deny", p["id"], []
+    matched = {OPEN: [], CLOSED: []}
+    for m in merged["mandates"]:
+        if m["action"] == action and all(holds(c, req) for c in m.get("constraints", [])):
+            matched[m["type"]].append(m)
+    if matched[OPEN]:
+        return "auto", matched[OPEN][0]["id"], []
+    if matched[CLOSED]:
+        present = []
+        for m in matched[CLOSED]:
+            present += [x for x in m.get("present", []) if x not in present]
+        return "human", matched[CLOSED][0]["id"], present
+    return "deny", None, []
 
 
 def run_cases(path, merged):
@@ -279,10 +306,17 @@ def run_cases(path, merged):
         if not isinstance(req.get("scope", {}), dict) or not isinstance(req.get("facts", {}), dict):
             errors.append(f"{at}: request scope and facts must be objects")
             continue
-        got, rule = decide(merged, req)
+        if not isinstance(case.get("rule", ""), str) or not isinstance(case.get("present", []), list):
+            errors.append(f"{at}: rule must be a string and present a list")
+            continue
+        got, rule, present = decide(merged, req)
         if got != case["decision"]:
             errors.append(f"case '{case['name']}': expected {case['decision']}, "
                           f"got {got} ({'by ' + rule if rule else 'no rule matched'})")
+        elif "rule" in case and rule != case["rule"]:
+            errors.append(f"case '{case['name']}': expected rule {case['rule']}, got {rule}")
+        elif "present" in case and present != case["present"]:
+            errors.append(f"case '{case['name']}': expected present {case['present']}, got {present}")
     return errors
 
 

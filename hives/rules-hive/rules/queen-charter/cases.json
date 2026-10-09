@@ -1,9 +1,57 @@
 [
-  { "name": "reading files runs on its own", "request": { "action": "fs.read" }, "decision": "auto" },
-  { "name": "running a shell command runs on its own", "request": { "action": "shell.exec" }, "decision": "auto" },
-  { "name": "a commit needs approval", "request": { "action": "vcs.commit" }, "decision": "human" },
-  { "name": "a merge needs approval", "request": { "action": "vcs.merge" }, "decision": "human" },
-  { "name": "sending a message needs approval", "request": { "action": "message.send" }, "decision": "human" },
-  { "name": "spending needs approval", "request": { "action": "spend" }, "decision": "human" },
-  { "name": "an action no mandate covers is denied", "request": { "action": "db.drop" }, "decision": "deny" }
+  {
+    "name": "reading files runs on its own",
+    "request": {
+      "action": "fs.read"
+    },
+    "decision": "auto",
+    "rule": "auto.fs.read"
+  },
+  {
+    "name": "running a shell command runs on its own",
+    "request": {
+      "action": "shell.exec"
+    },
+    "decision": "auto",
+    "rule": "auto.shell.exec"
+  },
+  {
+    "name": "a commit needs approval",
+    "request": {
+      "action": "vcs.commit"
+    },
+    "decision": "human",
+    "rule": "approve.vcs.commit"
+  },
+  {
+    "name": "a merge needs approval",
+    "request": {
+      "action": "vcs.merge"
+    },
+    "decision": "human",
+    "rule": "approve.vcs.merge"
+  },
+  {
+    "name": "sending a message needs approval",
+    "request": {
+      "action": "message.send"
+    },
+    "decision": "human",
+    "rule": "approve.message.send"
+  },
+  {
+    "name": "spending needs approval",
+    "request": {
+      "action": "spend"
+    },
+    "decision": "human",
+    "rule": "approve.spend"
+  },
+  {
+    "name": "an action no mandate covers is denied",
+    "request": {
+      "action": "db.drop"
+    },
+    "decision": "deny"
+  }
 ]

@@ -32,52 +32,52 @@
     },
     {
       "id": "approve.vcs.commit",
-      "type": "mandate.action.closed.1",
+      "type": "mandate.action.1",
       "action": "vcs.commit"
     },
     {
       "id": "approve.vcs.push",
-      "type": "mandate.action.closed.1",
+      "type": "mandate.action.1",
       "action": "vcs.push"
     },
     {
       "id": "approve.vcs.merge",
-      "type": "mandate.action.closed.1",
+      "type": "mandate.action.1",
       "action": "vcs.merge"
     },
     {
       "id": "approve.vcs.release",
-      "type": "mandate.action.closed.1",
+      "type": "mandate.action.1",
       "action": "vcs.release"
     },
     {
       "id": "approve.vcs.delete-ref",
-      "type": "mandate.action.closed.1",
+      "type": "mandate.action.1",
       "action": "vcs.delete-ref"
     },
     {
       "id": "approve.fs.delete",
-      "type": "mandate.action.closed.1",
+      "type": "mandate.action.1",
       "action": "fs.delete"
     },
     {
       "id": "approve.infra.change",
-      "type": "mandate.action.closed.1",
+      "type": "mandate.action.1",
       "action": "infra.change"
     },
     {
       "id": "approve.deploy",
-      "type": "mandate.action.closed.1",
+      "type": "mandate.action.1",
       "action": "deploy"
     },
     {
       "id": "approve.message.send",
-      "type": "mandate.action.closed.1",
+      "type": "mandate.action.1",
       "action": "message.send"
     },
     {
       "id": "approve.spend",
-      "type": "mandate.action.closed.1",
+      "type": "mandate.action.1",
       "action": "spend"
     }
   ]

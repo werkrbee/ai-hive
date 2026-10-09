@@ -2,27 +2,74 @@
   "$schema": "../../schema/approval-policy.schema.json",
   "policy": "lineup-etiquette",
   "version": 1,
-  "description": "lineup's house rules as data, a worked example of a product policy. Texts go only to members who opted in. Organizer blasts, cancellations, charges and removals need the organizer's approval. A bullpen open-slot call sends automatically.",
-  "source": "https://github.com/werkrbee/lineup/blob/main/rules/lineup-etiquette/AGENTS.md",
+  "description": "lineup's house rules as data, a worked example of a product policy. Messages go only to members who opted in. Organizer blasts, cancellations, charges, removals and group deletes need the organizer's approval, and only organizers may make them. A bullpen open-slot call sends automatically.",
+  "source": "https://github.com/werkrbee/lineup/blob/main/rules/lineup-etiquette/AGENTS.md and https://github.com/werkrbee/lineup/blob/main/skills/lineup-notify/SKILL.md",
   "extends": "hives/rules-hive/rules/queen-charter/policy.json",
   "actions": [
-    { "id": "lineup.event.cancel", "description": "Cancel a scheduled event.", "gated": true },
-    { "id": "lineup.member.remove", "description": "Remove a member or organizer from a group.", "gated": true },
-    { "id": "lineup.group.delete", "description": "Delete or archive a group.", "gated": true }
+    {
+      "id": "lineup.event.cancel",
+      "description": "Cancel a scheduled event.",
+      "gated": true
+    },
+    {
+      "id": "lineup.member.remove",
+      "description": "Remove a member or organizer from a group.",
+      "gated": true
+    },
+    {
+      "id": "lineup.group.delete",
+      "description": "Delete or archive a group.",
+      "gated": true
+    }
   ],
   "prohibitions": [
     {
-      "id": "sms.opt-in-only",
+      "id": "messages.opt-in-only",
       "action": "message.send",
-      "constraints": [{ "type": "action.scope", "scope": { "channel": ["sms", "imessage"] } }],
-      "unless": [{ "type": "action.condition", "field": "recipient.notifyOptIn", "equals": true }],
-      "reason": "Texts are opt-in only. Never text a member unless NotifyOptIn is true."
+      "unless": [
+        {
+          "type": "action.condition",
+          "field": "recipient.notifyOptIn",
+          "equals": true
+        }
+      ],
+      "reason": "Messages are opt-in only, on every channel. Never message a member unless NotifyOptIn is true."
     },
     {
-      "id": "organizers-only",
+      "id": "organizers-only.cancel",
       "action": "lineup.event.cancel",
-      "unless": [{ "type": "action.condition", "field": "actor.role", "equals": "organizer" }],
+      "unless": [
+        {
+          "type": "action.condition",
+          "field": "actor.role",
+          "equals": "organizer"
+        }
+      ],
       "reason": "Only a group's organizers may cancel its events."
+    },
+    {
+      "id": "organizers-only.remove",
+      "action": "lineup.member.remove",
+      "unless": [
+        {
+          "type": "action.condition",
+          "field": "actor.role",
+          "equals": "organizer"
+        }
+      ],
+      "reason": "Only a group's organizers may manage its roster."
+    },
+    {
+      "id": "organizers-only.delete",
+      "action": "lineup.group.delete",
+      "unless": [
+        {
+          "type": "action.condition",
+          "field": "actor.role",
+          "equals": "organizer"
+        }
+      ],
+      "reason": "Only a group's organizers may delete or archive it."
     }
   ],
   "mandates": [
@@ -31,9 +78,30 @@
       "type": "mandate.action.open.1",
       "action": "message.send",
       "constraints": [
-        { "type": "action.scope", "scope": { "channel": ["sms", "imessage", "email"], "audience": ["bullpen"] } },
-        { "type": "action.trigger", "events": ["bullpen.slot-opened"] },
-        { "type": "action.condition", "field": "recipient.notifyOptIn", "equals": true }
+        {
+          "type": "action.scope",
+          "scope": {
+            "channel": [
+              "sms",
+              "imessage",
+              "email"
+            ],
+            "audience": [
+              "bullpen"
+            ]
+          }
+        },
+        {
+          "type": "action.trigger",
+          "events": [
+            "bullpen.slot-opened"
+          ]
+        },
+        {
+          "type": "action.condition",
+          "field": "recipient.notifyOptIn",
+          "equals": true
+        }
       ],
       "exception": {
         "reason": "A bullpen open-slot call is expected and event-driven: a real spot just opened, and its speed is the whole point.",
@@ -42,13 +110,38 @@
     },
     {
       "id": "organizer.blast",
-      "type": "mandate.action.closed.1",
+      "type": "mandate.action.1",
       "action": "message.send",
-      "constraints": [{ "type": "action.scope", "scope": { "audience": ["group"] } }],
-      "present": ["message", "recipient count", "estimated cost"]
+      "constraints": [
+        {
+          "type": "action.scope",
+          "scope": {
+            "audience": [
+              "group"
+            ]
+          }
+        }
+      ],
+      "present": [
+        "message",
+        "recipient count",
+        "estimated cost"
+      ]
     },
-    { "id": "event.cancel", "type": "mandate.action.closed.1", "action": "lineup.event.cancel" },
-    { "id": "member.remove", "type": "mandate.action.closed.1", "action": "lineup.member.remove" },
-    { "id": "group.delete", "type": "mandate.action.closed.1", "action": "lineup.group.delete" }
+    {
+      "id": "event.cancel",
+      "type": "mandate.action.1",
+      "action": "lineup.event.cancel"
+    },
+    {
+      "id": "member.remove",
+      "type": "mandate.action.1",
+      "action": "lineup.member.remove"
+    },
+    {
+      "id": "group.delete",
+      "type": "mandate.action.1",
+      "action": "lineup.group.delete"
+    }
   ]
 }
