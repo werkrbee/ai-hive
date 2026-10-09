@@ -1,0 +1,11 @@
+{
+  "name": "Barry",
+  "description": "Chief of staff for werkrbee's House of Hives. Takes a multi-step goal, decomposes it, delegates the pieces to other agents and reports one synthesized result.",
+  "version": "1.0.0",
+  "provider": { "organization": "werkrbee", "url": "https://github.com/werkrbee/ai-hive" },
+  "documentationUrl": "https://github.com/werkrbee/ai-hive/blob/main/hives/skills-hive/skills/barry/SKILL.md",
+  "iconUrl": "https://raw.githubusercontent.com/werkrbee/ai-hive/main/hives/skills-hive/skills/barry/assets/barry-portrait.svg",
+  "capabilities": { "streaming": false, "pushNotifications": false },
+  "defaultInputModes": ["application/json"],
+  "defaultOutputModes": ["application/json"]
+}
