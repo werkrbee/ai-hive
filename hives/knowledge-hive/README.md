@@ -13,7 +13,9 @@ parts: **persistent state** (a current snapshot plus durable memory entries),
 **results** (what was done and checked) and a **usage ledger** (what the work cost).
 
 [`DESIGN.md`](DESIGN.md) defines where each part lives in a product and the format of
-each. It is in design for P1: templates, a worked example and a validator come next.
+each. [`templates/knowledge/`](templates/knowledge) is a starting point to copy,
+[`examples/lineup/knowledge/`](examples/lineup/knowledge) is a worked example, and
+`scripts/check_knowledge.py` checks a product's directory against the format.
 
 ## The parts
 
@@ -27,6 +29,39 @@ each. It is in design for P1: templates, a worked example and a validator come n
 Nothing in `knowledge/` holds a secret: references say where a value lives, never the
 value.
 
+## Start a product's knowledge
+
+```bash
+git clone https://github.com/werkrbee/ai-hive.git
+cp -R ai-hive/hives/knowledge-hive/templates/knowledge /path/to/your/product/
+
+# Fill in STATE.md and replace memory/example-decision.md, then check it
+python3 ai-hive/hives/knowledge-hive/scripts/check_knowledge.py /path/to/your/product/knowledge
+```
+
+Then add a line to the product's `AGENTS.md`: read `knowledge/STATE.md` at the start of a
+session, update it before ending one, and append to `results.jsonl` and `ledger.jsonl` as
+work is done and checked.
+
+The checker needs Python 3 and nothing else. It checks `STATE.md` (frontmatter, the five
+sections in order, the two tables and the numbered lists), every memory entry,
+`results.jsonl` and `ledger.jsonl`. It also scans every file for API keys, tokens,
+private keys, email addresses and phone numbers, which must never be written there. That
+scan is a heuristic: it catches the common shapes, not every secret. With no arguments it
+checks the template and the examples, and CI runs it that way.
+
+## Worked example: lineup
+
+[`examples/lineup/knowledge/`](examples/lineup/knowledge) is lineup's
+[`STATUS.md`](https://github.com/werkrbee/lineup/blob/main/STATUS.md) and
+[`PROJECT_STATE.md`](https://github.com/werkrbee/lineup/blob/main/PROJECT_STATE.md)
+converted to this format, as of the 2026-08-19 snapshot. It is an example, not lineup's
+live state. The two files' next steps become one Open work list. The live IDs become
+references that say how to look each one up. The connector constraints and the
+decisions behind the bullpen and the Inkbox switch become seven memory entries, and the
+tested email channel becomes a result. The member roster stays in Airtable. lineup
+recorded no costs, so its ledger is empty; the first entries will come from metered work.
+
 ## Repository layout
 
 ```text
@@ -36,6 +71,12 @@ knowledge-hive/
 │   ├── kiro/  databricks-genie-code/  snowflake-cortex-code/
 │   └── github-copilot/
 │       └── scout/                # sub-harness (child of GitHub Copilot)
+├── templates/
+│   └── knowledge/                # copy into a product: STATE.md, memory/, results, ledger
+├── examples/
+│   └── lineup/knowledge/         # lineup's state files, converted
+├── scripts/
+│   └── check_knowledge.py        # check a knowledge/ directory against the format
 ├── DESIGN.md                     # the format of each part
 ├── LICENSE
 └── README.md

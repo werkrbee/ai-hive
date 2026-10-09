@@ -1,8 +1,8 @@
 # knowledge-hive design note
 
-Status: proposed for P1 (#45). This note defines the operational state a product keeps:
-what it holds, where it lives, and the format of each part. Templates and a validator
-follow in #46, built against it.
+Status: accepted for P1 (#45). This note defines the operational state a product keeps:
+what it holds, where it lives, and the format of each part. The templates, the lineup
+worked example and `scripts/check_knowledge.py` (#46) are built against it.
 
 ## The problem
 
@@ -235,6 +235,6 @@ store with the same record shapes is a drop-in for services.
 
 ## Out of scope here
 
-Templates, a worked example and the validator are #46. An MCP server that exposes a
+An MCP server that exposes a
 product's knowledge to harnesses, writes from the workflows-hive engine to the ledger,
 and the hosted ceiling's enforcement come later, against this same format.
