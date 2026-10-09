@@ -54,8 +54,8 @@ harness's own memory, the same taxonomy every other hive uses.
 - **agents-hive** execution contracts set per-call budgets. The ledger is designed to be
   where spending against them is summed, such as the hosted Patricia server's monthly
   ceiling.
-- **rules-hive** keeps the Charter, whose rules to checkpoint long work and verify before
-  calling something done this hive gives a place to write down.
+- **rules-hive** keeps the Charter. Its rules to checkpoint long work and to verify before
+  calling something done need somewhere to write things down, and this hive is that place.
 
 ## License
 
