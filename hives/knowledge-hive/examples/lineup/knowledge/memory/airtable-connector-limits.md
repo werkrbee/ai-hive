@@ -12,5 +12,5 @@ are manual steps in the Airtable UI.
 
 **Why:** lineup recorded it under "Connector constraints (don't re-learn these)", so the
 next session doesn't spend time finding it again.
-**How to apply:** plan colors, themes and new select options as manual UI steps for the
-organizer, not as agent steps.
+**How to apply:** plan colors, themes and new select options as manual UI steps, not as
+agent steps.

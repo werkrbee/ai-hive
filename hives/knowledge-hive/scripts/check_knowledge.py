@@ -17,6 +17,7 @@ Usage:
 """
 import datetime
 import json
+import math
 import re
 import sys
 from pathlib import Path
@@ -43,9 +44,11 @@ NEVER = [
         r"\b(sk-[A-Za-z0-9_-]{16,}|gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}"
         r"|xox[abprs]-[A-Za-z0-9-]{10,}|AKIA[0-9A-Z]{16}|AIza[0-9A-Za-z_-]{30,})")),
     ("a bearer token", re.compile(r"\bBearer\s+[A-Za-z0-9._~+/=-]{20,}")),
-    ("an email address", re.compile(r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b")),
+    ("an email address", re.compile(r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b(?!:)")),
     ("a phone number", re.compile(r"(?<![\w/.-])\+\d[\d ().-]{8,}\d")),
 ]
+# A calendar date. A "phone number" that contains one, like "+100 (2026-08-20)", isn't.
+DATE = re.compile(r"\d{4}-\d{2}-\d{2}")
 
 
 def is_date(value):
@@ -53,13 +56,13 @@ def is_date(value):
         return False
     try:
         datetime.date.fromisoformat(value)
-        return len(value) == 10
     except ValueError:
         return False
+    return bool(DATE.fullmatch(value))
 
 
 def is_datetime(value, utc=False):
-    if not isinstance(value, str) or "T" not in value:
+    if not isinstance(value, str) or not DATE.match(value) or value[10:11] != "T":
         return False
     try:
         dt = datetime.datetime.fromisoformat(value.replace("Z", "+00:00"))
@@ -71,7 +74,7 @@ def is_datetime(value, utc=False):
 
 
 def number(value):
-    return isinstance(value, (int, float)) and not isinstance(value, bool)
+    return isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value)
 
 
 def integer(value):
@@ -80,7 +83,7 @@ def integer(value):
 
 def frontmatter(text):
     """Split '---' YAML frontmatter of plain `key: value` lines from the body."""
-    lines = text.split("\n")
+    lines = text.removeprefix("\ufeff").split("\n")
     if not lines or lines[0].strip() != "---":
         return None, text, ["missing YAML frontmatter (the file must start with ---)"]
     fields, errors = {}, []
@@ -136,8 +139,12 @@ def numbered(lines, where, err, allow_none):
         err(f"{where}: number the items 1, 2, 3 in order")
 
 
+def read(path):
+    return path.read_text(encoding="utf-8")
+
+
 def check_state(path, err):
-    fields, body, problems = frontmatter(path.read_text())
+    fields, body, problems = frontmatter(read(path))
     for p in problems:
         err(f"STATE.md: {p}")
     if fields is None:
@@ -180,7 +187,7 @@ def check_state(path, err):
 
 def check_memory(path, err):
     where = f"memory/{path.name}"
-    fields, body, problems = frontmatter(path.read_text())
+    fields, body, problems = frontmatter(read(path))
     for p in problems:
         err(f"{where}: {p}")
     if fields is None:
@@ -209,7 +216,7 @@ def check_memory(path, err):
 
 def jsonl(path, err):
     """Yield (line number, object) for each line, reporting lines that aren't objects."""
-    text = path.read_text()
+    text = read(path)
     if text and not text.endswith("\n"):
         err(f"{path.name}: must end with a newline")
     for n, line in enumerate(text.split("\n")[:-1] if text else [], start=1):
@@ -245,18 +252,19 @@ def check_results(path, err):
                 err(f"{at}: id '{rid}' is already used")
         if "at" in r and not (is_date(r["at"]) or is_datetime(r["at"])):
             err(f"{at}: at must be an ISO 8601 date or a date-time with a time zone")
-        if "kind" in r and r["kind"] not in RESULT_KINDS:
+        if "kind" in r and not (isinstance(r["kind"], str) and r["kind"] in RESULT_KINDS):
             err(f"{at}: kind must be one of {', '.join(sorted(RESULT_KINDS))}")
-        if "outcome" in r and r["outcome"] not in OUTCOMES:
+        if "outcome" in r and not (isinstance(r["outcome"], str) and r["outcome"] in OUTCOMES):
             err(f"{at}: outcome must be one of {', '.join(sorted(OUTCOMES))}")
-        if "supersedes" in r and r["supersedes"] not in seen:
+        if "supersedes" in r and not (isinstance(r["supersedes"], str) and r["supersedes"] in seen):
             err(f"{at}: supersedes must name an earlier result's id")
         ev = r.get("evidence")
         if "evidence" in r and (not isinstance(ev, list) or not ev):
             err(f"{at}: evidence must be a non-empty list")
         elif isinstance(ev, list):
             for i, e in enumerate(ev):
-                field = EVIDENCE.get(e.get("kind")) if isinstance(e, dict) else None
+                kind = e.get("kind") if isinstance(e, dict) else None
+                field = EVIDENCE.get(kind) if isinstance(kind, str) else None
                 if not field:
                     err(f"{at}: evidence[{i}].kind must be one of {', '.join(EVIDENCE)}")
                 elif set(e) != {"kind", field} or not isinstance(e[field], str) or not e[field].strip():
@@ -272,7 +280,7 @@ def check_ledger(path, err):
             err(f"{at}: unknown field '{key}'")
         if not is_datetime(e.get("at"), utc=True):
             err(f"{at}: at must be an ISO 8601 date-time in UTC")
-        if e.get("basis") not in ("metered", "estimated"):
+        if not (isinstance(e.get("basis"), str) and e["basis"] in ("metered", "estimated")):
             err(f"{at}: basis must be metered or estimated")
         if "usd" not in e and "tokens" not in e:
             err(f"{at}: needs usd, tokens or both")
@@ -293,14 +301,20 @@ def check_ledger(path, err):
 
 
 def scan(path, rel, err):
-    """Report secrets and personal data. Returns False when the file isn't UTF-8 text."""
+    """Report secrets and personal data. Returns False when the file can't be read as UTF-8."""
     try:
-        text = path.read_text()
+        text = read(path)
     except UnicodeDecodeError:
         err(f"{rel}: not UTF-8 text")
         return False
+    except OSError as e:
+        err(f"{rel}: can't be read ({e.strerror or e})")
+        return False
     for what, pattern in NEVER:
-        if pattern.search(text):
+        found = [m.group() for m in pattern.finditer(text)]
+        if what == "a phone number":
+            found = [m for m in found if not DATE.search(m)]
+        if found:
             err(f"{rel}: looks like it contains {what}; knowledge/ must never hold one")
     return True
 
@@ -314,7 +328,7 @@ def check(knowledge):
     state = knowledge / "STATE.md"
     known = {state, knowledge / "results.jsonl", knowledge / "ledger.jsonl"}
     unreadable = set()
-    for f in sorted(p for p in knowledge.rglob("*") if p.is_file()):
+    for f in sorted(p for p in knowledge.rglob("*") if p.is_file() or p.is_symlink()):
         if not scan(f, f.relative_to(knowledge), err):
             unreadable.add(f)
         if f not in known and f.parent != knowledge / "memory":
@@ -326,7 +340,7 @@ def check(knowledge):
     elif state not in unreadable:
         check_state(state, err)
     for f in sorted((knowledge / "memory").glob("*.md")):
-        if f not in unreadable:
+        if f.is_file() and f not in unreadable:
             check_memory(f, err)
     for name, checker in (("results.jsonl", check_results), ("ledger.jsonl", check_ledger)):
         f = knowledge / name
@@ -340,7 +354,8 @@ def main():
         [HIVE / "templates" / "knowledge"] + sorted(HIVE.glob("examples/*/knowledge"))
     fail = 0
     for d in dirs:
-        label = d.relative_to(HIVE.parent.parent) if HIVE.parent.parent in d.resolve().parents else d
+        root = HIVE.parent.parent
+        label = d.resolve().relative_to(root) if root in d.resolve().parents else d
         errors = check(d)
         for e in errors:
             print(f"FAIL  {label}: {e}")

@@ -47,7 +47,8 @@ The checker needs Python 3 and nothing else. It checks `STATE.md` (frontmatter, 
 sections in order, the two tables and the numbered lists), every memory entry,
 `results.jsonl` and `ledger.jsonl`. It also scans every file for API keys, tokens,
 private keys, email addresses and phone numbers, which must never be written there. That
-scan is a heuristic: it catches the common shapes, not every secret. With no arguments it
+scan is a heuristic: it catches the common shapes, not every secret. The rules it holds
+you to beyond the format are listed in [`DESIGN.md`](DESIGN.md#what-the-checker-holds-you-to). With no arguments it
 checks the template and the examples, and CI runs it that way.
 
 ## Worked example: lineup
@@ -57,9 +58,9 @@ checks the template and the examples, and CI runs it that way.
 [`PROJECT_STATE.md`](https://github.com/werkrbee/lineup/blob/main/PROJECT_STATE.md)
 converted to this format, as of the 2026-08-19 snapshot. It is an example, not lineup's
 live state. The two files' next steps become one Open work list. The live IDs become
-references that say how to look each one up. The connector constraints and the
-decisions behind the bullpen and the Inkbox switch become seven memory entries, and the
-tested email channel becomes a result. The member roster stays in Airtable. lineup
+references that say how to look each one up. The connector constraints, the
+decisions behind the bullpen and the Inkbox switch, and a pointer to the ACS and WhatsApp
+design become seven memory entries, and the tested email channel becomes a result. The member roster stays in Airtable. lineup
 recorded no costs, so its ledger is empty; the first entries will come from metered work.
 
 ## Repository layout

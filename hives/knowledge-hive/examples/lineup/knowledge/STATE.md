@@ -23,7 +23,7 @@ dashboard theming and the GitHub push) doesn't block it.
 | Governance | built | `rules/lineup-etiquette/AGENTS.md`, under the Queen Bee's Charter. |
 | Data tools | live | Airtable MCP connector. |
 | Notifications | partial | Inkbox: email is live; iMessage is provisioning; SMS needs a number and A2P registration. |
-| Agents | built | Barry and Patricia, from the House. |
+| Agents | built | Barry and Patricia, inherited from the House. |
 | Runtime | live | The SportsCopilot Airtable base and its dashboard interface. |
 | Brand | built | Logo, icon and favicon set; the README brand section isn't written. |
 
@@ -33,7 +33,7 @@ dashboard theming and the GitHub push) doesn't block it.
 |-----------|------|-------|
 | SportsCopilot Airtable base | database | Look it up through the Airtable connector: `list_bases`, then `list_tables_for_base`. |
 | Airtable connector | connector | The harness's connector settings. |
-| SportsCopilot Dashboard interface | dashboard | In the Airtable base, through `list_pages_for_base`. |
+| SportsCopilot Dashboard interface | dashboard | In the Airtable base's interfaces, through the Airtable connector. |
 | Inkbox identity `lineup` | identity | Look it up through the Inkbox connector, by the identity name `lineup`. |
 | Inkbox connector | connector | The harness's connector settings. |
 
@@ -45,9 +45,9 @@ dashboard theming and the GitHub push) doesn't block it.
 4. Add a date filter or an Events page to the dashboard, so "tonight" means tonight once there is more than one event.
 5. Reset the demo RSVPs to the real game if Monday's game is live.
 6. Convert the Airtable cross-references from single-line text to linked records.
-7. Evaluate Azure Communication Services and WhatsApp as the production channel (`docs/acs-whatsapp-backend.md`).
-8. Build the roadmap skills: checkin, availability, matchmaking, standings, payments, venue, digest.
-9. Push the repo to GitHub under werkrbee.
+7. Push the repo to GitHub under werkrbee.
+8. Evaluate Azure Communication Services and WhatsApp as the production channel (`docs/acs-whatsapp-backend.md`).
+9. Build the roadmap skills: checkin, availability, matchmaking, standings, payments, venue, digest.
 
 ## How to resume
 
