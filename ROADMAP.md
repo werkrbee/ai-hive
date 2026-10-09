@@ -34,10 +34,11 @@ Tracked on the `P1 — interop, governance, state` milestone.
   like lineup's bullpen auto-send as data, not prose.
 - **`knowledge-hive` (new).** Standardize the operational-state pattern apps hand-rolled
   (STATUS.md / PROJECT_STATE.md / memory) — the "persistent state · results · usage ledger".
-- **Hosted Patricia over A2A (agents-hive, Azure).** A reference A2A v1.0 server that serves
-  Patricia's `governance-review` from her Agent Card, on Azure, behind OAuth2 client
-  credentials, for werkrbee products only. The model is configuration, not code. Products
-  built on the House (lineup, singularity) call it for governance checks.
+- **Hosted Patricia over A2A (agents-hive).** A reference A2A v1.x server that exposes the
+  `governance-review` contract as the skill on Patricia's Agent Card (builds on the Agent
+  Cards item). The model is configuration, not code. werkrbee deploys an instance on Azure
+  behind OAuth2 client credentials, for werkrbee products only; products built on the
+  House (lineup, singularity) call it for governance checks.
 - **Product adoption guide (docs).** How a product adopts ai-hive as its agent development
   framework: pin the monorepo, Barry executes, Patricia governs.
 - **Reconcile the repo with `workflows-hive` and `knowledge-hive` (docs).** Once
