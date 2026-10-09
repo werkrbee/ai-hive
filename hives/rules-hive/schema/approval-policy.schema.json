@@ -1,0 +1,154 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/werkrbee/ai-hive/blob/main/hives/rules-hive/schema/approval-policy.schema.json",
+  "title": "Approval policy",
+  "description": "The Charter's approval rules as data. Each mandate says, for one action in one scope, whether an agent may act on its own (open) or needs a human to approve the specific action (closed). Shaped after AP2 v0.2.0 mandates: a versioned type, open or closed, and a list of typed constraints that must all hold. Unlike AP2 mandates these are unsigned policy, not SD-JWT credentials. Anything no mandate covers is denied, and prohibitions win over mandates.",
+  "type": "object",
+  "required": ["policy", "version", "description", "mandates"],
+  "additionalProperties": false,
+  "properties": {
+    "$schema": { "type": "string" },
+    "policy": {
+      "description": "The policy's name, in kebab-case. Matches its ruleset directory.",
+      "type": "string",
+      "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$"
+    },
+    "version": { "type": "integer", "minimum": 1 },
+    "description": { "type": "string", "minLength": 1 },
+    "source": {
+      "description": "The prose this policy encodes.",
+      "type": "string"
+    },
+    "extends": {
+      "description": "A policy this one adds to, as a path from the repo root. Its actions, prohibitions and mandates apply too, after this policy's own.",
+      "type": "string",
+      "pattern": "^hives/"
+    },
+    "actions": {
+      "description": "Actions this policy adds to the permission vocabulary in agents-hive's execution-contract schema. Product actions are namespaced, e.g. lineup.event.cancel. An action can't be redeclared, here or by a policy that extends this one.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "description", "gated"],
+        "additionalProperties": false,
+        "properties": {
+          "id": { "type": "string", "pattern": "^[a-z0-9-]+(\\.[a-z0-9-]+)+$" },
+          "description": { "type": "string", "minLength": 1 },
+          "gated": {
+            "description": "True when the action is consequential, irreversible or externally visible, like the Charter's gated permissions.",
+            "type": "boolean"
+          }
+        }
+      }
+    },
+    "prohibitions": {
+      "description": "Actions that are denied whatever any mandate says, even with a human's approval. A prohibition applies when its constraints hold and its unless conditions don't all hold. A fact the request leaves out counts as matching a prohibition's constraints, so it can't be escaped by omission.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "action", "reason"],
+        "additionalProperties": false,
+        "properties": {
+          "id": { "$ref": "#/$defs/id" },
+          "action": { "$ref": "#/$defs/action" },
+          "constraints": { "$ref": "#/$defs/constraints" },
+          "unless": { "$ref": "#/$defs/constraints" },
+          "reason": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+    "mandates": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/mandate" }
+    }
+  },
+  "$defs": {
+    "id": { "type": "string", "pattern": "^[a-z0-9]+([.-][a-z0-9]+)*$" },
+    "action": {
+      "description": "A permission from agents-hive's execution-contract schema, or an action declared in actions.",
+      "type": "string"
+    },
+    "mandate": {
+      "type": "object",
+      "required": ["id", "type", "action"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "$ref": "#/$defs/id" },
+        "type": {
+          "description": "Named like AP2's vct values. mandate.action.open.1: the agent may act without asking while every constraint holds, like AP2's open mandate. mandate.action.1: bound to one specific action; AP2 closes a mandate to one transaction, and here the binding is a human approving that action before it runs.",
+          "enum": ["mandate.action.1", "mandate.action.open.1"]
+        },
+        "action": { "$ref": "#/$defs/action" },
+        "constraints": { "$ref": "#/$defs/constraints" },
+        "present": {
+          "description": "Closed mandates only: what the approval request must show the human, like AP2's mandate content on a trusted surface.",
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "exception": {
+          "description": "Required when an open mandate covers a gated action: why the Charter's approval rule is relaxed here, and where that was decided.",
+          "type": "object",
+          "required": ["reason", "source"],
+          "additionalProperties": false,
+          "properties": {
+            "reason": { "type": "string", "minLength": 1 },
+            "source": { "type": "string", "minLength": 1 }
+          }
+        }
+      }
+    },
+    "constraints": {
+      "description": "Typed constraints that must all hold, like AP2's constraints array. In a mandate or an unless list, a fact the request doesn't supply never holds. Values compare strictly (true is not 1).",
+      "type": "array",
+      "items": {
+        "oneOf": [
+          { "$ref": "#/$defs/scope" },
+          { "$ref": "#/$defs/trigger" },
+          { "$ref": "#/$defs/condition" }
+        ]
+      }
+    },
+    "scope": {
+      "description": "Where the action applies: each named dimension of the request must be one of the listed values.",
+      "type": "object",
+      "required": ["type", "scope"],
+      "additionalProperties": false,
+      "properties": {
+        "type": { "const": "action.scope" },
+        "scope": {
+          "type": "object",
+          "minProperties": 1,
+          "additionalProperties": {
+            "type": "array",
+            "minItems": 1,
+            "items": { "type": "string" }
+          }
+        }
+      }
+    },
+    "trigger": {
+      "description": "The action must be a response to one of these events.",
+      "type": "object",
+      "required": ["type", "events"],
+      "additionalProperties": false,
+      "properties": {
+        "type": { "const": "action.trigger" },
+        "events": { "type": "array", "minItems": 1, "items": { "type": "string" } }
+      }
+    },
+    "condition": {
+      "description": "A fact about the request must equal a value, or be one of several.",
+      "type": "object",
+      "required": ["type", "field"],
+      "oneOf": [{ "required": ["equals"] }, { "required": ["in"] }],
+      "additionalProperties": false,
+      "properties": {
+        "type": { "const": "action.condition" },
+        "field": { "type": "string", "minLength": 1 },
+        "equals": {},
+        "in": { "type": "array", "minItems": 1 }
+      }
+    }
+  }
+}
