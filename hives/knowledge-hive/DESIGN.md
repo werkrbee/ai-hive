@@ -55,7 +55,8 @@ append to the results and the ledger as they work. Files in the repo are the ref
 backend, because they need nothing installed and every harness can read them. A service
 can keep results and the ledger in a database instead, with the same record shape; the
 hosted Patricia server is the first expected case. A product with frequent metered work
-can also keep the ledger outside the repo, and `STATE.md` says where (below).
+can also keep the ledger outside the repo, and the `ledger` field in `STATE.md` says
+where (below).
 
 ## Persistent state: `STATE.md`
 
@@ -80,15 +81,22 @@ ledger: knowledge/ledger.jsonl
 ## How to resume
 ```
 
-The sections are fixed and appear in this order.
+`name` (kebab-case), `summary` (one line), `status` and `updated` are required. `ledger`
+is optional: the ledger's path from the product root, or a description of the store that
+holds it, defaulting to `knowledge/ledger.jsonl`. Dates throughout are ISO 8601:
+`updated` is a date (`YYYY-MM-DD`).
+
+The sections are fixed, all five are required, and they appear in this order.
 
 **Summary** is a short assessment: what the product is and where it stands. **Components**
-is a table of the product's parts, each with its state (`built`, `live`, `partial` or
-`missing`) and a one-line note. **References** lists the live things the product depends
-on (a database, a connector, an identity) with where each one is found. **Open work** is
-the only list of next steps in the product: numbered, most important first, with done
-items removed rather than struck through. **How to resume** is the few steps a fresh
-session takes before it acts.
+is a table with three columns, `Component`, `State` and `Note`: one row per part of the
+product, its state (`built`, `live`, `partial` or `missing`) and a one-line note.
+**References** is a table with three columns, `Reference`, `Kind` and `Where`: the live
+things the product depends on (a database, a connector, an identity), what kind each is,
+and where its value is found (an environment variable, a vault entry, or the call that
+looks it up). **Open work** is the only list of next steps in the product: a numbered
+list, most important first, with done items removed rather than struck through. **How to
+resume** is a numbered list of the few steps a fresh session takes before it acts.
 
 What doesn't go in `STATE.md`: history (that's results), durable lessons (that's
 memory), and secrets (below). A snapshot that only holds the present stays short enough
@@ -112,24 +120,29 @@ source: https://github.com/werkrbee/lineup/blob/main/PROJECT_STATE.md
 The Airtable connector can't add or rename select options, set option colors, or set an
 interface theme; `update_field` only edits formulas. Appearance changes are manual.
 
-**Why:** lineup learned it while building its dashboard and recorded it so the next
-session wouldn't re-learn it.
+**Why:** lineup recorded it under "Connector constraints (don't re-learn these)", so the
+next session doesn't spend time finding it again.
 **How to apply:** plan schema colors and themes as manual UI steps, not agent steps.
 ```
 
 The `description` is one line, written so an agent can decide from a directory listing
 whether to read the entry. That listing is the index, so there is no separate index file
-to keep in sync. `source` records where the fact came from. Decisions and constraints
+to keep in sync. All five frontmatter fields are required: `name` is the kebab-case slug
+and equals the file name without `.md`, `description` is one line, `type` is one of the
+four values, `updated` is a date (`YYYY-MM-DD`), and `source` records where the fact came
+from (a URL, a path in the repo, or a short description such as a conversation). Decisions and constraints
 end with why and how to apply, because a rule without its reason gets broken the first
 time it is inconvenient. When a fact stops being true, the entry is changed or deleted,
 not left to contradict a newer one.
 
 Open proposals for a shared agent-memory format exist, but none is widely adopted yet.
 The closest is the [Engram specification](https://plur.ai/spec.html) (v2.1, March 2026,
-Apache-2.0), which stores facts as YAML lists with one file per scope. Its per-fact fields
-map onto a memory entry: `statement` is the body, `rationale` is the why, `source` is
-`source`, and `temporal.learned_at` is `updated`. Two things don't map. Engram keeps many
-facts in a file where this format keeps one, so that a git diff or merge touches one fact.
+Apache-2.0). The spec calls itself storage-agnostic, and its reference implementation
+keeps facts as YAML lists with one file per scope. Its per-fact fields map onto a memory
+entry: `statement` is the body, `rationale` is the why, `temporal.learned_at` is
+`updated`, and `source` is close (Engram's is an origin identifier, this one is usually a
+URL). Two things don't map. Engram's reference storage keeps many facts in a file where
+this format keeps one, so that a git diff or merge touches one fact.
 And Engram's types (behavioral, terminological, procedural, architectural) classify what a
 fact is about, where these (decision, constraint, preference, reference) classify what kind
 of fact it is, so converting a type takes a person's judgment. Engram's retrieval and usage
@@ -145,10 +158,14 @@ correction is a new result that names the one it supersedes.
 {"id": "2026-08-20-email-delivery", "at": "2026-08-20", "kind": "delivery", "subject": "lineup-notify email channel", "outcome": "passed", "summary": "A test email from the lineup identity was delivered.", "evidence": [{"kind": "link", "url": "https://github.com/werkrbee/lineup/blob/main/STATUS.md"}]}
 ```
 
-`id` is unique within the file, and `at` is an ISO 8601 date or date-time. `kind` is `test`, `run`, `release`, `check` or
-`delivery`. `outcome` is `passed`, `failed` or `partial`. `evidence` lists what backs the
-claim, each item a `link`, `command`, `file`, `run` (a workflows-hive run ID) or `note`.
-`supersedes` names an earlier result's `id` when this one corrects it. A claim in
+`id`, `at`, `kind`, `subject`, `outcome`, `summary` and `evidence` are required, and
+`supersedes` is optional. `id` is unique within the file, and `at` is an ISO 8601 date or
+date-time. `kind` is `test`, `run`, `release`, `check` or `delivery`. `outcome` is
+`passed`, `failed` or `partial`. `evidence` is a non-empty list of what backs the claim,
+each item an object with a `kind` and one field that depends on it: `link` has `url`,
+`command` has `command` (what was run), `file` has `path` (from the product root), `run`
+has `runId` (a workflows-hive run) and `note` has `text`. `supersedes` names an earlier
+result's `id` when this one corrects it. A claim in
 `STATE.md` that something works should be traceable to a result.
 
 ## Usage ledger: `ledger.jsonl`
@@ -156,21 +173,26 @@ claim, each item a `link`, `command`, `file`, `run` (a workflows-hive run ID) or
 One JSON object per line for each piece of metered work, appended when the work ends.
 
 ```json
-{"at": "2026-10-08T14:02:12Z", "runId": "run_01J9Z…", "step": "summarize", "capability": "summarize", "provider": "foundry", "model": "…", "tokens": {"input": 1840, "output": 312}, "usd": 0.0071, "basis": "metered"}
+{"at": "2026-10-08T14:02:12Z", "runId": "run_01J9Z…", "step": "summarize", "capability": "summarize", "provider": "foundry", "model": "…", "usd": 0.0071, "tokens": 2152, "tokenDetail": {"input": 1840, "output": 312}, "basis": "metered"}
 ```
 
-`at`, `tokens` or `usd` (at least one), and `basis` are required. `basis` is `metered`
-when the figures came from the provider and `estimated` when they were computed, as the
-workflows-hive reference engine does today. `runId` and `step` tie an entry to a
-workflows-hive run record, whose per-step `cost` is exactly this entry's `usd` and
-`tokens`, so the engine can append one entry per step as it checkpoints. `capability`
-is the execution contract the work ran under. Amounts are in US dollars, to match
-contract budgets.
+`at` (an ISO 8601 date-time in UTC), `basis`, and at least one of `usd` and `tokens` are
+required. `usd` is a non-negative number in US dollars and `tokens` a non-negative
+integer, the same units and types as agents-hive contract budgets. `tokenDetail`
+optionally splits `tokens` into `input` and `output` integers that add up to it. `basis`
+is `metered` when the figures came from the provider and `estimated` when they were
+computed, as the workflows-hive reference engine does today. `runId`, `step`,
+`capability`, `provider` and `model` are optional strings. `runId` and `step` tie an
+entry to a workflows-hive run record, whose per-step `cost` (`usd` and an integer
+`tokens`) carries over to this entry's `usd` and `tokens` unchanged, so the engine will be
+able to append one entry per step as it checkpoints. `capability` is the execution
+contract the work ran under.
 
 Totals are sums over the file, so a budget is checked by summing entries in its window.
 That is how the hosted Patricia server's monthly ceiling is meant to be enforced: sum
-the month's entries before accepting a review, and refuse once the next one could cross
-the ceiling.
+the month's entries before accepting a review, and refuse new reviews once the total has
+reached the ceiling. Whether to also refuse a review that could cross it, using the
+contract's per-call budget, is a choice for that server (#54).
 
 ## Secrets and personal data
 
@@ -191,8 +213,8 @@ state, results or the ledger.
 | `PROJECT_STATE.md` current data | stays in Airtable; `STATE.md` points at it |
 | "Connector constraints (don't re-learn these)" | memory entries of type `constraint` |
 | Next steps in both files | `STATE.md` Open work, once |
-| "Email live & tested, delivered 2026-08-20" | a result |
-| "State the estimated cost first" | the estimate is shown at approval; the actual cost is a ledger entry |
+| The email channel, tested and delivered on 2026-08-20 | a result |
+| Mass sends: "state the message, recipient count, and estimated cost first" | the estimate is shown at approval; the actual cost is a ledger entry |
 | "How to resume" | `STATE.md` How to resume |
 
 Moving lineup onto this format is a follow-up in the lineup repo.
