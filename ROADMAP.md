@@ -25,6 +25,8 @@ Tracked as issues #7–#12, worked in the order set in `docs/sprints/p0.md`.
 
 ## P1 — interop, governance, state
 
+Tracked on the `P1 — interop, governance, state` milestone.
+
 - **A2A Agent Cards (agents-hive).** Give Barry & Patricia Agent2Agent cards so other agents
   can discover and call them (Linux Foundation A2A v1.x).
 - **Structured approval/mandate schema (rules-hive).** Turn the Charter's prose into a
@@ -32,9 +34,21 @@ Tracked as issues #7–#12, worked in the order set in `docs/sprints/p0.md`.
   like lineup's bullpen auto-send as data, not prose.
 - **`knowledge-hive` (new).** Standardize the operational-state pattern apps hand-rolled
   (STATUS.md / PROJECT_STATE.md / memory) — the "persistent state · results · usage ledger".
+- **Hosted Patricia over A2A (agents-hive).** A reference A2A v1.x server that exposes the
+  `governance-review` contract as the skill on Patricia's Agent Card (builds on the Agent
+  Cards item). The model is configuration, not code. werkrbee deploys an instance on Azure
+  behind OAuth2 client credentials, for werkrbee products only; products built on the
+  House (lineup, singularity) call it for governance checks.
+- **Product adoption guide (docs).** How a product adopts ai-hive as its agent development
+  framework: pin the monorepo, Barry executes, Patricia governs.
+- **Reconcile the repo with `workflows-hive` and `knowledge-hive` (docs).** Once
+  knowledge-hive lands, make every page and image describe both hives accurately.
 
 ## P2 — ecosystem & payments
 
+- **Hosted Barry over A2A.** After the approval policy: actions the Charter gates pause the
+  task for a human (A2A `input-required`) instead of running.
+- **Public A2A access.** An option to open the hosted agents beyond werkrbee products.
 - **skills-hive marketplace metadata + evals.** Align to the governed SKILL.md standard
   (agentskills.io); ship evals beside each skill; add discovery/publish metadata.
 - **Payments (AP2 + x402).** Shared authorization (AP2 mandates) + settlement (x402) so apps
