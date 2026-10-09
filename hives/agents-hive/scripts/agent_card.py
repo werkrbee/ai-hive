@@ -54,13 +54,37 @@ def require_secure(url):
     return parsed.scheme == "https" and bool(parsed.hostname) or (parsed.scheme == "http" and local)
 
 
+# Where a persona can live; a contract's fulfilledBy must name one of these exactly.
+PERSONA_DIRS = ("hives/skills-hive/skills/{p}", "hives/agents-hive/agents/{p}")
+
+
+class CardError(Exception):
+    pass
+
+
 def contracts_for(persona):
-    """The contracts whose fulfilledBy names this persona's skill or agent."""
+    """The contracts whose fulfilledBy names this persona's skill or agent.
+
+    A malformed contract raises CardError; validate_contracts.py reports the detail.
+    """
+    paths = {d.format(p=persona) for d in PERSONA_DIRS}
     found = []
     for path in sorted((HIVE / "contracts").glob("*/contract.json")):
-        c = json.loads(path.read_text())
-        if any(Path(i.get("path", "")).name == persona for i in c.get("fulfilledBy", [])):
-            found.append((path, c))
+        rel = path.relative_to(REPO_ROOT)
+        try:
+            c = json.loads(path.read_text())
+        except ValueError:
+            raise CardError(f"{rel} is not valid JSON; run validate_contracts.py")
+        impls = c.get("fulfilledBy") if isinstance(c, dict) else None
+        if not isinstance(impls, list):
+            raise CardError(f"{rel} has no fulfilledBy list; run validate_contracts.py")
+        if not any(isinstance(i, dict) and i.get("path") in paths for i in impls):
+            continue
+        cap, desc, version = c.get("capability"), c.get("description"), c.get("version")
+        if not (isinstance(cap, str) and cap and isinstance(desc, str) and desc
+                and isinstance(version, int) and not isinstance(version, bool)):
+            raise CardError(f"{rel} needs capability, description and version; run validate_contracts.py")
+        found.append((path, c))
     return found
 
 
@@ -109,7 +133,11 @@ def validate_source(source):
 
 
 def validate(card):
-    """Check a rendered card against AgentCard in a2a.proto. Returns a list of problems."""
+    """Check a rendered card against AgentCard in a2a.proto. Returns a list of problems.
+
+    URLs must be https (plain http only for localhost). That is house policy: the spec
+    requires HTTPS for production endpoints but not for documentation or icon links.
+    """
     if not isinstance(card, dict):
         return ["card is not a JSON object"]
     errors = []
@@ -234,13 +262,16 @@ def check_all():
         persona = path.parent.name
         try:
             source = json.loads(path.read_text())
-        except json.JSONDecodeError as e:
+        except ValueError as e:
             print(f"FAIL  {rel}: not valid JSON: {e}")
             fail = 1
             continue
         errors = validate_source(source)
         if not errors:
-            errors = validate(render(persona, CHECK_URL.format(persona=persona)))
+            try:
+                errors = validate(render(persona, CHECK_URL.format(persona=persona)))
+            except CardError as e:
+                errors = [str(e)]
         for e in errors:
             print(f"FAIL  {rel}: {e}")
         fail |= bool(errors)
@@ -253,7 +284,7 @@ def main():
     ap = argparse.ArgumentParser(description="Render or check A2A Agent Cards.")
     ap.add_argument("persona", nargs="?", help="Card to render, e.g. patricia")
     ap.add_argument("--url", help="The endpoint where the agent is served (https)")
-    ap.add_argument("--binding", default="JSONRPC", help="JSONRPC, GRPC or HTTP+JSON (default JSONRPC)")
+    ap.add_argument("--binding", default="JSONRPC", help="Protocol binding (default JSONRPC); the core ones are JSONRPC, GRPC and HTTP+JSON")
     ap.add_argument("--check", action="store_true", help="Validate every card; used by CI")
     args = ap.parse_args()
     if args.check:
@@ -262,8 +293,16 @@ def main():
         ap.error("give a persona and --url, or --check")
     if not (HIVE / "cards" / args.persona / "card.json").is_file():
         ap.error(f"no card at cards/{args.persona}/card.json")
-    card = render(args.persona, args.url, args.binding)
-    errors = validate_source(json.loads((HIVE / "cards" / args.persona / "card.json").read_text())) or validate(card)
+    try:
+        source = json.loads((HIVE / "cards" / args.persona / "card.json").read_text())
+        errors = validate_source(source)
+        if not errors:
+            card = render(args.persona, args.url, args.binding)
+            errors = validate(card)
+    except ValueError as e:
+        errors = [f"card.json is not valid JSON: {e}"]
+    except CardError as e:
+        errors = [str(e)]
     if errors:
         for e in errors:
             print(f"error: {e}", file=sys.stderr)

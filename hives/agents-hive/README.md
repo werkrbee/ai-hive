@@ -79,13 +79,17 @@ python3 scripts/agent_card.py patricia --url https://agents.example.org/a2a/patr
 ```
 
 Publish the output at `https://<host>/.well-known/agent-card.json`. The endpoint must be
-HTTPS (plain HTTP only for localhost), and `--binding` picks `JSONRPC` (the default),
-`GRPC` or `HTTP+JSON`. Bump a card's `version` when its contracts change.
+HTTPS (plain HTTP only for localhost). `--binding` names the protocol binding: `JSONRPC`
+by default, and the spec's other core bindings are `GRPC` and `HTTP+JSON`. Bump a card's
+`version` when its contracts change.
 
 `scripts/agent_card.py --check` renders every card against a stand-in endpoint and checks
 it against the `AgentCard` message in the A2A spec (`specification/a2a.proto`): required
-fields, camelCase field names, media types, and HTTPS URLs. CI runs it. The cards aren't
-signed; signing comes with hosting.
+fields, camelCase field names and media types. It also requires every URL on the card to
+be HTTPS, which is house policy and stricter than the spec. A contract adds a skill to a
+card when its `fulfilledBy` names `hives/skills-hive/skills/<persona>` or
+`hives/agents-hive/agents/<persona>`. CI runs the check. The cards aren't signed; signing
+comes with hosting.
 
 ## Repository layout
 
