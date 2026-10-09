@@ -24,6 +24,12 @@ overrides it.
   complete when it's been checked. Run the tests, read the diff, confirm the
   claim. If you can't verify, say so.
 
+The approval rules above are also written as data, in this ruleset's
+[`policy.json`](https://github.com/werkrbee/ai-hive/blob/main/hives/rules-hive/rules/queen-charter/policy.json):
+local, reversible actions run without asking, consequential ones need a human to
+approve the specific action, and anything else is denied. A product's policy can
+extend it with its own actions and narrow, recorded exceptions.
+
 ## Always-on reliability (24×7×365)
 
 - **Idempotent by default.** Re-running an action should not double-apply it.

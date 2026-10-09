@@ -1,0 +1,84 @@
+{
+  "$schema": "../../schema/approval-policy.schema.json",
+  "policy": "queen-charter",
+  "version": 1,
+  "description": "The Queen Bee's Charter's approval rules. Local, reversible actions run without asking. Consequential, irreversible or externally visible actions need a human to approve the specific action. Anything else is denied.",
+  "source": "hives/rules-hive/rules/queen-charter/AGENTS.md",
+  "mandates": [
+    {
+      "id": "auto.fs.read",
+      "type": "mandate.action.open.1",
+      "action": "fs.read"
+    },
+    {
+      "id": "auto.fs.write",
+      "type": "mandate.action.open.1",
+      "action": "fs.write"
+    },
+    {
+      "id": "auto.shell.exec",
+      "type": "mandate.action.open.1",
+      "action": "shell.exec"
+    },
+    {
+      "id": "auto.net.fetch",
+      "type": "mandate.action.open.1",
+      "action": "net.fetch"
+    },
+    {
+      "id": "auto.agent.delegate",
+      "type": "mandate.action.open.1",
+      "action": "agent.delegate"
+    },
+    {
+      "id": "approve.vcs.commit",
+      "type": "mandate.action.closed.1",
+      "action": "vcs.commit"
+    },
+    {
+      "id": "approve.vcs.push",
+      "type": "mandate.action.closed.1",
+      "action": "vcs.push"
+    },
+    {
+      "id": "approve.vcs.merge",
+      "type": "mandate.action.closed.1",
+      "action": "vcs.merge"
+    },
+    {
+      "id": "approve.vcs.release",
+      "type": "mandate.action.closed.1",
+      "action": "vcs.release"
+    },
+    {
+      "id": "approve.vcs.delete-ref",
+      "type": "mandate.action.closed.1",
+      "action": "vcs.delete-ref"
+    },
+    {
+      "id": "approve.fs.delete",
+      "type": "mandate.action.closed.1",
+      "action": "fs.delete"
+    },
+    {
+      "id": "approve.infra.change",
+      "type": "mandate.action.closed.1",
+      "action": "infra.change"
+    },
+    {
+      "id": "approve.deploy",
+      "type": "mandate.action.closed.1",
+      "action": "deploy"
+    },
+    {
+      "id": "approve.message.send",
+      "type": "mandate.action.closed.1",
+      "action": "message.send"
+    },
+    {
+      "id": "approve.spend",
+      "type": "mandate.action.closed.1",
+      "action": "spend"
+    }
+  ]
+}

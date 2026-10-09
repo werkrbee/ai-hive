@@ -1,0 +1,54 @@
+{
+  "$schema": "../../schema/approval-policy.schema.json",
+  "policy": "lineup-etiquette",
+  "version": 1,
+  "description": "lineup's house rules as data, a worked example of a product policy. Texts go only to members who opted in. Organizer blasts, cancellations, charges and removals need the organizer's approval. A bullpen open-slot call sends automatically.",
+  "source": "https://github.com/werkrbee/lineup/blob/main/rules/lineup-etiquette/AGENTS.md",
+  "extends": "hives/rules-hive/rules/queen-charter/policy.json",
+  "actions": [
+    { "id": "lineup.event.cancel", "description": "Cancel a scheduled event.", "gated": true },
+    { "id": "lineup.member.remove", "description": "Remove a member or organizer from a group.", "gated": true },
+    { "id": "lineup.group.delete", "description": "Delete or archive a group.", "gated": true }
+  ],
+  "prohibitions": [
+    {
+      "id": "sms.opt-in-only",
+      "action": "message.send",
+      "constraints": [{ "type": "action.scope", "scope": { "channel": ["sms", "imessage"] } }],
+      "unless": [{ "type": "action.condition", "field": "recipient.notifyOptIn", "equals": true }],
+      "reason": "Texts are opt-in only. Never text a member unless NotifyOptIn is true."
+    },
+    {
+      "id": "organizers-only",
+      "action": "lineup.event.cancel",
+      "unless": [{ "type": "action.condition", "field": "actor.role", "equals": "organizer" }],
+      "reason": "Only a group's organizers may cancel its events."
+    }
+  ],
+  "mandates": [
+    {
+      "id": "bullpen.open-slot-call",
+      "type": "mandate.action.open.1",
+      "action": "message.send",
+      "constraints": [
+        { "type": "action.scope", "scope": { "channel": ["sms", "imessage", "email"], "audience": ["bullpen"] } },
+        { "type": "action.trigger", "events": ["bullpen.slot-opened"] },
+        { "type": "action.condition", "field": "recipient.notifyOptIn", "equals": true }
+      ],
+      "exception": {
+        "reason": "A bullpen open-slot call is expected and event-driven: a real spot just opened, and its speed is the whole point.",
+        "source": "https://github.com/werkrbee/lineup/blob/main/rules/lineup-etiquette/AGENTS.md#human-in-the-loop-for-consequential-actions"
+      }
+    },
+    {
+      "id": "organizer.blast",
+      "type": "mandate.action.closed.1",
+      "action": "message.send",
+      "constraints": [{ "type": "action.scope", "scope": { "audience": ["group"] } }],
+      "present": ["message", "recipient count", "estimated cost"]
+    },
+    { "id": "event.cancel", "type": "mandate.action.closed.1", "action": "lineup.event.cancel" },
+    { "id": "member.remove", "type": "mandate.action.closed.1", "action": "lineup.member.remove" },
+    { "id": "group.delete", "type": "mandate.action.closed.1", "action": "lineup.group.delete" }
+  ]
+}

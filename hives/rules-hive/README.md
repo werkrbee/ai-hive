@@ -31,6 +31,52 @@ amended, and enforced is documented in
 Her enforcement persona is the [`patricia`](https://github.com/werkrbee/ai-hive/tree/main/hives/skills-hive/skills/patricia)
 skill in skills-hive — the Queen's counterpart to Barry.
 
+## Approval policy
+
+The Charter says which actions need a human. Its
+[`policy.json`](rules/queen-charter/policy.json) says the same thing as data, so a
+harness, the workflows-hive engine or a hosted agent can apply it instead of reading
+prose. The schema is [`schema/approval-policy.schema.json`](schema/approval-policy.schema.json).
+
+A policy is a list of mandates, shaped after the mandates in
+[AP2](https://github.com/google-agentic-commerce/AP2) (v0.2.0), whose authorization model
+is written for payments but meant to apply more generally. Each mandate covers one action
+and a list of typed constraints that must all hold:
+
+- **Open mandate** (`mandate.action.open.1`): the agent may act on its own.
+- **Closed mandate** (`mandate.action.closed.1`): a human approves the specific action
+  first. `present` lists what the approval request must show them.
+- **Constraints:** `action.scope` (where it applies, e.g. channel and audience),
+  `action.trigger` (the event it responds to) and `action.condition` (a fact that must
+  hold, e.g. a member opted in). A fact the request doesn't supply never holds.
+
+Actions come from the permission vocabulary in agents-hive's execution-contract schema,
+so a contract and a policy speak the same language: a contract says what a worker may do
+at all, and the policy says when it may do it without asking. A product policy can
+`extends` the Charter's and declare its own namespaced actions, such as
+`lineup.event.cancel`.
+
+A request is decided in this order. A matching **prohibition** denies it, even with a
+human's approval. Otherwise a matching open mandate lets the agent act, and otherwise a
+matching closed mandate sends it to a human. Anything else is denied.
+
+The Charter's policy has open mandates for the five local, reversible permissions and
+closed mandates for the ten gated ones. An open mandate for a gated action is an
+exception, so it must be narrow (a scope plus a trigger or condition) and must record
+why and where it was decided.
+
+[`examples/lineup-etiquette/`](examples/lineup-etiquette/policy.json) is a worked
+example taken from [lineup's house rules](https://github.com/werkrbee/lineup/blob/main/rules/lineup-etiquette/AGENTS.md).
+Texts go only to members who opted in, and that holds even with approval. Organizer
+blasts, cancellations and removals need the organizer, and only organizers may cancel.
+The bullpen open-slot call, a carve-out that used to live in prose, is an open mandate
+scoped to the bullpen, triggered by `bullpen.slot-opened`, and limited to members who
+opted in.
+
+`scripts/check_policy.py` checks each policy against the schema and the vocabulary, then
+runs the `cases.json` beside it: each case is a request and the decision the policy must
+reach. CI runs it. Policies are declarations today: nothing enforces them at runtime yet.
+
 ## Repository layout
 
 ```text
@@ -38,7 +84,13 @@ rules-hive/
 ├── rules/                        # WHAT the guardrails say — portable source of truth
 │   └── queen-charter/
 │       ├── AGENTS.md             # the canonical ruleset (open standard)
+│       ├── policy.json           # its approval rules as data
+│       ├── cases.json            # decisions the policy must reach
 │       └── references/
+├── schema/
+│   └── approval-policy.schema.json
+├── examples/
+│   └── lineup-etiquette/         # a product policy that extends the Charter's
 ├── adapters/                     # WHERE they apply — harness taxonomy & overrides
 │   ├── claude-code/  cursor/  codex/  gemini-cli/  goose/  opencode/
 │   ├── kiro/  databricks-genie-code/  snowflake-cortex-code/
@@ -46,7 +98,8 @@ rules-hive/
 │       └── scout/                # sub-harness (child of GitHub Copilot)
 ├── scripts/
 │   ├── install.sh                # render a ruleset into per-harness instruction files
-│   └── install.ps1               # Windows equivalent
+│   ├── install.ps1               # Windows equivalent
+│   └── check_policy.py           # check approval policies and their cases
 ├── LICENSE
 └── README.md
 ```
