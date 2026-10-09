@@ -1,0 +1,11 @@
+{
+  "name": "Patricia",
+  "description": "Governance reviewer for werkrbee's House of Hives. Reviews a proposed action, plan or change against the Queen Bee's Charter and returns a verdict. Reviews only; never does the work.",
+  "version": "1.0.0",
+  "provider": { "organization": "werkrbee", "url": "https://github.com/werkrbee/ai-hive" },
+  "documentationUrl": "https://github.com/werkrbee/ai-hive/blob/main/hives/skills-hive/skills/patricia/SKILL.md",
+  "iconUrl": "https://raw.githubusercontent.com/werkrbee/ai-hive/main/hives/skills-hive/skills/patricia/assets/patricia-portrait.svg",
+  "capabilities": { "streaming": false, "pushNotifications": false },
+  "defaultInputModes": ["application/json"],
+  "defaultOutputModes": ["application/json"]
+}

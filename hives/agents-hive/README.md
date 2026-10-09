@@ -54,6 +54,39 @@ each `fulfilledBy` path exists, and CI runs it. Contracts are declarations today
 validator checks them statically, but no harness or the workflows-hive engine enforces
 their permissions or budgets at runtime yet.
 
+## Agent Cards (A2A)
+
+Barry and Patricia each have an [Agent2Agent](https://a2a-protocol.org) (A2A v1.0) Agent
+Card, so other agents can discover what they do and how to reach them.
+
+| Card | Skills |
+|------|--------|
+| [**Barry**](cards/barry/card.json) | `orchestration` |
+| [**Patricia**](cards/patricia/card.json) | `governance-review` |
+
+An Agent Card's skills are the persona's execution contracts. Each card's `skills` list is
+built from the contracts whose `fulfilledBy` names that persona, so the two can't drift: a
+skill's id is the contract's capability, and its description points at the contract that
+defines its inputs and output. The rest of the card (name, description, version, provider,
+links, default media types) is written in `cards/<persona>/card.json`.
+
+A card also needs the URL where the agent is served, and nothing in this repo serves Barry
+or Patricia yet. So `card.json` leaves out `skills` and `supportedInterfaces`, and
+`scripts/agent_card.py` adds both when it renders the card for a real endpoint:
+
+```bash
+python3 scripts/agent_card.py patricia --url https://agents.example.org/a2a/patricia
+```
+
+Publish the output at `https://<host>/.well-known/agent-card.json`. The endpoint must be
+HTTPS (plain HTTP only for localhost), and `--binding` picks `JSONRPC` (the default),
+`GRPC` or `HTTP+JSON`. Bump a card's `version` when its contracts change.
+
+`scripts/agent_card.py --check` renders every card against a stand-in endpoint and checks
+it against the `AgentCard` message in the A2A spec (`specification/a2a.proto`): required
+fields, camelCase field names, media types, and HTTPS URLs. CI runs it. The cards aren't
+signed; signing comes with hosting.
+
 ## Repository layout
 
 ```text
@@ -66,6 +99,9 @@ agents-hive/
 ├── contracts/                    # WHAT a worker must do — execution contracts
 │   ├── governance-review/contract.json
 │   └── orchestration/contract.json
+├── cards/                        # HOW others find them — A2A Agent Cards
+│   ├── barry/card.json
+│   └── patricia/card.json
 ├── schema/
 │   └── execution-contract.schema.json
 ├── adapters/                     # WHERE they run — harness taxonomy & overrides
@@ -75,7 +111,8 @@ agents-hive/
 │       └── scout/                # sub-harness (child of GitHub Copilot)
 ├── scripts/
 │   ├── install.py                # render personas into each harness's agent format
-│   └── validate_contracts.py     # check contracts against the schema
+│   ├── validate_contracts.py     # check contracts against the schema
+│   └── agent_card.py             # render and check A2A Agent Cards
 ├── LICENSE
 └── README.md
 ```
