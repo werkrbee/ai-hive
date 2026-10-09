@@ -1,0 +1,1 @@
+{"id": "2026-08-20-email-delivery", "at": "2026-08-20", "kind": "delivery", "subject": "lineup-notify email channel", "outcome": "passed", "summary": "A test email from the lineup identity was delivered.", "evidence": [{"kind": "link", "url": "https://github.com/werkrbee/lineup/blob/main/STATUS.md"}]}

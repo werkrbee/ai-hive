@@ -1,8 +1,8 @@
 # knowledge-hive design note
 
-Status: proposed for P1 (#45). This note defines the operational state a product keeps:
-what it holds, where it lives, and the format of each part. Templates and a validator
-follow in #46, built against it.
+Status: accepted for P1 (#45). This note defines the operational state a product keeps:
+what it holds, where it lives, and the format of each part. The templates, the lineup
+worked example and `scripts/check_knowledge.py` (#46) are built against it.
 
 ## The problem
 
@@ -67,7 +67,7 @@ read the same file.
 ---
 name: lineup
 summary: RSVP product for pickup sports; live MVP on Airtable.
-status: live            # planning | building | live | paused | retired
+status: live
 updated: 2026-08-19
 ledger: knowledge/ledger.jsonl
 ---
@@ -81,7 +81,8 @@ ledger: knowledge/ledger.jsonl
 ## How to resume
 ```
 
-`name` (kebab-case), `summary` (one line), `status` and `updated` are required. `ledger`
+`name` (kebab-case), `summary` (one line), `status` (`planning`, `building`, `live`,
+`paused` or `retired`) and `updated` are required. `ledger`
 is optional: the ledger's path from the product root, or a description of the store that
 holds it, defaulting to `knowledge/ledger.jsonl`. Dates throughout are ISO 8601:
 `updated` is a date (`YYYY-MM-DD`).
@@ -112,7 +113,7 @@ external. Each is a Markdown file in `knowledge/memory/`, named after its slug.
 ---
 name: airtable-connector-limits
 description: The Airtable connector can't add select options, set colors or themes.
-type: constraint        # decision | constraint | preference | reference
+type: constraint
 updated: 2026-08-19
 source: https://github.com/werkrbee/lineup/blob/main/PROJECT_STATE.md
 ---
@@ -130,8 +131,8 @@ whether to read the entry. That listing is the index, so there is no separate in
 to keep in sync. All five frontmatter fields are required: `name` is the kebab-case slug
 and equals the file name without `.md`, `description` is one line, `type` is one of the
 four values, `updated` is a date (`YYYY-MM-DD`), and `source` records where the fact came
-from (a URL, a path in the repo, or a short description such as a conversation). Decisions and constraints
-end with why and how to apply, because a rule without its reason gets broken the first
+from (a URL, a path in the repo, or a short description such as a conversation).
+Decisions and constraints end with why and how to apply, because a rule without its reason gets broken the first
 time it is inconvenient. When a fact stops being true, the entry is changed or deleted,
 not left to contradict a newer one.
 
@@ -160,7 +161,7 @@ correction is a new result that names the one it supersedes.
 
 `id`, `at`, `kind`, `subject`, `outcome`, `summary` and `evidence` are required, and
 `supersedes` is optional. `id` is unique within the file, and `at` is an ISO 8601 date or
-date-time. `kind` is `test`, `run`, `release`, `check` or `delivery`. `outcome` is
+a date-time with a time zone. `kind` is `test`, `run`, `release`, `check` or `delivery`. `outcome` is
 `passed`, `failed` or `partial`. `evidence` is a non-empty list of what backs the claim,
 each item an object with a `kind` and one field that depends on it: `link` has `url`,
 `command` has `command` (what was run), `file` has `path` (from the product root), `run`
@@ -193,6 +194,17 @@ That is how the hosted Patricia server's monthly ceiling is meant to be enforced
 the month's entries before accepting a review, and refuse new reviews once the total has
 reached the ceiling. Whether to also refuse a review that could cross it, using the
 contract's per-call budget, is a choice for that server (#54).
+
+## What the checker holds you to
+
+`scripts/check_knowledge.py` checks everything above, and a few rules this note implies
+but doesn't spell out. Frontmatter is plain `key: value` lines, with no YAML lists, block
+scalars or comments, and an optional pair of quotes around a value. Keys and fields not
+named above are rejected, in frontmatter and in JSON lines alike, and so is any file
+outside the layout. `STATE.md` has exactly one `# ` heading, the product's name, and its
+Open work can be the single line `None.` when there is nothing left. An evidence item
+holds its `kind` and its one field, nothing else. `memory/`, `results.jsonl` and
+`ledger.jsonl` can be absent until there is something to put in them.
 
 ## Secrets and personal data
 
@@ -235,6 +247,6 @@ store with the same record shapes is a drop-in for services.
 
 ## Out of scope here
 
-Templates, a worked example and the validator are #46. An MCP server that exposes a
-product's knowledge to harnesses, writes from the workflows-hive engine to the ledger,
-and the hosted ceiling's enforcement come later, against this same format.
+An MCP server that exposes a product's knowledge to harnesses, writes from the
+workflows-hive engine to the ledger, and the hosted ceiling's enforcement come later,
+against this same format.
