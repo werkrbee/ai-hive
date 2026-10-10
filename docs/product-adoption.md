@@ -144,9 +144,10 @@ calling product's name, the new one and the existing ones, since the `allowedCli
 prints lists only the names it was given. It creates an Entra ID app registration for the
 new product and grants it the `Review.Request` role on Patricia's API. The maintainer
 then puts the printed `allowedClients` in `main.bicepparam` and redeploys with
-`deploy.sh`, which is what adds the product to the server's allowlist. The product's owner then adds a credential to that app, a certificate or federated credential
-for preference, and keeps it in the product's secret store. Nothing about the credential
-goes into this repo.
+`deploy.sh`, which is what adds the product to the server's allowlist. The product's
+owner then adds a credential to that app, a certificate or federated credential for
+preference, and keeps it in the product's secret store. Nothing about the credential goes
+into this repo.
 
 The card is public at `https://<host>/.well-known/agent-card.json`. It names the
 endpoint, the token URL and the scope. A call is two requests. First get a token with the
