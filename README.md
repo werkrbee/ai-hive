@@ -80,7 +80,7 @@ portable artifact worth versioning — and that's what earns a hive:
 | Capabilities | [`skills-hive`](hives/skills-hive) | `SKILL.md` | ✅ **built** |
 | Tools | [`mcp-hive`](hives/mcp-hive) | MCP server configs | ✅ **built** |
 | Actors | [`agents-hive`](hives/agents-hive) | subagent / persona defs | ✅ **built** |
-| Orchestration | [`workflows-hive`](hives/workflows-hive) | durable workflow plans, MCP Tasks as the interface | ✅ **built** |
+| Orchestration | [`workflows-hive`](hives/workflows-hive) | durable workflow plans, designed around MCP Tasks | ✅ **built** |
 
 **Composition & delivery** (not layers, but how the above ship together):
 
@@ -102,9 +102,9 @@ A category becomes a hive only when its artifact passes two tests:
    so the collection doesn't fragment.
 
 That's why `skills-hive`, `rules-hive`, and `mcp-hive` are clear yeses — each has
-a real standard — and `workflows-hive` rides MCP Tasks. `knowledge-hive` is the
-exception: no cross-harness standard for operational state exists
-yet, so it defines its own format in plain Markdown and JSONL that any harness can read.
+a real standard — and `workflows-hive` is designed around MCP Tasks. `knowledge-hive` is
+the exception: no cross-harness standard for operational state exists yet, so it
+defines its own format in plain Markdown and JSONL that any harness can read.
 Categories without one (models, datasets, raw prompts) are better as config *inside*
 projects than as hives of their own.
 
@@ -212,7 +212,7 @@ roles in a product, the execution contracts and Agent Cards, and calling hosted 
 2. ✅ **rules-hive** — shipped (`AGENTS.md` guardrails; the Queen Bee's Charter).
 3. ✅ **mcp-hive** — shipped (tool/connector registry).
 4. ✅ **agents-hive** — shipped (Barry's fleet + Patricia's review agents).
-5. ✅ **plugins-hive** — shipped (bundle all four hives into one installable pack).
+5. ✅ **plugins-hive** — shipped (bundle the four core hives into one installable pack).
 6. ✅ **projects-hive** — shipped (scaffold an initiative with the whole House assembled).
 7. ✅ **workflows-hive** — shipped in P0 (durable, resumable workflows and a reference engine).
 8. ✅ **knowledge-hive** — shipped in P1 (operational state, results and the usage ledger).
