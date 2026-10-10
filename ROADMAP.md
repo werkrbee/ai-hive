@@ -26,8 +26,8 @@ Tracked as issues #7–#12, worked in the order set in `docs/sprints/p0.md`. All
 
 ## P1 — interop, governance, state
 
-Tracked on the `P1 — interop, governance, state` milestone. Everything is done except the
-first deploy of hosted Patricia (#55).
+Tracked on the `P1 — interop, governance, state` milestone. Everything is done except
+hosted Patricia's first deploy and model eval (#55).
 
 - **A2A Agent Cards (agents-hive) (done).** Give Barry & Patricia Agent2Agent cards so
   other agents can discover and call them (Linux Foundation A2A v1.x).
