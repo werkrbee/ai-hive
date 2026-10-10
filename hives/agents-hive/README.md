@@ -101,6 +101,11 @@ configuration. It is built on the official A2A Python SDK and is the one part of
 that needs packages beyond the standard library. Its tests run in CI, and a recorded run
 of the A2A TCK is in [`servers/a2a/conformance/`](servers/a2a/conformance/RESULTS.md).
 
+[`deploy/azure/`](deploy/azure) is werkrbee's deployment of it: Azure Container Apps,
+Microsoft Foundry through a managed identity, one Entra app registration per calling
+product, a $25 budget alert, and an eval for choosing Patricia's model. The maintainer
+runs the deploy.
+
 ## Repository layout
 
 ```text
@@ -118,6 +123,8 @@ agents-hive/
 │   └── patricia/card.json
 ├── servers/
 │   └── a2a/                      # a reference A2A server (Patricia's governance-review)
+├── deploy/
+│   └── azure/                    # werkrbee's deployment of it
 ├── schema/
 │   └── execution-contract.schema.json
 ├── adapters/                     # WHERE they run — harness taxonomy & overrides
