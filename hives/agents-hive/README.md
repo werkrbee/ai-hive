@@ -70,8 +70,8 @@ skill's id is the contract's capability, and its description points at the contr
 defines its inputs and output. The rest of the card (name, description, version, provider,
 links, default media types) is written in `cards/<persona>/card.json`.
 
-A card also needs the URL where the agent is served, and nothing in this repo serves Barry
-or Patricia yet. So `card.json` leaves out `skills` and `supportedInterfaces`, and
+A card also needs the URL where the agent is served, which only exists once someone
+serves it. So `card.json` leaves out `skills` and `supportedInterfaces`, and
 `scripts/agent_card.py` adds both when it renders the card for a real endpoint:
 
 ```bash
@@ -88,8 +88,18 @@ it against the `AgentCard` message in the A2A spec (`specification/a2a.proto`): 
 fields, camelCase field names and media types. It also requires every URL on the card to
 be HTTPS, which is house policy and stricter than the spec. A contract adds a skill to a
 card when its `fulfilledBy` names `hives/skills-hive/skills/<persona>` or
-`hives/agents-hive/agents/<persona>`. CI runs the check. The cards aren't signed; signing
-comes with hosting.
+`hives/agents-hive/agents/<persona>`. CI runs the check. The cards aren't signed yet.
+
+## A2A server
+
+[`servers/a2a/`](servers/a2a) is a reference A2A server for one contract of one persona,
+configured for Patricia's `governance-review`. It serves her card with an OAuth2
+client-credentials security scheme, authenticates every call against an allowlist of
+clients, checks input and output against the contract, enforces its per-call budget and a
+monthly spending ceiling ($25 by default), and keeps tasks across restarts. The model is
+configuration. It is built on the official A2A Python SDK and is the one part of the repo
+that needs packages beyond the standard library. Its tests run in CI, and a recorded run
+of the A2A TCK is in [`servers/a2a/conformance/`](servers/a2a/conformance/RESULTS.md).
 
 ## Repository layout
 
@@ -106,6 +116,8 @@ agents-hive/
 ├── cards/                        # HOW others find them — A2A Agent Cards
 │   ├── barry/card.json
 │   └── patricia/card.json
+├── servers/
+│   └── a2a/                      # a reference A2A server (Patricia's governance-review)
 ├── schema/
 │   └── execution-contract.schema.json
 ├── adapters/                     # WHERE they run — harness taxonomy & overrides

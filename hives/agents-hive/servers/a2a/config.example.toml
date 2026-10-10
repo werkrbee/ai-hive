@@ -1,0 +1,39 @@
+# Configuration for hive_a2a. Copy it, fill in the values, and pass it with --config.
+# Relative paths for database, ledger and jwks_path are from this file's directory;
+# prompt_files are from the repo root. No secret goes in this file.
+
+[server]
+persona = "patricia"                 # cards/<persona>/card.json
+capability = "governance-review"     # contracts/<capability>/contract.json
+public_url = "https://patricia.example.org/"   # where callers reach the JSON-RPC endpoint
+database = "data/tasks.db"           # SQLite; tasks survive restarts
+ledger = "data/ledger.jsonl"         # knowledge-hive ledger format
+monthly_ceiling_usd = 25.0
+prompt_files = [
+  "hives/rules-hive/rules/queen-charter/AGENTS.md",
+  "hives/skills-hive/skills/patricia/SKILL.md",
+  "hives/agents-hive/agents/charter-review/agent.md",
+]
+
+[auth]
+# Microsoft Entra: replace <tenant-id> and <api-app-id> with the server's app registration.
+issuer = "https://login.microsoftonline.com/<tenant-id>/v2.0"
+audience = "<api-app-id>"
+jwks_url = "https://login.microsoftonline.com/<tenant-id>/discovery/v2.0/keys"
+token_url = "https://login.microsoftonline.com/<tenant-id>/oauth2/v2.0/token"
+scope = "api://<api-app-id>/.default"
+allowed_clients = ["<caller-app-id>"]   # one entry per product allowed to call
+# client_claims = ["azp", "appid"]
+# required_roles = ["Review.Request"]
+
+[model]
+provider = "stub"                    # stub | anthropic | openai
+name = "stub"
+# Foundry endpoints below are not yet verified live; #55 does that.
+# base_url = "https://<resource>.services.ai.azure.com/anthropic"   # anthropic on Foundry
+# base_url = "https://<resource>.openai.azure.com/openai/v1"         # openai on Foundry
+# auth = "entra"                     # entra (managed identity) | api-key
+# api_key_env = "MODEL_API_KEY"      # with auth = "api-key"
+input_usd_per_mtok = 0.0             # the model's list price, for the ledger and the ceiling
+output_usd_per_mtok = 0.0
+max_output_tokens = 4000
