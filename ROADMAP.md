@@ -26,10 +26,11 @@ Tracked as issues #7–#12, worked in the order set in `docs/sprints/p0.md`. All
 
 ## P1 — interop, governance, state
 
-Tracked on the `P1 — interop, governance, state` milestone, and released in 0.4.0.
-Everything is done except hosted Patricia: its first deploy and model eval (#55), and two
-follow-ups from the deploy work, `entra.sh` showing its plan before it asks (#68) and a
-narrower Foundry role for its identity once the deploy shows what it needs (#69).
+Tracked on the `P1 — interop, governance, state` milestone; its finished work is released
+in 0.4.0. Everything is done except hosted Patricia: its first deploy and model eval
+(#55), and two follow-ups from the deploy work, `entra.sh` showing its plan before it asks
+(#68) and a narrower Foundry role for its identity once the deploy shows what it needs
+(#69).
 
 - **A2A Agent Cards (agents-hive) (done).** Give Barry & Patricia Agent2Agent cards so
   other agents can discover and call them (Linux Foundation A2A v1.x).
@@ -53,7 +54,8 @@ narrower Foundry role for its identity once the deploy shows what it needs (#69)
 ## P1.1 — product adoption
 
 Tracked on the `P1.1 — product adoption` milestone. Gaps a product hits when it adopts
-ai-hive, found while writing `docs/product-adoption.md`.
+ai-hive, found while writing the adoption guide and reconciling the repo with
+`workflows-hive` and `knowledge-hive`.
 
 - **Check a product's own files (rules-hive, agents-hive).** Let the approval-policy and
   contract checkers check a product's files, with `extends` pointing into its pinned copy
