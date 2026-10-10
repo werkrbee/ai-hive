@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="assets/knowledge-hive-logo.svg" alt="knowledge-hive — operational state in plain files, one hive, every harness" width="620">
+</p>
+
 # knowledge-hive
 
 > **Operational state, written down once.** What a product knows about itself between

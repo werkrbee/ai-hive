@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="assets/workflows-hive-logo.svg" alt="workflows-hive — durable, resumable workflows, one hive, every harness" width="620">
+</p>
+
 # workflows-hive
 
 > **Durable, resumable workflows.** Multi-step recipes written once as portable plans,
