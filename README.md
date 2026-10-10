@@ -75,12 +75,12 @@ portable artifact worth versioning — and that's what earns a hive:
 
 | Layer | Hive | Artifact / standard | Status |
 |-------|------|---------------------|--------|
-| Context | `knowledge-hive` | docs, memory, RAG corpora | planned |
+| State | [`knowledge-hive`](hives/knowledge-hive) | `STATE.md`, memory, results and usage ledgers | ✅ **built** |
 | Instructions | [`rules-hive`](hives/rules-hive) | `AGENTS.md`, `CLAUDE.md` | ✅ **built** |
 | Capabilities | [`skills-hive`](hives/skills-hive) | `SKILL.md` | ✅ **built** |
 | Tools | [`mcp-hive`](hives/mcp-hive) | MCP server configs | ✅ **built** |
 | Actors | [`agents-hive`](hives/agents-hive) | subagent / persona defs | ✅ **built** |
-| Orchestration | [`workflows-hive`](hives/workflows-hive) | durable workflows over MCP Tasks | in design (P0) |
+| Orchestration | [`workflows-hive`](hives/workflows-hive) | durable workflow plans, designed around MCP Tasks | ✅ **built** |
 
 **Composition & delivery** (not layers, but how the above ship together):
 
@@ -102,8 +102,11 @@ A category becomes a hive only when its artifact passes two tests:
    so the collection doesn't fragment.
 
 That's why `skills-hive`, `rules-hive`, and `mcp-hive` are clear yeses — each has
-a real standard. Categories without one (models, datasets, raw prompts) are better
-as config *inside* projects than as hives of their own.
+a real standard — and `workflows-hive` is designed around MCP Tasks. `knowledge-hive` is
+the exception: no cross-harness standard for operational state exists yet, so it
+defines its own format in plain Markdown and JSONL that any harness can read.
+Categories without one (models, datasets, raw prompts) are better as config *inside*
+projects than as hives of their own.
 
 ## The hives
 
@@ -134,17 +137,21 @@ security-review) and Patricia's `charter-review`, as durable artifacts. Agent
 formats vary by harness, so each persona is rendered per harness.
 → [`hives/agents-hive`](hives/agents-hive)
 
-### workflows-hive — *orchestration*
+### workflows-hive — *orchestration* ✅
 
-Stored multi-step recipes and pipelines. Barry is the runtime version of this;
-`workflows-hive` is the saved version. In design for P0: durable, resumable workflows
-exposed through MCP Tasks.
+Durable, resumable multi-step workflows. Barry is the runtime version of this;
+`workflows-hive` is the saved version. A workflow is a portable plan that checkpoints
+after every step, so it survives a restart and resumes where it stopped. MCP Tasks is
+the interface, and a reference engine runs plans today; the MCP Tasks server comes next.
 → [`hives/workflows-hive`](hives/workflows-hive)
 
-### knowledge-hive — *context*
+### knowledge-hive — *state* ✅
 
-Docs, memory files, and RAG corpora — what the fleet knows. Weak cross-harness
-standard today, so this may live inside projects until one emerges.
+What a product knows about itself between sessions: a current `STATE.md`, one memory
+file per durable fact, and append-only results and usage ledgers. It standardizes the
+status and memory files products used to hand-roll, with templates, a worked lineup
+example and a validator.
+→ [`hives/knowledge-hive`](hives/knowledge-hive)
 
 ### plugins-hive & projects-hive — *composition*
 
@@ -176,7 +183,7 @@ reference implementation):
 
 ## Setup
 
-ai-hive is a monorepo: all six hives live under `hives/` as plain directories, so a
+ai-hive is a monorepo: all eight hives live under `hives/` as plain directories, so a
 normal clone gives you the whole House.
 
 ```bash
@@ -205,12 +212,13 @@ roles in a product, the execution contracts and Agent Cards, and calling hosted 
 2. ✅ **rules-hive** — shipped (`AGENTS.md` guardrails; the Queen Bee's Charter).
 3. ✅ **mcp-hive** — shipped (tool/connector registry).
 4. ✅ **agents-hive** — shipped (Barry's fleet + Patricia's review agents).
-5. ✅ **plugins-hive** — shipped (bundle all four hives into one installable pack).
+5. ✅ **plugins-hive** — shipped (bundle the four core hives into one installable pack).
 6. ✅ **projects-hive** — shipped (scaffold an initiative with the whole House assembled).
+7. ✅ **workflows-hive** — shipped in P0 (durable, resumable workflows and a reference engine).
+8. ✅ **knowledge-hive** — shipped in P1 (operational state, results and the usage ledger).
 
-**The House is complete** — six hives built (skills, rules, mcp, agents, plugins,
-projects) under one ai-hive roof, ruled by Barry and Patricia. Future growth
-(knowledge-hive, workflows-hive) can slot in when a real need and a standard appear.
+Eight hives are built under one ai-hive roof, ruled by Barry and Patricia. What comes
+next, by priority, is in [`ROADMAP.md`](ROADMAP.md).
 
 ## License
 

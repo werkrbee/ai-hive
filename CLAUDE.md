@@ -24,8 +24,9 @@ hives/
   agents-hive/     actors — subagent & persona definitions
   plugins-hive/    composition — installable packs
   projects-hive/   containers — scaffolds that assemble the House per initiative
-  workflows-hive/  orchestration — durable, resumable workflows (in design)
-docs/              factory-thesis, interface-independence, prompts, sprints
+  workflows-hive/  orchestration — durable, resumable workflows and a reference engine
+  knowledge-hive/  state — STATE.md, memory, results and usage ledgers
+docs/              factory-thesis, interface-independence, product-adoption, prompts, sprints
 .claude/           Claude Code config: commands, subagents, settings
 .github/           OSS health, issue/PR templates, CI
 ROADMAP.md         P0–P2 refactor plan; sprints draw from here

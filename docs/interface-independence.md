@@ -34,7 +34,8 @@ flowchart TB
 
 Every interface enters through the same door (the product API), directly or via MCP.
 Control and economics live in the core. Execution is durable. Workers are replaceable.
-State outlives any single run.
+State outlives any single run. In the House, workflows-hive supplies the workflow format
+and a reference engine, and knowledge-hive the format for the state, results and ledger.
 
 ## Five choices that make this practical
 
@@ -61,9 +62,11 @@ Define an assignment by what it needs, not who runs it: required capability, inp
 expected output, budget, and permissions. Put model- and harness-specific behavior behind
 adapters so a worker can be swapped without touching the contract. This is the clean split
 the House of Hives is built around: **ai-hive supplies the portable instructions and
-personas** (the skills, rules, and characters), and **the product supplies the execution
-contract and operational state**. The hive says how to act; the service decides whether,
-tracks what happened, and can replace the actor.
+personas** (the skills, rules, and characters) and the shapes around them (the
+execution-contract schema, the workflow format, the state and ledger formats), and **the
+product runs them**: it holds its own contracts and operational state and enforces them.
+The hive says how to act; the service decides whether, tracks what happened, and can
+replace the actor.
 
 ### 4. Enforce human control and token economics outside the model
 

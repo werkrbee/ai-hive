@@ -11,12 +11,13 @@ Convert to a monorepo and stand up the open-source + Claude Code lifecycle. See
 `docs/sprints/sprint-0.md`. Done once the repo has governance, CI, Claude Code commands,
 and the roadmap below is tracked as issues.
 
-## P0 — the runtime layer (unblocks every product; this sprint)
+## P0 — the runtime layer (done)
 
-Tracked as issues #7–#12, worked in the order set in `docs/sprints/p0.md`.
+Tracked as issues #7–#12, worked in the order set in `docs/sprints/p0.md`. All closed.
 
-- **`workflows-hive` (new).** Durable, resumable multi-step recipes. Align with MCP's
+- **`workflows-hive` (done).** Durable, resumable multi-step recipes. Align with MCP's
   `Tasks` primitive (2026-07-28) and a Temporal-style engine. The missing layer lineup hit.
+  The plan format and a reference engine shipped; the MCP Tasks server is still to come.
 - **Execution-contract schema (agents-hive).** Define a worker by required capability,
   inputs, expected output, **budget, and permissions** — so workers are replaceable.
 - **MCP spec bump (mcp-hive + docs).** Move references to the **2026-07-28** spec: stateless
@@ -32,7 +33,7 @@ Tracked on the `P1 — interop, governance, state` milestone.
 - **Structured approval/mandate schema (rules-hive).** Turn the Charter's prose into a
   per-action, per-scope policy (auto vs. human-gated), AP2-mandate-shaped. Encodes carve-outs
   like lineup's bullpen auto-send as data, not prose.
-- **`knowledge-hive` (new).** Standardize the operational-state pattern apps hand-rolled
+- **`knowledge-hive` (done).** Standardize the operational-state pattern apps hand-rolled
   (STATUS.md / PROJECT_STATE.md / memory) — the "persistent state · results · usage ledger".
 - **Hosted Patricia over A2A (agents-hive).** A reference A2A v1.x server that exposes the
   `governance-review` contract as the skill on Patricia's Agent Card (builds on the Agent

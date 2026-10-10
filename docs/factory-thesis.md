@@ -97,9 +97,10 @@ before we ask "how do I fix lineup?" That's what turns a product into a proving 
 ## Goal / objective
 
 > **ai-hive's objective is to be a harness-agnostic *factory* for AI-agent products** —
-> a portable, standard-backed set of reusable layers (skills, rules, tools, agents, plus
-> packaging and scaffolding) that lets a small team with agency assemble and ship new
-> agent products on any harness, each faster and stronger than the last.
+> a portable, standard-backed set of reusable layers (skills, rules, tools, agents,
+> workflows and state, plus packaging and scaffolding) that lets a small team with
+> agency assemble and ship new agent products on any harness, each faster and stronger
+> than the last.
 
 The measure of success is not any single product. It's the **slope**: the marginal cost
 of the next product trending toward zero, while quality trends up.
