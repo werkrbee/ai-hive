@@ -22,7 +22,7 @@ curated set, and this installer wires the House together in one shot.
 
 | Pack | What it bundles |
 |------|-----------------|
-| [**werkrbee-core**](packs/werkrbee-core/pack.json) | Barry + Patricia (skills), the Queen Bee's Charter (rules), filesystem/git/fetch (tools), and the review fleet — explore, code-review, security-review, charter-review (agents) |
+| [**werkrbee-core**](packs/werkrbee-core/pack.json) | Barry + Patricia + discover-outcomes (skills), the Queen Bee's Charter (rules), filesystem/git/fetch (tools), and the review fleet — explore, code-review, security-review, charter-review (agents) |
 
 A pack is a small `pack.json` manifest naming which artifacts from each hive to
 install, and for which harnesses:
@@ -31,7 +31,7 @@ install, and for which harnesses:
 {
   "name": "werkrbee-core",
   "harnesses": ["claude-code", "cursor", "github-copilot"],
-  "skills": ["barry", "patricia"],
+  "skills": ["barry", "patricia", "discover-outcomes"],
   "rules": ["queen-charter"],
   "mcp": ["filesystem", "git", "fetch"],
   "agents": ["explore", "code-review", "security-review", "charter-review"]
