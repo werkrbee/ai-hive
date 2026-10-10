@@ -23,16 +23,18 @@ fi
 
 me=$(az ad signed-in-user show --query id -o tsv)
 
+# These helpers run inside $(...), where bash 3.2 (macOS) ignores set -e, so each az call
+# exits explicitly on failure and the ownership check accepts only a positive answer.
 app_id_for() {  # the appId of the one app with exactly this display name that you own, or nothing
   local ids owned
-  ids=$(az ad app list --filter "displayName eq '$1'" --query "[].appId" -o tsv)
+  ids=$(az ad app list --filter "displayName eq '$1'" --query "[].appId" -o tsv) || exit 1
   case "$(printf '%s' "$ids" | grep -c .)" in
     0) return 0 ;;
     1) ;;
     *) echo "error: more than one app is named $1; rename or remove the extras" >&2; exit 1 ;;
   esac
-  owned=$(az ad app owner list --id "$ids" --query "[?id=='$me'] | length(@)" -o tsv)
-  if [ "$owned" = "0" ]; then
+  owned=$(az ad app owner list --id "$ids" --query "[?id=='$me'] | length(@)" -o tsv) || exit 1
+  if [ "$owned" != "1" ]; then
     echo "error: an app named $1 ($ids) exists but you don't own it; not reusing it" >&2
     exit 1
   fi
@@ -41,9 +43,9 @@ app_id_for() {  # the appId of the one app with exactly this display name that y
 
 sp_id_for() {  # the service principal's object id for an appId, created if missing
   local id
-  id=$(az ad sp list --filter "appId eq '$1'" --query "[0].id" -o tsv)
+  id=$(az ad sp list --filter "appId eq '$1'" --query "[0].id" -o tsv) || exit 1
   if [ -z "$id" ]; then
-    id=$(az ad sp create --id "$1" --query id -o tsv)
+    id=$(az ad sp create --id "$1" --query id -o tsv) || exit 1
   fi
   echo "$id"
 }

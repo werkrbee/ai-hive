@@ -15,7 +15,7 @@ One resource group holds the whole deployment, so one budget covers it.
 | Resource | Why |
 |----------|-----|
 | Container App (scale 0 to 1) | Runs the server. It scales to zero when idle and never runs more than one replica, because the ledger's running total and the SQLite task store each belong to one process. Ingress is HTTPS only. |
-| Container Apps environment and Log Analytics | Hosting and logs, kept 30 days and capped at 0.1 GB a day. |
+| Container Apps environment and Log Analytics | Hosting and logs, kept 30 days and capped at 0.1 GB a day. Past the cap, logging stops until the next day. |
 | Azure Files share | `/data`: the task database and the usage ledger, so both survive restarts and scale-to-zero. It is mounted with `nobrl`, which is safe only with one writer. |
 | Microsoft Foundry (AI Services) | The models. Key auth is disabled, so the server reaches them only with its managed identity, and there is no API key to store. |
 | User-assigned managed identity | Pulls the image (AcrPull) and calls Foundry (Cognitive Services User). |
