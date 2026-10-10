@@ -26,23 +26,26 @@ Tracked as issues #7–#12, worked in the order set in `docs/sprints/p0.md`. All
 
 ## P1 — interop, governance, state
 
-Tracked on the `P1 — interop, governance, state` milestone.
+Tracked on the `P1 — interop, governance, state` milestone. Everything is done except
+hosted Patricia's first deploy and model eval (#55).
 
-- **A2A Agent Cards (agents-hive).** Give Barry & Patricia Agent2Agent cards so other agents
-  can discover and call them (Linux Foundation A2A v1.x).
-- **Structured approval/mandate schema (rules-hive).** Turn the Charter's prose into a
-  per-action, per-scope policy (auto vs. human-gated), AP2-mandate-shaped. Encodes carve-outs
-  like lineup's bullpen auto-send as data, not prose.
+- **A2A Agent Cards (agents-hive) (done).** Give Barry & Patricia Agent2Agent cards so
+  other agents can discover and call them (Linux Foundation A2A v1.x).
+- **Structured approval/mandate schema (rules-hive) (done).** Turn the Charter's prose
+  into a per-action, per-scope policy (auto vs. human-gated), AP2-mandate-shaped. Encodes
+  carve-outs like lineup's bullpen auto-send as data, not prose.
 - **`knowledge-hive` (done).** Standardize the operational-state pattern apps hand-rolled
   (STATUS.md / PROJECT_STATE.md / memory) — the "persistent state · results · usage ledger".
-- **Hosted Patricia over A2A (agents-hive).** A reference A2A v1.x server that exposes the
-  `governance-review` contract as the skill on Patricia's Agent Card (builds on the Agent
-  Cards item). The model is configuration, not code. werkrbee deploys an instance on Azure
-  behind OAuth2 client credentials, for werkrbee products only; products built on the
-  House (lineup, singularity) call it for governance checks.
-- **Product adoption guide (docs).** How a product adopts ai-hive as its agent development
-  framework: pin the monorepo, Barry executes, Patricia governs.
-- **Reconcile the repo with `workflows-hive` and `knowledge-hive` (docs).** Once
+- **Hosted Patricia over A2A (agents-hive) (in progress).** A reference A2A v1.x server
+  that exposes the `governance-review` contract as the skill on Patricia's Agent Card
+  (builds on the Agent Cards item). The model is configuration, not code. werkrbee
+  deploys an instance on Azure behind OAuth2 client credentials, for werkrbee products
+  only; products built on the House (lineup, singularity) call it for governance checks.
+  The server (#54) and the Azure deploy definition shipped; the first deploy and the eval
+  that picks Patricia's model are still to run (#55).
+- **Product adoption guide (docs) (done).** How a product adopts ai-hive as its agent
+  development framework: pin the monorepo, Barry executes, Patricia governs.
+- **Reconcile the repo with `workflows-hive` and `knowledge-hive` (docs) (done).** Once
   knowledge-hive lands, make every page and image describe both hives accurately.
 
 ## P2 — ecosystem & payments
