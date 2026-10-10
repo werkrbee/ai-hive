@@ -195,6 +195,10 @@ consolidated here at the commits ai-hive had pinned, and the old repositories
 history before the move, point back here, and take no changes. Develop every hive in
 this repository.
 
+Building a product on the House? [`docs/product-adoption.md`](docs/product-adoption.md)
+covers pinning this repo at a release, installing from the pin, Barry and Patricia's
+roles in a product, the execution contracts and Agent Cards, and calling hosted Patricia.
+
 ## Roadmap
 
 1. ✅ **skills-hive** — shipped.
