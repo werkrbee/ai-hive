@@ -19,6 +19,13 @@ jobs:
       - name: Validate SKILL.md / AGENTS.md artifacts
         run: ./scripts/validate-artifacts.sh
 
+      - name: Compile the Azure deployment (Bicep)
+        run: |
+          az bicep install
+          az bicep build --file hives/agents-hive/deploy/azure/main.bicep --stdout > /dev/null
+          az bicep lint --file hives/agents-hive/deploy/azure/main.bicep
+          az bicep build-params --file hives/agents-hive/deploy/azure/main.example.bicepparam --stdout > /dev/null
+
       - name: ShellCheck (non-blocking)
         continue-on-error: true
         run: |

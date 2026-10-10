@@ -1,0 +1,14 @@
+# Build context for hives/agents-hive/deploy/azure/Dockerfile, which builds from the repo
+# root. Only the files it copies are sent, so git-ignored local files (.env,
+# main.bicepparam) never leave the machine. Keep in step with the Dockerfile's COPY lines.
+*
+!hives/agents-hive/servers/a2a/requirements.txt
+!hives/agents-hive/servers/a2a/hive_a2a
+!hives/agents-hive/scripts/agent_card.py
+!hives/agents-hive/cards
+!hives/agents-hive/contracts
+!hives/agents-hive/agents/charter-review
+!hives/skills-hive/skills/patricia/SKILL.md
+!hives/rules-hive/rules/queen-charter/AGENTS.md
+!hives/agents-hive/deploy/azure/render_config.py
+**/__pycache__
