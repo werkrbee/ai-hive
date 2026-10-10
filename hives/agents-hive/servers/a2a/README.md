@@ -20,7 +20,9 @@ OAuth2 client-credentials security scheme.
 
 **Security.** Every request except the card needs a bearer token. The token must be a JWT
 signed by a key from the configured JWKS, name the configured issuer and audience, be
-unexpired, and come from a client on `auth.allowed_clients`. A missing or invalid token
+unexpired, and come from a client on `auth.allowed_clients`. Only app tokens from the
+client-credentials flow are accepted: a delegated (user) token, one with `scp` or an Entra
+`idtyp` other than `app`, is refused. A missing or invalid token
 gets HTTP 401; a valid token from a client not on the list gets 403. Each caller sees only
 its own tasks: another caller's task id is "task not found". TLS is terminated in front of
 the server (Azure Container Apps ingress, in #55), and `public_url` must be HTTPS except on
@@ -50,9 +52,16 @@ reservations reaches the ceiling, new reviews are refused. A refused review beco
 task in the A2A `rejected` state, without calling the model. Its status message says the
 ceiling was reached, how much was spent, and the date reviews resume (the first of next
 month, UTC). It also carries a JSON part
-`{"error": "monthly-ceiling-reached", "month", "spentUsd", "ceilingUsd", "resumesOn"}`. The
-most a month can end over the ceiling is one review's reservation, at most the contract's
-$0.50.
+`{"error": "monthly-ceiling-reached", "month", "spentUsd", "ceilingUsd", "resumesOn"}`.
+
+A call that reports its usage is recorded at its metered tokens. A call that may have
+been billed but reported no usage is recorded at its whole reservation. That covers a
+timeout, a cancel, a provider error after the request was sent, and a review cut off when
+the process dies: calls in flight are kept in `<ledger>.pending`, and any left there are
+recorded when the server next starts. So the most a month can
+end over the ceiling is one review's reservation, at most $0.50. The exception is a reply
+that runs past its token estimate, which the server logs. The running total is kept in
+the server process, so one instance must own the ledger: run a single replica.
 
 The ledger's `usd` is computed from the prices in the config, so its `basis` is
 `estimated`. The Azure budget alert in #55 is the billed backstop.
@@ -62,6 +71,10 @@ The ledger's `usd` is computed from the prices in the config, so its `basis` is
 - `anthropic` uses the Messages API, such as Claude on Microsoft Foundry's `/anthropic`
   endpoint.
 - `openai` uses Chat Completions, such as OpenAI models on Foundry's `/openai/v1` endpoint.
+
+The `anthropic` and `openai` providers are tested against a mock of each API's request
+and response shapes, not yet against live Foundry endpoints. That, and whether Foundry
+accepts managed-identity tokens for each API, is verified in the Azure deploy (#55).
 
 With `model.auth = "entra"`, the server authenticates to the model with the managed
 identity it runs as. With `"api-key"`, it reads the key from the environment variable

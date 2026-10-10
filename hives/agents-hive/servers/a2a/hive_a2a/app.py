@@ -55,7 +55,14 @@ def card(config):
 
 
 async def fail_interrupted(store):
-    """Tasks a restart cut off can't resume, so mark them failed rather than leave them working."""
+    """Tasks a restart cut off can't resume, so mark them failed rather than leave them working.
+
+    Their spending isn't recorded here: the ledger records calls a dead process left in
+    flight when it starts (see ledger.py).
+
+    This reads and writes rows through DatabaseTaskStore's private helpers (_from_orm,
+    _to_orm, task_model, async_session_maker). a2a-sdk is pinned; re-check this on upgrade.
+    """
     await store.initialize()
     async with store.async_session_maker.begin() as session:
         rows = (await session.execute(select(store.task_model))).scalars().all()
@@ -64,6 +71,7 @@ async def fail_interrupted(store):
             if task.status.state not in UNFINISHED:
                 continue
             task.status.state = TaskState.TASK_STATE_FAILED
+            task.status.message.Clear()
             task.status.message.role = Role.ROLE_AGENT
             task.status.message.message_id = f"{task.id}-restart"
             task.status.message.parts.add().text = "The server restarted during this review. Send it again."

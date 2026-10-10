@@ -72,6 +72,9 @@ class Authenticator:
             )
         except (jwt.PyJWTError, ValueError) as e:
             return None, (401, f"the token is not valid ({type(e).__name__})")
+        if "scp" in claims or claims.get("idtyp", "app") != "app":
+            # A delegated (user) token: this server takes client-credentials tokens only.
+            return None, (403, "only client-credentials (app) tokens may call this agent")
         client = next((claims[c] for c in self.auth.client_claims if isinstance(claims.get(c), str)), None)
         if client not in self.auth.allowed_clients:
             return None, (403, "this client is not allowed to call this agent")
@@ -89,8 +92,11 @@ class AuthMiddleware:
         self.authenticator = authenticator
 
     async def __call__(self, scope, receive, send):
-        if scope["type"] != "http" or (scope["path"] in PUBLIC_PATHS and scope["method"] in ("GET", "HEAD")):
+        if scope["type"] == "lifespan" or (
+                scope["type"] == "http" and scope["path"] in PUBLIC_PATHS and scope["method"] in ("GET", "HEAD")):
             return await self.app(scope, receive, send)
+        if scope["type"] != "http":
+            raise RuntimeError(f"unsupported ASGI scope '{scope['type']}'")
         header = dict(scope["headers"]).get(b"authorization", b"").decode("latin-1")
         client, refusal = await self.authenticator.caller(header)
         if refusal:

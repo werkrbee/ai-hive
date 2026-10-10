@@ -161,8 +161,12 @@ class Executor(AgentExecutor):
             await updater.reject(_message(updater, refusal.text(), refusal.data()))
             return
 
-        entry = None
+        # From here the provider may bill us. Until it reports metered usage, the cost is
+        # taken to be the whole reservation, so a timeout or cancel still counts toward the
+        # ceiling.
+        entry = self.unmetered(plan.max_usd)
         try:
+            await r.ledger.start(context.task_id, entry)
             await updater.start_work()
             budget = r.config.contract.get("budget", {})
             try:
@@ -174,7 +178,7 @@ class Executor(AgentExecutor):
                     updater, f"The review ran past the contract's {budget['seconds']}-second budget and was stopped."))
                 return
             except ProviderError as e:
-                entry = self._entry(e.completion) if e.completion else None
+                entry = self._entry(e.completion) if e.completion else entry if e.sent else None
                 log.warning("provider error on task %s: %s", context.task_id, e)
                 await updater.failed(_message(updater, f"The model provider failed: {e}"))
                 return
@@ -187,7 +191,7 @@ class Executor(AgentExecutor):
             await updater.add_artifact([new_data_part(verdict, "application/json")], name="verdict")
             await updater.complete()
         finally:
-            await r.ledger.settle(plan.max_usd, entry)
+            await r.ledger.settle(plan.max_usd, entry, key=context.task_id)
 
     def _entry(self, completion):
         r = self.reviewer
@@ -202,6 +206,12 @@ class Executor(AgentExecutor):
             # usd is computed from configured prices, not billed figures
             "basis": "estimated",
         }
+
+    def unmetered(self, usd):
+        """An entry for a call that may have been billed but reported no usage."""
+        r = self.reviewer
+        return {"capability": r.config.capability, "provider": r.provider.name, "model": r.provider.model,
+                "usd": round(usd, 6), "basis": "estimated"}
 
     async def cancel(self, context, event_queue):
         if context.task_id is None or context.context_id is None:

@@ -29,6 +29,7 @@ allowed_clients = ["<caller-app-id>"]   # one entry per product allowed to call
 [model]
 provider = "stub"                    # stub | anthropic | openai
 name = "stub"
+# Foundry endpoints below are not yet verified live; #55 does that.
 # base_url = "https://<resource>.services.ai.azure.com/anthropic"   # anthropic on Foundry
 # base_url = "https://<resource>.openai.azure.com/openai/v1"         # openai on Foundry
 # auth = "entra"                     # entra (managed identity) | api-key

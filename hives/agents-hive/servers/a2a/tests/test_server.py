@@ -166,6 +166,8 @@ class ServerTest(unittest.TestCase):
                 f"Bearer {token(exp=int(time.time()) - 3600)}": 401,
                 f"Bearer {token(kid='unknown')}": 401,
                 f"Bearer {token(STRANGER)}": 403,
+                f"Bearer {token(scp='Review.Request')}": 403,
+                f"Bearer {token(idtyp='user')}": 403,
             }
             for header, status in cases.items():
                 r = self.rpc(c, "ListTasks", {}, auth=header)
@@ -230,6 +232,18 @@ class ServerTest(unittest.TestCase):
             task = self.send(c)["result"]["task"]
         self.assertEqual(task["status"]["state"], "TASK_STATE_FAILED")
         self.assertIn("second budget", task["status"]["message"]["parts"][0]["text"])
+        [entry] = self.ledger()
+        self.assertGreater(entry["usd"], 0, "a timed-out call may have been billed")
+        self.assertNotIn("tokens", entry)
+
+    def test_unbilled_calls_still_reach_the_ceiling(self):
+        # Every call times out without reporting usage; the ceiling must still stop them.
+        config = write_config(self.root, ceiling=0.05)
+        config.contract["budget"]["seconds"] = 0.05
+        with self.client(config, provider=Gate()) as c:
+            states = [self.send(c)["result"]["task"]["status"]["state"] for _ in range(6)]
+        self.assertIn("TASK_STATE_REJECTED", states)
+        self.assertLessEqual(sum(e["usd"] for e in self.ledger()), 0.05 + 0.5)
 
     # --- the ceiling -----------------------------------------------------
 
@@ -291,6 +305,8 @@ class ServerTest(unittest.TestCase):
             self.assertEqual(canceled["status"]["state"], "TASK_STATE_CANCELED")
             done = self.rpc(c, "CancelTask", {"id": task["id"]}).json()
             self.assertEqual(done["error"]["code"], -32002)
+        [entry] = self.ledger()
+        self.assertGreater(entry["usd"], 0, "a cancelled call may have been billed")
 
     def test_tasks_survive_a_restart(self):
         config = write_config(self.root)
@@ -309,6 +325,25 @@ class ServerTest(unittest.TestCase):
             self.assertIn(cut_task["status"]["state"], ("TASK_STATE_FAILED", "TASK_STATE_CANCELED"))
             listed = {t["id"] for t in self.rpc(c, "ListTasks", {}).json()["result"]["tasks"]}
             self.assertEqual(listed, {done, cut})
+        usd = [e["usd"] for e in self.ledger()]
+        self.assertEqual(len(usd), 2, "the completed call, and the cut-off one, once")
+        self.assertGreater(usd[1], 0)
+
+    def test_calls_in_flight_when_the_process_dies_are_recorded(self):
+        from hive_a2a.ledger import Ledger
+        path = self.root / "ledger.jsonl"
+
+        async def crash():
+            ledger = Ledger(path, 25.0)
+            await ledger.reserve(0.4)
+            await ledger.start("task-1", {"usd": 0.4, "basis": "estimated"})
+            # ...and the process dies here, before settle.
+
+        asyncio.run(crash())
+        ledger = Ledger(path, 25.0)
+        self.assertAlmostEqual(ledger.spent(), 0.4)
+        self.assertFalse((self.root / "ledger.jsonl.pending").exists())
+        self.assertAlmostEqual(Ledger(path, 25.0).spent(), 0.4, msg="recorded once, not on every start")
 
     # --- configuration and providers -------------------------------------
 

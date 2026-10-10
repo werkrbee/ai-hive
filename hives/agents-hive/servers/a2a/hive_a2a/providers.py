@@ -8,6 +8,10 @@ output-token cap, return text and the tokens the provider metered.
 Which one, which model and where it is served are configuration. With model.auth =
 "entra" the provider authenticates with a Microsoft Entra token from the environment's
 managed identity; otherwise with an API key read from the named environment variable.
+
+The anthropic and openai providers are tested against a mock of each API's request and
+response shapes, not yet against live Foundry endpoints. That, including whether Foundry
+accepts the Entra scope below for each API, is verified when the server is deployed (#55).
 """
 import json
 import os
@@ -19,9 +23,10 @@ ENTRA_SCOPE = "https://cognitiveservices.azure.com/.default"
 
 
 class ProviderError(Exception):
-    def __init__(self, message, completion=None):
+    def __init__(self, message, completion=None, sent=True):
         super().__init__(message)
         self.completion = completion
+        self.sent = sent  # False when the request never left, so nothing can have been billed
 
 
 @dataclass(frozen=True)
@@ -66,7 +71,7 @@ class _HTTP:
             return (await self.credential.get_token(ENTRA_SCOPE)).token
         key = os.environ.get(self.api_key_env or "")
         if not key:
-            raise ProviderError(f"the environment variable {self.api_key_env} holds no API key")
+            raise ProviderError(f"the environment variable {self.api_key_env} holds no API key", sent=False)
         return key
 
     async def _post(self, path, headers, body):
