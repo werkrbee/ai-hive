@@ -1,5 +1,25 @@
 # Changelog
 
+## [0.4.0](https://github.com/werkrbee/ai-hive/compare/v0.3.0...v0.4.0) (2026-10-10)
+
+
+### Features
+
+* **agents-hive:** add a reference A2A server for governance-review ([#61](https://github.com/werkrbee/ai-hive/issues/61)) ([0bb7ef1](https://github.com/werkrbee/ai-hive/commit/0bb7ef1a4333328598a5e14c4ed99d0ee40fe377)), closes [#54](https://github.com/werkrbee/ai-hive/issues/54)
+* **agents-hive:** deploy hosted Patricia to Azure ([#62](https://github.com/werkrbee/ai-hive/issues/62)) ([e5a81a1](https://github.com/werkrbee/ai-hive/commit/e5a81a11ac007be2b6bfbba04216868628475f6f)), closes [#55](https://github.com/werkrbee/ai-hive/issues/55)
+* **agents-hive:** publish A2A Agent Cards for Barry and Patricia ([#49](https://github.com/werkrbee/ai-hive/issues/49)) ([a220660](https://github.com/werkrbee/ai-hive/commit/a22066058923b090373fe6b9b52b3fbdc0d67524)), closes [#43](https://github.com/werkrbee/ai-hive/issues/43)
+* **knowledge-hive:** ship state templates and a validator ([#60](https://github.com/werkrbee/ai-hive/issues/60)) ([cb9db70](https://github.com/werkrbee/ai-hive/commit/cb9db70250131159ee274b4b6f8c7d49faca080b)), closes [#46](https://github.com/werkrbee/ai-hive/issues/46)
+* **rules-hive:** define a structured approval/mandate policy ([#58](https://github.com/werkrbee/ai-hive/issues/58)) ([02038d9](https://github.com/werkrbee/ai-hive/commit/02038d9a01cc79bbd238484ed3e5d1a7224c4d75)), closes [#44](https://github.com/werkrbee/ai-hive/issues/44)
+
+
+### Documentation
+
+* add a product adoption guide ([#63](https://github.com/werkrbee/ai-hive/issues/63)) ([c2e9bb1](https://github.com/werkrbee/ai-hive/commit/c2e9bb1e0620fdf7ccc297806df7a956e9600233)), closes [#56](https://github.com/werkrbee/ai-hive/issues/56)
+* add hosted A2A agents and P1 docs work to the roadmap ([#50](https://github.com/werkrbee/ai-hive/issues/50)) ([92f128a](https://github.com/werkrbee/ai-hive/commit/92f128ac89331765a0dfe23c833fb67555071dbd)), closes [#48](https://github.com/werkrbee/ai-hive/issues/48)
+* **knowledge-hive:** create the hive and its design note ([#59](https://github.com/werkrbee/ai-hive/issues/59)) ([900557b](https://github.com/werkrbee/ai-hive/commit/900557b93c0bd6f085ea618881d77cc596c6fb05)), closes [#45](https://github.com/werkrbee/ai-hive/issues/45)
+* mark the finished P1 items in ROADMAP.md ([#70](https://github.com/werkrbee/ai-hive/issues/70)) ([6c1e820](https://github.com/werkrbee/ai-hive/commit/6c1e820fb1f5dc303f8ae15ea12f980f46c1e3ff)), closes [#67](https://github.com/werkrbee/ai-hive/issues/67)
+* reconcile the repo with workflows-hive and knowledge-hive ([#64](https://github.com/werkrbee/ai-hive/issues/64)) ([da0ae87](https://github.com/werkrbee/ai-hive/commit/da0ae87b4a418bf2f01bcbf1c8851c2a074a210a)), closes [#48](https://github.com/werkrbee/ai-hive/issues/48)
+
 ## [0.3.0](https://github.com/werkrbee/ai-hive/compare/v0.2.0...v0.3.0) (2026-10-08)
 
 
