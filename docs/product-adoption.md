@@ -19,18 +19,21 @@ pinned to history. Pin `werkrbee/ai-hive` at a release tag instead:
 
 ```bash
 git submodule add https://github.com/werkrbee/ai-hive.git ai-hive
-git -C ai-hive checkout v0.3.0        # a release tag, never a branch
+git -C ai-hive checkout <tag>         # a release tag, such as v0.4.0; never a branch
 git add .gitmodules ai-hive
 ```
 
 One pin covers every hive, and a release tag is a version whose changes are listed in
-[`CHANGELOG.md`](../CHANGELOG.md). Pick the newest tag that has what you use: the
-changelog says which release added each hive and feature. Don't track `main`.
+[`CHANGELOG.md`](../CHANGELOG.md). Pick the newest tag that has what you use, and don't
+track `main`. Most of this guide needs the release after v0.3.0 (0.4.0, open as a release
+pull request when this was written): the Agent Cards, the approval policy and its lineup
+example, knowledge-hive, and the A2A server and its Azure deployment are all newer than
+v0.3.0, which has the hives, their installers and the execution contracts.
 
 Upgrade on purpose. Read the changelog between your tag and the new one, move the pin in
 its own pull request, record the old and new tags, re-run your installs, and say what you
-adopted. Singularity's [dependency process](https://github.com/werkrbee/singularity/blob/main/docs/HIVE-ALIGNMENT.md)
-is a good model: no silent updates, and a product issue for each upstream change it takes
+adopted. Singularity's dependency process, in its `docs/HIVE-ALIGNMENT.md`, is a good
+model: no silent updates, and a product issue for each upstream change it takes
 up. Singularity also shows the step to avoid now. It pins the six archived hive repos as
 submodules, so moving to one `ai-hive` submodule is its first upgrade.
 
@@ -136,10 +139,12 @@ products only. [`hives/agents-hive/deploy/azure/`](../hives/agents-hive/deploy/a
 describes the deployment. The first deploy hasn't been run yet, so the endpoint and API
 app id come from the maintainer once it has.
 
-To get access, the maintainer adds the product as a caller by running `entra.sh` with the
-product's name. That creates an Entra ID app registration for the product, grants it the
-`Review.Request` role on Patricia's API, and adds its id to the server's allowlist. The
-product's owner then adds a credential to that app, a certificate or federated credential
+To get access, the maintainer adds the product as a caller. They run `entra.sh` with every
+calling product's name, the new one and the existing ones, since the `allowedClients` it
+prints lists only the names it was given. It creates an Entra ID app registration for the
+new product and grants it the `Review.Request` role on Patricia's API. The maintainer
+then puts the printed `allowedClients` in `main.bicepparam` and redeploys with
+`deploy.sh`, which is what adds the product to the server's allowlist. The product's owner then adds a credential to that app, a certificate or federated credential
 for preference, and keeps it in the product's secret store. Nothing about the credential
 goes into this repo.
 
@@ -168,22 +173,31 @@ part:
 
 `POST` it to the endpoint on the card with `Authorization: Bearer <token>` and
 `A2A-Version: 1.0`. The reply is a task. When its state is `TASK_STATE_COMPLETED`, the
-verdict is the data part of its first artifact. Two other outcomes need handling.
-`TASK_STATE_REJECTED` means the server's $25 monthly ceiling is reached, and the status
-message's data part says when reviews resume. `TASK_STATE_FAILED` means the review
-didn't finish (a timeout, or a reply that didn't match the contract). In both cases
-there's no verdict, so treat the action as blocked and ask the human.
+verdict is the data part of its first artifact.
 
-A missing or invalid token gets HTTP 401, and a valid token from an app that isn't on the
-allowlist gets 403. Each caller sees only its own tasks. The server's
+There is a verdict only when the task is `TASK_STATE_COMPLETED` and that data part passes
+the caller's own check against the contract's `output` schema. Anything else means no
+verdict, and the caller treats the action as blocked and asks the human. That includes:
+- `TASK_STATE_REJECTED`: the server's $25 monthly ceiling is reached, and the status
+  message's data part says when reviews resume.
+- `TASK_STATE_FAILED` or `TASK_STATE_CANCELED`: the review didn't finish, for example a
+  timeout or a reply that didn't match the contract.
+- A JSON-RPC error: -32602 for input that doesn't match the contract or won't fit its
+  budget, -32005 for a media type the card doesn't declare.
+- HTTP 401 for a missing or invalid token, and 403 for a valid token from an app that
+  isn't on the allowlist or a delegated (user) token.
+- A network error or the caller's own timeout.
+
+Each caller sees only its own tasks. The server's
 [README](../hives/agents-hive/servers/a2a/README.md) has the full behavior.
 
 ## Where the two products stand
 
 lineup is the House's first product, built while the hives were separate repos. Barry
 orchestrates its six skills, Patricia governs under `lineup-etiquette`, Airtable holds its
-data, and member notifications go out by SMS through Inkbox. Its README installs from the archived
-per-hive repos. Adopting this guide would mean an `ai-hive` pin and the pack, the
+data, and notifications go through Inkbox, with email live and SMS still being set up.
+Its README installs by copying its skills by hand and names the per-hive installers,
+with no pin. Adopting this guide would mean an `ai-hive` pin and the pack, the
 `lineup-etiquette` policy moved into lineup beside its `AGENTS.md`, its state files moved
 into `knowledge/` as the example shows, and a call to hosted Patricia before a gated
 send.
