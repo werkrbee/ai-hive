@@ -147,6 +147,9 @@ resource logs 'Microsoft.OperationalInsights/workspaces@2023-09-01' = {
   properties: {
     sku: { name: 'PerGB2018' }
     retentionInDays: 30
+    // Unauthenticated requests still wake the app and write logs, outside the server's
+    // ledger. 0.1 GB a day keeps ingestion to a few dollars a month at most.
+    workspaceCapping: { dailyQuotaGb: json('0.1') }
   }
 }
 
@@ -231,7 +234,8 @@ resource app 'Microsoft.App/containerApps@2024-03-01' = if (!empty(image)) {
         name: 'data'
         storageType: 'AzureFile'
         storageName: environmentShare.name
-        // SQLite needs byte-range locks SMB doesn't give it; one writer makes nobrl safe.
+        // SQLite needs byte-range locks SMB doesn't give it; nobrl is safe only with one
+        // writer. See the README on the overlap while a new revision starts.
         mountOptions: 'nobrl,uid=1000,gid=1000,file_mode=0600,dir_mode=0700'
       }]
       // Scale to zero when idle. Never more than one replica: the ledger's running total

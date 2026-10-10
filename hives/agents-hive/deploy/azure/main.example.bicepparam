@@ -5,7 +5,7 @@ using 'main.bicep'
 param apiAppId = '<api-app-id>'
 param allowedClients = ['<lineup-client-app-id>', '<singularity-client-app-id>']
 
-// Two Foundry models for the eval (eval/README.md); the server calls modelDeployment.
+// Two Foundry models for the eval (README.md, "Choosing the model"); the server calls modelDeployment.
 // Take format, name and version from the Foundry model catalog, and the sku and
 // capacity the model offers in your region.
 param models = [

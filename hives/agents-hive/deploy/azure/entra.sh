@@ -8,7 +8,9 @@
 # secret store.
 #
 # Usage: ./entra.sh lineup singularity
-# Needs: az login, with rights to create app registrations in the tenant.
+# Needs: az login, with rights to create app registrations in the tenant. It reuses an
+# existing app only when exactly one has that display name and you own it, and asks before
+# changing anything.
 set -euo pipefail
 
 API_NAME="patricia-a2a-api"
@@ -19,8 +21,22 @@ if [ "$#" -lt 1 ]; then
   exit 2
 fi
 
-app_id_for() {  # print the appId of the app with this display name, or nothing
-  az ad app list --display-name "$1" --query "[0].appId" -o tsv
+me=$(az ad signed-in-user show --query id -o tsv)
+
+app_id_for() {  # the appId of the one app with exactly this display name that you own, or nothing
+  local ids owned
+  ids=$(az ad app list --filter "displayName eq '$1'" --query "[].appId" -o tsv)
+  case "$(printf '%s' "$ids" | grep -c .)" in
+    0) return 0 ;;
+    1) ;;
+    *) echo "error: more than one app is named $1; rename or remove the extras" >&2; exit 1 ;;
+  esac
+  owned=$(az ad app owner list --id "$ids" --query "[?id=='$me'] | length(@)" -o tsv)
+  if [ "$owned" = "0" ]; then
+    echo "error: an app named $1 ($ids) exists but you don't own it; not reusing it" >&2
+    exit 1
+  fi
+  echo "$ids"
 }
 
 sp_id_for() {  # the service principal's object id for an appId, created if missing
@@ -31,6 +47,9 @@ sp_id_for() {  # the service principal's object id for an appId, created if miss
   fi
   echo "$id"
 }
+
+read -r -p "Create or update $API_NAME and grant $ROLE_VALUE to: $*? Type yes to go ahead: " answer
+[ "$answer" = "yes" ] || { echo "stopped; nothing was changed" >&2; exit 1; }
 
 # --- The API app ---------------------------------------------------------------
 api_app_id=$(app_id_for "$API_NAME")
@@ -50,7 +69,13 @@ fi
 az ad app update --id "$api_app_id" --identifier-uris "api://$api_app_id" \
   --set api.requestedAccessTokenVersion=2
 api_sp=$(sp_id_for "$api_app_id")
+# Only apps assigned a role can get a token for the API at all, before the server's own checks.
+az ad sp update --id "$api_sp" --set appRoleAssignmentRequired=true
 role_id=$(az ad app show --id "$api_app_id" --query "appRoles[?value=='$ROLE_VALUE'].id | [0]" -o tsv)
+if [ -z "$role_id" ]; then
+  echo "error: $API_NAME has no $ROLE_VALUE app role" >&2
+  exit 1
+fi
 
 # --- One client app per caller --------------------------------------------------
 clients=()

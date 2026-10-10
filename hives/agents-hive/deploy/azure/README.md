@@ -15,8 +15,8 @@ One resource group holds the whole deployment, so one budget covers it.
 | Resource | Why |
 |----------|-----|
 | Container App (scale 0 to 1) | Runs the server. It scales to zero when idle and never runs more than one replica, because the ledger's running total and the SQLite task store each belong to one process. Ingress is HTTPS only. |
-| Container Apps environment and Log Analytics | Hosting and logs (30 days). |
-| Azure Files share | `/data`: the task database and the usage ledger, so both survive restarts and scale-to-zero. It is mounted with `nobrl`, which is safe because there is one writer. |
+| Container Apps environment and Log Analytics | Hosting and logs, kept 30 days and capped at 0.1 GB a day. |
+| Azure Files share | `/data`: the task database and the usage ledger, so both survive restarts and scale-to-zero. It is mounted with `nobrl`, which is safe only with one writer. |
 | Microsoft Foundry (AI Services) | The models. Key auth is disabled, so the server reaches them only with its managed identity, and there is no API key to store. |
 | User-assigned managed identity | Pulls the image (AcrPull) and calls Foundry (Cognitive Services User). |
 | Container registry (Basic) | Holds the image, built from a commit by `az acr build`. |
@@ -27,6 +27,10 @@ One resource group holds the whole deployment, so one budget covers it.
 watches the bill for everything in the group: the model, plus the registry (about $5 a
 month for Basic), storage and logs. The budget only alerts; it doesn't stop anything.
 
+**Deploying a new image.** While a new revision starts, Container Apps can run it
+alongside the old one for a short time, and both open the same files. Deploy when no
+review is running; the app is idle most of the time, and reviews take seconds.
+
 **The card.** The server renders its Agent Card with the app's HTTPS URL
 (`https://<prefix>-a2a.<environment domain>/`) and serves it at
 `/.well-known/agent-card.json`. The card is the one thing served without a token, because
@@ -36,9 +40,11 @@ clients need it to learn how to authenticate.
 
 1. **Callers.** Run `./entra.sh lineup singularity`. It creates the API app, with a
    `Review.Request` app role and v2 tokens, and one client app per product granted that
-   role. It prints `apiAppId` and `allowedClients`. It creates no secrets: each product's
-   owner adds a credential to their own app, preferably a certificate or a federated
-   credential, and keeps it in that product's secret store.
+   role. It asks before changing anything, reuses an existing app only when exactly one
+   has that name and you own it, and sets the API so that only assigned apps can get a
+   token for it. It prints `apiAppId` and `allowedClients`. It creates no secrets: each
+   product's owner adds a credential to their own app, preferably a certificate or a
+   federated credential, and keeps it in that product's secret store.
 2. **Parameters.** Copy `main.example.bicepparam` to `main.bicepparam`, which git
    ignores, and fill it in: the Entra ids, the two Foundry models, the chosen model's list
    prices, and the budget contacts.
@@ -83,7 +89,10 @@ Services User on the Foundry resource. Record the table and the choice in
 - The image's file list and `render_config.py` were exercised by running the server
   from a copy of exactly what the Dockerfile copies. The rendered config loads, the card
   carries the HTTPS URL and the `api://` scope, and calls without a valid token get 401.
-  The image itself hasn't been built here.
+  The image itself hasn't been built here. `az acr build` sends only the files the
+  Dockerfile copies (the repo's `.dockerignore`).
+- The managed-identity credential's async transport (`aiohttp`, now pinned) gets as far
+  as requesting a token; it fails there off Azure, as expected.
 - The eval harness runs end to end with the stub model.
 
 Not yet verified, because it needs the deploy:
