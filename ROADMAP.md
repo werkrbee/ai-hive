@@ -71,11 +71,13 @@ not just assembled from it. Both items have an open pull request.
 - **Discover customer outcomes before planning (skills-hive).** A portable
   `discover-outcomes` skill that turns an ambiguous product request into an outcome brief
   with evidence, unknowns and acceptance criteria before Barry plans the work. Clear fixes
-  and explicit edits skip it. Ships in `werkrbee-core`. (#52, PR #53)
+  and explicit edits skip it. The PR adds it to `werkrbee-core`. (#52, PR #53)
 - **Native platform design consistency (rules-hive).** A versioned standard, held by
   Patricia, for keeping a product's desktop, mobile and web clients consistent, with a
   platform parity matrix, human-approved exceptions and drift remediation through Barry.
-  Release enforcement is outside it. (#38, PR #39)
+  Compliance is a release requirement: Patricia blocks a release recommendation while
+  drift has no approved exception. Automated release enforcement is outside it.
+  (#38, PR #39)
 
 ## P2 — ecosystem & payments
 
