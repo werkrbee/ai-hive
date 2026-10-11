@@ -25,10 +25,10 @@ git add .gitmodules ai-hive
 
 One pin covers every hive, and a release tag is a version whose changes are listed in
 [`CHANGELOG.md`](../CHANGELOG.md). Pick the newest tag that has what you use, and don't
-track `main`. Most of this guide needs the release after v0.3.0 (0.4.0, open as a release
-pull request when this was written): the Agent Cards, the approval policy and its lineup
-example, knowledge-hive, and the A2A server and its Azure deployment are all newer than
-v0.3.0, which has the hives, their installers and the execution contracts.
+track `main`. Most of this guide needs v0.4.0 or later: the Agent Cards, the approval
+policy and its lineup example, knowledge-hive, and the A2A server and its Azure deployment
+are all newer than v0.3.0, which has the hives, their installers and the execution
+contracts.
 
 Upgrade on purpose. Read the changelog between your tag and the new one, move the pin in
 its own pull request, record the old and new tags, re-run your installs, and say what you

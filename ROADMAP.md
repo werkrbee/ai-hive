@@ -26,8 +26,11 @@ Tracked as issues #7–#12, worked in the order set in `docs/sprints/p0.md`. All
 
 ## P1 — interop, governance, state
 
-Tracked on the `P1 — interop, governance, state` milestone. Everything is done except
-hosted Patricia's first deploy and model eval (#55).
+Tracked on the `P1 — interop, governance, state` milestone; its finished work is released
+in 0.4.0. Everything is done except hosted Patricia: its first deploy and model eval
+(#55), and two follow-ups from the deploy work, `entra.sh` showing its plan before it asks
+(#68) and a narrower Foundry role for its identity once the deploy shows what it needs
+(#69).
 
 - **A2A Agent Cards (agents-hive) (done).** Give Barry & Patricia Agent2Agent cards so
   other agents can discover and call them (Linux Foundation A2A v1.x).
@@ -48,10 +51,38 @@ hosted Patricia's first deploy and model eval (#55).
 - **Reconcile the repo with `workflows-hive` and `knowledge-hive` (docs) (done).** Once
   knowledge-hive lands, make every page and image describe both hives accurately.
 
+## P1.1 — product adoption
+
+Tracked on the `P1.1 — product adoption` milestone. Gaps a product hits when it adopts
+ai-hive, found while writing the adoption guide and reconciling the repo with
+`workflows-hive` and `knowledge-hive`.
+
+- **Check a product's own files (rules-hive, agents-hive).** Let the approval-policy and
+  contract checkers check a product's files, with `extends` pointing into its pinned copy
+  of ai-hive. (#65)
+- **Install every hive from a pack (plugins-hive).** Let packs install `workflows-hive` and
+  `knowledge-hive`, starting with what installing each one means. (#66)
+
+## P1.2 — product practice
+
+Tracked on the `P1.2 — product practice` milestone. How a product is built on the House,
+not just assembled from it. Both items have an open pull request.
+
+- **Discover customer outcomes before planning (skills-hive).** A portable
+  `discover-outcomes` skill that turns an ambiguous product request into an outcome brief
+  with evidence, unknowns and acceptance criteria before Barry plans the work. Clear fixes
+  and explicit edits skip it. The PR adds it to `werkrbee-core`. (#52, PR #53)
+- **Native platform design consistency (rules-hive).** A versioned standard, held by
+  Patricia, for keeping a product's desktop, mobile and web clients consistent, with a
+  platform parity matrix, human-approved exceptions and drift remediation through Barry.
+  Compliance is a release requirement: Patricia blocks a release recommendation while
+  drift has no approved exception. Automated release enforcement is outside it.
+  (#38, PR #39)
+
 ## P2 — ecosystem & payments
 
-- **Hosted Barry over A2A.** After the approval policy: actions the Charter gates pause the
-  task for a human (A2A `input-required`) instead of running.
+- **Hosted Barry over A2A.** Builds on the approval policy (done in P1): actions the
+  Charter gates pause the task for a human (A2A `input-required`) instead of running.
 - **Public A2A access.** An option to open the hosted agents beyond werkrbee products.
 - **skills-hive marketplace metadata + evals.** Align to the governed SKILL.md standard
   (agentskills.io); ship evals beside each skill; add discovery/publish metadata.
