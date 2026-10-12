@@ -40,7 +40,9 @@ clients need it to learn how to authenticate.
 
 1. **Callers.** Run `./entra.sh lineup singularity`. It creates the API app, with a
    `Review.Request` app role and v2 tokens, and one client app per product granted that
-   role. It asks before changing anything, reuses an existing app only when exactly one
+   role. It looks everything up first and prints a plan: for each app, whether it will
+   create it or reuse an existing one (and its appId), and which role grants it will add.
+   Nothing changes until you type yes. It reuses an existing app only when exactly one
    has that name and you own it, and sets the API so that only assigned apps can get a
    token for it. It prints `apiAppId` and `allowedClients`. It creates no secrets: each
    product's owner adds a credential to their own app, preferably a certificate or a
@@ -99,7 +101,8 @@ Not yet verified, because it needs the deploy:
 - The Foundry endpoints the server derives: `/anthropic` and `/openai/v1` on the
   account's subdomains.
 - Whether each API accepts managed-identity tokens.
-- `entra.sh` against a tenant.
+- `entra.sh` against a tenant. Its plan and refusals are tested against a stubbed `az`
+  (`tests/entra_test.sh`, run in CI).
 - The Azure Files mount with SQLite.
 
 The first deploy and the eval check these. Record anything that differs in this README.
@@ -114,6 +117,8 @@ deploy/azure/
 ├── deploy.sh                  # what-if, confirm, deploy, in three steps
 ├── Dockerfile                 # the server image, built from the repo root
 ├── render_config.py           # the app's environment to the server's config, at start
+├── tests/
+│   └── entra_test.sh          # entra.sh's plan and refusals, against a stubbed az
 └── eval/
     ├── cases.json             # governance-review cases and their acceptable verdicts
     └── run.py                 # compare models on them

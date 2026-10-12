@@ -9,8 +9,9 @@
 #
 # Usage: ./entra.sh lineup singularity
 # Needs: az login, with rights to create app registrations in the tenant. It reuses an
-# existing app only when exactly one has that display name and you own it, and asks before
-# changing anything.
+# existing app only when exactly one has that display name and you own it. It looks
+# everything up first, prints what it will create, reuse and grant, and changes nothing
+# until you type yes.
 set -euo pipefail
 
 API_NAME="patricia-a2a-api"
@@ -18,6 +19,10 @@ ROLE_VALUE="Review.Request"
 
 if [ "$#" -lt 1 ]; then
   echo "usage: $0 <caller> [<caller> ...]   e.g. $0 lineup singularity" >&2
+  exit 2
+fi
+if [ "$(printf '%s\n' "$@" | sort | uniq -d)" != "" ]; then
+  echo "error: a caller is named more than once: $*" >&2
   exit 2
 fi
 
@@ -41,16 +46,69 @@ app_id_for() {  # the appId of the one app with exactly this display name that y
   echo "$ids"
 }
 
-sp_id_for() {  # the service principal's object id for an appId, created if missing
+sp_lookup() {  # the service principal's object id for an appId, or nothing
   local id
   id=$(az ad sp list --filter "appId eq '$1'" --query "[0].id" -o tsv) || exit 1
+  echo "$id"
+}
+
+sp_id_for() {  # the service principal's object id for an appId, created if missing
+  local id
+  id=$(sp_lookup "$1") || exit 1
   if [ -z "$id" ]; then
     id=$(az ad sp create --id "$1" --query id -o tsv) || exit 1
   fi
   echo "$id"
 }
 
-read -r -p "Create or update $API_NAME and grant $ROLE_VALUE to: $*? Type yes to go ahead: " answer
+role_id_for() {  # the id of the API app's Review.Request role, or nothing
+  local id
+  id=$(az ad app show --id "$1" --query "appRoles[?value=='$ROLE_VALUE'].id | [0]" -o tsv) || exit 1
+  echo "$id"
+}
+
+# --- Plan: look everything up and change nothing --------------------------------
+plan_api=$(app_id_for "$API_NAME")
+plan_api_sp=""
+plan_role=""
+if [ -z "$plan_api" ]; then
+  plan="  $API_NAME: create, with the $ROLE_VALUE app role"
+else
+  plan_role=$(role_id_for "$plan_api")
+  if [ -z "$plan_role" ]; then
+    echo "error: $API_NAME ($plan_api) has no $ROLE_VALUE app role" >&2
+    exit 1
+  fi
+  plan_api_sp=$(sp_lookup "$plan_api")
+  plan="  $API_NAME: reuse $plan_api"
+fi
+plan="$plan
+    set api://<appId>, v2 tokens and assignment required"
+[ -n "$plan_api_sp" ] || plan="$plan; create its service principal"
+for caller in "$@"; do
+  name="$caller-patricia-client"
+  id=$(app_id_for "$name")
+  grant="grant $ROLE_VALUE"
+  if [ -z "$id" ]; then
+    plan="$plan
+  $name: create; $grant"
+    continue
+  fi
+  sp=$(sp_lookup "$id")
+  if [ -n "$sp" ] && [ -n "$plan_api_sp" ]; then
+    granted=$(az rest --method GET \
+      --url "https://graph.microsoft.com/v1.0/servicePrincipals/$sp/appRoleAssignments" \
+      --query "value[?resourceId=='$plan_api_sp' && appRoleId=='$plan_role'] | length(@)" -o tsv) || exit 1
+    [ "$granted" = "0" ] || grant="already has $ROLE_VALUE"
+  fi
+  [ -n "$sp" ] || grant="create its service principal; $grant"
+  plan="$plan
+  $name: reuse $id; $grant"
+done
+
+printf 'Plan:\n%s\n\n' "$plan" >&2
+printf 'Type yes to go ahead: ' >&2
+read -r answer || answer=""
 [ "$answer" = "yes" ] || { echo "stopped; nothing was changed" >&2; exit 1; }
 
 # --- The API app ---------------------------------------------------------------
@@ -73,7 +131,7 @@ az ad app update --id "$api_app_id" --identifier-uris "api://$api_app_id" \
 api_sp=$(sp_id_for "$api_app_id")
 # Only apps assigned a role can get a token for the API at all, before the server's own checks.
 az ad sp update --id "$api_sp" --set appRoleAssignmentRequired=true
-role_id=$(az ad app show --id "$api_app_id" --query "appRoles[?value=='$ROLE_VALUE'].id | [0]" -o tsv)
+role_id=$(role_id_for "$api_app_id")
 if [ -z "$role_id" ]; then
   echo "error: $API_NAME has no $ROLE_VALUE app role" >&2
   exit 1
