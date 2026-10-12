@@ -96,13 +96,18 @@ Services User on the Foundry resource. Record the table and the choice in
 - The managed-identity credential's async transport (`aiohttp`, now pinned) gets as far
   as requesting a token; it fails there off Azure, as expected.
 - The eval harness runs end to end with the stub model.
+- `entra.sh` ran against werkrbee's tenant and created the API app and the lineup and
+  singularity clients; a second run reuses all three and adds nothing. That first run
+  showed two things the script had assumed wrongly about `az` (2.90), both fixed:
+  `az ad app create` doesn't make you an owner, so the script now adds you, and
+  `az ad app update` can't set the token version on a new app, so that goes to
+  Microsoft Graph. Its plan and refusals
+  are also tested against a stubbed `az` (`tests/entra_test.sh`, run in CI).
 
 Not yet verified, because it needs the deploy:
 - The Foundry endpoints the server derives: `/anthropic` and `/openai/v1` on the
   account's subdomains.
 - Whether each API accepts managed-identity tokens.
-- `entra.sh` against a tenant. Its plan and refusals are tested against a stubbed `az`
-  (`tests/entra_test.sh`, run in CI).
 - The Azure Files mount with SQLite.
 
 The first deploy and the eval check these. Record anything that differs in this README.

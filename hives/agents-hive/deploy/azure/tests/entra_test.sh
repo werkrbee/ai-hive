@@ -43,9 +43,13 @@ case "$args" in
   "ad app create"*)
     name=$(printf '%s' "$args" | sed -n 's/.*--display-name \([^ ]*\).*/\1/p')
     id="app-$name"
-    echo "$name $id me" >> "$STUB/apps"
+    echo "$name $id -" >> "$STUB/apps"
     case "$args" in *--app-roles*) echo "$id role-1" >> "$STUB/roles" ;; esac
     echo "create $name" >> "$STUB/changes"; echo "$id" ;;
+  "ad app owner add"*)  # like Graph: the creator isn't an owner until this runs
+    id=$(printf '%s' "$args" | sed -n 's/.*--id \([^ ]*\).*/\1/p')
+    awk -v i="$id" '$2==i{$3="me"} {print}' "$STUB/apps" > "$STUB/apps.new" && mv "$STUB/apps.new" "$STUB/apps"
+    echo "$args" >> "$STUB/changes" ;;
   "ad sp create"*)
     id=$(printf '%s' "$args" | sed -n 's/.*--id \([^ ]*\).*/\1/p')
     echo "$id sp-$id" >> "$STUB/sps"; echo "sp create $id" >> "$STUB/changes"; echo "sp-$id" ;;
@@ -81,6 +85,15 @@ check "create: plan says create and grant for a caller" \
   has "lineup-patricia-client: create; grant Review.Request"
 check "create: yes creates the apps and prints the parameters" \
   eval '[ "$code" -eq 0 ] && has "param allowedClients = \[.app-lineup-patricia-client., .app-singularity-patricia-client.\]"'
+check "create: you own each app it creates" \
+  eval '[ "$(grep -c "^ad app owner add" "$STUB/changes")" -eq 3 ]'
+check "create: v2 tokens are set through Graph" \
+  grep -q "rest --method PATCH.*requestedAccessTokenVersion.: 2" "$STUB/changes"
+: > "$STUB/changes"
+out=$(printf 'no\n' | PATH="$work/bin:$PATH" /bin/bash "$entra" lineup singularity 2>&1)
+check "create: a re-run reuses all three apps and changes nothing" eval \
+  'has "patricia-a2a-api: reuse app-patricia-a2a-api" && has "lineup-patricia-client: reuse" \
+   && has "singularity-patricia-client: reuse" && unchanged'
 
 # Anything but yes changes nothing, after showing the same plan.
 run decline no
@@ -125,8 +138,8 @@ check "duplicate name: refused before the prompt" \
 
 echo "lineup-patricia-client c-1 someone-else" | seed notowned apps
 run notowned yes
-check "not owned: refused before the prompt" \
-  eval 'refused && has "exists but you don.t own it"'
+check "not owned: refused before the prompt, with the fix" \
+  eval 'refused && has "exists but you don.t own it" && has "az ad app owner add --id c-1"'
 
 echo "patricia-a2a-api api-1 me" | seed norole apps
 run norole yes

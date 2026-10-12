@@ -40,7 +40,9 @@ app_id_for() {  # the appId of the one app with exactly this display name that y
   esac
   owned=$(az ad app owner list --id "$ids" --query "[?id=='$me'] | length(@)" -o tsv) || exit 1
   if [ "$owned" != "1" ]; then
-    echo "error: an app named $1 ($ids) exists but you don't own it; not reusing it" >&2
+    echo "error: an app named $1 ($ids) exists but you don't own it; not reusing it." >&2
+    echo "  If you created it, add yourself as owner and run this again:" >&2
+    echo "  az ad app owner add --id $ids --owner-object-id $me" >&2
     exit 1
   fi
   echo "$ids"
@@ -59,6 +61,16 @@ sp_id_for() {  # the service principal's object id for an appId, created if miss
     id=$(az ad sp create --id "$1" --query id -o tsv) || exit 1
   fi
   echo "$id"
+}
+
+add_owner() {  # make you an owner of a new app; Graph can take a moment to find it
+  local try
+  for try in 1 2 3; do
+    az ad app owner add --id "$1" --owner-object-id "$me" && return 0
+    sleep 5
+  done
+  echo "error: created $1 but couldn't make you its owner; run: az ad app owner add --id $1 --owner-object-id $me" >&2
+  exit 1
 }
 
 role_id_for() {  # the id of the API app's Review.Request role, or nothing
@@ -123,11 +135,16 @@ if [ -z "$api_app_id" ]; then
 JSON
   api_app_id=$(az ad app create --display-name "$API_NAME" --sign-in-audience AzureADMyOrg \
     --app-roles "@$roles" --query appId -o tsv)
+  # az ad app create doesn't make you an owner, and a re-run reuses only apps you own.
+  add_owner "$api_app_id"
   echo "created $API_NAME ($api_app_id)" >&2
 fi
-# v2 access tokens carry azp and the v2 issuer the server is configured for.
-az ad app update --id "$api_app_id" --identifier-uris "api://$api_app_id" \
-  --set api.requestedAccessTokenVersion=2
+# v2 access tokens carry azp and the v2 issuer the server is configured for. az ad app
+# update can't set api.requestedAccessTokenVersion on an app whose api block is still
+# empty, so that goes straight to Microsoft Graph.
+az ad app update --id "$api_app_id" --identifier-uris "api://$api_app_id"
+az rest --method PATCH --url "https://graph.microsoft.com/v1.0/applications(appId='$api_app_id')" \
+  --body '{"api": {"requestedAccessTokenVersion": 2}}'
 api_sp=$(sp_id_for "$api_app_id")
 # Only apps assigned a role can get a token for the API at all, before the server's own checks.
 az ad sp update --id "$api_sp" --set appRoleAssignmentRequired=true
@@ -144,6 +161,7 @@ for caller in "$@"; do
   client_app_id=$(app_id_for "$name")
   if [ -z "$client_app_id" ]; then
     client_app_id=$(az ad app create --display-name "$name" --sign-in-audience AzureADMyOrg --query appId -o tsv)
+    add_owner "$client_app_id"
     echo "created $name ($client_app_id)" >&2
   fi
   client_sp=$(sp_id_for "$client_app_id")
