@@ -81,6 +81,10 @@ check "create: plan says create and grant for a caller" \
   has "lineup-patricia-client: create; grant Review.Request"
 check "create: yes creates the apps and prints the parameters" \
   eval '[ "$code" -eq 0 ] && has "param allowedClients = \[.app-lineup-patricia-client., .app-singularity-patricia-client.\]"'
+check "create: you own each app it creates, so a re-run can reuse them" \
+  eval '[ "$(grep -c "^ad app owner add" "$STUB/changes")" -eq 3 ]'
+check "create: v2 tokens are set through Graph" \
+  grep -q "rest --method PATCH.*requestedAccessTokenVersion.: 2" "$STUB/changes"
 
 # Anything but yes changes nothing, after showing the same plan.
 run decline no

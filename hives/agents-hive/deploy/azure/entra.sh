@@ -123,11 +123,16 @@ if [ -z "$api_app_id" ]; then
 JSON
   api_app_id=$(az ad app create --display-name "$API_NAME" --sign-in-audience AzureADMyOrg \
     --app-roles "@$roles" --query appId -o tsv)
+  # az ad app create doesn't make you an owner, and a re-run reuses only apps you own.
+  az ad app owner add --id "$api_app_id" --owner-object-id "$me"
   echo "created $API_NAME ($api_app_id)" >&2
 fi
-# v2 access tokens carry azp and the v2 issuer the server is configured for.
-az ad app update --id "$api_app_id" --identifier-uris "api://$api_app_id" \
-  --set api.requestedAccessTokenVersion=2
+# v2 access tokens carry azp and the v2 issuer the server is configured for. az ad app
+# update can't set api.requestedAccessTokenVersion on an app whose api block is still
+# empty, so that goes straight to Microsoft Graph.
+az ad app update --id "$api_app_id" --identifier-uris "api://$api_app_id"
+az rest --method PATCH --url "https://graph.microsoft.com/v1.0/applications(appId='$api_app_id')" \
+  --body '{"api": {"requestedAccessTokenVersion": 2}}'
 api_sp=$(sp_id_for "$api_app_id")
 # Only apps assigned a role can get a token for the API at all, before the server's own checks.
 az ad sp update --id "$api_sp" --set appRoleAssignmentRequired=true
@@ -144,6 +149,7 @@ for caller in "$@"; do
   client_app_id=$(app_id_for "$name")
   if [ -z "$client_app_id" ]; then
     client_app_id=$(az ad app create --display-name "$name" --sign-in-audience AzureADMyOrg --query appId -o tsv)
+    az ad app owner add --id "$client_app_id" --owner-object-id "$me"
     echo "created $name ($client_app_id)" >&2
   fi
   client_sp=$(sp_id_for "$client_app_id")
