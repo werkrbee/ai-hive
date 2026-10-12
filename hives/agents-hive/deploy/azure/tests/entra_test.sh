@@ -14,7 +14,7 @@ trap 'rm -rf "$work"' EXIT
 fail=0
 
 # The stub. Tenant state lives in $STUB: apps ("name appId owner"), sps ("appId spId"),
-# roles ("appId roleId"), grants ("clientSp apiSp"). Mutations are appended to
+# roles ("appId roleId"), grants ("clientSp apiSp roleId"). Mutations are appended to
 # $STUB/changes. STUB_FAIL, when set, is a pattern; a call whose arguments match it fails.
 mkdir -p "$work/bin"
 cat > "$work/bin/az" <<'STUB'
@@ -38,7 +38,8 @@ case "$args" in
   "rest --method GET"*)
     sp=$(printf '%s' "$args" | sed -n 's#.*servicePrincipals/\([^/]*\)/appRoleAssignments.*#\1#p')
     api=$(printf '%s' "$args" | sed -n "s/.*resourceId=='\([^']*\)'.*/\1/p")
-    awk -v s="$sp" -v a="$api" '$1==s && $2==a{c++} END{print c+0}' "$STUB/grants" ;;
+    role=$(printf '%s' "$args" | sed -n "s/.*appRoleId=='\([^']*\)'.*/\1/p")
+    awk -v s="$sp" -v a="$api" -v r="$role" '$1==s && $2==a && $3==r{c++} END{print c+0}' "$STUB/grants" ;;
   "ad app create"*)
     name=$(printf '%s' "$args" | sed -n 's/.*--display-name \([^ ]*\).*/\1/p')
     id="app-$name"
@@ -53,12 +54,15 @@ esac
 STUB
 chmod +x "$work/bin/az"
 
-# run CASE ANSWER — run entra.sh for lineup and singularity, answering ANSWER
+# run CASE ANSWER [CALLER...] — run entra.sh (for lineup and singularity by default),
+# answering ANSWER
 run() {
   export STUB="$work/$1"
+  local answer="$2"; shift 2
+  [ "$#" -gt 0 ] || set -- lineup singularity
   mkdir -p "$STUB"
   touch "$STUB/changes"
-  out=$(printf '%s\n' "$2" | PATH="$work/bin:$PATH" /bin/bash "$entra" lineup singularity 2>&1)
+  out=$(printf '%s\n' "$answer" | PATH="$work/bin:$PATH" /bin/bash "$entra" "$@" 2>&1)
   code=$?
 }
 check() {  # LABEL CONDITION...
@@ -83,12 +87,15 @@ run decline no
 check "decline: plan shown, nothing changed" \
   eval '[ "$code" -ne 0 ] && has "Plan:" && has "stopped; nothing was changed" && unchanged'
 
-# Reuse: everything exists; lineup already has the role, singularity doesn't.
-printf '%s\n' "patricia-a2a-api api-1 me" "lineup-patricia-client c-1 me" \
-  "singularity-patricia-client c-2 me" | seed reuse apps
-printf '%s\n' "api-1 sp-api" "c-1 sp-1" "c-2 sp-2" | seed reuse sps
-echo "api-1 role-1" | seed reuse roles
-echo "sp-1 sp-api" | seed reuse grants
+# Reuse: everything exists; lineup already has the role, and singularity has only an
+# assignment for a different role id, so it still needs the grant.
+for c in reuse reuse-yes; do
+  printf '%s\n' "patricia-a2a-api api-1 me" "lineup-patricia-client c-1 me" \
+    "singularity-patricia-client c-2 me" | seed $c apps
+  printf '%s\n' "api-1 sp-api" "c-1 sp-1" "c-2 sp-2" | seed $c sps
+  echo "api-1 role-1" | seed $c roles
+  printf '%s\n' "sp-1 sp-api role-1" "sp-2 sp-api role-old" | seed $c grants
+done
 run reuse no
 check "reuse: plan says reuse with the appId" has "patricia-a2a-api: reuse api-1"
 check "reuse: plan knows lineup already has the role" \
@@ -96,6 +103,17 @@ check "reuse: plan knows lineup already has the role" \
 check "reuse: plan grants singularity the role" \
   has "singularity-patricia-client: reuse c-2; grant Review.Request"
 check "reuse: nothing changed on no" unchanged
+
+# Saying yes to that plan does what it said: one grant, and no new apps.
+run reuse-yes yes
+check "reuse: yes grants only the missing role and creates no app" eval \
+  '[ "$code" -eq 0 ] && [ "$(grep -c "rest --method POST" "$STUB/changes")" -eq 1 ] \
+   && grep -q "sp-2" "$STUB/changes" && ! grep -q "^create \|^sp create" "$STUB/changes"'
+
+# A caller named twice is refused before anything else.
+run twice yes lineup lineup
+check "caller named twice: refused" \
+  eval '[ "$code" -eq 2 ] && has "named more than once" && unchanged'
 
 # Refusals: each stops before the prompt, so the plan is never shown and nothing changes.
 refused() { [ "$code" -ne 0 ] && ! has "Plan:" && unchanged; }
@@ -120,7 +138,8 @@ for pattern in "ad app list" "ad app owner list" "ad sp list" "ad app show" "res
   printf '%s\n' "api-1 sp-api" "c-1 sp-1" | seed "fail-$pattern" sps
   echo "api-1 role-1" | seed "fail-$pattern" roles
   STUB_FAIL="$pattern" run "fail-$pattern" yes
-  check "failed lookup ($pattern): refused before the prompt" refused
+  check "failed lookup ($pattern): refused before the prompt" \
+    eval 'refused && has "stub: failing" && ! has "error:"'
 done
 
 [ "$fail" -eq 0 ] && echo "OK  entra.sh checks passed"
