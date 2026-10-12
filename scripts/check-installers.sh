@@ -119,6 +119,10 @@ run "plugins-hive install.py --dry-run" \
 run "projects-hive init.py --dry-run" \
   python3 hives/projects-hive/scripts/init.py --name ci-smoke --dir "$sandbox/new" --hives-dir hives --dry-run
 
+# agents-hive: entra.sh plans before it asks, against a stubbed az.
+run "agents-hive entra.sh plan and refusals (stubbed az)" \
+  bash hives/agents-hive/deploy/azure/tests/entra_test.sh
+
 # workflows-hive: crash after step 1, then resume must skip it and finish step 2.
 runs="$sandbox/runs"
 printf 'one two three\nfour five\n' > "$sandbox/words.txt"
