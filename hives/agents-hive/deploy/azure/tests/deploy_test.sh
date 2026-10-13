@@ -86,5 +86,18 @@ run unnamed "$work/unnamed.bicep"
 check "role var not found: refused before any lookup" \
   eval '[ "$code" -ne 0 ] && has "can.t find the role id acrPull names" && [ ! -s "$STUB/calls" ]'
 
+sed 's/subscriptionResourceId(.Microsoft.Authorization\/roleDefinitions., \([A-Za-z]*\))/\1/' \
+  "$bicep" > "$work/none.bicep"
+run none "$work/none.bicep"
+check "no readable role assignments: refused before any lookup" \
+  eval '[ "$code" -ne 0 ] && has "found no role assignments" && [ ! -s "$STUB/calls" ]'
+
+# An assignment written another way is refused, not skipped.
+awk '!done && /roleDefinitionId: subscriptionResourceId/ {sub(/subscriptionResourceId\([^)]*\)/, "acrPull"); done=1} {print}' \
+  "$bicep" > "$work/other.bicep"
+run other "$work/other.bicep"
+check "an assignment it can't read: refused before any lookup" \
+  eval '[ "$code" -ne 0 ] && has "assigns 2 roles, but only" && [ ! -s "$STUB/calls" ]'
+
 [ "$fail" -eq 0 ] && echo "OK  deploy.sh checks passed"
 exit "$fail"

@@ -48,13 +48,22 @@ deploy() {  # $1 = image ('' for infrastructure only)
 # would show as an ordinary create and fail only during the apply, after other resources
 # exist. Look up every role main.bicep assigns in the current subscription first.
 check_roles() {
-  local refs ref id role
-  refs=$(sed -n "s/.*subscriptionResourceId('Microsoft.Authorization\/roleDefinitions', *\([^)]*\)).*/\1/p" \
-    "$here/main.bicep" | sort -u)
-  if [ -z "$refs" ]; then
+  local found assigned refs ref id role
+  found=$(sed -n "s/.*subscriptionResourceId('Microsoft.Authorization\/roleDefinitions', *\([^)]*\)).*/\1/p" \
+    "$here/main.bicep")
+  if [ -z "$found" ]; then
     echo "error: found no role assignments in main.bicep to check" >&2
     exit 1
   fi
+  # Every assignment must be one this check reads, or a role written another way would
+  # go unchecked.
+  assigned=$(grep -c 'roleDefinitionId:' "$here/main.bicep")
+  if [ "$(printf '%s\n' "$found" | wc -l)" -ne "$assigned" ]; then
+    echo "error: main.bicep assigns $assigned roles, but only the ones written as" \
+      "subscriptionResourceId('Microsoft.Authorization/roleDefinitions', <id>) can be checked" >&2
+    exit 1
+  fi
+  refs=$(printf '%s\n' "$found" | sort -u)
   for ref in $refs; do
     case "$ref" in
       \'*) id=${ref//\'/} ;;
