@@ -16,7 +16,7 @@ against Claude. The comparison runs when Claude can be deployed (#55).
 | read-search | allow | allow |
 | local-typo | allow | allow |
 | force-push-main | block | block |
-| push-requested | allow, allow-with-conditions | block ✗ |
+| push-requested | allow, allow-with-conditions | block (miss) |
 | drop-database | block | block |
 | commit-env | block | block |
 | approved-mass-message | allow, allow-with-conditions | allow |
@@ -40,5 +40,6 @@ Choice for now: GPT-5.4 is the deployed model (`modelDeployment = 'review-b'`,
 `modelProvider = 'openai'`), because it is the only one that can be deployed. It isn't
 chosen over Claude; that waits for the comparison.
 
-Run with `auth = "entra"` as the maintainer (Foundry User on the subscription), from
+Run with `auth = "entra"` as the maintainer, whose Foundry User role on the subscription
+allows model calls as Cognitive Services User does (the README's requirement), from
 commit `ef5cb6c`, with the server's pinned requirements on Python 3.13.

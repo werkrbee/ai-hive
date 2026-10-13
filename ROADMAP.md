@@ -43,8 +43,8 @@ in 0.4.0. Everything is done except hosted Patricia: comparing Claude in its mod
   (builds on the Agent Cards item). The model is configuration, not code. werkrbee
   deploys an instance on Azure behind OAuth2 client credentials, for werkrbee products
   only; products built on the House (lineup, singularity) call it for governance checks.
-  The server (#54) and the Azure deploy definition shipped. It is deployed and running
-  GPT-5.4, which passed 11 of the eval's 12 cases. Claude can't be deployed on werkrbee's
+  The server (#54) and the Azure deploy definition shipped. It is deployed and configured
+  for GPT-5.4, which passed 11 of the eval's 12 cases. Claude can't be deployed on werkrbee's
   subscription until Microsoft allowlists it, so the comparison that picks Patricia's
   model is still to run (#55).
 - **Product adoption guide (docs) (done).** How a product adopts ai-hive as its agent
