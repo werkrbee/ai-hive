@@ -27,10 +27,9 @@ Tracked as issues #7–#12, worked in the order set in `docs/sprints/p0.md`. All
 ## P1 — interop, governance, state
 
 Tracked on the `P1 — interop, governance, state` milestone; its finished work is released
-in 0.4.0. Everything is done except hosted Patricia: its first deploy and model eval
-(#55), and two follow-ups from the deploy work, `entra.sh` showing its plan before it asks
-(#68) and a narrower Foundry role for its identity once the deploy shows what it needs
-(#69).
+in 0.4.0. Everything is done except hosted Patricia: comparing Claude in its model eval
+(#55), and two follow-ups from the deploy work, a narrower Foundry role for its identity
+(#69) and a check of built-in role ids before `deploy.sh`'s what-if (#79).
 
 - **A2A Agent Cards (agents-hive) (done).** Give Barry & Patricia Agent2Agent cards so
   other agents can discover and call them (Linux Foundation A2A v1.x).
@@ -44,8 +43,10 @@ in 0.4.0. Everything is done except hosted Patricia: its first deploy and model 
   (builds on the Agent Cards item). The model is configuration, not code. werkrbee
   deploys an instance on Azure behind OAuth2 client credentials, for werkrbee products
   only; products built on the House (lineup, singularity) call it for governance checks.
-  The server (#54) and the Azure deploy definition shipped; the first deploy and the eval
-  that picks Patricia's model are still to run (#55).
+  The server (#54) and the Azure deploy definition shipped. It is deployed and configured
+  for GPT-5.4, which passed 11 of the eval's 12 cases. Claude can't be deployed on werkrbee's
+  subscription until Microsoft allowlists it, so the comparison that picks Patricia's
+  model is still to run (#55).
 - **Product adoption guide (docs) (done).** How a product adopts ai-hive as its agent
   development framework: pin the monorepo, Barry executes, Patricia governs.
 - **Reconcile the repo with `workflows-hive` and `knowledge-hive` (docs) (done).** Once
@@ -62,6 +63,9 @@ ai-hive, found while writing the adoption guide and reconciling the repo with
   of ai-hive. (#65)
 - **Install every hive from a pack (plugins-hive).** Let packs install `workflows-hive` and
   `knowledge-hive`, starting with what installing each one means. (#66)
+- **Call any generally available model (agents-hive).** Let the A2A server call any model
+  the Foundry catalog lists as generally available in its region, not only those served
+  through the Anthropic or OpenAI APIs, with the catalog as the source of truth. (#77)
 
 ## P1.2 — product practice
 

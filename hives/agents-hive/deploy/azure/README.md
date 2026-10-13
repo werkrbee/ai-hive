@@ -97,8 +97,7 @@ Services User on the Foundry resource. Record the table and the choice in
 - The image's file list and `render_config.py` were exercised by running the server
   from a copy of exactly what the Dockerfile copies. The rendered config loads, the card
   carries the HTTPS URL and the `api://` scope, and calls without a valid token get 401.
-  The image itself hasn't been built here. `az acr build` sends only the files the
-  Dockerfile copies (the repo's `.dockerignore`).
+  `az acr build` sends only the files the Dockerfile copies (the repo's `.dockerignore`).
 - The managed-identity credential's async transport (`aiohttp`, now pinned) gets as far
   as requesting a token; it fails there off Azure, as expected.
 - The eval harness runs end to end with the stub model.
@@ -110,13 +109,31 @@ Services User on the Foundry resource. Record the table and the choice in
   Microsoft Graph. Its plan and refusals
   are also tested against a stubbed `az` (`tests/entra_test.sh`, run in CI).
 
-Not yet verified, because it needs the deploy:
-- The Foundry endpoints the server derives: `/anthropic` and `/openai/v1` on the
-  account's subdomains.
-- Whether each API accepts managed-identity tokens.
-- The Azure Files mount with SQLite.
+- The first deploy, on 2026-10-13, into werkrbee's subscription in eastus2 from commit
+  `ef5cb6c`: all three steps, each after its what-if. The image built in the registry
+  (`az acr build`, under a minute). The app serves its Agent Card, refuses calls with no
+  token or an invalid one with 401, and redirects plain HTTP to HTTPS. The server created
+  its SQLite database on the Azure Files share at start.
+- Foundry's OpenAI endpoint, `https://<account>.openai.azure.com/openai/v1`, accepts
+  Entra tokens: the eval called GPT-5.4 through it (`eval/RESULTS.md`).
 
-The first deploy and the eval check these. Record anything that differs in this README.
+The first deploy found three things, two in this template, both fixed:
+- Azure refuses an Anthropic model deployment without `modelProviderData`, so a
+  `models` entry can carry `providerData` (step 2).
+- The AcrPull role id was wrong. What-if doesn't check role ids, so this failed only
+  during the apply; #79 adds a check before the what-if.
+- Foundry wouldn't deploy Claude Sonnet 5.5 on werkrbee's subscription
+  (`MarketplaceSubscriptionCannotBeCompleted`): Microsoft has to allowlist the
+  subscription for the Anthropic Marketplace offer. Until it does, the deployment has
+  GPT-5.4 only.
+
+Not yet verified:
+- Foundry's Anthropic endpoint (`/anthropic`), until Claude can be deployed.
+- The app's managed identity calling Foundry, and a whole authenticated review with its
+  task and ledger on the share. Both need a product to call with a token, which needs
+  that product's owner to add a credential to its client app.
+
+Record anything that differs in this README.
 
 ## Files
 
@@ -132,5 +149,6 @@ deploy/azure/
 │   └── entra_test.sh          # entra.sh's plan and refusals, against a stubbed az
 └── eval/
     ├── cases.json             # governance-review cases and their acceptable verdicts
-    └── run.py                 # compare models on them
+    ├── run.py                 # compare models on them
+    └── RESULTS.md             # each run's verdicts, cost and choice
 ```
