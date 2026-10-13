@@ -49,11 +49,13 @@ clients need it to learn how to authenticate.
    federated credential, and keeps it in that product's secret store.
 2. **Parameters.** Copy `main.example.bicepparam` to `main.bicepparam`, which git
    ignores, and fill it in: the Entra ids, the two Foundry models, the chosen model's list
-   prices, and the budget contacts. An Anthropic model also needs
-   `anthropicProviderData`: your organization's legal name, its two-letter country code
-   and its industry. Azure uses them to accept Anthropic's Marketplace terms and sends
-   them to Anthropic with each request, so they must be true; without them Azure refuses
-   the deployment.
+   prices, and the budget contacts. Some providers need facts about who is using their
+   model, which go in that model's `providerData`; Azure refuses the deployment without
+   them. Anthropic, for one, needs your organization's legal name, its two-letter country
+   code and its industry (lowercase: technology, finance, healthcare, education, retail,
+   manufacturing, government, media or other). Azure uses them to accept the provider's
+   Marketplace terms and sends them to the provider with each request, so they must be
+   true.
 3. **Choose the model.** See below. Until then, `modelDeployment` is either candidate.
 4. **Deploy.** Run `./deploy.sh <resource-group> <location> main.bicepparam` from a clean
    checkout. It deploys in three steps, each confirmed after a what-if:
