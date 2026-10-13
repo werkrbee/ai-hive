@@ -57,7 +57,7 @@ var aiName = '${prefix}-ai-${suffix}'
 var shareName = 'hive-a2a-data'
 
 // Built-in role ids.
-var acrPull = '7f951dde-4ef9-41c1-b0ac-8f2d6ec5c76b'
+var acrPull = '7f951dda-4ed3-4680-a7ca-43fe172d538d'
 var cognitiveServicesUser = 'a97b65f3-24c7-4388-baec-2e87135dc908'
 
 resource identity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
