@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Deploy hosted Patricia to Azure. Deploying is an infrastructure change the Queen Bee's
 # Charter gates, so this script shows Azure's what-if for each change and goes ahead only
-# when you type "yes".
+# when you type "yes". Before anything, it checks that every built-in role id main.bicep
+# assigns exists, since what-if doesn't.
 #
 #   1. the infrastructure, without the app (registry, identity, Foundry, storage, budget)
 #   2. the image, built in the new registry from this commit
@@ -42,6 +43,41 @@ deploy() {  # $1 = image ('' for infrastructure only)
   confirm "Apply the changes above to $rg?"
   az deployment group create "${args[@]}" --query properties.outputs -o json
 }
+
+# Azure's what-if doesn't check that a role definition exists, so a wrong built-in role id
+# would show as an ordinary create and fail only during the apply, after other resources
+# exist. Look up every role main.bicep assigns in the current subscription first.
+check_roles() {
+  local refs ref id role
+  refs=$(sed -n "s/.*subscriptionResourceId('Microsoft.Authorization\/roleDefinitions', *\([^)]*\)).*/\1/p" \
+    "$here/main.bicep" | sort -u)
+  if [ -z "$refs" ]; then
+    echo "error: found no role assignments in main.bicep to check" >&2
+    exit 1
+  fi
+  for ref in $refs; do
+    case "$ref" in
+      \'*) id=${ref//\'/} ;;
+      *) id=$(sed -n "s/^var $ref = '\([^']*\)'.*/\1/p" "$here/main.bicep") ;;
+    esac
+    if [ -z "$id" ]; then
+      echo "error: can't find the role id $ref names in main.bicep" >&2
+      exit 1
+    fi
+    role=$(az role definition list --name "$id" --query "[].roleName" -o tsv) || {
+      echo "error: couldn't look up role definition $id ($ref)" >&2
+      exit 1
+    }
+    if [ -z "$role" ]; then
+      echo "error: role definition $id ($ref) doesn't exist; fix it in main.bicep" >&2
+      exit 1
+    fi
+    echo "$ref: $id ($role)"
+  done
+}
+
+echo "== role ids"
+check_roles
 
 echo "== 1/3 infrastructure"
 if [ "$(az group exists --name "$rg")" != "true" ]; then

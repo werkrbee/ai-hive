@@ -58,7 +58,9 @@ clients need it to learn how to authenticate.
    true.
 3. **Choose the model.** See below. Until then, `modelDeployment` is either candidate.
 4. **Deploy.** Run `./deploy.sh <resource-group> <location> main.bicepparam` from a clean
-   checkout. It deploys in three steps, each confirmed after a what-if:
+   checkout. It first looks up every built-in role id `main.bicep` assigns, and stops
+   before any change if one doesn't exist, because what-if doesn't check them. Then it
+   deploys in three steps, each confirmed after a what-if:
    - the infrastructure, without the app;
    - the image, built into the new registry and tagged with the commit;
    - the app.

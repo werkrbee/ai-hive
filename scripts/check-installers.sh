@@ -123,6 +123,10 @@ run "projects-hive init.py --dry-run" \
 run "agents-hive entra.sh plan and refusals (stubbed az)" \
   bash hives/agents-hive/deploy/azure/tests/entra_test.sh
 
+# agents-hive: deploy.sh checks role ids before its first what-if, against a stubbed az.
+run "agents-hive deploy.sh role id check (stubbed az)" \
+  bash hives/agents-hive/deploy/azure/tests/deploy_test.sh
+
 # workflows-hive: crash after step 1, then resume must skip it and finish step 2.
 runs="$sandbox/runs"
 printf 'one two three\nfour five\n' > "$sandbox/words.txt"
