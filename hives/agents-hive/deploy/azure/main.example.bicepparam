@@ -12,6 +12,8 @@ param models = [
   { deployment: 'review-a', format: '<format>', name: '<model-a>', version: '<version>', sku: 'GlobalStandard', capacity: 1 }
   { deployment: 'review-b', format: '<format>', name: '<model-b>', version: '<version>', sku: 'GlobalStandard', capacity: 1 }
 ]
+// Azure sends these to Anthropic for Anthropic models; they must match your organization.
+param anthropicProviderData = { organizationName: '<legal entity>', countryCode: '<US>', industry: '<technology>' }
 param modelDeployment = 'review-a'
 param modelProvider = 'anthropic'   // anthropic or openai, for modelDeployment
 param inputUsdPerMtok = '<list price, USD per million input tokens>'

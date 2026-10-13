@@ -27,6 +27,9 @@ param image string = ''
 @description('Foundry model deployments. The server uses the one named by modelDeployment. Take format, name and version from the Foundry model catalog; some models need their terms accepted in the portal first.')
 param models array
 
+@description('Who uses the Anthropic models, which Azure passes to Anthropic: organizationName (the legal entity), countryCode (two letters) and industry (lowercase, as in the Foundry portal: technology, finance, healthcare, education, retail, manufacturing, government, media or other). Required when any entry in models has format Anthropic; unused otherwise.')
+param anthropicProviderData object = {}
+
 @description('Which entry in models the server calls.')
 param modelDeployment string
 
@@ -96,14 +99,16 @@ resource ai 'Microsoft.CognitiveServices/accounts@2024-10-01' = {
   }
 }
 
+// The preview API version is the first that takes modelProviderData.
 @batchSize(1)
-resource deployments 'Microsoft.CognitiveServices/accounts/deployments@2024-10-01' = [for m in models: {
+resource deployments 'Microsoft.CognitiveServices/accounts/deployments@2025-10-01-preview' = [for m in models: {
   parent: ai
   name: m.deployment
   sku: { name: m.sku, capacity: m.capacity }
-  properties: {
-    model: { format: m.format, name: m.name, version: m.version }
-  }
+  properties: union(
+    { model: { format: m.format, name: m.name, version: m.version } },
+    m.format == 'Anthropic' ? { modelProviderData: anthropicProviderData } : {}
+  )
 }]
 
 resource aiUser 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
