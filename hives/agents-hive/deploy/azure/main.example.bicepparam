@@ -7,7 +7,9 @@ param allowedClients = ['<lineup-client-app-id>', '<singularity-client-app-id>']
 
 // Two Foundry models for the eval (README.md, "Choosing the model"); the server calls modelDeployment.
 // Take format, name and version from the Foundry model catalog, and the sku and
-// capacity the model offers in your region.
+// capacity the model offers in your region. Add providerData to an entry whose provider
+// requires it (README.md, step 2), e.g. for an Anthropic model:
+//   providerData: { organizationName: '<legal entity>', countryCode: '<US>', industry: '<technology>' }
 param models = [
   { deployment: 'review-a', format: '<format>', name: '<model-a>', version: '<version>', sku: 'GlobalStandard', capacity: 1 }
   { deployment: 'review-b', format: '<format>', name: '<model-b>', version: '<version>', sku: 'GlobalStandard', capacity: 1 }

@@ -24,7 +24,7 @@ param allowedClients array
 @description('Container image, e.g. <registry>.azurecr.io/hive-a2a:<tag>. Empty deploys everything except the app, so the image can be built into the new registry first.')
 param image string = ''
 
-@description('Foundry model deployments. The server uses the one named by modelDeployment. Take format, name and version from the Foundry model catalog; some models need their terms accepted in the portal first.')
+@description('Foundry model deployments. The server uses the one named by modelDeployment. Take format, name and version from the Foundry model catalog; some models need their terms accepted in the portal first. An entry may add providerData, which Foundry passes to the model\'s provider; some providers require it (README.md, step 2).')
 param models array
 
 @description('Which entry in models the server calls.')
@@ -97,13 +97,14 @@ resource ai 'Microsoft.CognitiveServices/accounts@2024-10-01' = {
 }
 
 @batchSize(1)
-resource deployments 'Microsoft.CognitiveServices/accounts/deployments@2024-10-01' = [for m in models: {
+resource deployments 'Microsoft.CognitiveServices/accounts/deployments@2026-09-01' = [for m in models: {
   parent: ai
   name: m.deployment
   sku: { name: m.sku, capacity: m.capacity }
-  properties: {
-    model: { format: m.format, name: m.name, version: m.version }
-  }
+  properties: union(
+    { model: { format: m.format, name: m.name, version: m.version } },
+    contains(m, 'providerData') ? { modelProviderData: m.providerData } : {}
+  )
 }]
 
 resource aiUser 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
