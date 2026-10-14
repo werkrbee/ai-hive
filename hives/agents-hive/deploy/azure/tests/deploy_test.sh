@@ -40,7 +40,8 @@ run() {
   local repo="$STUB/repo" dir="$STUB/repo/hives/agents-hive/deploy/azure"
   mkdir -p "$dir"
   printf '%s\n' "7f951dda-4ed3-4680-a7ca-43fe172d538d AcrPull" \
-    "a97b65f3-24c7-4388-baec-2e87135dc908 Cognitive Services User" > "$STUB/roles"
+    "a97b65f3-24c7-4388-baec-2e87135dc908 Cognitive Services User" \
+    "5e0bd9bd-7b93-4f28-af87-19fc36ad61bd Cognitive Services OpenAI User" > "$STUB/roles"
   : > "$STUB/calls"
   cp "$here/../deploy.sh" "$dir/"
   cp "$2" "$dir/main.bicep"
@@ -62,9 +63,10 @@ bicep="$here/../main.bicep"
 
 # The current ids exist, so the check passes and deploy.sh goes on to the first what-if.
 run ok "$bicep"
-check "current ids: both found by name" \
+check "current ids: each found by name" \
   eval 'has "acrPull: 7f951dda-4ed3-4680-a7ca-43fe172d538d (AcrPull)" \
-   && has "cognitiveServicesUser: a97b65f3-24c7-4388-baec-2e87135dc908 (Cognitive Services User)"'
+   && has "cognitiveServicesUser: a97b65f3-24c7-4388-baec-2e87135dc908 (Cognitive Services User)" \
+   && has "cognitiveServicesOpenAiUser: 5e0bd9bd-7b93-4f28-af87-19fc36ad61bd (Cognitive Services OpenAI User)"'
 check "current ids: goes on to the first what-if" \
   eval 'has "== 1/3 infrastructure" && grep -q "^deployment group what-if" "$STUB/calls"'
 
@@ -97,7 +99,7 @@ awk '!done && /roleDefinitionId: subscriptionResourceId/ {sub(/subscriptionResou
   "$bicep" > "$work/other.bicep"
 run other "$work/other.bicep"
 check "an assignment it can't read: refused before any lookup" \
-  eval '[ "$code" -ne 0 ] && has "assigns 2 roles, but only" && [ ! -s "$STUB/calls" ]'
+  eval '[ "$code" -ne 0 ] && has "assigns 3 roles, but only" && [ ! -s "$STUB/calls" ]'
 
 [ "$fail" -eq 0 ] && echo "OK  deploy.sh checks passed"
 exit "$fail"

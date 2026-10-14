@@ -18,7 +18,7 @@ One resource group holds the whole deployment, so one budget covers it.
 | Container Apps environment and Log Analytics | Hosting and logs, kept 30 days and capped at 0.1 GB a day. Past the cap, logging stops until the next day. |
 | Azure Files share | `/data`: the task database and the usage ledger, so both survive restarts and scale-to-zero. It is mounted with `nobrl`, which is safe only with one writer. |
 | Microsoft Foundry (AI Services) | The models. Key auth is disabled, so the server reaches them only with its managed identity, and there is no API key to store. |
-| User-assigned managed identity | Pulls the image (AcrPull) and calls Foundry (Cognitive Services User). |
+| User-assigned managed identity | Pulls the image (AcrPull) and calls Foundry with the narrowest built-in role the model's route allows. For `openai` that's Cognitive Services OpenAI User, which can call the OpenAI v1 endpoint but can't list keys or use Foundry's other services; verified with the managed identity on the first deploy. For `anthropic` it's Cognitive Services User, the role Microsoft names for Entra calls to Claude's `/anthropic` endpoint, which isn't under the OpenAI role. A deploy adds roles but doesn't remove them, so after switching from `anthropic` to `openai`, remove the identity's Cognitive Services User assignment by hand. |
 | Container registry (Basic) | Holds the image, built from a commit by `az acr build`. |
 | Budget | Alerts at 80% and 100% of actual spend, and at 100% of forecast spend. $25 a month by default. |
 
@@ -118,6 +118,9 @@ Services User on the Foundry resource. Record the table and the choice in
   its SQLite database on the Azure Files share at start.
 - Foundry's OpenAI endpoint, `https://<account>.openai.azure.com/openai/v1`, accepts
   Entra tokens: the eval called GPT-5.4 through it (`eval/RESULTS.md`).
+- The app's managed identity calls GPT-5.4 on that endpoint with Cognitive Services
+  OpenAI User as its only Foundry role: a chat completion from inside the running
+  container, on 2026-10-14, returned 200.
 
 The first deploy found three things, two in this template, both fixed:
 - Azure refuses an Anthropic model deployment without `modelProviderData`, so a
@@ -131,9 +134,9 @@ The first deploy found three things, two in this template, both fixed:
 
 Not yet verified:
 - Foundry's Anthropic endpoint (`/anthropic`), until Claude can be deployed.
-- The app's managed identity calling Foundry, and a whole authenticated review with its
-  task and ledger on the share. Both need a product to call with a token, which needs
-  that product's owner to add a credential to its client app.
+- A whole authenticated review, with its task and ledger on the share. It needs a
+  product to call with a token, which needs that product's owner to add a credential to
+  its client app.
 
 Record anything that differs in this README.
 
