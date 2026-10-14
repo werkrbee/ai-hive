@@ -1,5 +1,26 @@
 # Changelog
 
+## [0.5.0](https://github.com/werkrbee/ai-hive/compare/v0.4.0...v0.5.0) (2026-10-14)
+
+
+### Features
+
+* **agents-hive:** check built-in role ids before deploy.sh's what-if ([#81](https://github.com/werkrbee/ai-hive/issues/81)) ([57d5607](https://github.com/werkrbee/ai-hive/commit/57d5607380fe0fa97cef1fcb205c452d10d63dc5)), closes [#79](https://github.com/werkrbee/ai-hive/issues/79)
+* **agents-hive:** show entra.sh's create-or-reuse plan before asking ([#74](https://github.com/werkrbee/ai-hive/issues/74)) ([1786b70](https://github.com/werkrbee/ai-hive/commit/1786b7055dc63629c275dbc87327588dcde16a1a)), closes [#68](https://github.com/werkrbee/ai-hive/issues/68)
+
+
+### Bug fixes
+
+* **agents-hive:** make entra.sh work against a real tenant ([#75](https://github.com/werkrbee/ai-hive/issues/75)) ([7ac6f04](https://github.com/werkrbee/ai-hive/commit/7ac6f0412388f3ec8e8e4f15fc3220b315c646d4)), closes [#55](https://github.com/werkrbee/ai-hive/issues/55)
+* **agents-hive:** pass model provider data to Foundry deployments ([#76](https://github.com/werkrbee/ai-hive/issues/76)) ([78b31c4](https://github.com/werkrbee/ai-hive/commit/78b31c4b3c0a65fb572da0eb4992822103bcd743)), closes [#55](https://github.com/werkrbee/ai-hive/issues/55)
+* **agents-hive:** use the real AcrPull role id ([#78](https://github.com/werkrbee/ai-hive/issues/78)) ([ef5cb6c](https://github.com/werkrbee/ai-hive/commit/ef5cb6c9b0b9c6530df7cbb995e262188ff425f5)), closes [#55](https://github.com/werkrbee/ai-hive/issues/55)
+
+
+### Documentation
+
+* **agents-hive:** record hosted Patricia's first deploy and GPT-5.4 eval ([#80](https://github.com/werkrbee/ai-hive/issues/80)) ([a730d34](https://github.com/werkrbee/ai-hive/commit/a730d3490587bd867c605a7d41e0ed69acbc85b1)), closes [#55](https://github.com/werkrbee/ai-hive/issues/55)
+* bring ROADMAP.md up to date after 0.4.0 ([#72](https://github.com/werkrbee/ai-hive/issues/72)) ([52fdf1d](https://github.com/werkrbee/ai-hive/commit/52fdf1d7eed5d11d1282acb4e096ca6bc920b46b)), closes [#71](https://github.com/werkrbee/ai-hive/issues/71)
+
 ## [0.4.0](https://github.com/werkrbee/ai-hive/compare/v0.3.0...v0.4.0) (2026-10-10)
 
 
