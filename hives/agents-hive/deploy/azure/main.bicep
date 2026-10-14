@@ -59,6 +59,7 @@ var shareName = 'hive-a2a-data'
 // Built-in role ids.
 var acrPull = '7f951dda-4ed3-4680-a7ca-43fe172d538d'
 var cognitiveServicesUser = 'a97b65f3-24c7-4388-baec-2e87135dc908'
+var cognitiveServicesOpenAiUser = '5e0bd9bd-7b93-4f28-af87-19fc36ad61bd'
 
 resource identity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
   name: '${prefix}-a2a-id'
@@ -107,7 +108,20 @@ resource deployments 'Microsoft.CognitiveServices/accounts/deployments@2026-09-0
   )
 }]
 
-resource aiUser 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+// The narrowest built-in role each route allows. Cognitive Services OpenAI User covers the
+// OpenAI v1 endpoint, without listKeys or the other data actions; Claude's /anthropic
+// endpoint isn't under it and needs Cognitive Services User (README.md, Resources).
+resource aiOpenAiUser 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (modelProvider == 'openai') {
+  name: guid(ai.id, identity.id, cognitiveServicesOpenAiUser)
+  scope: ai
+  properties: {
+    principalId: identity.properties.principalId
+    principalType: 'ServicePrincipal'
+    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', cognitiveServicesOpenAiUser)
+  }
+}
+
+resource aiUser 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (modelProvider == 'anthropic') {
   name: guid(ai.id, identity.id, cognitiveServicesUser)
   scope: ai
   properties: {
@@ -194,7 +208,7 @@ resource app 'Microsoft.App/containerApps@2024-03-01' = if (!empty(image)) {
     type: 'UserAssigned'
     userAssignedIdentities: { '${identity.id}': {} }
   }
-  dependsOn: [registryPull, aiUser, deployments]
+  dependsOn: [registryPull, aiOpenAiUser, aiUser, deployments]
   properties: {
     environmentId: environment.id
     configuration: {
