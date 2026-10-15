@@ -27,11 +27,10 @@ allowed_clients = ["<caller-app-id>"]   # one entry per product allowed to call
 # required_roles = ["Review.Request"]
 
 [model]
-provider = "stub"                    # stub | anthropic | openai
-name = "stub"
-# Foundry endpoints below are not yet verified live; #55 does that.
-# base_url = "https://<resource>.services.ai.azure.com/anthropic"   # anthropic on Foundry
-# base_url = "https://<resource>.openai.azure.com/openai/v1"         # openai on Foundry
+api = "stub"                         # stub | messages | chat-completions: the wire API, not the vendor
+name = "stub"                        # on Foundry, the deployment name
+# base_url = "https://<resource>.services.ai.azure.com/anthropic"   # messages: Claude on Foundry
+# base_url = "https://<resource>.openai.azure.com/openai/v1"         # chat-completions: the other models on Foundry
 # auth = "entra"                     # entra (managed identity) | api-key
 # api_key_env = "MODEL_API_KEY"      # with auth = "api-key"
 input_usd_per_mtok = 0.0             # the model's list price, for the ledger and the ceiling

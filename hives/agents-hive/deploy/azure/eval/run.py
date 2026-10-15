@@ -71,7 +71,7 @@ async def main():
     runs = {}
     for path in args.config:
         config = load(path)
-        label = f"{Path(path).stem} ({config.model.provider}:{config.model.name})"
+        label = f"{Path(path).stem} ({config.model.api}:{config.model.name})"
         runs[label] = await run_model(config, cases)
 
     labels = list(runs)

@@ -2,7 +2,8 @@
 # Deploy hosted Patricia to Azure. Deploying is an infrastructure change the Queen Bee's
 # Charter gates, so this script shows Azure's what-if for each change and goes ahead only
 # when you type "yes". Before anything, it checks that every built-in role id main.bicep
-# assigns exists, since what-if doesn't.
+# assigns exists, since what-if doesn't, and that every model is generally available in
+# the region, by the Foundry model catalog.
 #
 #   1. the infrastructure, without the app (registry, identity, Foundry, storage, budget)
 #   2. the image, built in the new registry from this commit
@@ -85,8 +86,68 @@ check_roles() {
   done
 }
 
+# The Foundry model catalog is the source of truth for what can be deployed: every entry
+# in models must be GenerallyAvailable in the region, by format, name and version, do chat
+# completions (the server's two APIs, Messages and Chat Completions, both need it), and be
+# offered there with its sku. Preview and retiring models are refused here, before the
+# what-if, the same rule as for Azure API versions.
+check_models() {
+  local region tmp
+  region=$location
+  if [ "$(az group exists --name "$rg")" = "true" ]; then
+    region=$(az group show --name "$rg" --query location -o tsv)
+  fi
+  tmp=$(mktemp -d)
+  if ! az bicep build-params --file "$params" --stdout > "$tmp/params.json"; then
+    echo "error: couldn't read the models in $params" >&2
+    rm -rf "$tmp"; exit 1
+  fi
+  if ! az cognitiveservices model list --location "$region" -o json > "$tmp/catalog.json"; then
+    echo "error: couldn't read the Foundry model catalog for $region" >&2
+    rm -rf "$tmp"; exit 1
+  fi
+  if ! python3 - "$tmp/params.json" "$tmp/catalog.json" "$region" <<'PY'
+import json, sys
+
+params = json.loads(json.load(open(sys.argv[1]))["parametersJson"])["parameters"]
+catalog, region = json.load(open(sys.argv[2])), sys.argv[3]
+bad = False
+for m in params["models"]["value"]:
+    if not all(isinstance(m.get(k), str) for k in ("deployment", "format", "name", "version", "sku")):
+        print(f"error: each models entry needs deployment, format, name, version and sku: {m}", file=sys.stderr)
+        bad = True
+        continue
+    label = f"{m['deployment']}: {m['format']} {m['name']} {m['version']}"
+    found = [c["model"] for c in catalog
+             if (c["model"]["format"], c["model"]["name"], c["model"]["version"]) == (m["format"], m["name"], m["version"])]
+    statuses = sorted({f["lifecycleStatus"] for f in found})
+    skus = sorted({s["name"] for f in found for s in f.get("skus") or []})
+    if not found:
+        print(f"error: {label} isn't in the Foundry model catalog for {region}", file=sys.stderr)
+    elif "GenerallyAvailable" not in statuses:
+        print(f"error: {label} is {', '.join(statuses)} in {region}; only GenerallyAvailable models deploy", file=sys.stderr)
+    elif not any((f.get("capabilities") or {}).get("chatCompletion") == "true" for f in found):
+        caps = sorted({c for f in found for c, v in (f.get("capabilities") or {}).items() if v == "true"})
+        print(f"error: {label} doesn't do chat completions, so the server can't call it"
+              f" (it does: {', '.join(caps) or 'nothing listed'})", file=sys.stderr)
+    elif m["sku"] not in skus:
+        print(f"error: {label} isn't offered as {m['sku']} in {region} (offered: {', '.join(skus)})", file=sys.stderr)
+    else:
+        print(f"{label}: GenerallyAvailable, {m['sku']}")
+        continue
+    bad = True
+sys.exit(1 if bad else 0)
+PY
+  then
+    rm -rf "$tmp"; exit 1
+  fi
+  rm -rf "$tmp"
+}
+
 echo "== role ids"
 check_roles
+echo "== models"
+check_models
 
 echo "== 1/3 infrastructure"
 if [ "$(az group exists --name "$rg")" != "true" ]; then

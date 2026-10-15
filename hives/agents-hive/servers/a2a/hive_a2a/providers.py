@@ -1,17 +1,19 @@
 """Model providers behind one interface: given a system prompt, a user prompt and an
-output-token cap, return text and the tokens the provider metered.
+output-token cap, return text and the tokens the provider metered. Each is named for the
+wire API it speaks, not for a vendor, since one API serves models from many publishers:
 
-  stub       no network; a fixed verdict, for tests and conformance runs
-  anthropic  the Messages API (Claude), e.g. Microsoft Foundry's /anthropic endpoint
-  openai     the Chat Completions API, e.g. Microsoft Foundry's OpenAI v1 endpoint
+  stub              no network; a fixed verdict, for tests and conformance runs
+  messages          the Messages API, e.g. Claude on Microsoft Foundry's /anthropic endpoint
+  chat-completions  the Chat Completions API, e.g. Microsoft Foundry's OpenAI v1 endpoint,
+                    which serves OpenAI's models and the catalog's other publishers'
 
 Which one, which model and where it is served are configuration. With model.auth =
 "entra" the provider authenticates with a Microsoft Entra token from the environment's
 managed identity; otherwise with an API key read from the named environment variable.
 
-The anthropic and openai providers are tested against a mock of each API's request and
-response shapes, not yet against live Foundry endpoints. That, including whether Foundry
-accepts the Entra scope below for each API, is verified when the server is deployed (#55).
+Both are tested against a mock of their API's request and response shapes. Live, on
+Foundry with the managed identity, chat-completions is verified (deploy/azure/README.md);
+messages waits for Claude to be deployable there (#55).
 """
 import json
 import os
@@ -96,8 +98,8 @@ def _count(value):
     return value if isinstance(value, int) and not isinstance(value, bool) and value >= 0 else None
 
 
-class Anthropic(_HTTP):
-    name = "anthropic"
+class Messages(_HTTP):
+    name = "messages"
 
     async def complete(self, system, user, max_tokens):
         token = await self._token()
@@ -113,13 +115,13 @@ class Anthropic(_HTTP):
         usage = data.get("usage") or {}
         i, o = _count(usage.get("input_tokens")), _count(usage.get("output_tokens"))
         if i is None or o is None:
-            raise ProviderError("anthropic response has no token usage")
+            raise ProviderError("messages response has no token usage")
         text = "".join(b.get("text", "") for b in data.get("content") or [] if isinstance(b, dict) and b.get("type") == "text")
         return Completion(text, i, o)
 
 
-class OpenAI(_HTTP):
-    name = "openai"
+class ChatCompletions(_HTTP):
+    name = "chat-completions"
 
     async def complete(self, system, user, max_tokens):
         token = await self._token()
@@ -131,15 +133,15 @@ class OpenAI(_HTTP):
         usage = data.get("usage") or {}
         i, o = _count(usage.get("prompt_tokens")), _count(usage.get("completion_tokens"))
         if i is None or o is None:
-            raise ProviderError("openai response has no token usage")
+            raise ProviderError("chat-completions response has no token usage")
         try:
             text = data["choices"][0]["message"]["content"] or ""
         except (KeyError, IndexError, TypeError):
-            raise ProviderError("openai response has no message", Completion("", i, o))
+            raise ProviderError("chat-completions response has no message", Completion("", i, o))
         return Completion(text, i, o)
 
 
 def create(model, transport=None):
-    if model.provider == "stub":
+    if model.api == "stub":
         return Stub(model)
-    return {"anthropic": Anthropic, "openai": OpenAI}[model.provider](model, transport)
+    return {"messages": Messages, "chat-completions": ChatCompletions}[model.api](model, transport)

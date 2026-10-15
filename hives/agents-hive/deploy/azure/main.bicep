@@ -24,15 +24,11 @@ param allowedClients array
 @description('Container image, e.g. <registry>.azurecr.io/hive-a2a:<tag>. Empty deploys everything except the app, so the image can be built into the new registry first.')
 param image string = ''
 
-@description('Foundry model deployments. The server uses the one named by modelDeployment. Take format, name and version from the Foundry model catalog; some models need their terms accepted in the portal first. An entry may add providerData, which Foundry passes to the model\'s provider; some providers require it (README.md, step 2).')
+@description('Foundry model deployments. The server uses the one named by modelDeployment. Take format, name, version and sku from the Foundry model catalog for the region; deploy.sh refuses a model that isn\'t generally available there. Some models need their terms accepted in the portal first. An entry may add providerData, which Foundry passes to the model\'s provider; some providers require it (README.md, step 2).')
 param models array
 
-@description('Which entry in models the server calls.')
+@description('Which entry in models the server calls. Its format decides the API the server speaks: Anthropic models are served through the Messages API, every other format through Chat Completions.')
 param modelDeployment string
-
-@description('anthropic or openai: the API the chosen model is served through.')
-@allowed(['anthropic', 'openai'])
-param modelProvider string
 
 @description('The chosen model\'s list price in USD per million input and output tokens, as strings (Bicep has no decimals). The server prices calls with them for its ledger and ceiling.')
 param inputUsdPerMtok string
@@ -55,6 +51,9 @@ var suffix = uniqueString(resourceGroup().id)
 var appName = '${prefix}-a2a'
 var aiName = '${prefix}-ai-${suffix}'
 var shareName = 'hive-a2a-data'
+
+var chosen = filter(models, m => m.deployment == modelDeployment)
+var modelApi = chosen[0].format == 'Anthropic' ? 'messages' : 'chat-completions'
 
 // Built-in role ids.
 var acrPull = '7f951dda-4ed3-4680-a7ca-43fe172d538d'
@@ -111,7 +110,7 @@ resource deployments 'Microsoft.CognitiveServices/accounts/deployments@2026-09-0
 // The narrowest built-in role each route allows. Cognitive Services OpenAI User covers the
 // OpenAI v1 endpoint, without listKeys or the other data actions; Claude's /anthropic
 // endpoint isn't under it and needs Cognitive Services User (README.md, Resources).
-resource aiOpenAiUser 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (modelProvider == 'openai') {
+resource aiOpenAiUser 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (modelApi == 'chat-completions') {
   name: guid(ai.id, identity.id, cognitiveServicesOpenAiUser)
   scope: ai
   properties: {
@@ -121,7 +120,7 @@ resource aiOpenAiUser 'Microsoft.Authorization/roleAssignments@2022-04-01' = if 
   }
 }
 
-resource aiUser 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (modelProvider == 'anthropic') {
+resource aiUser 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (modelApi == 'messages') {
   name: guid(ai.id, identity.id, cognitiveServicesUser)
   scope: ai
   properties: {
@@ -196,8 +195,7 @@ resource environmentShare 'Microsoft.App/managedEnvironments/storages@2024-03-01
 }
 
 var publicUrl = 'https://${appName}.${environment.properties.defaultDomain}/'
-var chosen = filter(models, m => m.deployment == modelDeployment)
-var baseUrl = modelProvider == 'anthropic'
+var baseUrl = modelApi == 'messages'
   ? 'https://${aiName}.services.ai.azure.com/anthropic'
   : 'https://${aiName}.openai.azure.com/openai/v1'
 
@@ -231,7 +229,7 @@ resource app 'Microsoft.App/containerApps@2024-03-01' = if (!empty(image)) {
           { name: 'AZURE_CLIENT_ID', value: identity.properties.clientId } // DefaultAzureCredential picks this identity
           { name: 'API_APP_ID', value: apiAppId }
           { name: 'ALLOWED_CLIENTS', value: join(allowedClients, ',') }
-          { name: 'MODEL_PROVIDER', value: modelProvider }
+          { name: 'MODEL_API', value: modelApi }
           { name: 'MODEL_NAME', value: chosen[0].deployment }
           { name: 'MODEL_BASE_URL', value: baseUrl }
           { name: 'MODEL_INPUT_USD_PER_MTOK', value: inputUsdPerMtok }
