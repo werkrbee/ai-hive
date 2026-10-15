@@ -9,6 +9,10 @@ Run from hives/agents-hive/servers/a2a with its requirements installed, signed i
 
   python ../../deploy/azure/eval/run.py --config a.toml --config b.toml --out results.json
 
+--spacing keeps that many seconds between the starts of one model's calls, for a deployment
+whose quota allows few requests a minute (Foundry enforces it over short windows, so a
+burst can be refused well under the minute's limit).
+
 Prints a table of verdicts per case, how many each model got right, and what it cost.
 """
 import argparse
@@ -28,13 +32,15 @@ from hive_a2a.ledger import Ledger  # noqa: E402
 from hive_a2a.review import Reviewer  # noqa: E402
 
 
-async def run_model(config, cases):
+async def run_model(config, cases, spacing=0):
     provider = providers.create(config.model)
     with tempfile.TemporaryDirectory() as tmp:  # the eval doesn't touch the server's ledger
         reviewer = Reviewer(config, Ledger(Path(tmp) / "ledger.jsonl", config.monthly_ceiling_usd), provider)
         results = []
         try:
-            for case in cases:
+            for n, case in enumerate(cases):
+                if n and spacing:
+                    await asyncio.sleep(max(0, spacing - (time.monotonic() - started)))
                 value = {"proposal": case["proposal"], "context": case["context"]}
                 plan = reviewer.plan(value)
                 started = time.monotonic()
@@ -66,13 +72,14 @@ async def main():
     ap.add_argument("--config", action="append", required=True, help="a hive_a2a config, once per model")
     ap.add_argument("--cases", default=str(HERE / "cases.json"))
     ap.add_argument("--out", help="write the full results as JSON here")
+    ap.add_argument("--spacing", type=float, default=0, help="seconds between the starts of one model's calls")
     args = ap.parse_args()
     cases = json.loads(Path(args.cases).read_text(encoding="utf-8"))["cases"]
     runs = {}
     for path in args.config:
         config = load(path)
         label = f"{Path(path).stem} ({config.model.api}:{config.model.name})"
-        runs[label] = await run_model(config, cases)
+        runs[label] = await run_model(config, cases, args.spacing)
 
     labels = list(runs)
     print("| Case | Accept | " + " | ".join(labels) + " |")

@@ -121,24 +121,58 @@ class Messages(_HTTP):
 
 
 class ChatCompletions(_HTTP):
+    """Streams the response and asks for usage in its last chunk. Some of the catalog's
+    publishers, DeepSeek among them, leave usage null on Foundry's OpenAI v1 endpoint unless
+    the response is streamed with stream_options.include_usage, and the server can't price a
+    call without it."""
+
     name = "chat-completions"
 
     async def complete(self, system, user, max_tokens):
         token = await self._token()
-        data = await self._post("/chat/completions", {"authorization": f"Bearer {token}"}, {
+        text, usage = await self._stream("/chat/completions", {"authorization": f"Bearer {token}"}, {
             "model": self.model, "max_completion_tokens": max_tokens,
             "response_format": {"type": "json_object"},
+            "stream": True, "stream_options": {"include_usage": True},
             "messages": [{"role": "system", "content": system}, {"role": "user", "content": user}],
         })
-        usage = data.get("usage") or {}
         i, o = _count(usage.get("prompt_tokens")), _count(usage.get("completion_tokens"))
         if i is None or o is None:
             raise ProviderError("chat-completions response has no token usage")
-        try:
-            text = data["choices"][0]["message"]["content"] or ""
-        except (KeyError, IndexError, TypeError):
+        if not text:
             raise ProviderError("chat-completions response has no message", Completion("", i, o))
         return Completion(text, i, o)
+
+    async def _stream(self, path, headers, body):
+        """Reads the server-sent events: the text of each chunk's first choice, in order, and
+        the last usage any chunk carried."""
+        parts, usage = [], {}
+        try:
+            async with self.client.stream("POST", self.base_url + path, headers=headers, json=body) as r:
+                if r.status_code != 200:
+                    raise ProviderError(f"{self.name} returned HTTP {r.status_code}")
+                async for line in r.aiter_lines():
+                    if not line.startswith("data:"):
+                        continue
+                    data = line[5:].strip()
+                    if data == "[DONE]":
+                        break
+                    try:
+                        chunk = json.loads(data)
+                    except ValueError:
+                        raise ProviderError(f"{self.name} streamed an event that isn't JSON")
+                    if not isinstance(chunk, dict) or "error" in chunk:
+                        raise ProviderError(f"{self.name} streamed an error")
+                    if isinstance(chunk.get("usage"), dict):
+                        usage = chunk["usage"]
+                    choices = chunk.get("choices")
+                    first = choices[0] if isinstance(choices, list) and choices else {}  # Azure's first chunk has none
+                    delta = first.get("delta") if isinstance(first, dict) else None
+                    if isinstance(delta, dict) and isinstance(delta.get("content"), str):
+                        parts.append(delta["content"])
+        except httpx.HTTPError as e:
+            raise ProviderError(f"{self.name} request failed: {type(e).__name__}")
+        return "".join(parts), usage
 
 
 def create(model, transport=None):

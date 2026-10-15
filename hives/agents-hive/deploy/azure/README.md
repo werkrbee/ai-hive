@@ -88,6 +88,12 @@ served through the Messages API at the account's `/anthropic` endpoint; every ot
 format, OpenAI's and the other publishers', through Chat Completions at
 `/openai/v1`. The managed identity's role follows the API (see Resources).
 
+The catalog doesn't say how much quota the subscription has. A deployment's `capacity`
+must fit the model's quota in the region, or the what-if fails Azure's preflight with
+`InsufficientQuota`, naming the limit. Quota is counted in the model's own unit: thousands
+of tokens a minute for OpenAI's models, requests a minute for some others (DeepSeek-V3.2
+had 20).
+
 Not supported yet, and refused by `deploy.sh` because the catalog says they don't do
 chat completions:
 - Models served only through OpenAI's Responses API, such as the codex and `-pro`
@@ -147,6 +153,12 @@ Services User on the Foundry resource. Record the table and the choice in
   OpenAI User as its only Foundry role: a chat completion from inside the running
   container, on 2026-10-14, returned 200. The role was assigned by hand for that check;
   the template's own assignment replaces it at the next deploy.
+- A model from another publisher, on 2026-10-15: DeepSeek-V3.2 (`review-c`), deployed by
+  `deploy.sh` after its catalog check passed. The managed identity calls it on the same
+  endpoint with the same OpenAI User role (200 from inside the container), and the eval
+  ran it (`eval/RESULTS.md`). On this endpoint DeepSeek reports token usage only in a
+  streamed response's last chunk; unstreamed, `usage` is null. The server's Chat
+  Completions client streams for that reason.
 
 The first deploy found three things, two in this template, both fixed:
 - Azure refuses an Anthropic model deployment without `modelProviderData`, so a
@@ -160,9 +172,6 @@ The first deploy found three things, two in this template, both fixed:
 
 Not yet verified:
 - Foundry's Anthropic endpoint (`/anthropic`), until Claude can be deployed.
-- A model from a publisher other than OpenAI and Anthropic, called through Chat
-  Completions with the managed identity's Cognitive Services OpenAI User role, including
-  its token usage.
 - A whole authenticated review, with its task and ledger on the share. It needs a
   product to call with a token, which needs that product's owner to add a credential to
   its client app.

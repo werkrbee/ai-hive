@@ -367,8 +367,8 @@ class ServerTest(unittest.TestCase):
             if request.url.path.endswith("/v1/messages"):
                 return httpx.Response(200, json={"content": [{"type": "text", "text": "{}"}],
                                                  "usage": {"input_tokens": 11, "output_tokens": 7}})
-            return httpx.Response(200, json={"choices": [{"message": {"content": "{}"}}],
-                                             "usage": {"prompt_tokens": 13, "completion_tokens": 5}})
+            return sse({"choices": [{"delta": {"content": "{}"}}], "usage": None},
+                       {"choices": [], "usage": {"prompt_tokens": 13, "completion_tokens": 5}})
 
         async def run():
             import os
@@ -390,6 +390,57 @@ class ServerTest(unittest.TestCase):
         self.assertEqual(str(ro.url), "https://models.example.test/chat/completions")
         self.assertEqual(ro.headers["authorization"], "Bearer test-key")
         self.assertEqual(json.loads(ro.content)["max_completion_tokens"], 100)
+        self.assertEqual(json.loads(ro.content)["stream_options"], {"include_usage": True})
+
+    def test_chat_completions_reads_the_stream(self):
+        # Each case: the events streamed back, then the text and tokens read from them, or
+        # the error. Usage comes only in the last chunk, as Foundry sends it.
+        usage = {"prompt_tokens": 13, "completion_tokens": 5}
+        cases = {
+            "text across chunks, usage last": (
+                sse({"choices": [], "prompt_filter_results": []},
+                    {"choices": [{"delta": {"role": "assistant", "content": ""}}], "usage": None},
+                    {"choices": [{"delta": {"content": '{"verdict": '}}], "usage": None},
+                    {"choices": [{"delta": {"content": '"allow"}'}}], "usage": None},
+                    {"choices": [], "usage": usage}),
+                ('{"verdict": "allow"}', 13, 5)),
+            "usage never sent": (
+                sse({"choices": [{"delta": {"content": "{}"}}], "usage": None}),
+                "has no token usage"),
+            "usage but no text": (sse({"choices": [], "usage": usage}), "has no message"),
+            "an event that isn't JSON": (httpx.Response(200, text="data: {not json\n\n"), "isn't JSON"),
+            "an error mid-stream": (
+                sse({"choices": [{"delta": {"content": "{"}}]}, {"error": {"message": "overloaded"}}),
+                "streamed an error"),
+            "refused": (httpx.Response(429, json={"error": {"code": "429"}}), "returned HTTP 429"),
+        }
+
+        async def call(response):
+            config = write_config(self.root, api="chat-completions")
+            p = providers.create(config.model, transport=httpx.MockTransport(lambda request: response))
+            try:
+                c = await p.complete("sys", "user", 100)
+                return (c.text, c.input_tokens, c.output_tokens)
+            except providers.ProviderError as e:
+                return str(e)
+            finally:
+                await p.aclose()
+
+        import os
+        os.environ["HIVE_TEST_KEY"] = "test-key"
+        for name, (response, expected) in cases.items():
+            with self.subTest(case=name):
+                got = asyncio.run(call(response))
+                if isinstance(expected, tuple):
+                    self.assertEqual(got, expected)
+                else:
+                    self.assertIn(expected, got)
+
+
+def sse(*chunks):
+    """A Chat Completions stream: one data event per chunk, then [DONE]."""
+    body = "".join(f"data: {json.dumps(c)}\n\n" for c in chunks) + "data: [DONE]\n\n"
+    return httpx.Response(200, text=body, headers={"content-type": "text/event-stream"})
 
 
 if __name__ == "__main__":

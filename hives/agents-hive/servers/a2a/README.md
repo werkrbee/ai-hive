@@ -82,7 +82,9 @@ server: the Azure deploy refuses any that isn't generally available in its regio
 response shapes. Live on Foundry, with the managed identity, `chat-completions` is
 verified; `messages` waits until Claude can be deployed (#55). Every call must report its
 token usage, or the server treats it as failed, so the ledger and ceiling hold for any
-model.
+model. `chat-completions` streams each response and asks for usage in its last chunk
+(`stream_options.include_usage`), because some publishers' models on Foundry, DeepSeek
+among them, report usage only that way.
 
 With `model.auth = "entra"`, the server authenticates to the model with the managed
 identity it runs as. With `"api-key"`, it reads the key from the environment variable
