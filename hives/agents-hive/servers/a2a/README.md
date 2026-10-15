@@ -66,15 +66,25 @@ the server process, so one instance must own the ledger: run a single replica.
 The ledger's `usd` is computed from the prices in the config, so its `basis` is
 `estimated`. The Azure budget alert in #55 is the billed backstop.
 
-**Model.** A provider-neutral interface, with the provider and model set in config:
+**Model.** A model-neutral interface. Config sets `model.api`, the wire API the server
+speaks, and the model. The API is named for its protocol, not a vendor, because one API
+serves models from many publishers:
 - `stub` returns a fixed verdict without a network call. Tests and conformance runs use it.
-- `anthropic` uses the Messages API, such as Claude on Microsoft Foundry's `/anthropic`
+- `messages` uses the Messages API, such as Claude on Microsoft Foundry's `/anthropic`
   endpoint.
-- `openai` uses Chat Completions, such as OpenAI models on Foundry's `/openai/v1` endpoint.
+- `chat-completions` uses Chat Completions, such as Foundry's `/openai/v1` endpoint, which
+  serves OpenAI's models and most of the catalog's other publishers (DeepSeek, Meta,
+  Mistral AI, xAI, Microsoft and more).
 
-The `anthropic` and `openai` providers are tested against a mock of each API's request
-and response shapes, not yet against live Foundry endpoints. That, and whether Foundry
-accepts managed-identity tokens for each API, is verified in the Azure deploy (#55).
+Which models can be deployed is decided by the Foundry model catalog, not by this
+server: the Azure deploy refuses any that isn't generally available in its region
+(`deploy/azure/README.md`). Both APIs are tested against a mock of their request and
+response shapes. Live on Foundry, with the managed identity, `chat-completions` is
+verified; `messages` waits until Claude can be deployed (#55). Every call must report its
+token usage, or the server treats it as failed, so the ledger and ceiling hold for any
+model. `chat-completions` streams each response and asks for usage in its last chunk
+(`stream_options.include_usage`), because some publishers' models on Foundry, DeepSeek
+among them, report usage only that way.
 
 With `model.auth = "entra"`, the server authenticates to the model with the managed
 identity it runs as. With `"api-key"`, it reads the key from the environment variable
@@ -139,7 +149,7 @@ servers/a2a/
 │   ├── config.py       # the TOML config
 │   ├── contract.py     # check values against a contract's schemas
 │   ├── ledger.py       # the usage ledger and the monthly ceiling
-│   ├── providers.py    # stub, anthropic and openai models
+│   ├── providers.py    # stub, Messages and Chat Completions
 │   └── review.py       # the executor: input, budget, ceiling, model, verdict
 ├── tests/test_server.py
 ├── conformance/        # the TCK runner and the recorded run

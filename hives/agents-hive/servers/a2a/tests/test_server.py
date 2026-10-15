@@ -43,7 +43,7 @@ def token(client=CALLER, key=KEY, kid="k1", **claims):
     return jwt.encode(body, key, algorithm="RS256", headers={"kid": kid})
 
 
-def write_config(root, ceiling=25.0, in_price=3.0, out_price=15.0, provider="stub"):
+def write_config(root, ceiling=25.0, in_price=3.0, out_price=15.0, api="stub"):
     jwk = json.loads(jwt.algorithms.RSAAlgorithm.to_jwk(KEY.public_key()))
     (root / "jwks.json").write_text(json.dumps({"keys": [{**jwk, "kid": "k1", "use": "sig", "alg": "RS256"}]}))
     (root / "config.toml").write_text(f"""
@@ -65,7 +65,7 @@ scope = "api://api-app/.default"
 allowed_clients = ["{CALLER}", "{OTHER}"]
 
 [model]
-provider = "{provider}"
+api = "{api}"
 name = "test-model"
 base_url = "https://models.example.test"
 api_key_env = "HIVE_TEST_KEY"
@@ -354,7 +354,7 @@ class ServerTest(unittest.TestCase):
                          ('public_url = "http://localhost/"', 'public_url = "http://example.org/"'),
                          ('jwks_path = "jwks.json"', 'jwks_url = "http://keys.example.test"'),
                          ("monthly_ceiling_usd = 25.0", "monthly_ceiling_usd = 0"),
-                         ('provider = "stub"', 'provider = "mystery"')):
+                         ('api = "stub"', 'api = "mystery"')):
             (self.root / "config.toml").write_text(base.replace(old, new))
             with self.subTest(change=new), self.assertRaises(ConfigError):
                 load(self.root / "config.toml")
@@ -367,15 +367,15 @@ class ServerTest(unittest.TestCase):
             if request.url.path.endswith("/v1/messages"):
                 return httpx.Response(200, json={"content": [{"type": "text", "text": "{}"}],
                                                  "usage": {"input_tokens": 11, "output_tokens": 7}})
-            return httpx.Response(200, json={"choices": [{"message": {"content": "{}"}}],
-                                             "usage": {"prompt_tokens": 13, "completion_tokens": 5}})
+            return sse({"choices": [{"delta": {"content": "{}"}}], "usage": None},
+                       {"choices": [], "usage": {"prompt_tokens": 13, "completion_tokens": 5}})
 
         async def run():
             import os
             os.environ["HIVE_TEST_KEY"] = "test-key"
             out = []
-            for name in ("anthropic", "openai"):
-                config = write_config(self.root, provider=name)
+            for name in ("messages", "chat-completions"):
+                config = write_config(self.root, api=name)
                 p = providers.create(config.model, transport=httpx.MockTransport(handle))
                 out.append(await p.complete("sys", "user", 100))
                 await p.aclose()
@@ -390,6 +390,57 @@ class ServerTest(unittest.TestCase):
         self.assertEqual(str(ro.url), "https://models.example.test/chat/completions")
         self.assertEqual(ro.headers["authorization"], "Bearer test-key")
         self.assertEqual(json.loads(ro.content)["max_completion_tokens"], 100)
+        self.assertEqual(json.loads(ro.content)["stream_options"], {"include_usage": True})
+
+    def test_chat_completions_reads_the_stream(self):
+        # Each case: the events streamed back, then the text and tokens read from them, or
+        # the error. Usage comes only in the last chunk, as Foundry sends it.
+        usage = {"prompt_tokens": 13, "completion_tokens": 5}
+        cases = {
+            "text across chunks, usage last": (
+                sse({"choices": [], "prompt_filter_results": []},
+                    {"choices": [{"delta": {"role": "assistant", "content": ""}}], "usage": None},
+                    {"choices": [{"delta": {"content": '{"verdict": '}}], "usage": None},
+                    {"choices": [{"delta": {"content": '"allow"}'}}], "usage": None},
+                    {"choices": [], "usage": usage}),
+                ('{"verdict": "allow"}', 13, 5)),
+            "usage never sent": (
+                sse({"choices": [{"delta": {"content": "{}"}}], "usage": None}),
+                "has no token usage"),
+            "usage but no text": (sse({"choices": [], "usage": usage}), "has no message"),
+            "an event that isn't JSON": (httpx.Response(200, text="data: {not json\n\n"), "isn't JSON"),
+            "an error mid-stream": (
+                sse({"choices": [{"delta": {"content": "{"}}]}, {"error": {"message": "overloaded"}}),
+                "streamed an error"),
+            "refused": (httpx.Response(429, json={"error": {"code": "429"}}), "returned HTTP 429"),
+        }
+
+        async def call(response):
+            config = write_config(self.root, api="chat-completions")
+            p = providers.create(config.model, transport=httpx.MockTransport(lambda request: response))
+            try:
+                c = await p.complete("sys", "user", 100)
+                return (c.text, c.input_tokens, c.output_tokens)
+            except providers.ProviderError as e:
+                return str(e)
+            finally:
+                await p.aclose()
+
+        import os
+        os.environ["HIVE_TEST_KEY"] = "test-key"
+        for name, (response, expected) in cases.items():
+            with self.subTest(case=name):
+                got = asyncio.run(call(response))
+                if isinstance(expected, tuple):
+                    self.assertEqual(got, expected)
+                else:
+                    self.assertIn(expected, got)
+
+
+def sse(*chunks):
+    """A Chat Completions stream: one data event per chunk, then [DONE]."""
+    body = "".join(f"data: {json.dumps(c)}\n\n" for c in chunks) + "data: [DONE]\n\n"
+    return httpx.Response(200, text=body, headers={"content-type": "text/event-stream"})
 
 
 if __name__ == "__main__":

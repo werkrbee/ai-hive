@@ -1,8 +1,10 @@
 #!/usr/bin/env bash
-# Exercise deploy.sh's role id check against a stubbed az: the current ids pass and reach
-# the first what-if; a wrong id, or a lookup that fails, stops before any what-if or
-# change. Each case runs deploy.sh from a throwaway git checkout, since it deploys only a
-# clean one. Bash 3.2 safe; run it with /bin/bash on macOS.
+# Exercise deploy.sh's checks against a stubbed az. Role ids: the current ids pass and
+# reach the first what-if; a wrong id, or a lookup that fails, stops before any what-if or
+# change. Models: generally available ones pass, from any publisher; one that is preview,
+# missing from the catalog, without chat completions or not offered with its sku stops
+# before the what-if. Each case runs deploy.sh from a throwaway git checkout, since it
+# deploys only a clean one. Bash 3.2 safe; run it with /bin/bash on macOS.
 #
 # Usage: tests/deploy_test.sh           (from hives/agents-hive/deploy/azure, or anywhere)
 set -u
@@ -12,8 +14,9 @@ work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT
 fail=0
 
-# The stub. $STUB/roles holds the subscription's role definitions ("id name"); every call
-# is appended to $STUB/calls. STUB_FAIL, when set, is a pattern; a call whose arguments
+# The stub. $STUB/roles holds the subscription's role definitions ("id name"),
+# $STUB/params.json what build-params prints and $STUB/catalog.json the region's model
+# catalog; every call is appended to $STUB/calls. STUB_FAIL, when set, is a pattern; a call whose arguments
 # match it fails.
 mkdir -p "$work/bin"
 cat > "$work/bin/az" <<'STUB'
@@ -28,12 +31,32 @@ case "$args" in
     id=$(printf '%s' "$args" | sed -n 's/.*--name \([^ ]*\).*/\1/p')
     awk -v i="$id" '$1==i{$1=""; sub(/^ /, ""); print}' "$STUB/roles" ;;
   "group exists"*) echo true ;;
+  "group show"*) echo eastus2 ;;
+  "bicep build-params"*) cat "$STUB/params.json" ;;
+  "cognitiveservices model list"*) cat "$STUB/catalog.json" ;;
   "deployment group what-if"*) echo "what-if shown" ;;
 esac
 STUB
 chmod +x "$work/bin/az"
 
-# run CASE BICEP — deploy.sh from a clean checkout holding BICEP as main.bicep, answering
+# The region's catalog: two GA models from different publishers, a preview one, a GA one
+# that only does the Responses API, and a GA one offered only as Standard. Each format appears twice, as the real catalog lists a
+# model once per account kind.
+cat > "$work/catalog.json" <<'JSON'
+[
+ {"kind": "OpenAI", "model": {"format": "OpenAI", "name": "gpt-5.4", "version": "2026-03-05", "lifecycleStatus": "GenerallyAvailable", "capabilities": {"chatCompletion": "true"}, "skus": [{"name": "GlobalStandard"}]}},
+ {"kind": "AIServices", "model": {"format": "OpenAI", "name": "gpt-5.4", "version": "2026-03-05", "lifecycleStatus": "GenerallyAvailable", "capabilities": {"chatCompletion": "true"}, "skus": [{"name": "GlobalStandard"}]}},
+ {"kind": "AIServices", "model": {"format": "DeepSeek", "name": "DeepSeek-V3.2", "version": "1", "lifecycleStatus": "GenerallyAvailable", "capabilities": {"chatCompletion": "true"}, "skus": [{"name": "GlobalStandard"}]}},
+ {"kind": "AIServices", "model": {"format": "xAI", "name": "grok-next", "version": "1", "lifecycleStatus": "Preview", "capabilities": {"chatCompletion": "true"}, "skus": [{"name": "GlobalStandard"}]}},
+ {"kind": "AIServices", "model": {"format": "OpenAI", "name": "gpt-codex", "version": "1", "lifecycleStatus": "GenerallyAvailable", "capabilities": {"responses": "true", "chatCompletion": "false"}, "skus": [{"name": "GlobalStandard"}]}},
+ {"kind": "AIServices", "model": {"format": "Mistral AI", "name": "mistral-x", "version": "1", "lifecycleStatus": "GenerallyAvailable", "capabilities": {"chatCompletion": "true"}, "skus": [{"name": "Standard"}]}}
+]
+JSON
+gpt='{"deployment": "review-b", "format": "OpenAI", "name": "gpt-5.4", "version": "2026-03-05", "sku": "GlobalStandard"}'
+deepseek='{"deployment": "review-c", "format": "DeepSeek", "name": "DeepSeek-V3.2", "version": "1", "sku": "GlobalStandard"}'
+
+# run CASE BICEP — deploy.sh from a clean checkout holding BICEP as main.bicep, with
+# $MODELS (a JSON array, default GPT-5.4 and DeepSeek) as the models parameter, answering
 # no at the first prompt
 run() {
   export STUB="$work/$1"
@@ -43,6 +66,10 @@ run() {
     "a97b65f3-24c7-4388-baec-2e87135dc908 Cognitive Services User" \
     "5e0bd9bd-7b93-4f28-af87-19fc36ad61bd Cognitive Services OpenAI User" > "$STUB/roles"
   : > "$STUB/calls"
+  cp "$work/catalog.json" "$STUB/catalog.json"
+  python3 -c 'import json, sys; print(json.dumps({"parametersJson": json.dumps(
+    {"parameters": {"models": {"value": json.loads(sys.argv[1])}}})}))' \
+    "${MODELS:-[$gpt, $deepseek]}" > "$STUB/params.json"
   cp "$here/../deploy.sh" "$dir/"
   cp "$2" "$dir/main.bicep"
   git -C "$repo" init -q
@@ -100,6 +127,44 @@ awk '!done && /roleDefinitionId: subscriptionResourceId/ {sub(/subscriptionResou
 run other "$work/other.bicep"
 check "an assignment it can't read: refused before any lookup" \
   eval '[ "$code" -ne 0 ] && has "assigns 3 roles, but only" && [ ! -s "$STUB/calls" ]'
+
+# Models: the catalog is the source of truth.
+read_only() { ! grep -qvE "^(role definition list|group (exists|show)|bicep build-params|cognitiveservices model list)" "$STUB/calls"; }
+
+run ga "$bicep"
+check "GA models: each passes, from any publisher, and deploy.sh goes on" \
+  eval 'has "review-b: OpenAI gpt-5.4 2026-03-05: GenerallyAvailable, GlobalStandard" \
+   && has "review-c: DeepSeek DeepSeek-V3.2 1: GenerallyAvailable, GlobalStandard" && has "== 1/3"'
+check "GA models: the catalog read is for the resource group's region" \
+  grep -q "^cognitiveservices model list --location eastus2" "$STUB/calls"
+
+MODELS="[$gpt, {\"deployment\": \"review-x\", \"format\": \"xAI\", \"name\": \"grok-next\", \"version\": \"1\", \"sku\": \"GlobalStandard\"}]" \
+  run preview "$bicep"
+check "preview model: refused before any what-if, with its lifecycle status" \
+  eval '[ "$code" -ne 0 ] && has "review-x: xAI grok-next 1 is Preview in eastus2; only GenerallyAvailable models deploy" \
+   && ! has "== 1/3" && read_only'
+
+MODELS="[{\"deployment\": \"review-z\", \"format\": \"Meta\", \"name\": \"llama-none\", \"version\": \"9\", \"sku\": \"GlobalStandard\"}]" \
+  run missing "$bicep"
+check "model not in the catalog: refused before any what-if" \
+  eval '[ "$code" -ne 0 ] && has "review-z: Meta llama-none 9 isn.t in the Foundry model catalog for eastus2" \
+   && ! has "== 1/3" && read_only'
+
+MODELS="[{\"deployment\": \"review-m\", \"format\": \"Mistral AI\", \"name\": \"mistral-x\", \"version\": \"1\", \"sku\": \"GlobalStandard\"}]" \
+  run sku "$bicep"
+check "sku not offered: refused before any what-if, naming what is" \
+  eval '[ "$code" -ne 0 ] && has "isn.t offered as GlobalStandard in eastus2 (offered: Standard)" \
+   && ! has "== 1/3" && read_only'
+
+MODELS="[{\"deployment\": \"review-r\", \"format\": \"OpenAI\", \"name\": \"gpt-codex\", \"version\": \"1\", \"sku\": \"GlobalStandard\"}]" \
+  run responses "$bicep"
+check "model without chat completions: refused before any what-if, naming what it does" \
+  eval '[ "$code" -ne 0 ] && has "review-r: OpenAI gpt-codex 1 doesn.t do chat completions, so the server can.t call it (it does: responses)" \
+   && ! has "== 1/3" && read_only'
+
+STUB_FAIL="cognitiveservices model list" run nocatalog "$bicep"
+check "catalog unreadable: refused before any what-if" \
+  eval '[ "$code" -ne 0 ] && has "couldn.t read the Foundry model catalog for eastus2" && ! has "== 1/3" && read_only'
 
 [ "$fail" -eq 0 ] && echo "OK  deploy.sh checks passed"
 exit "$fail"

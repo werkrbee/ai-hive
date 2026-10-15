@@ -57,7 +57,7 @@ scope = "api://conformance-api/.default"
 allowed_clients = ["{CLIENT}"]
 
 [model]
-provider = "stub"
+api = "stub"
 name = "stub"
 input_usd_per_mtok = 0.0
 output_usd_per_mtok = 0.0

@@ -18,7 +18,7 @@ One resource group holds the whole deployment, so one budget covers it.
 | Container Apps environment and Log Analytics | Hosting and logs, kept 30 days and capped at 0.1 GB a day. Past the cap, logging stops until the next day. |
 | Azure Files share | `/data`: the task database and the usage ledger, so both survive restarts and scale-to-zero. It is mounted with `nobrl`, which is safe only with one writer. |
 | Microsoft Foundry (AI Services) | The models. Key auth is disabled, so the server reaches them only with its managed identity, and there is no API key to store. |
-| User-assigned managed identity | Pulls the image (AcrPull) and calls Foundry with the narrowest built-in role the model's route allows. For `openai` that's Cognitive Services OpenAI User, which can call the OpenAI v1 endpoint but can't list keys or use Foundry's other services; verified with the managed identity on 2026-10-14. For `anthropic` it's Cognitive Services User, the role Microsoft names for Entra calls to Claude's `/anthropic` endpoint, which isn't under the OpenAI role. A deploy adds roles but doesn't remove them, so after switching from `anthropic` to `openai`, remove the identity's Cognitive Services User assignment by hand. |
+| User-assigned managed identity | Pulls the image (AcrPull) and calls Foundry with the narrowest built-in role the model's API allows. For Chat Completions that's Cognitive Services OpenAI User, which can call the OpenAI v1 endpoint but can't list keys or use Foundry's other services; verified with the managed identity on 2026-10-14. For Messages (Anthropic models) it's Cognitive Services User, the role Microsoft names for Entra calls to Claude's `/anthropic` endpoint, which isn't under the OpenAI role. A deploy adds roles but doesn't remove them, so after switching from an Anthropic model to any other, remove the identity's Cognitive Services User assignment by hand. |
 | Container registry (Basic) | Holds the image, built from a commit by `az acr build`. |
 | Budget | Alerts at 80% and 100% of actual spend, and at 100% of forecast spend. $25 a month by default. |
 
@@ -48,8 +48,8 @@ clients need it to learn how to authenticate.
    product's owner adds a credential to their own app, preferably a certificate or a
    federated credential, and keeps it in that product's secret store.
 2. **Parameters.** Copy `main.example.bicepparam` to `main.bicepparam`, which git
-   ignores, and fill it in: the Entra ids, the two Foundry models, the chosen model's list
-   prices, and the budget contacts. Some providers need facts about who is using their
+   ignores, and fill it in: the Entra ids, the Foundry models to compare (see "Which
+   models" below), the chosen model's list prices, and the budget contacts. Some providers need facts about who is using their
    model, which go in that model's `providerData`; Azure refuses the deployment without
    them. Anthropic, for one, needs your organization's legal name, its two-letter country
    code and its industry (lowercase: technology, finance, healthcare, education, retail,
@@ -59,8 +59,10 @@ clients need it to learn how to authenticate.
 3. **Choose the model.** See below. Until then, `modelDeployment` is either candidate.
 4. **Deploy.** Run `./deploy.sh <resource-group> <location> main.bicepparam` from a clean
    checkout. It first looks up every built-in role id `main.bicep` assigns, and stops
-   before any change if one doesn't exist, because what-if doesn't check them. Then it
-   deploys in three steps, each confirmed after a what-if:
+   before any change if one doesn't exist, because what-if doesn't check them. It also
+   checks every model against the region's Foundry catalog and stops if one isn't there,
+   isn't generally available, doesn't do chat completions or isn't offered with its sku.
+   Then it deploys in three steps, each confirmed after a what-if:
    - the infrastructure, without the app;
    - the image, built into the new registry and tagged with the commit;
    - the app.
@@ -70,6 +72,34 @@ clients need it to learn how to authenticate.
 A product calls the server with a token from the client-credentials flow: `POST` to
 `https://login.microsoftonline.com/<tenant>/oauth2/v2.0/token` with its client id, its
 credential and `scope=api://<apiAppId>/.default`.
+
+## Which models
+
+The Foundry model catalog for the deployment's region is the source of truth: it's what
+the subscription can actually deploy, and it marks each model's lifecycle. List it with
+`az cognitiveservices model list -l <region>`, the same data as the portal's catalog.
+Take each `models` entry's `format`, `name`, `version` and `sku` from it. Only
+`GenerallyAvailable` models are eligible, the same rule as for Azure API versions:
+`deploy.sh` refuses preview, deprecating and retired ones, naming the status. The catalog
+carries no reliable prices, so the prices stay a parameter you check yourself.
+
+The chosen model's format decides the API the server speaks. Anthropic models are
+served through the Messages API at the account's `/anthropic` endpoint; every other
+format, OpenAI's and the other publishers', through Chat Completions at
+`/openai/v1`. The managed identity's role follows the API (see Resources).
+
+The catalog doesn't say how much quota the subscription has. A deployment's `capacity`
+must fit the model's quota in the region, or the what-if fails Azure's preflight with
+`InsufficientQuota`, naming the limit. Quota is counted in the model's own unit: thousands
+of tokens a minute for OpenAI's models, requests a minute for some others (DeepSeek-V3.2
+had 20).
+
+Not supported yet, and refused by `deploy.sh` because the catalog says they don't do
+chat completions:
+- Models served only through OpenAI's Responses API, such as the codex and `-pro`
+  models. The server would need a third API for them; add it when one is a candidate.
+- Models that can't review a proposal: embeddings, rerankers, image, speech and
+  document models.
 
 ## Choosing the model
 
@@ -88,9 +118,10 @@ python ../../deploy/azure/eval/run.py --config model-a.toml --config model-b.tom
 ```
 
 Each config is a copy of `config.example.toml` naming one deployment, with
-`auth = "entra"` and that model's `base_url` and prices. Your account needs Cognitive
+`auth = "entra"`, the `api` its format calls for, and that model's `base_url` and prices.
+Any eligible model can be a candidate. Your account needs Cognitive
 Services User on the Foundry resource. Record the table and the choice in
-`eval/RESULTS.md`, then set `modelDeployment`, `modelProvider` and the prices to match.
+`eval/RESULTS.md`, then set `modelDeployment` and the prices to match.
 
 ## What's verified so far
 
@@ -122,6 +153,12 @@ Services User on the Foundry resource. Record the table and the choice in
   OpenAI User as its only Foundry role: a chat completion from inside the running
   container, on 2026-10-14, returned 200. The role was assigned by hand for that check;
   the template's own assignment replaces it at the next deploy.
+- A model from another publisher, on 2026-10-15: DeepSeek-V3.2 (`review-c`), deployed by
+  `deploy.sh` after its catalog check passed. The managed identity calls it on the same
+  endpoint with the same OpenAI User role (200 from inside the container), and the eval
+  ran it (`eval/RESULTS.md`). On this endpoint DeepSeek reports token usage only in a
+  streamed response's last chunk; unstreamed, `usage` is null. The server's Chat
+  Completions client streams for that reason.
 
 The first deploy found three things, two in this template, both fixed:
 - Azure refuses an Anthropic model deployment without `modelProviderData`, so a

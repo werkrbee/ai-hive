@@ -12,7 +12,7 @@ from pathlib import Path
 # hives/agents-hive/servers/a2a/hive_a2a/config.py -> the repo root
 REPO_ROOT = Path(os.environ.get("HIVE_REPO_ROOT") or Path(__file__).resolve().parents[5])
 
-PROVIDERS = ("stub", "anthropic", "openai")
+APIS = ("stub", "messages", "chat-completions")
 MODEL_AUTH = ("api-key", "entra")
 
 
@@ -35,7 +35,7 @@ class Auth:
 
 @dataclass(frozen=True)
 class Model:
-    provider: str
+    api: str
     name: str
     base_url: str | None
     auth: str
@@ -141,20 +141,20 @@ def load(path):
     )
 
     m = raw.get("model", {})
-    provider = _get(m, "provider", str, "model")
-    if provider not in PROVIDERS:
-        raise ConfigError(f"model.provider must be one of {', '.join(PROVIDERS)}")
+    api = _get(m, "api", str, "model")
+    if api not in APIS:
+        raise ConfigError(f"model.api must be one of {', '.join(APIS)}")
     model_auth = _get(m, "auth", str, "model", "api-key")
     if model_auth not in MODEL_AUTH:
         raise ConfigError(f"model.auth must be one of {', '.join(MODEL_AUTH)}")
     base_url = m.get("base_url")
-    if provider != "stub":
+    if api != "stub":
         if not (isinstance(base_url, str) and base_url.startswith("https://")):
             raise ConfigError("model.base_url must be an https URL")
         if model_auth == "api-key":
             _get(m, "api_key_env", str, "model")
     model = Model(
-        provider=provider,
+        api=api,
         name=_get(m, "name", str, "model"),
         base_url=base_url,
         auth=model_auth,
