@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.6.0](https://github.com/werkrbee/ai-hive/compare/v0.5.0...v0.6.0) (2026-10-15)
+
+
+### Features
+
+* **agents-hive:** let the A2A server call any generally available Foundry model ([#84](https://github.com/werkrbee/ai-hive/issues/84)) ([0e74d0c](https://github.com/werkrbee/ai-hive/commit/0e74d0cc84226367a93424c34c6c268a1810cd4c)), closes [#77](https://github.com/werkrbee/ai-hive/issues/77)
+
+
+### Bug fixes
+
+* **agents-hive:** narrow the Foundry role for hosted Patricia's identity ([#82](https://github.com/werkrbee/ai-hive/issues/82)) ([936ef7e](https://github.com/werkrbee/ai-hive/commit/936ef7e02922423e1feb24dfed33ec0e20893278)), closes [#69](https://github.com/werkrbee/ai-hive/issues/69)
+
 ## [0.5.0](https://github.com/werkrbee/ai-hive/compare/v0.4.0...v0.5.0) (2026-10-14)
 
 
