@@ -1,9 +1,9 @@
 {
   "name": "werkrbee-core",
-  "description": "The core werkrbee pack — Barry (King) and Patricia (Queen), the Queen Bee's Charter, core MCP tools, and the review fleet. All four hives in one install.",
+  "description": "The core werkrbee pack — Barry (King) and Patricia (Queen), outcome discovery, the Queen Bee's Charter, core MCP tools, and the review fleet. All four hives in one install.",
   "version": "1.0.0",
   "harnesses": ["claude-code", "cursor", "github-copilot"],
-  "skills": ["barry", "patricia"],
+  "skills": ["barry", "patricia", "discover-outcomes"],
   "rules": ["queen-charter"],
   "mcp": ["filesystem", "git", "fetch"],
   "agents": ["explore", "code-review", "security-review", "charter-review"]
