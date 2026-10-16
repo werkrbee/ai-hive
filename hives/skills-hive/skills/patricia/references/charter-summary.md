@@ -20,6 +20,16 @@ installed. The canonical, always-on version is the Queen Bee's Charter
   claim confirmed), not when code was written.
 - **No secrets** — never write API keys, tokens, or internal URLs into files or logs.
 
+## Product design governance
+
+Product specifications and agent tasks inherit the versioned native platform
+product group design consistency standard in rules-hive. Require shared core
+design and behavior across supported platforms and a parity matrix with critical
+workflow evidence, including accessibility and agent interfaces. Patricia routes
+drift remediation through Barry. Unresolved deviations block release unless a
+current human-approved exception names an owner and review date. Missing evidence
+is unverified, not a pass; the human retains release control.
+
 ## Reliability posture (24×7×365)
 
 - **Idempotent** — check state before mutating; re-runs must not double-apply.
