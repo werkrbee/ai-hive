@@ -130,9 +130,9 @@ python ../../deploy/azure/eval/run.py --config model-a.toml --config model-b.tom
 ```
 
 Each config is a copy of `config.example.toml` naming one deployment, with
-`auth = "entra"`, the `api` its format calls for, and that model's `base_url` and prices.
-Any eligible model can be a candidate. Your account needs Cognitive
-Services User on the Foundry resource. Record the table and the choice in
+`auth = "entra"`, the `api` its format calls for, its format as `publisher`, and that
+model's `base_url` and prices. Any eligible model can be a candidate. Your account needs
+Cognitive Services User on the Foundry resource. Record the table and the choice in
 `eval/RESULTS.md`, then set `modelDeployment` and the prices to match.
 
 ## What's verified so far

@@ -200,7 +200,7 @@ class Executor(AgentExecutor):
         if usd > r.config.contract.get("budget", {}).get("usd", math.inf):
             log.warning("a call cost $%.4f, over the contract's per-call budget", usd)
         return {
-            "capability": r.config.capability, "provider": r.provider.name, "model": r.provider.model,
+            **self._who(),
             "usd": round(usd, 6), "tokens": tokens,
             "tokenDetail": {"input": completion.input_tokens, "output": completion.output_tokens},
             # usd is computed from configured prices, not billed figures
@@ -210,8 +210,15 @@ class Executor(AgentExecutor):
     def unmetered(self, usd):
         """An entry for a call that may have been billed but reported no usage."""
         r = self.reviewer
-        return {"capability": r.config.capability, "provider": r.provider.name, "model": r.provider.model,
-                "usd": round(usd, 6), "basis": "estimated"}
+        return {**self._who(), "usd": round(usd, 6), "basis": "estimated"}
+
+    def _who(self):
+        """What the ledger says about the call: the capability, the model's publisher (lower
+        case, as the ledger recorded it before the API was its own field), the wire API, and
+        the model."""
+        r = self.reviewer
+        return {"capability": r.config.capability, "provider": r.config.model.publisher.lower(),
+                "api": r.provider.name, "model": r.provider.model}
 
     async def cancel(self, context, event_queue):
         if context.task_id is None or context.context_id is None:

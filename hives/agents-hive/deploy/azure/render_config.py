@@ -11,7 +11,7 @@ import os
 import sys
 
 REQUIRED = ("PUBLIC_URL", "AZURE_TENANT_ID", "API_APP_ID", "ALLOWED_CLIENTS", "MODEL_API",
-            "MODEL_NAME", "MODEL_BASE_URL", "MODEL_INPUT_USD_PER_MTOK", "MODEL_OUTPUT_USD_PER_MTOK")
+            "MODEL_PUBLISHER", "MODEL_NAME", "MODEL_BASE_URL", "MODEL_INPUT_USD_PER_MTOK", "MODEL_OUTPUT_USD_PER_MTOK")
 
 
 def number(name, value):
@@ -60,6 +60,7 @@ required_roles = ["Review.Request"]
 
 [model]
 api = {q(env["MODEL_API"])}
+publisher = {q(env["MODEL_PUBLISHER"])}
 name = {q(env["MODEL_NAME"])}
 base_url = {q(env["MODEL_BASE_URL"])}
 auth = "entra"
