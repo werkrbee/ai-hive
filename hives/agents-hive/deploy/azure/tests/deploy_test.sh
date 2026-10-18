@@ -2,8 +2,8 @@
 # Exercise deploy.sh's checks against a stubbed az. Role ids: the current ids pass and
 # reach the first what-if; a wrong id, or a lookup that fails, stops before any what-if or
 # change. Models: generally available ones pass, from any publisher; one that is preview,
-# missing from the catalog, without chat completions or not offered with its sku stops
-# before the what-if. Each case runs deploy.sh from a throwaway git checkout, since it
+# missing from the catalog, offered only for another account kind, without chat
+# completions or not offered with its sku stops before the what-if. Each case runs deploy.sh from a throwaway git checkout, since it
 # deploys only a clean one. Bash 3.2 safe; run it with /bin/bash on macOS.
 #
 # Usage: tests/deploy_test.sh           (from hives/agents-hive/deploy/azure, or anywhere)
@@ -49,7 +49,10 @@ cat > "$work/catalog.json" <<'JSON'
  {"kind": "AIServices", "model": {"format": "DeepSeek", "name": "DeepSeek-V3.2", "version": "1", "lifecycleStatus": "GenerallyAvailable", "capabilities": {"chatCompletion": "true"}, "skus": [{"name": "GlobalStandard"}]}},
  {"kind": "AIServices", "model": {"format": "xAI", "name": "grok-next", "version": "1", "lifecycleStatus": "Preview", "capabilities": {"chatCompletion": "true"}, "skus": [{"name": "GlobalStandard"}]}},
  {"kind": "AIServices", "model": {"format": "OpenAI", "name": "gpt-codex", "version": "1", "lifecycleStatus": "GenerallyAvailable", "capabilities": {"responses": "true", "chatCompletion": "false"}, "skus": [{"name": "GlobalStandard"}]}},
- {"kind": "AIServices", "model": {"format": "Mistral AI", "name": "mistral-x", "version": "1", "lifecycleStatus": "GenerallyAvailable", "capabilities": {"chatCompletion": "true"}, "skus": [{"name": "Standard"}]}}
+ {"kind": "AIServices", "model": {"format": "Mistral AI", "name": "mistral-x", "version": "1", "lifecycleStatus": "GenerallyAvailable", "capabilities": {"chatCompletion": "true"}, "skus": [{"name": "Standard"}]}},
+ {"kind": "OpenAI", "model": {"format": "OpenAI", "name": "gpt-legacy", "version": "1", "lifecycleStatus": "GenerallyAvailable", "capabilities": {"chatCompletion": "true"}, "skus": [{"name": "GlobalStandard"}]}},
+ {"kind": "OpenAI", "model": {"format": "OpenAI", "name": "gpt-split", "version": "1", "lifecycleStatus": "GenerallyAvailable", "capabilities": {"chatCompletion": "true"}, "skus": [{"name": "GlobalStandard"}]}},
+ {"kind": "AIServices", "model": {"format": "OpenAI", "name": "gpt-split", "version": "1", "lifecycleStatus": "GenerallyAvailable", "capabilities": {"chatCompletion": "true"}, "skus": [{"name": "Standard"}]}}
 ]
 JSON
 gpt='{"deployment": "review-b", "format": "OpenAI", "name": "gpt-5.4", "version": "2026-03-05", "sku": "GlobalStandard"}'
@@ -161,6 +164,23 @@ MODELS="[{\"deployment\": \"review-r\", \"format\": \"OpenAI\", \"name\": \"gpt-
 check "model without chat completions: refused before any what-if, naming what it does" \
   eval '[ "$code" -ne 0 ] && has "review-r: OpenAI gpt-codex 1 doesn.t do chat completions, so the server can.t call it (it does: responses)" \
    && ! has "== 1/3" && read_only'
+
+MODELS="[{\"deployment\": \"review-o\", \"format\": \"OpenAI\", \"name\": \"gpt-legacy\", \"version\": \"1\", \"sku\": \"GlobalStandard\"}]" \
+  run kind "$bicep"
+check "model offered only for another account kind: refused before any what-if, naming it" \
+  eval '[ "$code" -ne 0 ] && has "review-o: OpenAI gpt-legacy 1 is offered in eastus2 only for OpenAI accounts, not AIServices" \
+   && ! has "== 1/3" && read_only'
+
+MODELS="[{\"deployment\": \"review-s\", \"format\": \"OpenAI\", \"name\": \"gpt-split\", \"version\": \"1\", \"sku\": \"GlobalStandard\"}]" \
+  run splitkind "$bicep"
+check "sku offered only under another account kind: refused, naming what AIServices offers" \
+  eval '[ "$code" -ne 0 ] && has "review-s: OpenAI gpt-split 1 isn.t offered as GlobalStandard in eastus2 (offered: Standard)" \
+   && ! has "== 1/3" && read_only'
+
+awk "/^resource ai 'Microsoft.CognitiveServices/{f=1} f && /^}/{f=0} !(f && /^  kind: /)" "$bicep" > "$work/nokind.bicep"
+run nokind "$work/nokind.bicep"
+check "account kind not found in main.bicep: refused before reading the catalog" \
+  eval '[ "$code" -ne 0 ] && has "can.t find the Foundry account.s kind" && ! grep -q "^cognitiveservices" "$STUB/calls"'
 
 STUB_FAIL="cognitiveservices model list" run nocatalog "$bicep"
 check "catalog unreadable: refused before any what-if" \
