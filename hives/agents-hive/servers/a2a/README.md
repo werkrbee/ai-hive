@@ -68,7 +68,7 @@ The ledger's `usd` is computed from the prices in the config, so its `basis` is
 `model.publisher` in lower case (`openai`, `deepseek`); `api` is the wire API the call
 used; `model` is the deployment. Older entries have no `api`, and their `provider` is the
 vendor the server was set up for (`openai` or `anthropic`), which groups with newer ones.
-(Builds between #84 and #85, 2026-10-15 to 2026-10-18, wrote the API into `provider`;
+(Builds between PRs #84 and #90, 2026-10-15 to 2026-10-18, wrote the API into `provider`;
 none was deployed.) The Azure budget alert in #55 is the billed backstop.
 
 **Model.** A model-neutral interface. Config sets `model.api`, the wire API the server

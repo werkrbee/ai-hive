@@ -192,7 +192,7 @@ contract the work ran under. `provider` is who made the model, in lower case (`o
 `model` the model or deployment called. Older entries from the hosted Patricia server
 have no `api`, and their `provider` is the vendor it was set up for, `openai` or
 `anthropic`, which groups with the publisher. (Builds from 2026-10-15 to 2026-10-18,
-between agents-hive #84 and #85, wrote the API into `provider`; none was deployed.)
+between ai-hive PRs #84 and #90, wrote the API into `provider`; none was deployed.)
 
 Totals are sums over the file, so a budget is checked by summing entries in its window.
 That is how the hosted Patricia server's monthly ceiling is meant to be enforced: sum
