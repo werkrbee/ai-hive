@@ -81,6 +81,9 @@ the subscription can actually deploy, and it marks each model's lifecycle. List 
 Take each `models` entry's `format`, `name`, `version` and `sku` from it. Only
 `GenerallyAvailable` models are eligible, the same rule as for Azure API versions:
 `deploy.sh` refuses preview, deprecating and retired ones, naming the status. The catalog
+lists a model once per account kind (`AIServices`, `OpenAI`, `MaaS`, …), and the kinds can
+offer different skus, so `deploy.sh` reads only the rows for the kind `main.bicep`
+deploys, `AIServices`, and says so when a model is offered only for another. The catalog
 carries no reliable prices, so the prices stay a parameter you check yourself.
 `prices.sh` looks them up in Azure's public Retail Prices API, with no sign-in:
 `./prices.sh <region>` lists the region's Foundry products, and

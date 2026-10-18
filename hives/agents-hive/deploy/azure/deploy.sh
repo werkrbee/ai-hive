@@ -90,9 +90,17 @@ check_roles() {
 # in models must be GenerallyAvailable in the region, by format, name and version, do chat
 # completions (the server's two APIs, Messages and Chat Completions, both need it), and be
 # offered there with its sku. Preview and retiring models are refused here, before the
-# what-if, the same rule as for Azure API versions.
+# what-if, the same rule as for Azure API versions. The catalog lists a model once per
+# account kind, and what each kind offers can differ, so only the rows for the kind of
+# account main.bicep deploys count.
 check_models() {
-  local region tmp
+  local region tmp kind
+  kind=$(awk "/^resource ai 'Microsoft.CognitiveServices\/accounts@/{f=1} f && /^}/{exit} f && /^  kind: /{gsub(/[' ]|kind:/, \"\"); print; exit}" \
+    "$here/main.bicep")
+  if [ -z "$kind" ]; then
+    echo "error: can't find the Foundry account's kind in main.bicep" >&2
+    exit 1
+  fi
   region=$location
   if [ "$(az group exists --name "$rg")" = "true" ]; then
     region=$(az group show --name "$rg" --query location -o tsv)
@@ -106,11 +114,11 @@ check_models() {
     echo "error: couldn't read the Foundry model catalog for $region" >&2
     rm -rf "$tmp"; exit 1
   fi
-  if ! python3 - "$tmp/params.json" "$tmp/catalog.json" "$region" <<'PY'
+  if ! python3 - "$tmp/params.json" "$tmp/catalog.json" "$region" "$kind" <<'PY'
 import json, sys
 
 params = json.loads(json.load(open(sys.argv[1]))["parametersJson"])["parameters"]
-catalog, region = json.load(open(sys.argv[2])), sys.argv[3]
+catalog, region, kind = json.load(open(sys.argv[2])), sys.argv[3], sys.argv[4]
 bad = False
 for m in params["models"]["value"]:
     if not all(isinstance(m.get(k), str) for k in ("deployment", "format", "name", "version", "sku")):
@@ -118,8 +126,14 @@ for m in params["models"]["value"]:
         bad = True
         continue
     label = f"{m['deployment']}: {m['format']} {m['name']} {m['version']}"
-    found = [c["model"] for c in catalog
-             if (c["model"]["format"], c["model"]["name"], c["model"]["version"]) == (m["format"], m["name"], m["version"])]
+    rows = [c for c in catalog
+            if (c["model"]["format"], c["model"]["name"], c["model"]["version"]) == (m["format"], m["name"], m["version"])]
+    found = [c["model"] for c in rows if c.get("kind") == kind]
+    if rows and not found:
+        others = ", ".join(sorted({str(c.get("kind")) for c in rows}))
+        print(f"error: {label} is offered in {region} only for {others} accounts, not {kind}, the kind main.bicep deploys", file=sys.stderr)
+        bad = True
+        continue
     statuses = sorted({f["lifecycleStatus"] for f in found})
     skus = sorted({s["name"] for f in found for s in f.get("skus") or []})
     if not found:
