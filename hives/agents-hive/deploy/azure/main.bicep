@@ -52,8 +52,12 @@ var appName = '${prefix}-a2a'
 var aiName = '${prefix}-ai-${suffix}'
 var shareName = 'hive-a2a-data'
 
+// The formats served only through the Messages API. The catalog doesn't say which API a
+// model needs, so this list is the rule; add a publisher here if it needs Messages too.
+// deploy.sh reads this line to show each model's API before the what-if.
+var messagesFormats = ['Anthropic']
 var chosen = filter(models, m => m.deployment == modelDeployment)
-var modelApi = chosen[0].format == 'Anthropic' ? 'messages' : 'chat-completions'
+var modelApi = contains(messagesFormats, chosen[0].format) ? 'messages' : 'chat-completions'
 
 // Built-in role ids.
 var acrPull = '7f951dda-4ed3-4680-a7ca-43fe172d538d'

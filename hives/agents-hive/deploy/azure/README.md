@@ -101,7 +101,12 @@ such as Claude, aren't in that API; their prices are on the offer.
 The chosen model's format decides the API the server speaks. Anthropic models are
 served through the Messages API at the account's `/anthropic` endpoint; every other
 format, OpenAI's and the other publishers', through Chat Completions at
-`/openai/v1`. The managed identity's role follows the API (see Resources).
+`/openai/v1`. The managed identity's role follows the API (see Resources). The catalog
+doesn't say which API a model needs (Claude's entries list `chatCompletion`, like every
+other chat model's), so the rule is `messagesFormats` in `main.bicep`. If a publisher
+whose models need the Messages API joins the catalog, add its format there. `deploy.sh`
+reads that list and shows, for each model, the API the server would use with it and which
+one `modelDeployment` chooses, before the what-if.
 
 The catalog doesn't say how much quota the subscription has. A deployment's `capacity`
 must fit the model's quota in the region, or the what-if fails Azure's preflight with

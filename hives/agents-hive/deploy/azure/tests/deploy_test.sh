@@ -52,7 +52,8 @@ cat > "$work/catalog.json" <<'JSON'
  {"kind": "AIServices", "model": {"format": "Mistral AI", "name": "mistral-x", "version": "1", "lifecycleStatus": "GenerallyAvailable", "capabilities": {"chatCompletion": "true"}, "skus": [{"name": "Standard"}]}},
  {"kind": "OpenAI", "model": {"format": "OpenAI", "name": "gpt-legacy", "version": "1", "lifecycleStatus": "GenerallyAvailable", "capabilities": {"chatCompletion": "true"}, "skus": [{"name": "GlobalStandard"}]}},
  {"kind": "OpenAI", "model": {"format": "OpenAI", "name": "gpt-split", "version": "1", "lifecycleStatus": "GenerallyAvailable", "capabilities": {"chatCompletion": "true"}, "skus": [{"name": "GlobalStandard"}]}},
- {"kind": "AIServices", "model": {"format": "OpenAI", "name": "gpt-split", "version": "1", "lifecycleStatus": "GenerallyAvailable", "capabilities": {"chatCompletion": "true"}, "skus": [{"name": "Standard"}]}}
+ {"kind": "AIServices", "model": {"format": "OpenAI", "name": "gpt-split", "version": "1", "lifecycleStatus": "GenerallyAvailable", "capabilities": {"chatCompletion": "true"}, "skus": [{"name": "Standard"}]}},
+ {"kind": "AIServices", "model": {"format": "Anthropic", "name": "claude-x", "version": "1", "lifecycleStatus": "GenerallyAvailable", "capabilities": {"chatCompletion": "true"}, "skus": [{"name": "GlobalStandard"}]}}
 ]
 JSON
 gpt='{"deployment": "review-b", "format": "OpenAI", "name": "gpt-5.4", "version": "2026-03-05", "sku": "GlobalStandard"}'
@@ -71,8 +72,8 @@ run() {
   : > "$STUB/calls"
   cp "$work/catalog.json" "$STUB/catalog.json"
   python3 -c 'import json, sys; print(json.dumps({"parametersJson": json.dumps(
-    {"parameters": {"models": {"value": json.loads(sys.argv[1])}}})}))' \
-    "${MODELS:-[$gpt, $deepseek]}" > "$STUB/params.json"
+    {"parameters": {"models": {"value": json.loads(sys.argv[1])}, "modelDeployment": {"value": sys.argv[2]}}})}))' \
+    "${MODELS:-[$gpt, $deepseek]}" "${CHOSEN:-review-b}" > "$STUB/params.json"
   cp "$here/../deploy.sh" "$dir/"
   cp "$2" "$dir/main.bicep"
   git -C "$repo" init -q
@@ -138,6 +139,9 @@ run ga "$bicep"
 check "GA models: each passes, from any publisher, and deploy.sh goes on" \
   eval 'has "review-b: OpenAI gpt-5.4 2026-03-05: GenerallyAvailable, GlobalStandard" \
    && has "review-c: DeepSeek DeepSeek-V3.2 1: GenerallyAvailable, GlobalStandard" && has "== 1/3"'
+check "GA models: each names its API, and the chosen one is marked" \
+  eval 'has "review-b: OpenAI gpt-5.4 2026-03-05: GenerallyAvailable, GlobalStandard, via Chat Completions (modelDeployment: the server calls this one)" \
+   && has "review-c: DeepSeek DeepSeek-V3.2 1: GenerallyAvailable, GlobalStandard, via Chat Completions$"'
 check "GA models: the catalog read is for the resource group's region" \
   grep -q "^cognitiveservices model list --location eastus2" "$STUB/calls"
 
@@ -181,6 +185,17 @@ awk "/^resource ai 'Microsoft.CognitiveServices/{f=1} f && /^}/{f=0} !(f && /^  
 run nokind "$work/nokind.bicep"
 check "account kind not found in main.bicep: refused before reading the catalog" \
   eval '[ "$code" -ne 0 ] && has "can.t find the Foundry account.s kind" && ! grep -q "^cognitiveservices" "$STUB/calls"'
+
+MODELS="[$gpt, {\"deployment\": \"review-a\", \"format\": \"Anthropic\", \"name\": \"claude-x\", \"version\": \"1\", \"sku\": \"GlobalStandard\"}]" \
+CHOSEN=review-a run messages "$bicep"
+check "an Anthropic model is shown via Messages, by main.bicep's messagesFormats" \
+  eval 'has "review-a: Anthropic claude-x 1: GenerallyAvailable, GlobalStandard, via Messages (modelDeployment: the server calls this one)" \
+   && has "review-b: OpenAI gpt-5.4 2026-03-05: GenerallyAvailable, GlobalStandard, via Chat Completions$"'
+
+sed '/^var messagesFormats = /d' "$bicep" > "$work/norule.bicep"
+run norule "$work/norule.bicep"
+check "messagesFormats not found in main.bicep: refused before any what-if" \
+  eval '[ "$code" -ne 0 ] && has "can.t find messagesFormats in main.bicep" && ! has "== 1/3"'
 
 STUB_FAIL="cognitiveservices model list" run nocatalog "$bicep"
 check "catalog unreadable: refused before any what-if" \
