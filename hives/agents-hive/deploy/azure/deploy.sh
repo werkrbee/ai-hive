@@ -93,7 +93,8 @@ check_roles() {
 # what-if, the same rule as for Azure API versions. The catalog lists a model once per
 # account kind, and what each kind offers can differ, so only the rows for the kind of
 # account main.bicep deploys count. Each model's line names the API the server would use
-# with it, by main.bicep's messagesFormats, and marks the one modelDeployment chooses.
+# with it, by main.bicep's messagesFormats, and marks the one modelDeployment chooses,
+# which must be one of them.
 check_models() {
   local region tmp kind
   kind=$(awk "/^resource ai 'Microsoft.CognitiveServices\/accounts@/{f=1} f && /^}/{exit} f && /^  kind: /{gsub(/[' ]|kind:/, \"\"); print; exit}" \
@@ -120,12 +121,15 @@ import json, re, sys
 
 params = json.loads(json.load(open(sys.argv[1]))["parametersJson"])["parameters"]
 catalog, region, kind = json.load(open(sys.argv[2])), sys.argv[3], sys.argv[4]
-rule = re.search(r"^var messagesFormats = \[([^\]]*)\]", open(sys.argv[5]).read(), re.M)
+rule = re.search(r"^var\s+messagesFormats\s*=\s*\[([^\]]*)\]", open(sys.argv[5]).read(), re.M)
 if not rule:
     print("error: can't find messagesFormats in main.bicep, the rule for which API a model uses", file=sys.stderr)
     sys.exit(1)
 messages_formats = re.findall(r"'([^']*)'", rule.group(1))
 chosen = (params.get("modelDeployment") or {}).get("value")
+if chosen not in [m.get("deployment") for m in params["models"]["value"]]:
+    print(f"error: modelDeployment {chosen!r} isn't the deployment of any entry in models", file=sys.stderr)
+    sys.exit(1)
 bad = False
 for m in params["models"]["value"]:
     if not all(isinstance(m.get(k), str) for k in ("deployment", "format", "name", "version", "sku")):

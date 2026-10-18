@@ -1,10 +1,12 @@
 #!/usr/bin/env bash
 # Exercise deploy.sh's checks against a stubbed az. Role ids: the current ids pass and
 # reach the first what-if; a wrong id, or a lookup that fails, stops before any what-if or
-# change. Models: generally available ones pass, from any publisher; one that is preview,
-# missing from the catalog, offered only for another account kind, without chat
-# completions or not offered with its sku stops before the what-if. Each case runs deploy.sh from a throwaway git checkout, since it
-# deploys only a clean one. Bash 3.2 safe; run it with /bin/bash on macOS.
+# change. Models: generally available ones pass, from any publisher, each named with the
+# API the server would use and the chosen one marked; one that is preview, missing from
+# the catalog, offered only for another account kind, without chat completions or not
+# offered with its sku stops before the what-if, as does a modelDeployment that names no
+# model. Each case runs deploy.sh from a throwaway git checkout, since it deploys only a
+# clean one. Bash 3.2 safe; run it with /bin/bash on macOS.
 #
 # Usage: tests/deploy_test.sh           (from hives/agents-hive/deploy/azure, or anywhere)
 set -u
@@ -16,8 +18,8 @@ fail=0
 
 # The stub. $STUB/roles holds the subscription's role definitions ("id name"),
 # $STUB/params.json what build-params prints and $STUB/catalog.json the region's model
-# catalog; every call is appended to $STUB/calls. STUB_FAIL, when set, is a pattern; a call whose arguments
-# match it fails.
+# catalog; every call is appended to $STUB/calls. STUB_FAIL, when set, is a pattern; a
+# call whose arguments match it fails.
 mkdir -p "$work/bin"
 cat > "$work/bin/az" <<'STUB'
 #!/usr/bin/env bash
@@ -39,9 +41,11 @@ esac
 STUB
 chmod +x "$work/bin/az"
 
-# The region's catalog: two GA models from different publishers, a preview one, a GA one
-# that only does the Responses API, and a GA one offered only as Standard. Each format appears twice, as the real catalog lists a
-# model once per account kind.
+# The region's catalog: GA models from three publishers (Anthropic's for the Messages
+# API), a preview one, a GA one that only does the Responses API, a GA one offered only as
+# Standard, one offered only for the OpenAI account kind and one whose skus differ by
+# kind. Some appear more than once, as the real catalog lists a model once per account
+# kind.
 cat > "$work/catalog.json" <<'JSON'
 [
  {"kind": "OpenAI", "model": {"format": "OpenAI", "name": "gpt-5.4", "version": "2026-03-05", "lifecycleStatus": "GenerallyAvailable", "capabilities": {"chatCompletion": "true"}, "skus": [{"name": "GlobalStandard"}]}},
@@ -60,8 +64,9 @@ gpt='{"deployment": "review-b", "format": "OpenAI", "name": "gpt-5.4", "version"
 deepseek='{"deployment": "review-c", "format": "DeepSeek", "name": "DeepSeek-V3.2", "version": "1", "sku": "GlobalStandard"}'
 
 # run CASE BICEP — deploy.sh from a clean checkout holding BICEP as main.bicep, with
-# $MODELS (a JSON array, default GPT-5.4 and DeepSeek) as the models parameter, answering
-# no at the first prompt
+# $MODELS (a JSON array, default GPT-5.4 and DeepSeek) as the models parameter and
+# $CHOSEN (default the first model's deployment) as modelDeployment, answering no at the
+# first prompt
 run() {
   export STUB="$work/$1"
   local repo="$STUB/repo" dir="$STUB/repo/hives/agents-hive/deploy/azure"
@@ -71,9 +76,9 @@ run() {
     "5e0bd9bd-7b93-4f28-af87-19fc36ad61bd Cognitive Services OpenAI User" > "$STUB/roles"
   : > "$STUB/calls"
   cp "$work/catalog.json" "$STUB/catalog.json"
-  python3 -c 'import json, sys; print(json.dumps({"parametersJson": json.dumps(
-    {"parameters": {"models": {"value": json.loads(sys.argv[1])}, "modelDeployment": {"value": sys.argv[2]}}})}))' \
-    "${MODELS:-[$gpt, $deepseek]}" "${CHOSEN:-review-b}" > "$STUB/params.json"
+  python3 -c 'import json, sys; models = json.loads(sys.argv[1]); print(json.dumps({"parametersJson": json.dumps(
+    {"parameters": {"models": {"value": models}, "modelDeployment": {"value": sys.argv[2] or models[0]["deployment"]}}})}))' \
+    "${MODELS:-[$gpt, $deepseek]}" "${CHOSEN:-}" > "$STUB/params.json"
   cp "$here/../deploy.sh" "$dir/"
   cp "$2" "$dir/main.bicep"
   git -C "$repo" init -q
@@ -196,6 +201,18 @@ sed '/^var messagesFormats = /d' "$bicep" > "$work/norule.bicep"
 run norule "$work/norule.bicep"
 check "messagesFormats not found in main.bicep: refused before any what-if" \
   eval '[ "$code" -ne 0 ] && has "can.t find messagesFormats in main.bicep" && ! has "== 1/3"'
+
+sed "s/^var messagesFormats = \[/var  messagesFormats=[/" "$bicep" > "$work/spaced.bicep"
+MODELS="[$gpt, {\"deployment\": \"review-a\", \"format\": \"Anthropic\", \"name\": \"claude-x\", \"version\": \"1\", \"sku\": \"GlobalStandard\"}]" \
+  run spaced "$work/spaced.bicep"
+check "messagesFormats spaced differently: still read" \
+  eval 'grep -q "^var  messagesFormats=\[" "$STUB/repo/hives/agents-hive/deploy/azure/main.bicep" \
+   && has "review-a: Anthropic claude-x 1: GenerallyAvailable, GlobalStandard, via Messages$"'
+
+CHOSEN=review-z run nochosen "$bicep"
+check "modelDeployment names no model: refused before any what-if" \
+  eval '[ "$code" -ne 0 ] && has "modelDeployment .review-z. isn.t the deployment of any entry in models" \
+   && ! has "== 1/3" && read_only'
 
 STUB_FAIL="cognitiveservices model list" run nocatalog "$bicep"
 check "catalog unreadable: refused before any what-if" \

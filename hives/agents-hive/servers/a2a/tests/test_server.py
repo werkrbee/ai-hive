@@ -193,6 +193,13 @@ class ServerTest(unittest.TestCase):
         problems = []
         check_knowledge.check_ledger(self.root / "data/ledger.jsonl", problems.append)
         self.assertEqual(problems, [], "the ledger must be in knowledge-hive's format")
+        for api in ("", 7):
+            with self.subTest(api=api):
+                bad = self.root / "bad.jsonl"
+                bad.write_text(json.dumps({**entry, "api": api}) + "\n")
+                problems = []
+                check_knowledge.check_ledger(bad, problems.append)
+                self.assertEqual(problems, ["bad.jsonl:1: api must be a non-empty string"])
 
     def test_text_parts_are_the_proposal(self):
         with self.client(write_config(self.root)) as c:
