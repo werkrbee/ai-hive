@@ -43,7 +43,7 @@ def token(client=CALLER, key=KEY, kid="k1", **claims):
     return jwt.encode(body, key, algorithm="RS256", headers={"kid": kid})
 
 
-def write_config(root, ceiling=25.0, in_price=3.0, out_price=15.0, api="stub"):
+def write_config(root, ceiling=25.0, in_price=3.0, out_price=15.0, api="stub", publisher="Test Labs"):
     jwk = json.loads(jwt.algorithms.RSAAlgorithm.to_jwk(KEY.public_key()))
     (root / "jwks.json").write_text(json.dumps({"keys": [{**jwk, "kid": "k1", "use": "sig", "alg": "RS256"}]}))
     (root / "config.toml").write_text(f"""
@@ -66,6 +66,7 @@ allowed_clients = ["{CALLER}", "{OTHER}"]
 
 [model]
 api = "{api}"
+publisher = "{publisher}"
 name = "test-model"
 base_url = "https://models.example.test"
 api_key_env = "HIVE_TEST_KEY"
@@ -186,6 +187,7 @@ class ServerTest(unittest.TestCase):
         self.assertTrue(verdict["reason"])
         [entry] = self.ledger()
         self.assertEqual(entry["capability"], "governance-review")
+        self.assertEqual((entry["provider"], entry["api"], entry["model"]), ("test labs", "stub", "test-model"))
         self.assertEqual(entry["tokens"], entry["tokenDetail"]["input"] + entry["tokenDetail"]["output"])
         self.assertGreater(entry["usd"], 0)
         problems = []
@@ -354,7 +356,9 @@ class ServerTest(unittest.TestCase):
                          ('public_url = "http://localhost/"', 'public_url = "http://example.org/"'),
                          ('jwks_path = "jwks.json"', 'jwks_url = "http://keys.example.test"'),
                          ("monthly_ceiling_usd = 25.0", "monthly_ceiling_usd = 0"),
-                         ('api = "stub"', 'api = "mystery"')):
+                         ('api = "stub"', 'api = "mystery"'),
+                         ('publisher = "Test Labs"', 'publisher = " "'),
+                         ('api = "stub"\npublisher = "Test Labs"', 'api = "messages"')):
             (self.root / "config.toml").write_text(base.replace(old, new))
             with self.subTest(change=new), self.assertRaises(ConfigError):
                 load(self.root / "config.toml")

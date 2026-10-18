@@ -174,7 +174,7 @@ result's `id` when this one corrects it. A claim in
 One JSON object per line for each piece of metered work, appended when the work ends.
 
 ```json
-{"at": "2026-10-08T14:02:12Z", "runId": "run_01J9Z…", "step": "summarize", "capability": "summarize", "provider": "foundry", "model": "…", "usd": 0.0071, "tokens": 2152, "tokenDetail": {"input": 1840, "output": 312}, "basis": "metered"}
+{"at": "2026-10-08T14:02:12Z", "runId": "run_01J9Z…", "step": "summarize", "capability": "summarize", "provider": "openai", "api": "chat-completions", "model": "…", "usd": 0.0071, "tokens": 2152, "tokenDetail": {"input": 1840, "output": 312}, "basis": "metered"}
 ```
 
 `at` (an ISO 8601 date-time in UTC), `basis`, and at least one of `usd` and `tokens` are
@@ -183,11 +183,16 @@ integer, the same units and types as agents-hive contract budgets. `tokenDetail`
 optionally splits `tokens` into `input` and `output` integers that add up to it. `basis`
 is `metered` when the figures came from the provider and `estimated` when they were
 computed, as the workflows-hive reference engine does today. `runId`, `step`,
-`capability`, `provider` and `model` are optional strings. `runId` and `step` tie an
+`capability`, `provider`, `api` and `model` are optional strings. `runId` and `step` tie an
 entry to a workflows-hive run record, whose per-step `cost` (`usd` and an integer
 `tokens`) carries over to this entry's `usd` and `tokens` unchanged, so the engine will be
 able to append one entry per step as it checkpoints. `capability` is the execution
-contract the work ran under.
+contract the work ran under. `provider` is who made the model, in lower case (`openai`,
+`deepseek`), `api` the wire API the call used (`chat-completions`, `messages`), and
+`model` the model or deployment called. Older entries from the hosted Patricia server
+have no `api`, and their `provider` is the vendor it was set up for, `openai` or
+`anthropic`, which groups with the publisher. (Builds between #84 and #85 wrote the API
+into `provider`; none was deployed.)
 
 Totals are sums over the file, so a budget is checked by summing entries in its window.
 That is how the hosted Patricia server's monthly ceiling is meant to be enforced: sum

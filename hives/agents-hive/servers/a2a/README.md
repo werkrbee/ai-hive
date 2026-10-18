@@ -64,10 +64,15 @@ that runs past its token estimate, which the server logs. The running total is k
 the server process, so one instance must own the ledger: run a single replica.
 
 The ledger's `usd` is computed from the prices in the config, so its `basis` is
-`estimated`. The Azure budget alert in #55 is the billed backstop.
+`estimated`. Each entry names the model three ways: `provider` is its publisher,
+`model.publisher` in lower case (`openai`, `deepseek`); `api` is the wire API the call
+used; `model` is the deployment. Older entries have no `api`, and their `provider` is the
+vendor the server was set up for (`openai` or `anthropic`), which groups with newer ones.
+(Builds between #84 and #85 wrote the API into `provider`; none was deployed.) The Azure budget alert in #55 is the billed backstop.
 
 **Model.** A model-neutral interface. Config sets `model.api`, the wire API the server
-speaks, and the model. The API is named for its protocol, not a vendor, because one API
+speaks, the model, and `model.publisher`, who made it, for the ledger (on Foundry, its
+catalog format; the Azure deploy sets it). A stub needs no publisher. The API is named for its protocol, not a vendor, because one API
 serves models from many publishers:
 - `stub` returns a fixed verdict without a network call. Tests and conformance runs use it.
 - `messages` uses the Messages API, such as Claude on Microsoft Foundry's `/anthropic`

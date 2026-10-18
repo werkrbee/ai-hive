@@ -36,6 +36,7 @@ class Auth:
 @dataclass(frozen=True)
 class Model:
     api: str
+    publisher: str
     name: str
     base_url: str | None
     auth: str
@@ -153,8 +154,13 @@ def load(path):
             raise ConfigError("model.base_url must be an https URL")
         if model_auth == "api-key":
             _get(m, "api_key_env", str, "model")
+    # Who made the model, for the ledger: the catalog's format on Foundry, e.g. "OpenAI".
+    publisher = _get(m, "publisher", str, "model", "stub" if api == "stub" else ...)
+    if not publisher.strip():
+        raise ConfigError("model.publisher must not be empty")
     model = Model(
         api=api,
+        publisher=publisher,
         name=_get(m, "name", str, "model"),
         base_url=base_url,
         auth=model_auth,

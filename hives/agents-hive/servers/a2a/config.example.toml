@@ -29,6 +29,7 @@ allowed_clients = ["<caller-app-id>"]   # one entry per product allowed to call
 [model]
 api = "stub"                         # stub | messages | chat-completions: the wire API, not the vendor
 name = "stub"                        # on Foundry, the deployment name
+# publisher = "OpenAI"               # who made the model, for the ledger: on Foundry, its catalog format
 # base_url = "https://<resource>.services.ai.azure.com/anthropic"   # messages: Claude on Foundry
 # base_url = "https://<resource>.openai.azure.com/openai/v1"         # chat-completions: the other models on Foundry
 # auth = "entra"                     # entra (managed identity) | api-key

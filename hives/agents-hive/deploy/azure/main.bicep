@@ -230,6 +230,7 @@ resource app 'Microsoft.App/containerApps@2024-03-01' = if (!empty(image)) {
           { name: 'API_APP_ID', value: apiAppId }
           { name: 'ALLOWED_CLIENTS', value: join(allowedClients, ',') }
           { name: 'MODEL_API', value: modelApi }
+          { name: 'MODEL_PUBLISHER', value: chosen[0].format } // for the ledger
           { name: 'MODEL_NAME', value: chosen[0].deployment }
           { name: 'MODEL_BASE_URL', value: baseUrl }
           { name: 'MODEL_INPUT_USD_PER_MTOK', value: inputUsdPerMtok }
