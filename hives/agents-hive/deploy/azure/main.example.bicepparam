@@ -16,7 +16,7 @@ param models = [
   { deployment: 'review-b', format: '<format>', name: '<model-b>', version: '<version>', sku: 'GlobalStandard', capacity: 1 }
 ]
 param modelDeployment = 'review-a'   // its format sets the API the server speaks
-param inputUsdPerMtok = '<list price, USD per million input tokens>'
+param inputUsdPerMtok = '<list price, USD per million input tokens>'   // prices.sh looks it up
 param outputUsdPerMtok = '<list price, USD per million output tokens>'
 
 param monthlyCeilingUsd = '25'

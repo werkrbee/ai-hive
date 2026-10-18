@@ -82,6 +82,14 @@ Take each `models` entry's `format`, `name`, `version` and `sku` from it. Only
 `GenerallyAvailable` models are eligible, the same rule as for Azure API versions:
 `deploy.sh` refuses preview, deprecating and retired ones, naming the status. The catalog
 carries no reliable prices, so the prices stay a parameter you check yourself.
+`prices.sh` looks them up in Azure's public Retail Prices API, with no sign-in:
+`./prices.sh <region>` lists the region's Foundry products, and
+`./prices.sh <region> <product> <sku-prefix>` prints that product's meters per million
+tokens. Meter names differ by publisher, so it shows them and you pick the input and
+output meters for your sku: GPT-5.4's are `5.4 inp Gl` and `5.4 opt Gl` under
+`Azure OpenAI GPT5`, DeepSeek-V3.2's `V3.2 Inp glbl` and `V3.2 Outp glbl` under
+`Azure Deepseek Models` (`Gl` and `glbl` are GlobalStandard). Models sold through the
+Azure Marketplace, such as Claude, aren't in that API; their prices are on the offer.
 
 The chosen model's format decides the API the server speaks. Anthropic models are
 served through the Messages API at the account's `/anthropic` endpoint; every other
@@ -186,10 +194,13 @@ deploy/azure/
 ├── main.example.bicepparam    # copy to main.bicepparam and fill in
 ├── entra.sh                   # the API app and one client app per product
 ├── deploy.sh                  # what-if, confirm, deploy, in three steps
+├── prices.sh                  # the models' list prices, from the Retail Prices API
 ├── Dockerfile                 # the server image, built from the repo root
 ├── render_config.py           # the app's environment to the server's config, at start
 ├── tests/
-│   └── entra_test.sh          # entra.sh's plan and refusals, against a stubbed az
+│   ├── entra_test.sh          # entra.sh's plan and refusals, against a stubbed az
+│   ├── deploy_test.sh         # deploy.sh's role id and model checks, against a stubbed az
+│   └── prices_test.sh         # prices.sh's lookup, against a stubbed curl
 └── eval/
     ├── cases.json             # governance-review cases and their acceptable verdicts
     ├── run.py                 # compare models on them

@@ -127,6 +127,10 @@ run "agents-hive entra.sh plan and refusals (stubbed az)" \
 run "agents-hive deploy.sh role id check (stubbed az)" \
   bash hives/agents-hive/deploy/azure/tests/deploy_test.sh
 
+# agents-hive: prices.sh reads the Retail Prices API's pages, against a stubbed curl.
+run "agents-hive prices.sh lookup (stubbed curl)" \
+  bash hives/agents-hive/deploy/azure/tests/prices_test.sh
+
 # workflows-hive: crash after step 1, then resume must skip it and finish step 2.
 runs="$sandbox/runs"
 printf 'one two three\nfour five\n' > "$sandbox/words.txt"
