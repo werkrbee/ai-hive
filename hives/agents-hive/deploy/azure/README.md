@@ -84,12 +84,16 @@ Take each `models` entry's `format`, `name`, `version` and `sku` from it. Only
 carries no reliable prices, so the prices stay a parameter you check yourself.
 `prices.sh` looks them up in Azure's public Retail Prices API, with no sign-in:
 `./prices.sh <region>` lists the region's Foundry products, and
-`./prices.sh <region> <product> <sku-prefix>` prints that product's meters per million
-tokens. Meter names differ by publisher, so it shows them and you pick the input and
-output meters for your sku: GPT-5.4's are `5.4 inp Gl` and `5.4 opt Gl` under
-`Azure OpenAI GPT5`, DeepSeek-V3.2's `V3.2 Inp glbl` and `V3.2 Outp glbl` under
-`Azure Deepseek Models` (`Gl` and `glbl` are GlobalStandard). Models sold through the
-Azure Marketplace, such as Claude, aren't in that API; their prices are on the offer.
+`./prices.sh <region> <product> [<sku-prefix>]` prints that product's meters per million
+tokens, all of them or those whose name starts with the prefix. Meter names differ by
+publisher, so it shows them and you pick the input and output meters for your sku:
+GPT-5.4's are `5.4 inp Gl` and `5.4 opt Gl` under `Azure OpenAI GPT5`, DeepSeek-V3.2's
+`V3.2 Inp glbl` and `V3.2 Outp glbl` under `Azure Deepseek Models` (`Gl` and `glbl` are
+GlobalStandard). Pick the base meters, not the ones marked `longco`, `Batch`, `cd`
+(cached input) or `pro`. `longco` prices prompts over the model's long-context threshold
+higher (GPT-5.4's are $5.00 and $22.50 per million, against $2.50 and $15.00); a review
+sends about 2,500 input tokens, far below it. Models sold through the Azure Marketplace,
+such as Claude, aren't in that API; their prices are on the offer.
 
 The chosen model's format decides the API the server speaks. Anthropic models are
 served through the Messages API at the account's `/anthropic` endpoint; every other
