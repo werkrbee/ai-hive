@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.6.0](https://github.com/werkrbee/ai-hive/compare/v0.5.0...v0.6.0) (2026-10-18)
+
+
+### Features
+
+* **agents-hive:** let the A2A server call any generally available Foundry model ([#84](https://github.com/werkrbee/ai-hive/issues/84)) ([0e74d0c](https://github.com/werkrbee/ai-hive/commit/0e74d0cc84226367a93424c34c6c268a1810cd4c)), closes [#77](https://github.com/werkrbee/ai-hive/issues/77)
+* **agents-hive:** look up Foundry models' list prices with prices.sh ([#89](https://github.com/werkrbee/ai-hive/issues/89)) ([11c05b7](https://github.com/werkrbee/ai-hive/commit/11c05b7165555766974642819e5f14eff88490d4)), closes [#88](https://github.com/werkrbee/ai-hive/issues/88)
+* **agents-hive:** record the model's publisher in the usage ledger alongside its API ([#90](https://github.com/werkrbee/ai-hive/issues/90)) ([6c511f2](https://github.com/werkrbee/ai-hive/commit/6c511f20946b093d842afdab4fe27a6d22df01a2)), closes [#85](https://github.com/werkrbee/ai-hive/issues/85)
+* **agents-hive:** show each model's API at deploy.sh's gate ([#92](https://github.com/werkrbee/ai-hive/issues/92)) ([722f157](https://github.com/werkrbee/ai-hive/commit/722f15749a2288c042dee2feb586c2d8b25489c4)), closes [#87](https://github.com/werkrbee/ai-hive/issues/87)
+
+
+### Bug fixes
+
+* **agents-hive:** match deploy.sh's catalog check to the account kind main.bicep deploys ([#91](https://github.com/werkrbee/ai-hive/issues/91)) ([2fdac90](https://github.com/werkrbee/ai-hive/commit/2fdac9033887be5ebbb87c45bdf237d62d73557f)), closes [#86](https://github.com/werkrbee/ai-hive/issues/86)
+* **agents-hive:** narrow the Foundry role for hosted Patricia's identity ([#82](https://github.com/werkrbee/ai-hive/issues/82)) ([936ef7e](https://github.com/werkrbee/ai-hive/commit/936ef7e02922423e1feb24dfed33ec0e20893278)), closes [#69](https://github.com/werkrbee/ai-hive/issues/69)
+* **agents-hive:** refuse a modelDeployment that names no model, and apply review notes ([#94](https://github.com/werkrbee/ai-hive/issues/94)) ([a4e316c](https://github.com/werkrbee/ai-hive/commit/a4e316ce243542617dc8a566ed44fdbf50019daf))
+
 ## [0.5.0](https://github.com/werkrbee/ai-hive/compare/v0.4.0...v0.5.0) (2026-10-14)
 
 
