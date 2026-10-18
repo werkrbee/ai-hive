@@ -92,7 +92,8 @@ check_roles() {
 # offered there with its sku. Preview and retiring models are refused here, before the
 # what-if, the same rule as for Azure API versions. The catalog lists a model once per
 # account kind, and what each kind offers can differ, so only the rows for the kind of
-# account main.bicep deploys count.
+# account main.bicep deploys count. Each model's line names the API the server would use
+# with it, by main.bicep's messagesFormats, and marks the one modelDeployment chooses.
 check_models() {
   local region tmp kind
   kind=$(awk "/^resource ai 'Microsoft.CognitiveServices\/accounts@/{f=1} f && /^}/{exit} f && /^  kind: /{gsub(/[' ]|kind:/, \"\"); print; exit}" \
@@ -114,11 +115,17 @@ check_models() {
     echo "error: couldn't read the Foundry model catalog for $region" >&2
     rm -rf "$tmp"; exit 1
   fi
-  if ! python3 - "$tmp/params.json" "$tmp/catalog.json" "$region" "$kind" <<'PY'
-import json, sys
+  if ! python3 - "$tmp/params.json" "$tmp/catalog.json" "$region" "$kind" "$here/main.bicep" <<'PY'
+import json, re, sys
 
 params = json.loads(json.load(open(sys.argv[1]))["parametersJson"])["parameters"]
 catalog, region, kind = json.load(open(sys.argv[2])), sys.argv[3], sys.argv[4]
+rule = re.search(r"^var messagesFormats = \[([^\]]*)\]", open(sys.argv[5]).read(), re.M)
+if not rule:
+    print("error: can't find messagesFormats in main.bicep, the rule for which API a model uses", file=sys.stderr)
+    sys.exit(1)
+messages_formats = re.findall(r"'([^']*)'", rule.group(1))
+chosen = (params.get("modelDeployment") or {}).get("value")
 bad = False
 for m in params["models"]["value"]:
     if not all(isinstance(m.get(k), str) for k in ("deployment", "format", "name", "version", "sku")):
@@ -147,7 +154,9 @@ for m in params["models"]["value"]:
     elif m["sku"] not in skus:
         print(f"error: {label} isn't offered as {m['sku']} in {region} (offered: {', '.join(skus)})", file=sys.stderr)
     else:
-        print(f"{label}: GenerallyAvailable, {m['sku']}")
+        api = "Messages" if m["format"] in messages_formats else "Chat Completions"
+        mark = " (modelDeployment: the server calls this one)" if m["deployment"] == chosen else ""
+        print(f"{label}: GenerallyAvailable, {m['sku']}, via {api}{mark}")
         continue
     bad = True
 sys.exit(1 if bad else 0)
