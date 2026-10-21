@@ -11,9 +11,9 @@ Which one, which model and where it is served are configuration. With model.auth
 "entra" the provider authenticates with a Microsoft Entra token from the environment's
 managed identity; otherwise with an API key read from the named environment variable.
 
-Both are tested against a mock of their API's request and response shapes. Live, on
-Foundry with the managed identity, chat-completions is verified (deploy/azure/README.md);
-messages waits for Claude to be deployable there (#55).
+Both are tested against a mock of their API's request and response shapes. Live on
+Foundry, chat-completions is verified with the managed identity, and messages with a
+user's Entra token against Claude Sonnet 5.5 (deploy/azure/README.md).
 """
 import json
 import os

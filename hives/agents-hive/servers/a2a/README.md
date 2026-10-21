@@ -85,10 +85,11 @@ for its protocol, not a vendor, because one API serves models from many publishe
 Which models can be deployed is decided by the Foundry model catalog, not by this
 server: the Azure deploy refuses any that isn't generally available in its region
 (`deploy/azure/README.md`). Both APIs are tested against a mock of their request and
-response shapes. Live on Foundry, with the managed identity, `chat-completions` is
-verified; `messages` waits until Claude can be deployed (#55). Every call must report its
-token usage, or the server treats it as failed, so the ledger and ceiling hold for any
-model. `chat-completions` streams each response and asks for usage in its last chunk
+response shapes. Live on Foundry, `chat-completions` is verified with the managed
+identity. `messages` is verified with a user's Entra token against Claude Sonnet 5.5;
+with the managed identity, it waits until the server is deployed on Claude
+(`deploy/azure/README.md`). Every call must report its token usage, or the server treats
+it as failed, so the ledger and ceiling hold for any model. `chat-completions` streams each response and asks for usage in its last chunk
 (`stream_options.include_usage`), because some publishers' models on Foundry, DeepSeek
 among them, report usage only that way.
 
