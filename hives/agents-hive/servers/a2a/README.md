@@ -89,9 +89,10 @@ response shapes. Live on Foundry, `chat-completions` is verified with the manage
 identity. `messages` is verified with a user's Entra token against Claude Sonnet 5.5;
 with the managed identity, it waits until the server is deployed on Claude
 (`deploy/azure/README.md`). Every call must report its token usage, or the server treats
-it as failed, so the ledger and ceiling hold for any model. `chat-completions` streams each response and asks for usage in its last chunk
-(`stream_options.include_usage`), because some publishers' models on Foundry, DeepSeek
-among them, report usage only that way.
+it as failed, so the ledger and ceiling hold for any model. `chat-completions` streams
+each response and asks for usage in its last chunk (`stream_options.include_usage`),
+because some publishers' models on Foundry, DeepSeek among them, report usage only that
+way.
 
 With `model.auth = "entra"`, the server authenticates to the model with the managed
 identity it runs as. With `"api-key"`, it reads the key from the environment variable
