@@ -186,15 +186,25 @@ The first deploy found three things, two in this template, both fixed:
 - The AcrPull role id was wrong. What-if doesn't check role ids, so this failed only
   during the apply; #79 adds a check before the what-if.
 - Foundry wouldn't deploy Claude Sonnet 5.5 on werkrbee's subscription
-  (`MarketplaceSubscriptionCannotBeCompleted`): Microsoft has to allowlist the
-  subscription for the Anthropic Marketplace offer. Until it does, the deployment has
-  GPT-5.4 only.
+  (`MarketplaceSubscriptionCannotBeCompleted`). Azure support found that a purchase
+  block on the account caused it and lifted the block; on 2026-10-20 `deploy.sh`
+  deployed Claude Sonnet 5.5 version 2 as `review-a`, with the server still calling
+  GPT-5.4.
+
+Verified since:
+- Foundry's Anthropic endpoint (`/anthropic`), on 2026-10-20: one review through the
+  server's Messages client and its own prompt and reply check, against `review-a`, with
+  the maintainer's Entra token. It returned 200, reported its token usage, and its
+  verdict met the contract.
+- A whole authenticated review, on 2026-10-20: a token from an allowed client's
+  client-credentials flow, one `SendMessage` to the public endpoint, a completed task
+  with a verdict, and its ledger entry on the share (`provider`, `api` and `model` as
+  expected, priced at the configured rates). The client's secret was made for the check
+  and deleted after it.
 
 Not yet verified:
-- Foundry's Anthropic endpoint (`/anthropic`), until Claude can be deployed.
-- A whole authenticated review, with its task and ledger on the share. It needs a
-  product to call with a token, which needs that product's owner to add a credential to
-  its client app.
+- The managed identity calling Claude on `/anthropic` with Cognitive Services User. It
+  is checked when the server is first deployed on an Anthropic model.
 
 Record anything that differs in this README.
 
