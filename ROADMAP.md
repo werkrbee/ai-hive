@@ -29,9 +29,9 @@ Tracked as issues #7–#12, worked in the order set in `docs/sprints/p0.md`. All
 
 Tracked on the `P1 — interop, governance, state` milestone. Everything is done and
 released. Most of it shipped in 0.4.0, including hosted Patricia's server and deploy
-definition. The fixes from deploying it, including the two follow-ups (a narrower Foundry
-role for its identity, #69, and a check of built-in role ids before `deploy.sh`'s
-what-if, #79), and the move to Claude came in 0.5.0 to 0.6.1.
+definition. The fixes from deploying it and the move to Claude came in 0.5.0 to 0.6.1.
+They include the deploy work's two follow-ups: a narrower Foundry role for its identity
+(#69) and a check of built-in role ids before `deploy.sh`'s what-if (#79).
 
 - **A2A Agent Cards (agents-hive) (done).** Give Barry & Patricia Agent2Agent cards so
   other agents can discover and call them (Linux Foundation A2A v1.x).
