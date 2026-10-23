@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.6.1](https://github.com/werkrbee/ai-hive/compare/v0.6.0...v0.6.1) (2026-10-23)
+
+
+### Bug fixes
+
+* **agents-hive:** stop deploy.sh when a what-if fails, and record Patricia's move to Claude ([#98](https://github.com/werkrbee/ai-hive/issues/98)) ([fe04f3c](https://github.com/werkrbee/ai-hive/commit/fe04f3cd061ccf520737a3689ccb640aabf8e8f0))
+
+
+### Documentation
+
+* **agents-hive:** record Claude on Foundry's Messages API as verified live ([#95](https://github.com/werkrbee/ai-hive/issues/95)) ([4ffb36a](https://github.com/werkrbee/ai-hive/commit/4ffb36ace70f29ded970c5b83ef685a528ea4ce1))
+* **agents-hive:** record the Claude comparison and choose Claude Sonnet 5.5 for Patricia ([#97](https://github.com/werkrbee/ai-hive/issues/97)) ([cb4feae](https://github.com/werkrbee/ai-hive/commit/cb4feae1ddd63ff6653bff6300746fe2493c11b9))
+
 ## [0.6.0](https://github.com/werkrbee/ai-hive/compare/v0.5.0...v0.6.0) (2026-10-18)
 
 
