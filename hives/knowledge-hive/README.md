@@ -97,9 +97,9 @@ harness's own memory, the same taxonomy every other hive uses.
 - **workflows-hive** writes a run record per run. Its per-step cost is designed to become
   ledger entries, and a finished run can be recorded as a result; the engine doesn't
   write either yet.
-- **agents-hive** execution contracts set per-call budgets. The ledger is designed to be
-  where spending against them is summed, such as the hosted Patricia server's monthly
-  ceiling.
+- **agents-hive** execution contracts set per-call budgets. The ledger is where spending
+  against them is summed; the hosted Patricia server checks its monthly ceiling against
+  its own ledger.
 - **rules-hive** keeps the Charter. Its rules to checkpoint long work and to verify before
   calling something done need somewhere to write things down, and this hive is that place.
 
