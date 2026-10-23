@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.6.2](https://github.com/werkrbee/ai-hive/compare/v0.6.1...v0.6.2) (2026-10-23)
+
+
+### Documentation
+
+* bring the roadmap and docs up to date with 0.6.1, and mark hosted Patricia done ([#99](https://github.com/werkrbee/ai-hive/issues/99)) ([f540868](https://github.com/werkrbee/ai-hive/commit/f540868dc58fa6ed3e9e2a3295fa4fbb6cb766be))
+
 ## [0.6.1](https://github.com/werkrbee/ai-hive/compare/v0.6.0...v0.6.1) (2026-10-23)
 
 
