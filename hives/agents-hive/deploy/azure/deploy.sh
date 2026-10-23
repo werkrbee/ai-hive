@@ -40,7 +40,13 @@ output() {  # $1 = deployment outputs JSON, $2 = output name
 deploy() {  # $1 = image ('' for infrastructure only)
   local args=(--resource-group "$rg" --template-file "$here/main.bicep" --parameters "$params"
               --parameters image="$1")
-  az deployment group what-if "${args[@]}" >&2  # shown, not captured
+  # deploy runs inside $(...), where bash doesn't apply set -e (and 3.2 has no
+  # inherit_errexit), so a failed what-if is checked here; otherwise it would still ask
+  # to apply a plan that was never shown.
+  if ! az deployment group what-if "${args[@]}" >&2; then  # shown, not captured
+    echo "error: the what-if failed, so there's no plan to approve; nothing more was changed" >&2
+    exit 1
+  fi
   confirm "Apply the changes above to $rg?"
   az deployment group create "${args[@]}" --query properties.outputs -o json
 }

@@ -5,7 +5,7 @@
 # API the server would use and the chosen one marked; one that is preview, missing from
 # the catalog, offered only for another account kind, without chat completions or not
 # offered with its sku stops before the what-if, as does a modelDeployment that names no
-# model. Each case runs deploy.sh from a throwaway git checkout, since it deploys only a
+# model. A what-if that fails stops without asking to apply anything. Each case runs deploy.sh from a throwaway git checkout, since it deploys only a
 # clean one. Bash 3.2 safe; run it with /bin/bash on macOS.
 #
 # Usage: tests/deploy_test.sh           (from hives/agents-hive/deploy/azure, or anywhere)
@@ -65,8 +65,8 @@ deepseek='{"deployment": "review-c", "format": "DeepSeek", "name": "DeepSeek-V3.
 
 # run CASE BICEP — deploy.sh from a clean checkout holding BICEP as main.bicep, with
 # $MODELS (a JSON array, default GPT-5.4 and DeepSeek) as the models parameter and
-# $CHOSEN (default the first model's deployment) as modelDeployment, answering no at the
-# first prompt
+# $CHOSEN (default the first model's deployment) as modelDeployment, answering $ANSWER
+# (default no) at the first prompt
 run() {
   export STUB="$work/$1"
   local repo="$STUB/repo" dir="$STUB/repo/hives/agents-hive/deploy/azure"
@@ -84,7 +84,7 @@ run() {
   git -C "$repo" init -q
   git -C "$repo" add -A
   git -C "$repo" -c user.name=test -c user.email=test@example.com commit -q -m test
-  out=$(printf 'no\n' | PATH="$work/bin:$PATH" /bin/bash "$dir/deploy.sh" rg-test eastus2 p.bicepparam 2>&1)
+  out=$(printf '%s\n' "${ANSWER:-no}" | PATH="$work/bin:$PATH" /bin/bash "$dir/deploy.sh" rg-test eastus2 p.bicepparam 2>&1)
   code=$?
 }
 check() {  # LABEL CONDITION...
@@ -217,6 +217,12 @@ check "modelDeployment names no model: refused before any what-if" \
 STUB_FAIL="cognitiveservices model list" run nocatalog "$bicep"
 check "catalog unreadable: refused before any what-if" \
   eval '[ "$code" -ne 0 ] && has "couldn.t read the Foundry model catalog for eastus2" && ! has "== 1/3" && read_only'
+
+# A what-if that fails shows no plan, so nothing is applied even when the answer is yes.
+STUB_FAIL="deployment group what-if" ANSWER=yes run whatiffails "$bicep"
+check "what-if fails: stops without asking, and nothing is applied" \
+  eval '[ "$code" -ne 0 ] && has "the what-if failed, so there.s no plan to approve" \
+   && ! grep -q "^deployment group create" "$STUB/calls"'
 
 [ "$fail" -eq 0 ] && echo "OK  deploy.sh checks passed"
 exit "$fail"
