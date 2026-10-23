@@ -5,8 +5,9 @@
 # API the server would use and the chosen one marked; one that is preview, missing from
 # the catalog, offered only for another account kind, without chat completions or not
 # offered with its sku stops before the what-if, as does a modelDeployment that names no
-# model. A what-if that fails stops without asking to apply anything. Each case runs deploy.sh from a throwaway git checkout, since it deploys only a
-# clean one. Bash 3.2 safe; run it with /bin/bash on macOS.
+# model. A what-if that fails stops without asking to apply anything. Each case runs
+# deploy.sh from a throwaway git checkout, since it deploys only a clean one. Bash 3.2
+# safe; run it with /bin/bash on macOS.
 #
 # Usage: tests/deploy_test.sh           (from hives/agents-hive/deploy/azure, or anywhere)
 set -u
