@@ -134,7 +134,9 @@ harness's MCP config from one source of truth.
 
 Subagent and persona definitions — Barry's fleet (explore, code-review,
 security-review) and Patricia's `charter-review`, as durable artifacts. Agent
-formats vary by harness, so each persona is rendered per harness.
+formats vary by harness, so each persona is rendered per harness. It also holds the
+execution contracts, Barry's and Patricia's A2A Agent Cards, and the reference A2A server
+that werkrbee runs on Azure as hosted Patricia, for werkrbee products only.
 → [`hives/agents-hive`](hives/agents-hive)
 
 ### workflows-hive — *orchestration* ✅

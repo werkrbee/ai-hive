@@ -136,8 +136,8 @@ than the file in this repo.
 
 werkrbee runs Patricia's `governance-review` as an A2A agent on Azure, for werkrbee
 products only. [`hives/agents-hive/deploy/azure/`](../hives/agents-hive/deploy/azure)
-describes the deployment. The first deploy hasn't been run yet, so the endpoint and API
-app id come from the maintainer once it has.
+describes the deployment. It is live on Claude Sonnet 5.5, the model its eval chose. The
+maintainer gives a new caller the endpoint and the API app id.
 
 To get access, the maintainer adds the product as a caller. They run `entra.sh` with every
 calling product's name, the new one and the existing ones, since the `allowedClients` it

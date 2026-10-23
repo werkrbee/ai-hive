@@ -186,7 +186,7 @@ The first deploy found three things, two in this template, both fixed:
 - Azure refuses an Anthropic model deployment without `modelProviderData`, so a
   `models` entry can carry `providerData` (step 2).
 - The AcrPull role id was wrong. What-if doesn't check role ids, so this failed only
-  during the apply; #79 adds a check before the what-if.
+  during the apply; `deploy.sh` now checks role ids before the what-if (#79, step 4).
 - Foundry wouldn't deploy Claude Sonnet 5.5 on werkrbee's subscription
   (`MarketplaceSubscriptionCannotBeCompleted`). Azure support found that a purchase
   block on the account caused it and lifted the block; on 2026-10-20 `deploy.sh`

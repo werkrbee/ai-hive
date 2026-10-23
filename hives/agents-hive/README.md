@@ -104,7 +104,8 @@ of the A2A TCK is in [`servers/a2a/conformance/`](servers/a2a/conformance/RESULT
 [`deploy/azure/`](deploy/azure) is werkrbee's deployment of it: Azure Container Apps,
 Microsoft Foundry through a managed identity, one Entra app registration per calling
 product, a $25 budget alert, and an eval for choosing Patricia's model. The maintainer
-runs the deploy.
+runs the deploy. It is live on Claude Sonnet 5.5, which the eval chose
+([`deploy/azure/eval/RESULTS.md`](deploy/azure/eval/RESULTS.md)).
 
 ## Repository layout
 

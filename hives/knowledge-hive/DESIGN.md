@@ -53,10 +53,10 @@ The product's `AGENTS.md` (or whatever instruction file its harnesses read) tell
 to read `knowledge/STATE.md` at the start of a session, update it before ending one, and
 append to the results and the ledger as they work. Files in the repo are the reference
 backend, because they need nothing installed and every harness can read them. A service
-can keep results and the ledger in a database instead, with the same record shape; the
-hosted Patricia server is the first expected case. A product with frequent metered work
-can also keep the ledger outside the repo, and the `ledger` field in `STATE.md` says
-where (below).
+can keep results and the ledger in a database instead, with the same record shape. The
+hosted Patricia server keeps its ledger in this format on its own file share, outside any
+repo. A product with frequent metered work can also keep the ledger outside the repo,
+and the `ledger` field in `STATE.md` says where (below).
 
 ## Persistent state: `STATE.md`
 
@@ -195,10 +195,10 @@ have no `api`, and their `provider` is the vendor it was set up for, `openai` or
 between ai-hive PRs #84 and #90, wrote the API into `provider`; none was deployed.)
 
 Totals are sums over the file, so a budget is checked by summing entries in its window.
-That is how the hosted Patricia server's monthly ceiling is meant to be enforced: sum
-the month's entries before accepting a review, and refuse new reviews once the total has
-reached the ceiling. Whether to also refuse a review that could cross it, using the
-contract's per-call budget, is a choice for that server (#54).
+That is how the hosted Patricia server enforces its monthly ceiling: it sums the month's
+entries, reserves each review's worst-case cost before the review runs, and refuses new
+reviews once spending and reservations reach the ceiling
+([`servers/a2a/README.md`](../agents-hive/servers/a2a/README.md)).
 
 ## What the checker holds you to
 
