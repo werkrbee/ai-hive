@@ -43,10 +43,9 @@ in 0.4.0. Everything is done except hosted Patricia: comparing Claude in its mod
   (builds on the Agent Cards item). The model is configuration, not code. werkrbee
   deploys an instance on Azure behind OAuth2 client credentials, for werkrbee products
   only; products built on the House (lineup, singularity) call it for governance checks.
-  The server (#54) and the Azure deploy definition shipped. It is deployed and configured
-  for GPT-5.4, which passed 11 of the eval's 12 cases. Claude Sonnet 5.5 is deployed
-  beside it since Azure lifted a purchase block on werkrbee's subscription (#55), so the
-  comparison that picks Patricia's model can now run.
+  The server (#54) and the Azure deploy definition shipped (#55). It is deployed on
+  Claude Sonnet 5.5, which the eval chose over GPT-5.4 and DeepSeek-V3.2 on 2026-10-21,
+  meeting all 12 cases.
 - **Product adoption guide (docs) (done).** How a product adopts ai-hive as its agent
   development framework: pin the monorepo, Barry executes, Patricia governs.
 - **Reconcile the repo with `workflows-hive` and `knowledge-hive` (docs) (done).** Once

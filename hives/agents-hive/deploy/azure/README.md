@@ -67,6 +67,8 @@ clients need it to learn how to authenticate.
    - the image, built into the new registry and tagged with the commit;
    - the app.
 
+   If a what-if fails, it stops there without asking, since there is no plan to approve.
+
    It prints the Agent Card URL at the end.
 
 A product calls the server with a token from the client-credentials flow: `POST` to
@@ -201,10 +203,23 @@ Verified since:
   with a verdict, and its ledger entry on the share (`provider`, `api` and `model` as
   expected, priced at the configured rates). The client's secret was made for the check
   and deleted after it.
+- The server on Claude, on 2026-10-22 and 2026-10-23, after the eval chose Claude Sonnet
+  5.5 (`eval/RESULTS.md`). With `modelDeployment = 'review-a'` at $2.00 and $10.00 per
+  million input and output tokens, `deploy.sh` gave the managed identity Cognitive
+  Services User, and the new revision runs with `MODEL_API=messages`. An authenticated review
+  through the public endpoint completed with a verdict: the managed identity got a token
+  and Claude's `/anthropic` endpoint returned 200, and the ledger entry reads
+  `anthropic`, `messages` and `review-a`, priced at those rates. The identity keeps
+  Cognitive Services OpenAI User, since a deploy adds roles but doesn't remove them, so
+  the previous revision, on GPT-5.4, still works as a rollback.
+- Claude's prices. Claude isn't in the Retail Prices API; Azure bills it through its
+  Marketplace plan in Claude consumption units at $0.01 each. The 2026-10-20 charge for
+  3,811 input and 310 output tokens was 1.0722 units, $0.010722, exactly $2.00 and $10.00
+  per million.
 
-Not yet verified:
-- The managed identity calling Claude on `/anthropic` with Cognitive Services User. It
-  is checked when the server is first deployed on an Anthropic model.
+That deploy found a fault in `deploy.sh`: the app step's what-if failed (the Bicep CLI
+crashed while compiling), and the script still asked to apply. It now stops when a
+what-if fails (`tests/deploy_test.sh`). The re-run's what-ifs matched the approved plan.
 
 Record anything that differs in this README.
 

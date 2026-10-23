@@ -154,5 +154,12 @@ Sonnet, $3.00 and $15.00 per million input and output tokens; check it on the Ma
 offer before setting it in `main.bicepparam`. The other two models' prices are the ones
 confirmed on 2026-10-17.
 
+Corrected on 2026-10-23 from the bill: Azure charges Claude Sonnet 5.5 $2.00 and $10.00
+per million, in Claude consumption units at $0.01 each. This run's twelve calls were
+billed 12.5288 units, $0.1253, exactly those prices on its token counts, and the
+2026-10-20 smoke test fits them the same way. At the billed price Claude cost $0.1253
+for the run, about $0.010 a review, about 1.4 times GPT-5.4's estimate; the cases and
+the choice are unchanged.
+
 Run with `auth = "entra"` as the maintainer, from commit `4ffb36a`, with the server's
 pinned requirements on Python 3.13.
