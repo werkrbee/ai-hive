@@ -95,7 +95,7 @@ def check_budget(step, contracts_dir):
         kind = BUDGET_KEYS.get(key)
         if kind is None:
             sys.exit(f"step '{sid}': unknown budget '{key}' (use usd, tokens or seconds)")
-        if isinstance(value, bool) or not isinstance(value, kind) or value <= 0:
+        if isinstance(value, bool) or not isinstance(value, kind) or not math.isfinite(value) or value <= 0:
             sys.exit(f"step '{sid}': budget {key} must be a positive "
                      f"{'number' if key == 'usd' else 'whole number'}")
     path = contracts_dir / step["worker"] / "contract.json"
@@ -185,7 +185,7 @@ class OverBudget(Exception):
 
 def call_worker(name, inp, key, cap):
     """Run a worker with its cap. With a seconds cap it runs in a child process, which is
-    stopped if it runs past the cap."""
+    stopped if it runs past the cap; the cap includes the child's start-up time."""
     if "seconds" not in cap:
         return WORKERS[name](inp, key, cap)
     with multiprocessing.get_context("spawn").Pool(1) as pool:  # leaving the block stops it

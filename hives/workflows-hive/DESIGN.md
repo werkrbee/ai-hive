@@ -168,7 +168,9 @@ The engine keeps these rules:
 The reference engine (`scripts/run.py`) implements rules 1 to 5 and approvals, with the
 two-step `word-count`, `approved-word-count` and `budgeted-word-count` workflows. Its
 `approve` and `deny` commands stand in for `tasks/update`. It stops a step past its
-`seconds` while it runs, but checks `usd` and `tokens` against what the step reports when
-it finishes, so a worker that calls a model must keep itself within its cap. The MCP
-Tasks server comes later. Worker execution contracts live in agents-hive. The Temporal engine is built when a
-product calls for it, against this same contract.
+`seconds` while it runs, in a child process whose start-up counts toward the cap, and
+stops only that process, not any it started. It checks `usd` and `tokens` against what
+the step reports when it finishes, so a worker that calls a model must keep itself
+within its cap. The MCP Tasks server comes later. Worker execution contracts live in
+agents-hive. The Temporal engine is built when a product calls for it, against this
+same contract.
