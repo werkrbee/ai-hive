@@ -90,6 +90,14 @@ not just assembled from it. Both items have an open pull request.
 
 - **Hosted Barry over A2A.** Builds on the approval policy (done in P1): actions the
   Charter gates pause the task for a human (A2A `input-required`) instead of running.
+  Tracked on the `P2 — hosted Barry` milestone (epic #106). Barry's runtime comes first,
+  because the workflows-hive engine refuses plans with approvals or budgets, and hosting
+  him rests on both. In order: pause a run for approval before a step, answered with
+  approve or deny (#102); stop a step that would exceed its budget (#103); decide a
+  step's approval from the approval policy, so the Charter's gated actions pause a run on
+  their own (#104); then a design note for hosted Barry, covering what he runs, where his
+  shell and file access are sandboxed, how a paused run maps to A2A, auth, spend and the
+  model, from which the implementation issues come (#105).
 - **Public A2A access.** An option to open the hosted agents beyond werkrbee products.
 - **skills-hive marketplace metadata + evals.** Align to the governed SKILL.md standard
   (agentskills.io); ship evals beside each skill; add discovery/publish metadata.
