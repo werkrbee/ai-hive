@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.6.3](https://github.com/werkrbee/ai-hive/compare/v0.6.2...v0.6.3) (2026-10-24)
+
+
+### Documentation
+
+* plan Barry's runtime and hosted Barry in ROADMAP.md ([#107](https://github.com/werkrbee/ai-hive/issues/107)) ([9d720c3](https://github.com/werkrbee/ai-hive/commit/9d720c3ce87253e0343a1c9cbad5cd7171d000e7))
+
 ## [0.6.2](https://github.com/werkrbee/ai-hive/compare/v0.6.1...v0.6.2) (2026-10-23)
 
 
