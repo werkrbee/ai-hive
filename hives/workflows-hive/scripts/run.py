@@ -5,7 +5,9 @@ Implements the contract in DESIGN.md: a run record is written before the run is
 acknowledged and atomically after every step, so a run that dies part way resumes
 from its next step instead of starting over. Each step gets a stable idempotency key,
 and the run reports its result and its total cost. A step marked "approval": true
-pauses the run in input_required until a human approves or denies it.
+pauses the run in input_required until a human approves or denies it. A step's
+"budget" caps what it may spend: the engine stops a step that runs past its seconds and
+fails the run when a step reports more usd or tokens than its cap.
 
 Usage:
   python3 scripts/run.py start word-count --input path=README.md
@@ -17,21 +19,27 @@ Usage:
 
 Exit status: 0 when the run completed, 2 when it is waiting for approval, 1 otherwise.
 
-Run records live in --state-dir (default: ~/.local/state/workflows-hive/runs).
+Run records live in --state-dir (default: ~/.local/state/workflows-hive/runs). Plans are
+read from --workflows-dir (default: workflows/), and a worker's execution contract, if it
+has one, from --contracts-dir (default: agents-hive's contracts/).
 """
 import argparse
 import getpass
 import json
 import math
+import multiprocessing
 import os
 import re
 import sys
+import time
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 WORKFLOWS_DIR = REPO_ROOT / "workflows"
+CONTRACTS_DIR = REPO_ROOT.parent / "agents-hive" / "contracts"
+BUDGET_KEYS = {"usd": (int, float), "tokens": int, "seconds": int}
 DEFAULT_STATE_DIR = Path("~/.local/state/workflows-hive/runs")
 TERMINAL = ("completed", "failed", "cancelled")
 REF = re.compile(r"\$\{([^}]+)\}")
@@ -48,38 +56,69 @@ def metered(text):
     return {"usd": round(tokens * SIMULATED_USD_PER_1K_TOKENS / 1000, 6), "tokens": tokens}
 
 
-# Workers for the demo workflow. They are local functions from (input, idempotency key)
-# to (output, cost), with no execution contract in agents-hive yet. Neither has an
-# external effect, so neither needs the key.
-def read_text(inp, _key):
+# Workers for the demo workflows. They are local functions from (input, idempotency key,
+# cap) to (output, cost), with no execution contract in agents-hive yet. The cap is the
+# step's budget; a worker that calls a model would stop itself within it. None has an
+# external effect, so none needs the key.
+def read_text(inp, _key, _cap):
     text = Path(inp["path"]).expanduser().read_text()
     return text, metered(text)
 
 
-def count_words(inp, _key):
+def count_words(inp, _key, _cap):
     text = inp["text"]
     return {"words": len(text.split()), "lines": len(text.splitlines())}, metered(text)
 
 
-WORKERS = {"read-text": read_text, "count-words": count_words}
+def wait(inp, _key, _cap):
+    """Sleep for inp["seconds"], free of cost: stands in for a slow step."""
+    time.sleep(float(inp["seconds"]))
+    return {"waited": inp["seconds"]}, {"usd": 0.0, "tokens": 0}
+
+
+WORKERS = {"read-text": read_text, "count-words": count_words, "wait": wait}
 
 
 def now():
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
-def load_plan(name):
-    path = WORKFLOWS_DIR / name / "workflow.json"
+def check_budget(step, contracts_dir):
+    """Refuse a malformed budget, or one above the per-call budget in the worker's contract."""
+    budget = step.get("budget")
+    if budget is None:
+        return
+    sid = step["id"]
+    if not isinstance(budget, dict) or not budget:
+        sys.exit(f"step '{sid}': budget must be an object with usd, tokens or seconds")
+    for key, value in budget.items():
+        kind = BUDGET_KEYS.get(key)
+        if kind is None:
+            sys.exit(f"step '{sid}': unknown budget '{key}' (use usd, tokens or seconds)")
+        if isinstance(value, bool) or not isinstance(value, kind) or not math.isfinite(value) or value <= 0:
+            sys.exit(f"step '{sid}': budget {key} must be a positive "
+                     f"{'number' if key == 'usd' else 'whole number'}")
+    path = contracts_dir / step["worker"] / "contract.json"
+    if not path.is_file():
+        return
+    ceiling = json.loads(path.read_text()).get("budget", {})
+    over = [f"{k} {v} > {ceiling[k]}" for k, v in budget.items() if k in ceiling and v > ceiling[k]]
+    if over:
+        sys.exit(f"step '{sid}': budget is above the '{step['worker']}' contract's per-call "
+                 f"budget ({', '.join(over)})")
+
+
+def load_plan(name, workflows_dir, contracts_dir):
+    path = workflows_dir / name / "workflow.json"
     if not path.is_file():
         sys.exit(f"workflow not found: {path}")
     plan = json.loads(path.read_text())
     for step in plan["steps"]:
-        if step.get("budget"):
-            sys.exit(f"step '{step['id']}': budget isn't supported by this engine yet")
         if not isinstance(step.get("approval", False), bool):
             sys.exit(f"step '{step['id']}': approval must be true or false")
         if step["worker"] not in WORKERS:
             sys.exit(f"step '{step['id']}': unknown worker '{step['worker']}'")
+        check_budget(step, contracts_dir)
     return plan
 
 
@@ -140,6 +179,31 @@ def add_cost(total, cost):
     total["tokens"] += cost.get("tokens", 0)
 
 
+class OverBudget(Exception):
+    pass
+
+
+def call_worker(name, inp, key, cap):
+    """Run a worker with its cap. With a seconds cap it runs in a child process, which is
+    stopped if it runs past the cap; the cap includes the child's start-up time."""
+    if "seconds" not in cap:
+        return WORKERS[name](inp, key, cap)
+    with multiprocessing.get_context("spawn").Pool(1) as pool:  # leaving the block stops it
+        job = pool.apply_async(WORKERS[name], (inp, key, cap))
+        try:
+            return job.get(timeout=cap["seconds"])
+        except multiprocessing.TimeoutError:
+            unit = "second" if cap["seconds"] == 1 else "seconds"
+            raise OverBudget(f"ran past its budget of {cap['seconds']} {unit}") from None
+
+
+def over_cost(cost, cap):
+    for key in ("usd", "tokens"):
+        if key in cap and cost.get(key, 0) > cap[key]:
+            return f"spent {cost[key]} {key}, over its budget of {cap[key]}"
+    return None
+
+
 def execute(state_dir, plan, run, crash_after=None):
     """Run every step that isn't completed, checkpointing after each one."""
     if run["workflowVersion"] != plan["version"]:
@@ -162,12 +226,24 @@ def execute(state_dir, plan, run, crash_after=None):
         state.update(status="working", startedAt=now())
         save(state_dir, run)
         print(f"run   {sid}")
+        cap = step.get("budget", {})
         try:
-            output, cost = WORKERS[step["worker"]](resolve(step["input"], run), state["idempotencyKey"])
+            output, cost = call_worker(step["worker"], resolve(step["input"], run),
+                                       state["idempotencyKey"], cap)
         except Exception as e:  # a failed step fails the run, with the reason recorded
+            message = str(e) if isinstance(e, OverBudget) else f"{type(e).__name__}: {e}"
             state.update(status="failed", endedAt=now())
-            run.update(status="failed", error={"step": sid, "message": f"{type(e).__name__}: {e}"})
+            run.update(status="failed", error={"step": sid, "message": message})
             save(state_dir, run)
+            print(f"fail  {sid} ({message})")
+            return run
+        over = over_cost(cost, cap)
+        if over:  # the cost was spent, so it is recorded and counted, but the run stops
+            state.update(status="failed", cost=cost, endedAt=now())
+            add_cost(run["cost"], cost)
+            run.update(status="failed", error={"step": sid, "message": over})
+            save(state_dir, run)
+            print(f"fail  {sid} ({over})")
             return run
         state.update(status="completed", output=output, cost=cost, endedAt=now())
         add_cost(run["cost"], cost)
@@ -195,8 +271,12 @@ def report(run):
     return WAITING_EXIT if run["status"] == "input_required" else 1
 
 
+def plan_for(args, name):
+    return load_plan(name, Path(args.workflows_dir).expanduser(), Path(args.contracts_dir).expanduser())
+
+
 def cmd_start(args, state_dir):
-    plan = load_plan(args.workflow)
+    plan = plan_for(args, args.workflow)
     bad = [kv for kv in args.input if "=" not in kv]
     if bad:
         sys.exit(f"--input must be KEY=VALUE: {', '.join(bad)}")
@@ -239,7 +319,7 @@ def cmd_resume(args, state_dir):
         print(f"run {run['runId']} is waiting for approval of {run['pending']['step']}")
         return report(run)
     print(f"resume {run['runId']} at {run['next']}")
-    return report(execute(state_dir, load_plan(run["workflow"]), run))
+    return report(execute(state_dir, plan_for(args, run["workflow"]), run))
 
 
 def answer(args, state_dir, decision):
@@ -265,7 +345,7 @@ def answer(args, state_dir, decision):
     run["status"] = "working"
     save(state_dir, run)  # the approval is durable before the step runs
     print(f"approve {sid}")
-    return report(execute(state_dir, load_plan(run["workflow"]), run))
+    return report(execute(state_dir, plan_for(args, run["workflow"]), run))
 
 
 def current_user():
@@ -292,6 +372,9 @@ def cmd_status(args, state_dir):
 def main():
     ap = argparse.ArgumentParser(description="Run a workflows-hive workflow with durable checkpoints.")
     ap.add_argument("--state-dir", default=str(DEFAULT_STATE_DIR), help="Where run records live")
+    ap.add_argument("--workflows-dir", default=str(WORKFLOWS_DIR), help="Where plans live")
+    ap.add_argument("--contracts-dir", default=str(CONTRACTS_DIR),
+                    help="Where execution contracts live, to check step budgets against")
     sub = ap.add_subparsers(dest="command", required=True)
     start = sub.add_parser("start", help="Start a new run")
     start.add_argument("workflow", help="Workflow name under workflows/")

@@ -176,6 +176,40 @@ check_wf "workflows-hive run.py fails the run on deny, without running the step"
   '[ "$code" -eq 1 ] && printf "%s\n" "$out" | grep -q "approval denied by ci: not now" \
    && ! printf "%s\n" "$out" | grep -q "^run   count"')"
 
+# workflows-hive: a step within its budget finishes; one past its seconds is stopped, one
+# over its tokens fails the run with its cost still counted, and a budget above the
+# worker's contract is refused before the run starts.
+plans="$sandbox/plans"
+mkdir -p "$plans/slow" "$plans/costly" "$plans/big" "$sandbox/contracts/count-words"
+printf '%s\n' '{"name": "slow", "version": 1, "inputs": {"type": "object"}, "output": null,
+  "steps": [{"id": "nap", "worker": "wait", "input": {"seconds": 10}, "budget": {"seconds": 1}}]}' \
+  > "$plans/slow/workflow.json"
+printf '%s\n' '{"name": "costly", "version": 1, "inputs": {"type": "object"}, "output": null,
+  "steps": [{"id": "read", "worker": "read-text", "input": {"path": "${inputs.path}"},
+    "budget": {"tokens": 2}}]}' > "$plans/costly/workflow.json"
+printf '%s\n' '{"name": "big", "version": 1, "inputs": {"type": "object"}, "output": null,
+  "steps": [{"id": "count", "worker": "count-words", "input": {"text": "a b"},
+    "budget": {"tokens": 5000}}]}' > "$plans/big/workflow.json"
+printf '%s\n' '{"budget": {"tokens": 1000}}' > "$sandbox/contracts/count-words/contract.json"
+wfp() { wf --workflows-dir "$plans" --contracts-dir "$sandbox/contracts" "$@"; }
+out=$(wf start budgeted-word-count --input path="$sandbox/words.txt"); code=$?
+check_wf "workflows-hive run.py finishes steps within their budgets" "$(holds eval \
+  '[ "$code" -eq 0 ] && printf "%s\n" "$out" | grep -q "\"words\": 5"')"
+began=$SECONDS
+out=$(wfp start slow); code=$?
+check_wf "workflows-hive run.py stops a step past its seconds" "$(holds eval \
+  '[ "$code" -eq 1 ] && [ $((SECONDS - began)) -lt 8 ] \
+   && printf "%s\n" "$out" | grep -q "ran past its budget of 1 second\""')"
+out=$(wfp start costly --input path="$sandbox/words.txt"); code=$?
+check_wf "workflows-hive run.py fails a step over its tokens, still counting its cost" "$(holds eval \
+  '[ "$code" -eq 1 ] && printf "%s\n" "$out" | grep -q "spent 6 tokens, over its budget of 2" \
+   && printf "%s\n" "$out" | grep -q "\"tokens\": 6"')"
+n=$(find "$runs" -name 'run_*.json' | wc -l)
+out=$(wfp start big); code=$?
+check_wf "workflows-hive run.py refuses a budget above its worker's contract" "$(holds eval \
+  '[ "$code" -eq 1 ] && printf "%s\n" "$out" | grep -q "above the .count-words. contract" \
+   && [ "$(find "$runs" -name "run_*.json" | wc -l)" -eq "$n" ]')"
+
 if [ "$(repo_status)" != "$before" ]; then
   flunk "installers left changes in the repo"; repo_status | sed 's/^/      /'
 fi
