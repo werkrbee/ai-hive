@@ -151,6 +151,31 @@ else
   printf '%s\n' "$out" | sed 's/^/      /'
 fi
 
+# workflows-hive: a step marked approval pauses the run, a restart keeps it paused, and
+# only approve runs the step; deny fails the run without running it.
+check_wf() {  # $1 = label, $2 = 1 if it holds; prints $out on failure
+  if [ "$2" -eq 1 ]; then pass "$1"; else flunk "$1"; printf '%s\n' "$out" | sed 's/^/      /'; fi
+}
+holds() { if "$@" >/dev/null 2>&1; then echo 1; else echo 0; fi; }
+out=$(wf start approved-word-count --input path="$sandbox/words.txt"); code=$?
+run_id=$(printf '%s\n' "$out" | sed -n 's/^start \(run_[0-9a-f]*\).*/\1/p')
+check_wf "workflows-hive run.py pauses before an approval step" "$(holds eval \
+  '[ "$code" -eq 2 ] && printf "%s\n" "$out" | grep -q "\"status\": \"input_required\"" \
+   && ! printf "%s\n" "$out" | grep -q "^run   count"')"
+out=$(wf resume "$run_id"); code=$?
+check_wf "workflows-hive run.py stays paused after a restart" "$(holds eval \
+  '[ "$code" -eq 2 ] && ! printf "%s\n" "$out" | grep -q "^run   count"')"
+out=$(wf approve "$run_id" --by ci); code=$?
+check_wf "workflows-hive run.py runs the step once approved" "$(holds eval \
+  '[ "$code" -eq 0 ] && printf "%s\n" "$out" | grep -q "^run   count" \
+   && printf "%s\n" "$out" | grep -q "\"words\": 5" && grep -q "\"by\": \"ci\"" "$runs/$run_id.json"')"
+out=$(wf start approved-word-count --input path="$sandbox/words.txt")
+run_id=$(printf '%s\n' "$out" | sed -n 's/^start \(run_[0-9a-f]*\).*/\1/p')
+out=$(wf deny "$run_id" --reason "not now" --by ci); code=$?
+check_wf "workflows-hive run.py fails the run on deny, without running the step" "$(holds eval \
+  '[ "$code" -eq 1 ] && printf "%s\n" "$out" | grep -q "approval denied by ci: not now" \
+   && ! printf "%s\n" "$out" | grep -q "^run   count"')"
+
 if [ "$(repo_status)" != "$before" ]; then
   flunk "installers left changes in the repo"; repo_status | sed 's/^/      /'
 fi
