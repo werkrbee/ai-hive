@@ -92,9 +92,9 @@ not just assembled from it. Both items have an open pull request.
   Charter gates pause the task for a human (A2A `input-required`) instead of running.
   Tracked on the `P2 — hosted Barry` milestone (epic #106). Barry's runtime comes first,
   because hosting him rests on the workflows-hive engine pausing a run for approval and
-  holding each step to its budget. Its first two steps are done: a run pauses for
-  approval before a step, answered with approve or deny (#102), and a step that would
-  exceed its budget is stopped (#103). Still to come, in order: decide a step's approval
+  holding each step to its budget. The runtime's first two steps are done: a run pauses
+  for approval before a step, answered with approve or deny (#102), and a step that runs
+  past its budget is stopped (#103). Still to come, in order: decide a step's approval
   from the approval policy, so the Charter's gated actions pause a run on their own
   (#104); then a design note for hosted Barry, covering what he runs, where his shell and
   file access are sandboxed, how a paused run maps to A2A, auth, spend and the model,
