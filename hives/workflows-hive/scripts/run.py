@@ -4,17 +4,23 @@
 Implements the contract in DESIGN.md: a run record is written before the run is
 acknowledged and atomically after every step, so a run that dies part way resumes
 from its next step instead of starting over. Each step gets a stable idempotency key,
-and the run reports its result and its total cost.
+and the run reports its result and its total cost. A step marked "approval": true
+pauses the run in input_required until a human approves or denies it.
 
 Usage:
   python3 scripts/run.py start word-count --input path=README.md
   python3 scripts/run.py start word-count --input path=README.md --crash-after read
   python3 scripts/run.py resume <run-id>
   python3 scripts/run.py status <run-id>
+  python3 scripts/run.py approve <run-id> [--by NAME]
+  python3 scripts/run.py deny <run-id> --reason TEXT [--by NAME]
+
+Exit status: 0 when the run completed, 2 when it is waiting for approval, 1 otherwise.
 
 Run records live in --state-dir (default: ~/.local/state/workflows-hive/runs).
 """
 import argparse
+import getpass
 import json
 import math
 import os
@@ -30,6 +36,7 @@ DEFAULT_STATE_DIR = Path("~/.local/state/workflows-hive/runs")
 TERMINAL = ("completed", "failed", "cancelled")
 REF = re.compile(r"\$\{([^}]+)\}")
 CRASH_EXIT = 75
+WAITING_EXIT = 2
 
 # The demo workers don't call a model, so they meter an estimated token count
 # (about four characters per token) at a simulated price, to exercise cost reporting.
@@ -67,8 +74,10 @@ def load_plan(name):
         sys.exit(f"workflow not found: {path}")
     plan = json.loads(path.read_text())
     for step in plan["steps"]:
-        if step.get("approval") or step.get("budget"):
-            sys.exit(f"step '{step['id']}': approval and budget aren't supported by this engine yet")
+        if step.get("budget"):
+            sys.exit(f"step '{step['id']}': budget isn't supported by this engine yet")
+        if not isinstance(step.get("approval", False), bool):
+            sys.exit(f"step '{step['id']}': approval must be true or false")
         if step["worker"] not in WORKERS:
             sys.exit(f"step '{step['id']}': unknown worker '{step['worker']}'")
     return plan
@@ -144,6 +153,12 @@ def execute(state_dir, plan, run, crash_after=None):
             print(f"skip  {sid} (completed)")
             continue
         run["next"] = sid
+        if step.get("approval") and (state.get("approval") or {}).get("decision") != "approved":
+            # Pause before the step: nothing runs until a human approves it (run.py approve).
+            run.update(status="input_required", pending={"step": sid, "kind": "approval"})
+            save(state_dir, run)
+            print(f"wait  {sid} (needs approval: run.py approve {run['runId']}, or deny)")
+            return run
         state.update(status="working", startedAt=now())
         save(state_dir, run)
         print(f"run   {sid}")
@@ -174,8 +189,10 @@ def execute(state_dir, plan, run, crash_after=None):
 
 
 def report(run):
-    print(json.dumps({k: run[k] for k in ("runId", "status", "result", "error", "cost")}, indent=2))
-    return 0 if run["status"] == "completed" else 1
+    print(json.dumps({k: run[k] for k in ("runId", "status", "pending", "result", "error", "cost")}, indent=2))
+    if run["status"] == "completed":
+        return 0
+    return WAITING_EXIT if run["status"] == "input_required" else 1
 
 
 def cmd_start(args, state_dir):
@@ -218,8 +235,52 @@ def cmd_resume(args, state_dir):
     if run["status"] in TERMINAL:
         print(f"run {run['runId']} is already {run['status']}")
         return report(run)
+    if run["status"] == "input_required":  # resuming never answers an approval
+        print(f"run {run['runId']} is waiting for approval of {run['pending']['step']}")
+        return report(run)
     print(f"resume {run['runId']} at {run['next']}")
     return report(execute(state_dir, load_plan(run["workflow"]), run))
+
+
+def answer(args, state_dir, decision):
+    """Record a human's answer to a pending approval: approve runs the step, deny fails the run."""
+    run = load(state_dir, args.run_id)
+    pending = run.get("pending")
+    if run["status"] != "input_required" or not pending or pending.get("kind") != "approval":
+        sys.exit(f"run {run['runId']} isn't waiting for an approval (it is {run['status']})")
+    if decision == "denied" and not args.reason.strip():
+        sys.exit("deny needs a reason")
+    sid = pending["step"]
+    by = args.by or current_user()
+    record = {"decision": decision, "by": by, "at": now()}
+    if decision == "denied":
+        record["reason"] = args.reason
+    run["steps"][sid]["approval"] = record
+    run["pending"] = None
+    if decision == "denied":
+        run.update(status="failed", error={"step": sid, "message": f"approval denied by {by}: {args.reason}"})
+        save(state_dir, run)
+        print(f"deny  {sid}")
+        return report(run)
+    run["status"] = "working"
+    save(state_dir, run)  # the approval is durable before the step runs
+    print(f"approve {sid}")
+    return report(execute(state_dir, load_plan(run["workflow"]), run))
+
+
+def current_user():
+    try:
+        return getpass.getuser()
+    except Exception:  # no USER/LOGNAME and no passwd entry, as in some containers
+        return "unknown"
+
+
+def cmd_approve(args, state_dir):
+    return answer(args, state_dir, "approved")
+
+
+def cmd_deny(args, state_dir):
+    return answer(args, state_dir, "denied")
 
 
 def cmd_status(args, state_dir):
@@ -239,11 +300,19 @@ def main():
     for name, help_text in (("resume", "Resume a run from its next step"), ("status", "Show a run")):
         p = sub.add_parser(name, help=help_text)
         p.add_argument("run_id")
+    for name, help_text in (("approve", "Approve the step a run is waiting on, and continue"),
+                            ("deny", "Deny the step a run is waiting on, which fails the run")):
+        p = sub.add_parser(name, help=help_text)
+        p.add_argument("run_id")
+        p.add_argument("--by", help="Who answered (default: your user name)")
+        if name == "deny":
+            p.add_argument("--reason", required=True, help="Why, recorded as the run's error")
     args = ap.parse_args()
 
     state_dir = Path(args.state_dir).expanduser()
     state_dir.mkdir(parents=True, exist_ok=True)
-    handler = {"start": cmd_start, "resume": cmd_resume, "status": cmd_status}[args.command]
+    handler = {"start": cmd_start, "resume": cmd_resume, "status": cmd_status,
+               "approve": cmd_approve, "deny": cmd_deny}[args.command]
     sys.exit(handler(args, state_dir))
 
 

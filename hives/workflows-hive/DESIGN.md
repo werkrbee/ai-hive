@@ -141,8 +141,11 @@ Each run persists one record, keyed by its run ID:
 changes; `attempt` counts deliberate retries after a recorded failure, and resuming after
 a crash doesn't increase it. `pending` is set only while the run waits on input, and it
 becomes one entry in `inputRequests` on `tasks/get`, keyed by the step ID: an
-elicitation asking whether to run the step. A denied approval fails the run, with the
-denial as its error, and the step never runs. `cost` is the sum of the step
+elicitation asking whether to run the step. The answer is kept on the step as
+`approval`: `decision` (`approved` or `denied`), `by`, `at`, and for a denial its
+`reason`. A step that needs approval runs only once its `approval.decision` is
+`approved`, so resuming a paused run never runs it. A denied approval fails the run,
+with the denial as its error, and the step never runs. `cost` is the sum of the step
 costs and is reported with the result. `result` or `error` is filled when the run
 reaches a terminal status.
 
@@ -159,7 +162,8 @@ The engine keeps these rules:
 
 ## Out of scope here
 
-The reference engine (`scripts/run.py`) implements rules 1 to 4 with the two-step
-`word-count` workflow; approvals, budgets and the MCP Tasks server come later. Worker execution
-contracts live in agents-hive. The Temporal engine is built when a product
-calls for it, against this same contract.
+The reference engine (`scripts/run.py`) implements rules 1 to 4 and approvals, with the
+two-step `word-count` and `approved-word-count` workflows. Its `approve` and `deny`
+commands stand in for `tasks/update`. Budgets and the MCP Tasks server come later.
+Worker execution contracts live in agents-hive. The Temporal engine is built when a
+product calls for it, against this same contract.
