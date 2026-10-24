@@ -25,6 +25,7 @@ later.
 |----------|--------------|
 | [**word-count**](workflows/word-count/workflow.json) | Read a text file, then count its words and lines (the resumable spike) |
 | [**approved-word-count**](workflows/approved-word-count/workflow.json) | The same, with the count waiting for a human's approval |
+| [**budgeted-word-count**](workflows/budgeted-word-count/workflow.json) | The same, with each step held to a budget |
 
 ## Repository layout
 
@@ -32,14 +33,15 @@ later.
 workflows-hive/
 ├── workflows/                    # WHAT workflows exist — portable plans
 │   ├── word-count/workflow.json
-│   └── approved-word-count/workflow.json
+│   ├── approved-word-count/workflow.json
+│   └── budgeted-word-count/workflow.json
 ├── adapters/                     # WHERE they run — harness taxonomy & overrides
 │   ├── claude-code/  cursor/  codex/  gemini-cli/  goose/  opencode/
 │   ├── kiro/  databricks-genie-code/  snowflake-cortex-code/
 │   └── github-copilot/
 │       └── scout/                # sub-harness (child of GitHub Copilot)
 ├── scripts/
-│   └── run.py                    # reference engine: run, checkpoint, resume, approve
+│   └── run.py                    # reference engine: run, checkpoint, resume, approve, budget
 ├── DESIGN.md                     # the workflow contract and engine decision
 ├── LICENSE
 └── README.md
@@ -87,8 +89,19 @@ python3 scripts/run.py deny <run-id> --reason "not this file"             # or f
 ```
 
 The commands exit 0 when the run completed, 2 when it's waiting for approval, and 1
-otherwise. Budgets are part of the contract but not yet supported by the engine, so it
-rejects plans that use them.
+otherwise.
+
+A step's `budget` caps what it may spend, in `usd`, `tokens` and `seconds`, each
+optional, and the engine passes it to the worker as its cap. A step that runs past its
+`seconds` is stopped. A step that reports more `usd` or `tokens` than its cap fails the
+run with the reason, and what it spent is still recorded and counted in the run's cost.
+When the worker's capability has an execution contract in agents-hive, a step budget
+above the contract's per-call budget is refused before the run starts. `--workflows-dir`
+and `--contracts-dir` point the engine at other plans and contracts.
+
+```bash
+python3 scripts/run.py start budgeted-word-count --input path=README.md
+```
 
 ## License
 

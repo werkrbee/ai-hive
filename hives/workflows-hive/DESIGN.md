@@ -145,8 +145,10 @@ elicitation asking whether to run the step. The answer is kept on the step as
 `approval`: `decision` (`approved` or `denied`), `by`, `at`, and for a denial its
 `reason`. A step that needs approval runs only once its `approval.decision` is
 `approved`, so resuming a paused run never runs it. A denied approval fails the run,
-with the denial as its error, and the step never runs. `cost` is the sum of the step
-costs and is reported with the result. `result` or `error` is filled when the run
+with the denial as its error, and the step never runs. A step stopped by its budget
+fails the run, with the reason as its error; a step over its cost cap keeps the cost it
+reported. `cost` is the sum of the step costs, including those, and is reported with the
+result. `result` or `error` is filled when the run
 reaches a terminal status.
 
 The engine keeps these rules:
@@ -158,12 +160,15 @@ The engine keeps these rules:
 3. On resume, load the record, skip completed steps, and run from `next`.
 4. Pass a step's `idempotencyKey` to anything with an external effect. A step that
    crashed mid-flight runs again with the same key, so the effect happens once.
-5. Stop a step that would exceed its budget, and fail the run with the reason.
+5. Stop a step that would exceed its budget, and fail the run with the reason. A step's
+   budget may not exceed the per-call budget in its worker's execution contract.
 
 ## Out of scope here
 
-The reference engine (`scripts/run.py`) implements rules 1 to 4 and approvals, with the
-two-step `word-count` and `approved-word-count` workflows. Its `approve` and `deny`
-commands stand in for `tasks/update`. Budgets and the MCP Tasks server come later.
-Worker execution contracts live in agents-hive. The Temporal engine is built when a
+The reference engine (`scripts/run.py`) implements rules 1 to 5 and approvals, with the
+two-step `word-count`, `approved-word-count` and `budgeted-word-count` workflows. Its
+`approve` and `deny` commands stand in for `tasks/update`. It stops a step past its
+`seconds` while it runs, but checks `usd` and `tokens` against what the step reports when
+it finishes, so a worker that calls a model must keep itself within its cap. The MCP
+Tasks server comes later. Worker execution contracts live in agents-hive. The Temporal engine is built when a
 product calls for it, against this same contract.
