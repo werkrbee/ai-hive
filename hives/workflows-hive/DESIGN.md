@@ -164,6 +164,6 @@ The engine keeps these rules:
 
 The reference engine (`scripts/run.py`) implements rules 1 to 4 and approvals, with the
 two-step `word-count` and `approved-word-count` workflows. Its `approve` and `deny`
-commands stand in for `tasks/update`. Budgets and the MCP Tasks server come later. Worker execution
-contracts live in agents-hive. The Temporal engine is built when a product
-calls for it, against this same contract.
+commands stand in for `tasks/update`. Budgets and the MCP Tasks server come later.
+Worker execution contracts live in agents-hive. The Temporal engine is built when a
+product calls for it, against this same contract.

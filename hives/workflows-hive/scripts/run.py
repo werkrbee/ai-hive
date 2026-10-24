@@ -248,14 +248,17 @@ def answer(args, state_dir, decision):
     pending = run.get("pending")
     if run["status"] != "input_required" or not pending or pending.get("kind") != "approval":
         sys.exit(f"run {run['runId']} isn't waiting for an approval (it is {run['status']})")
+    if decision == "denied" and not args.reason.strip():
+        sys.exit("deny needs a reason")
     sid = pending["step"]
-    record = {"decision": decision, "by": args.by, "at": now()}
+    by = args.by or current_user()
+    record = {"decision": decision, "by": by, "at": now()}
     if decision == "denied":
         record["reason"] = args.reason
     run["steps"][sid]["approval"] = record
     run["pending"] = None
     if decision == "denied":
-        run.update(status="failed", error={"step": sid, "message": f"approval denied by {args.by}: {args.reason}"})
+        run.update(status="failed", error={"step": sid, "message": f"approval denied by {by}: {args.reason}"})
         save(state_dir, run)
         print(f"deny  {sid}")
         return report(run)
@@ -263,6 +266,13 @@ def answer(args, state_dir, decision):
     save(state_dir, run)  # the approval is durable before the step runs
     print(f"approve {sid}")
     return report(execute(state_dir, load_plan(run["workflow"]), run))
+
+
+def current_user():
+    try:
+        return getpass.getuser()
+    except Exception:  # no USER/LOGNAME and no passwd entry, as in some containers
+        return "unknown"
 
 
 def cmd_approve(args, state_dir):
@@ -294,7 +304,7 @@ def main():
                             ("deny", "Deny the step a run is waiting on, which fails the run")):
         p = sub.add_parser(name, help=help_text)
         p.add_argument("run_id")
-        p.add_argument("--by", default=getpass.getuser(), help="Who answered (default: your user name)")
+        p.add_argument("--by", help="Who answered (default: your user name)")
         if name == "deny":
             p.add_argument("--reason", required=True, help="Why, recorded as the run's error")
     args = ap.parse_args()
