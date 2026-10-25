@@ -184,8 +184,10 @@ The engine keeps these rules:
    budget may not exceed the per-call budget in its worker's execution contract.
 
 A cancelled run ends in `cancelled`, with who cancelled it as its `error`. The request is
-kept apart from the record until a process applies it, so a save in flight can't lose it:
-a paused run is cancelled at once, and a working one before its next step or turn.
+kept apart from the record until a process applies it, so the save of a step in flight
+doesn't lose it: a paused run is cancelled at once, and a working one before its next step
+or turn. The reference engine takes no lock, so a cancel that lands at the same moment as
+an approval in another process can still lose to it.
 
 ## Open runs
 

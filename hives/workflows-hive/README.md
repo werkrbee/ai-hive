@@ -155,9 +155,9 @@ import run
 engine = run.Engine(workers={"send": send_message})       # send(input, key, cap) -> (output, cost)
 r = engine.open("orchestration", {"goal": "move tonight's game"},
                 policy="hives/rules-hive/examples/lineup-etiquette/policy.json")
-reply = engine.turn(r, "t1", lambda key: call_model(key))  # -> (reply, cost)
+reply = engine.turn(r, "t1", call_model)                  # call_model(key) -> (reply, cost)
 engine.append(r, {"id": "t1.send", "worker": "send", "input": {...}, "actions": [...]})
-r = engine.execute(r)                                      # working, input_required or failed
+r = engine.execute(r)                                     # working, input_required, failed or cancelled
 engine.finish(r, result)
 ```
 

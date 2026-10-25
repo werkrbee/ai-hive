@@ -32,6 +32,7 @@ has one, from --contracts-dir (default: agents-hive's contracts/). start --polic
 approval policy, and the run keeps it.
 """
 import argparse
+import copy
 import getpass
 import importlib.util
 import json
@@ -336,6 +337,8 @@ class Engine:
             f.flush()
             os.fsync(f.fileno())
         os.replace(tmp, path)
+        if run["status"] in TERMINAL:  # a cancel that lands as the run ends has nothing left to stop
+            self.cancel_path(run["runId"]).unlink(missing_ok=True)
 
     def load(self, run_id):
         path = self.record_path(run_id)
@@ -386,6 +389,8 @@ class Engine:
 
     def execute(self, run, crash_after=None):
         """Run every step that isn't completed, checkpointing after each one."""
+        if run["status"] != "working":  # an ended or paused run never runs another step
+            raise EngineError(f"run {run['runId']} is {run['status']}; only a working run executes")
         plan, policy = self.plan_of(run)
         if run["workflowVersion"] != plan["version"]:
             raise EngineError(f"run {run['runId']} started on version {run['workflowVersion']}, "
@@ -493,6 +498,7 @@ class Engine:
         if not isinstance(step, dict) or not isinstance(step.get("id"), str) or not step["id"] \
                 or not isinstance(step.get("worker"), str) or not isinstance(step.get("input"), dict):
             raise EngineError("a step needs an id, a worker and an input object")
+        step = copy.deepcopy(step)  # the run keeps the step as it was checked
         if step["id"] in run["steps"]:
             raise EngineError(f"step '{step['id']}': run {run['runId']} already has a step with that id")
         check_step(step, self.workers, self.contracts_dir, load_policy(run["policy"]))
@@ -611,7 +617,10 @@ class Engine:
         tmp = path.with_suffix(".cancel.tmp")
         tmp.write_text(json.dumps({"by": by or current_user(), "at": now()}))
         os.replace(tmp, path)  # a file of its own, so a save of the record can't overwrite it
-        if run["status"] == "input_required":
+        run = self.load(run_id)  # an approval may have started the step since
+        if run["status"] in TERMINAL:  # it ended meanwhile, with nothing left to stop
+            path.unlink(missing_ok=True)
+        elif run["status"] == "input_required":
             self.cancel_requested(run)
         else:
             self.log(f"cancel requested; {run['runId']} stops before its next step")
@@ -653,7 +662,8 @@ def policy_arg(value):
 def cmd_start(args, engine):
     policy = policy_arg(args.policy) if args.policy else CHARTER_POLICY
     bad = [kv for kv in args.input if "=" not in kv]
-    if bad:
+    if bad:  # a plan that can't load is reported first
+        load_plan(args.workflow, engine.workflows_dir, engine.workers, engine.contracts_dir, load_policy(policy))
         raise EngineError(f"--input must be KEY=VALUE: {', '.join(bad)}")
     inputs = dict(kv.split("=", 1) for kv in args.input)
     return report(engine.start(args.workflow, inputs, policy, args.crash_after))

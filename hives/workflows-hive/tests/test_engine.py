@@ -123,6 +123,36 @@ class OpenRuns(Base):
         with self.assertRaisesRegex(engine.EngineError, "input_required"):
             e.append(run, {"id": "next", "worker": "echo", "input": {}})
 
+    def test_an_ended_run_never_executes_again(self):
+        e = self.engine
+        cancelled = e.open("loop")
+        e.append(cancelled, {"id": "s1", "worker": "echo", "input": {}})
+        e.cancel(cancelled["runId"], by="ci")
+        cancelled = e.execute(cancelled)
+        denied = e.execute(e.append(e.open("loop"), {"id": "gate", "worker": "echo", "input": {}, "approval": True}))
+        denied = e.deny(denied["runId"], "no", by="ci")
+
+        def broken(_inp, _key, _cap):
+            raise RuntimeError("boom")
+        e.workers["broken"] = broken
+        failed = e.execute(e.append(e.open("loop"), {"id": "s1", "worker": "broken", "input": {}}))
+        for run, status in ((cancelled, "cancelled"), (denied, "failed"), (failed, "failed")):
+            with self.subTest(status):
+                self.assertEqual(run["status"], status)
+                with self.assertRaisesRegex(engine.EngineError, "only a working run"):
+                    e.execute(run)
+        self.assertEqual(calls(self.log), [])
+        self.assertEqual(e.load(denied["runId"])["status"], "failed")
+
+    def test_append_keeps_the_step_as_it_was_checked(self):
+        e = self.engine
+        run = e.open("loop")
+        step = {"id": "push", "worker": "echo", "input": {}, "actions": [{"action": "vcs.push"}]}
+        e.append(run, step)
+        del step["actions"]
+        self.assertEqual(e.execute(run)["status"], "input_required")
+        self.assertEqual(calls(self.log), [])
+
     def test_finish_waits_for_every_step(self):
         e = self.engine
         run = e.open("loop")
@@ -228,6 +258,7 @@ class Crashes(Base):
         self.assertEqual(run["status"], "completed")
         self.assertEqual([c.split()[0] for c in before], ["model", "echo", "model"])
         self.assertEqual(after, [f"model {run_id}:turn:t2"])  # t1 and s1 aren't repeated
+        self.assertEqual(run["cost"], {"usd": 0.02, "tokens": 200})  # t1 once, t2 once
 
     def test_resume_after_a_crash_mid_step_runs_it_again_with_the_same_key(self):
         run_id = self.crash("step")
@@ -238,6 +269,7 @@ class Crashes(Base):
         self.assertEqual(run["status"], "completed")
         self.assertEqual(echoes, [f"echo {run_id}:s1"] * 2)
         self.assertEqual(models, [f"model {run_id}:turn:t1", f"model {run_id}:turn:t2"])
+        self.assertEqual(run["cost"], {"usd": 0.021, "tokens": 210})  # t1, s1's second run, t2
 
 
 class Cancel(Base):
@@ -272,6 +304,23 @@ class Cancel(Base):
         run = e.open("loop")
         e.cancel(run["runId"], by="ci")
         run = self.make().resume(run["runId"])
+        self.assertEqual(run["status"], "cancelled")
+        self.assertFalse(e.cancel_path(run["runId"]).exists())
+
+    def test_a_cancel_during_the_last_step_ends_with_the_run(self):
+        words = self.tmp / "words.txt"
+        words.write_text("a b\n")
+        def cancelling(inp, key, cap):
+            self.make().cancel(key.split(":")[0], by="ci")
+            return engine.count_words(inp, key, cap)
+        self.workers["count-words"] = cancelling
+        e = self.make()
+        run = e.start("word-count", {"path": str(words)})
+        self.assertEqual(run["status"], "completed")  # cooperative: the run had nothing left to stop
+        self.assertFalse(e.cancel_path(run["runId"]).exists())
+        run = e.open("loop")
+        e.append(run, {"id": "s1", "worker": "count-words", "input": {"text": "a"}})
+        run = e.finish(e.execute(run), "done")
         self.assertEqual(run["status"], "cancelled")
         self.assertFalse(e.cancel_path(run["runId"]).exists())
 
