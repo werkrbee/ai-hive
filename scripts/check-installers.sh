@@ -243,6 +243,10 @@ outcome() {  # $1 = label, $2 = expected exit, $3 = text the output must have; t
 }
 outcome "workflows-hive run.py runs a step the Charter allows" 0 '"status": "completed"' read
 outcome "workflows-hive run.py pauses a step the Charter gates" 2 'needs approval under approve.vcs.push' push
+run_id=$(printf '%s\n' "$out" | sed -n 's/^start \(run_[0-9a-f]*\).*/\1/p')
+out=$(wfp approve "$run_id" --by ci); code=$?
+check_wf "workflows-hive run.py runs a gated step once approved" "$(holds eval \
+  '[ "$code" -eq 0 ] && printf "%s\n" "$out" | grep -q "^run   count"')"
 outcome "workflows-hive run.py can't skip a gated step with approval: false" 2 \
   'needs approval under approve.vcs.push' push-unflagged
 outcome "workflows-hive run.py still pauses on approval: true" 2 '"status": "input_required"' read-flagged

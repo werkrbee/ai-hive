@@ -108,9 +108,11 @@ version it started with.
 A step can also list the `actions` it takes, each a request in rules-hive's approval
 policy shape: an `action` from the execution-contract permission vocabulary (or a
 product policy's own namespaced actions), and the `scope`, `trigger` and `facts` its
-mandates' constraints need. Values can be `${…}` references. The run is decided against
-one policy, the Charter's `policy.json` by default or a product policy that `extends` it,
-and the run record keeps which one. Just before the step runs, each action is decided in
+mandates' constraints need. The `scope`, `trigger` and `facts` values can be `${…}`
+references. The run is decided against one policy, the Charter's `policy.json` by default
+or a product policy that `extends` it, and the run record keeps which one. It keeps the
+policy's path, not its version, so a policy edited while a run is paused decides the
+step when it is approved. Just before the step runs, each action is decided in
 rules-hive's order. A prohibition fails the run, even after a human's approval, and the
 step never runs. An open mandate lets it run. A closed mandate pauses the run for
 approval, and `pending` names the mandates and the `present` items the approval request

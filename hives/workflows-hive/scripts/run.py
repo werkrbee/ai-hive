@@ -28,6 +28,7 @@ approval policy, and the run keeps it.
 """
 import argparse
 import getpass
+import importlib.util
 import json
 import math
 import multiprocessing
@@ -43,13 +44,24 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 WORKFLOWS_DIR = REPO_ROOT / "workflows"
 CONTRACTS_DIR = REPO_ROOT.parent / "agents-hive" / "contracts"
 BUDGET_KEYS = {"usd": (int, float), "tokens": int, "seconds": int}
-sys.path.insert(0, str(REPO_ROOT.parent / "rules-hive" / "scripts"))
-import check_policy  # noqa: E402  rules-hive's policy checker: resolve, check, decide
 CHARTER_POLICY = "hives/rules-hive/rules/queen-charter/policy.json"
 REQUEST_KEYS = {"action": str, "scope": dict, "trigger": str, "facts": dict}
 DEFAULT_STATE_DIR = Path("~/.local/state/workflows-hive/runs")
 TERMINAL = ("completed", "failed", "cancelled")
 REF = re.compile(r"\$\{([^}]+)\}")
+
+
+def load_check_policy():
+    """rules-hive's policy checker (check, resolve, decide), loaded by path so it never
+    shadows or is shadowed by another module."""
+    path = REPO_ROOT.parent / "rules-hive" / "scripts" / "check_policy.py"
+    spec = importlib.util.spec_from_file_location("check_policy", path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+check_policy = load_check_policy()
 CRASH_EXIT = 75
 WAITING_EXIT = 2
 
@@ -250,11 +262,19 @@ def over_cost(cost, cap):
     return None
 
 
+class BadAction(Exception):
+    pass
+
+
 def verdict(policy, step, run):
     """Decide a step's actions with the policy: (denial message or None, rules that need a
     human's approval, what that approval must present)."""
     rules, present = [], []
     for req in resolve(step.get("actions", []), run):
+        for key, kind in REQUEST_KEYS.items():  # a reference can resolve to the wrong type
+            if key in req and not isinstance(req[key], kind):
+                raise BadAction(f"{key} of action {req['action']} resolved to a "
+                                f"{type(req[key]).__name__}, not a {kind.__name__}")
         decision, rule, show = check_policy.decide(policy, req)
         if decision == "deny":
             if rule is None:
@@ -282,12 +302,14 @@ def execute(state_dir, plan, policy, run, crash_after=None):
         run["next"] = sid
         try:
             denied, rules, present = verdict(policy, step, run)
-        except Exception as e:
-            denied, rules, present = f"actions: {type(e).__name__}: {e}", [], []
+            label = "deny"
+        except Exception as e:  # the actions couldn't be decided, which fails the run too
+            detail = str(e) if isinstance(e, BadAction) else f"{type(e).__name__}: {e}"
+            denied, rules, present, label = f"actions: {detail}", [], [], "fail"
         if denied:  # a prohibition holds even after a human's approval
             run.update(status="failed", error={"step": sid, "message": denied})
             save(state_dir, run)
-            print(f"deny  {sid} ({denied})")
+            print(f"{label:<5} {sid} ({denied})")
             return run
         # approval: true adds a pause; approval: false can't remove one the policy requires.
         if (step.get("approval") or rules) and (state.get("approval") or {}).get("decision") != "approved":
@@ -358,9 +380,12 @@ def policy_arg(value):
     """--policy as a path from the repo root, the form an extends uses."""
     path = Path(value).expanduser().resolve()
     try:
-        return path.relative_to(check_policy.REPO_ROOT).as_posix()
+        rel = path.relative_to(check_policy.REPO_ROOT).as_posix()
     except ValueError:
+        rel = ""
+    if not rel.startswith("hives/"):
         sys.exit(f"--policy must be a policy in this repo, under hives/: {value}")
+    return rel
 
 
 def cmd_start(args, state_dir):
