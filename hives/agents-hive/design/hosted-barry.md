@@ -1,9 +1,8 @@
 # Hosted Barry: design note
 
-Status: proposed, for Patricia's review and the maintainer's approval (#105). It decides
-how Barry is hosted over A2A before any code is written, as workflows-hive's
-[`DESIGN.md`](../../workflows-hive/DESIGN.md) did for workflows. It ends with the
-implementation issues to create once it is accepted.
+Status: accepted (#105). It decides how Barry is hosted over A2A before any code is
+written, as workflows-hive's [`DESIGN.md`](../../workflows-hive/DESIGN.md) did for
+workflows. It ends with the implementation issues that build it.
 
 ## The problem
 
@@ -145,8 +144,9 @@ A paused task's status message carries one JSON data part, the approval request:
   "review": {"verdict": "allow", "reason": "…"}}}
 ```
 
-`id` is a digest of the run ID, the step, the exact tool call, its action and its
-presented values, so it can't answer the same call in another task. The caller answers
+`id` is a digest of the run ID, the step, the exact tool call, its action, the mandates
+that gate it and its presented values, so it can't answer the same call in another task,
+and the person always approves under the rule that applies. The caller answers
 by sending a message on the same task with one data part:
 
 ```json
@@ -227,10 +227,11 @@ reached the ceiling, so it can start a call that ends the month past it. It will
 refuse a reservation that would take what is spent and reserved past the ceiling, for
 Patricia as well as Barry. So at most three runs are open at once, and neither server's
 month ends over its ceiling, apart from a reply that runs past its token estimate. The
-worst case is then $15 for Barry, $5 for Patricia and about $5 of fixed costs (the
-registry, plus storage and logs): about $25, with no room to spare. The Azure budget alert
-stays the billed backstop. A run refused for the ceiling becomes a task in the A2A
-`rejected` state, with the same message and JSON part Patricia's refusals carry.
+worst case is then $15 for Barry, $5 for Patricia, and fixed costs of about $5 for the
+registry alone, plus storage and logs: a little over $25 when everything is fully spent.
+The Azure budget alert stays the billed backstop. A run refused for the ceiling becomes a
+task in the A2A `rejected` state, with the same message and JSON part Patricia's refusals
+carry.
 
 Lowering Patricia's ceiling from its $25 default to $5 is a change to her deployment,
 made in the deploy issue below.
@@ -278,7 +279,7 @@ depends on #65.
 
 ## Implementation issues
 
-To create once this note is accepted, in this order:
+To create, in this order:
 
 1. **workflows-hive: let a run grow.** Make the engine importable as a library, let a run
    append steps as it goes, and keep model turns in the run record, so a resumed run
