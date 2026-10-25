@@ -100,9 +100,27 @@ A plan is the portable definition of a workflow, kept at
 Steps run in order. `inputs` is a JSON Schema, and it becomes the tool's `inputSchema`.
 `${…}` references read the run's inputs and the outputs of earlier steps. `worker` names
 the capability that does the step; agents-hive's execution contract for that capability
-defines what the worker accepts, returns, may spend and may do. `approval: true` pauses before the step runs, and
-`budget` caps what the step may spend. A plan that changes in a way an in-flight run
-can't absorb bumps `version`, and a run always finishes on the version it started with.
+defines what the worker accepts, returns, may spend and may do. `approval: true` pauses
+before the step runs, and `budget` caps what the step may spend. A plan that changes in a
+way an in-flight run can't absorb bumps `version`, and a run always finishes on the
+version it started with.
+
+A step can also list the `actions` it takes, each a request in rules-hive's approval
+policy shape: an `action` from the execution-contract permission vocabulary (or a
+product policy's own namespaced actions), and the `scope`, `trigger` and `facts` its
+mandates' constraints need. Values can be `${…}` references. The run is decided against
+one policy, the Charter's `policy.json` by default or a product policy that `extends` it,
+and the run record keeps which one. Just before the step runs, each action is decided in
+rules-hive's order. A prohibition fails the run, even after a human's approval, and the
+step never runs. An open mandate lets it run. A closed mandate pauses the run for
+approval, and `pending` names the mandates and the `present` items the approval request
+must show. Anything else is denied, which fails the run. `approval: true` adds a pause
+the policy doesn't require, but `approval: false` can't remove one it does.
+
+```json
+{ "id": "push", "worker": "git-push", "input": { "ref": "${inputs.ref}" },
+  "actions": [{ "action": "vcs.push", "scope": { "remote": "origin" } }] }
+```
 
 ## Run record (the checkpoint)
 
@@ -127,7 +145,7 @@ Each run persists one record, keyed by its run ID:
       "endedAt": "2026-10-08T14:02:12Z"
     }
   },
-  "pending": { "step": "summarize", "kind": "approval" },
+  "pending": { "step": "summarize", "kind": "approval", "rules": [], "present": [] },
   "cost": { "usd": 0.0, "tokens": 0 },
   "result": null,
   "error": null,
@@ -165,8 +183,11 @@ The engine keeps these rules:
 
 ## Out of scope here
 
-The reference engine (`scripts/run.py`) implements rules 1 to 5 and approvals, with the
-two-step `word-count`, `approved-word-count` and `budgeted-word-count` workflows. Its
+The reference engine (`scripts/run.py`) implements rules 1 to 5, approvals and
+policy-decided actions, with the two-step `word-count`, `approved-word-count` and
+`budgeted-word-count` workflows. It applies rules-hive's own checker
+(`check_policy.py`), so the engine and the policy's cases can't disagree, and it reads
+only policies inside this repo. Its
 `approve` and `deny` commands stand in for `tasks/update`. It stops a step past its
 `seconds` while it runs, in a child process whose start-up counts toward the cap, and
 stops only that process, not any it started. It checks `usd` and `tokens` against what

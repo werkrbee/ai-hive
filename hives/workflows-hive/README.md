@@ -42,6 +42,8 @@ workflows-hive/
 │       └── scout/                # sub-harness (child of GitHub Copilot)
 ├── scripts/
 │   └── run.py                    # reference engine: run, checkpoint, resume, approve, budget
+├── tests/
+│   └── read-only-policy/         # a test approval policy for the engine's checks
 ├── DESIGN.md                     # the workflow contract and engine decision
 ├── LICENSE
 └── README.md
@@ -101,6 +103,28 @@ and `--contracts-dir` point the engine at other plans and contracts.
 
 ```bash
 python3 scripts/run.py start budgeted-word-count --input path=README.md
+```
+
+A step can list the `actions` it takes, and rules-hive's
+[approval policy](../rules-hive/README.md#approval-policy) decides each one just before
+the step runs. A prohibited action fails the run without running the step, even after
+approval. An action an open mandate allows runs on its own. One a closed mandate gates
+pauses the run, and `pending` shows the mandates and what the approval request must
+present. An action no mandate allows is denied. `approval: true` still forces a pause,
+and `approval: false` can't skip one the policy requires. The policy is the Charter's
+unless `start --policy` names a product policy in this repo, and the run keeps it.
+Facts compare strictly, and an `--input` value is a string, so a fact that must be
+`true` comes from the plan or an earlier step's output.
+
+```json
+{ "id": "notify", "worker": "send-message", "input": { "text": "${steps.draft.output}" },
+  "actions": [{ "action": "message.send",
+                "scope": { "channel": "sms", "audience": "group" },
+                "facts": { "recipient.notifyOptIn": true } }] }
+```
+
+```bash
+python3 scripts/run.py start <workflow> --policy ../rules-hive/examples/lineup-etiquette/policy.json
 ```
 
 ## License

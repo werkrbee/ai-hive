@@ -210,6 +210,54 @@ check_wf "workflows-hive run.py refuses a budget above its worker's contract" "$
   '[ "$code" -eq 1 ] && printf "%s\n" "$out" | grep -q "above the .count-words. contract" \
    && [ "$(find "$runs" -name "run_*.json" | wc -l)" -eq "$n" ]')"
 
+# workflows-hive: a step's actions are decided by the approval policy. Under the Charter,
+# a read runs and a push pauses, approval: false can't skip that pause and approval: true
+# still forces one. Under lineup-etiquette, a bullpen call runs, a blast pauses showing
+# its present items, and a message to someone who didn't opt in fails the run without
+# running the step. An action no mandate allows is denied, and one outside the policy's
+# vocabulary is refused before the run starts.
+acts() {  # $1 = plan name, $2 = extra step fields, e.g. "actions": [...]
+  mkdir -p "$plans/$1"
+  printf '{"name": "%s", "version": 1, "inputs": {"type": "object"}, "output": null,
+  "steps": [{"id": "count", "worker": "count-words", "input": {"text": "a b"}, %s}]}\n' \
+    "$1" "$2" > "$plans/$1/workflow.json"
+}
+acts read '"actions": [{"action": "fs.read"}]'
+acts write '"actions": [{"action": "fs.write"}]'
+acts push '"actions": [{"action": "vcs.push"}]'
+acts push-unflagged '"approval": false, "actions": [{"action": "vcs.push"}]'
+acts read-flagged '"approval": true, "actions": [{"action": "fs.read"}]'
+acts bullpen '"actions": [{"action": "message.send", "scope": {"channel": "sms", "audience": "bullpen"},
+  "trigger": "bullpen.slot-opened", "facts": {"recipient.notifyOptIn": true}}]'
+acts blast '"actions": [{"action": "message.send", "scope": {"channel": "sms", "audience": "group"},
+  "facts": {"recipient.notifyOptIn": true}}]'
+acts opted-out '"actions": [{"action": "message.send", "scope": {"channel": "sms", "audience": "group"},
+  "facts": {"recipient.notifyOptIn": false}}]'
+acts cancel '"actions": [{"action": "lineup.event.cancel", "facts": {"actor.role": "organizer"}}]'
+lineup=hives/rules-hive/examples/lineup-etiquette/policy.json
+read_only=hives/workflows-hive/tests/read-only-policy/policy.json
+outcome() {  # $1 = label, $2 = expected exit, $3 = text the output must have; then start args
+  local label="$1" want="$2" text="$3"; shift 3
+  out=$(wfp start "$@"); code=$?
+  check_wf "$label" "$(holds eval '[ "$code" -eq "$want" ] && printf "%s\n" "$out" | grep -qF -- "$text"')"
+}
+outcome "workflows-hive run.py runs a step the Charter allows" 0 '"status": "completed"' read
+outcome "workflows-hive run.py pauses a step the Charter gates" 2 'needs approval under approve.vcs.push' push
+outcome "workflows-hive run.py can't skip a gated step with approval: false" 2 \
+  'needs approval under approve.vcs.push' push-unflagged
+outcome "workflows-hive run.py still pauses on approval: true" 2 '"status": "input_required"' read-flagged
+outcome "workflows-hive run.py runs a lineup bullpen call" 0 '"status": "completed"' bullpen --policy "$lineup"
+outcome "workflows-hive run.py pauses a lineup blast, showing its present items" 2 \
+  'under organizer.blast, showing message, recipient count, estimated cost' blast --policy "$lineup"
+outcome "workflows-hive run.py fails a prohibited message without running the step" 1 \
+  'message.send is prohibited by messages.opt-in-only' opted-out --policy "$lineup"
+check_wf "workflows-hive run.py never ran the prohibited step" "$(holds eval \
+  '! printf "%s\n" "$out" | grep -q "^run   count"')"
+outcome "workflows-hive run.py denies an action no mandate allows" 1 \
+  'fs.write is denied: no mandate' write --policy "$read_only"
+outcome "workflows-hive run.py refuses an action outside the policy's vocabulary" 1 \
+  "action 'lineup.event.cancel' isn't in" cancel
+
 if [ "$(repo_status)" != "$before" ]; then
   flunk "installers left changes in the repo"; repo_status | sed 's/^/      /'
 fi
