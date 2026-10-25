@@ -234,7 +234,7 @@ def recorded(test, run_id, key):
 class Crashes(Base):
     def crash(self, where):
         script = LOOP.format(scripts=str(SCRIPTS), log=str(self.log), state=str(self.tmp / "runs"), crash=where)
-        out = subprocess.run([sys.executable, "-c", script], capture_output=True, text=True)
+        out = subprocess.run([sys.executable, "-B", "-c", script], capture_output=True, text=True)
         self.assertEqual(out.returncode, 75, out.stderr)
         return out.stdout.split()[0]
 
