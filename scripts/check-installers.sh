@@ -275,7 +275,8 @@ check_wf "workflows-hive run.py can't approve a cancelled run" "$(holds eval \
 
 # workflows-hive: the engine as a library, with open runs that grow, model turns, crashes
 # mid-turn and mid-step, and cancel.
-run "workflows-hive engine library tests" python3 -m unittest discover -s hives/workflows-hive/tests
+# -B: no __pycache__ left in the repo.
+run "workflows-hive engine library tests" python3 -B -m unittest discover -s hives/workflows-hive/tests
 
 if [ "$(repo_status)" != "$before" ]; then
   flunk "installers left changes in the repo"; repo_status | sed 's/^/      /'

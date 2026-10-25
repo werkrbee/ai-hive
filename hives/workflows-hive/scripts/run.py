@@ -620,6 +620,7 @@ class Engine:
         run = self.load(run_id)  # an approval may have started the step since
         if run["status"] in TERMINAL:  # it ended meanwhile, with nothing left to stop
             path.unlink(missing_ok=True)
+            self.log(f"run {run['runId']} ended ({run['status']}) before the cancel")
         elif run["status"] == "input_required":
             self.cancel_requested(run)
         else:
