@@ -173,8 +173,7 @@ Hosted Barry offers no streaming or push notifications, like Patricia, so a call
 and its status message says so. The run's 3,600-second budget counts time spent working,
 not time spent waiting for an answer. `CancelTask` cancels the run: a paused task is
 cancelled at once, and a working one stops before its next step. Either way its
-reservation is released. The engine has no cancel command yet; it gets one in the first
-implementation issue.
+reservation is released, through the engine's cancel (#114).
 
 ## Who may answer
 

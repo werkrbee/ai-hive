@@ -41,9 +41,10 @@ workflows-hive/
 │   └── github-copilot/
 │       └── scout/                # sub-harness (child of GitHub Copilot)
 ├── scripts/
-│   └── run.py                    # reference engine: run, checkpoint, resume, approve, budget
+│   └── run.py                    # reference engine: run, checkpoint, resume, approve, budget, cancel
 ├── tests/
-│   └── read-only-policy/         # a test approval policy for the engine's checks
+│   ├── read-only-policy/         # a test approval policy for the engine's checks
+│   └── test_engine.py            # tests of the engine as a library
 ├── DESIGN.md                     # the workflow contract and engine decision
 ├── LICENSE
 └── README.md
@@ -90,6 +91,14 @@ python3 scripts/run.py approve <run-id>                                   # runs
 python3 scripts/run.py deny <run-id> --reason "not this file"             # or fails the run
 ```
 
+`cancel` ends a run. A paused run is cancelled at once; a working one stops before its
+next step, in whichever process is running it, or when it's resumed. A cancelled run keeps
+who cancelled it as its error.
+
+```bash
+python3 scripts/run.py cancel <run-id> --by you
+```
+
 The commands exit 0 when the run completed, 2 when it's waiting for approval, and 1
 otherwise.
 
@@ -126,6 +135,35 @@ Facts compare strictly, and an `--input` value is a string, so a fact that must 
 ```bash
 python3 scripts/run.py start <workflow> --policy ../rules-hive/examples/lineup-etiquette/policy.json
 ```
+
+## Use the engine as a library
+
+`run.py` is also a module. `Engine` offers the commands above (`start`, `resume`,
+`approve`, `deny`, `cancel`) on your own workers, and an open run for an agent loop, whose
+steps aren't known in advance. An open run starts with no steps. Each tool call the loop
+makes is appended as a step, and `execute` runs it, decided by the policy, held to its
+budget and checkpointed like a planned step. Each model turn goes through `turn`, which
+records the reply and its cost, and returns the recorded reply instead of calling again
+once the turn has completed. So a loop restarted after a crash replays its turns and
+steps from the record and repeats neither. `finish` completes the run with its result.
+
+```python
+import sys
+sys.path.insert(0, "hives/workflows-hive/scripts")
+import run
+
+engine = run.Engine(workers={"send": send_message})       # send(input, key, cap) -> (output, cost)
+r = engine.open("orchestration", {"goal": "move tonight's game"},
+                policy="hives/rules-hive/examples/lineup-etiquette/policy.json")
+reply = engine.turn(r, "t1", call_model)                  # call_model(key) -> (reply, cost)
+engine.append(r, {"id": "t1.send", "worker": "send", "input": {...}, "actions": [...]})
+r = engine.execute(r)                                     # working, input_required, failed or cancelled
+engine.finish(r, result)
+```
+
+A turn whose process died before its reply was recorded is called again, as a step that
+died mid-flight runs again with the same idempotency key. A turn that raises fails the
+run, and `turn` raises `Stopped` once the run has failed or been cancelled.
 
 ## License
 

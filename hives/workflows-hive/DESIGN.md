@@ -183,14 +183,54 @@ The engine keeps these rules:
 5. Stop a step that would exceed its budget, and fail the run with the reason. A step's
    budget may not exceed the per-call budget in its worker's execution contract.
 
+A cancelled run ends in `cancelled`, with who cancelled it as its `error`. The request is
+kept apart from the record until a process applies it, so the save of a step in flight
+doesn't lose it: a paused run is cancelled at once, and a working one before its next step
+or turn. The reference engine takes no lock, so a cancel that lands at the same moment as
+an approval in another process can still lose to it.
+
+## Open runs
+
+An agent loop doesn't know its steps in advance, so the engine also keeps an open run.
+It starts with no steps and grows: each tool call the loop makes is appended as a step
+and decided, budgeted, checkpointed and resumed by the same rules as a planned step. The
+record carries `open: true` and its own `plan`, the steps appended so far, since no
+workflow file holds them. Steps run in the order they were appended.
+
+The loop's model turns are kept in the record beside the steps, under `turns`, keyed by
+turn ID:
+
+```json
+"turns": {
+  "t1": {
+    "status": "completed",
+    "idempotencyKey": "run_01J9Z…:turn:t1",
+    "output": "…the model's reply…",
+    "cost": { "usd": 0.012, "tokens": 3100 },
+    "startedAt": "2026-10-08T14:02:11Z",
+    "endedAt": "2026-10-08T14:02:14Z"
+  }
+}
+```
+
+A turn is recorded as `working` before the model is called, and as `completed`, with its
+output and cost, before the loop goes on. A resumed loop asks for the same turns again,
+and the engine returns each completed one from the record without calling the model, so
+a resumed run repeats neither a completed step nor a completed turn, and pays for
+neither twice. A turn that was in flight when the process died is called again, with the
+same idempotency key. Its cost counts in the run's `cost` with the steps'. An open run
+ends when the loop finishes it with its result, which the engine allows only once every
+step has completed, or fails it.
+
 ## Out of scope here
 
-The reference engine (`scripts/run.py`) implements rules 1 to 5, approvals and
-policy-decided actions, with the two-step `word-count`, `approved-word-count` and
-`budgeted-word-count` workflows. It applies rules-hive's own checker
-(`check_policy.py`), so the engine and the policy's cases can't disagree, and it reads
-only policies inside this repo. Its
-`approve` and `deny` commands stand in for `tasks/update`. It stops a step past its
+The reference engine (`scripts/run.py`) implements rules 1 to 5, approvals,
+policy-decided actions, cancel and open runs, with the two-step `word-count`,
+`approved-word-count` and `budgeted-word-count` workflows. It is a command and a Python
+module (`Engine`); open runs are offered only through the module. It applies rules-hive's
+own checker (`check_policy.py`), so the engine and the policy's cases can't disagree, and
+it reads only policies inside this repo. Its `approve` and `deny` commands stand in for
+`tasks/update`, and `cancel` for `tasks/cancel`. It stops a step past its
 `seconds` while it runs, in a child process whose start-up counts toward the cap, and
 stops only that process, not any it started. It checks `usd` and `tokens` against what
 the step reports when it finishes, so a worker that calls a model must keep itself
