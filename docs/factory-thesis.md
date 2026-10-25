@@ -114,6 +114,45 @@ every product it makes** port across harnesses. No vendor can strand the investm
 That's the difference between fast prototypes that evaporate and fast prototypes that
 **accrete into infrastructure**. Harness-agnosticism is what makes the compounding real.
 
+## Defensive co-scaling: the controls grow with the agents
+
+The more an agent does on its own, the stronger its boundaries have to be. As agents
+take on more of an organization's work, autonomy without control stops being a speed
+advantage and becomes a liability. werkrbee has built the agents. Now it builds their
+control systems at the same pace, so that every gain in what an agent can do comes with
+an equal gain in how well it is held. That is the defensive half of co-scaling, and the
+governance and assurance loop is the band around it.
+
+None of this is built yet; it is the plan. Every agent will carry a **passport**:
+versioned metadata stating who it is, who owns it, what it may do and what it may not,
+and which model, prompt and policy it runs. Four controls hold an agent to its passport:
+
+1. **Trust evaluation.** A suite of evals with a recorded baseline, re-run whenever the
+   model, prompt or policy changes, and on a schedule. It says exactly when an agent is
+   drifting and when it isn't.
+2. **Full traceability.** A tamper-evident log of what the agent did and didn't do: every
+   action it ran, was denied, paused for or had approved, and who approved it. Deleting
+   or editing that log will violate the Charter's first principles.
+3. **Rollback.** A way back to an earlier version or an earlier state. Versions are what
+   the passport pins, and state is the run's checkpoints and records. An effect outside
+   the system can't be undone, only compensated, and the compensation is approved like
+   any other action.
+4. **A human review queue.** One place where a person sees and answers what needs them,
+   across every run and agent: approvals, drift and escalations. Accountability sits
+   with a human at the top.
+
+Sub-agents and clones need their own boundary. Every harness now spawns them, and they
+reuse the parent's cached context, which is a large share of the compute. That is a good
+design for getting things done, but it opens leaks: a delegate can inherit context, data
+or authority it was never meant to have. So a delegate's passport can only narrow its
+parent's, context is passed to it explicitly, and cached context never crosses a trust
+boundary such as another caller.
+
+These controls belong in the factory for the same reason the rest does. Built once and
+inherited by every agent the House produces, they make "governed" the default rather
+than something each product has to remember. The work is tracked on the
+`P2.1 — assurance loop` milestone (epic #122).
+
 ## What "the factory works" looks like
 
 Concrete success criteria we hold ourselves to:
@@ -129,6 +168,9 @@ Concrete success criteria we hold ourselves to:
    not mocks.
 5. **Governance without reinvention.** Opt-in, privacy, and approval gates hold across
    products from one shared charter.
+6. **Controls at the pace of autonomy.** Every agent the House ships carries a passport,
+   a trust evaluation, an audit log, a way back and a human review queue, and no agent
+   gains autonomy before its controls do.
 
 When those hold, the one singular task is handled *and* the factory behind it is
 stronger for the next one. That is the werkrbee superpower: a small team with agency,

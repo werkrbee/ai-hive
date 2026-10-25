@@ -31,6 +31,16 @@ standard-backed set of layers that lets a small team with agency assemble and sh
 agent products on any harness, each faster than the last. Success isn't any one product;
 it's the **slope** — the marginal cost of the next product trending toward zero.
 
+**Defensive co-scaling.** The factory builds the agents' control systems at the same pace
+as the agents, because the more an agent does on its own, the stronger its boundaries
+must be. The plan, not yet built, is that every agent carries a passport stating what it
+may and may not do. Four controls hold it there: a trust evaluation that catches drift, a
+tamper-evident log of what the agent did and didn't do, rollback to an earlier version or
+state, and a human review queue, because accountability sits with a human at the top.
+Sub-agents and clones will only narrow their parent's passport.
+Write-up: [`docs/factory-thesis.md`](docs/factory-thesis.md#defensive-co-scaling-the-controls-grow-with-the-agents);
+plan: the `P2.1 — assurance loop` milestone in [`ROADMAP.md`](ROADMAP.md).
+
 **`lineup` is our Basecamp.** Just as Ruby on Rails was hardened by building a real
 product (Basecamp) on it, `lineup` is the first real product we run through the factory
 to prove it works — its job is to stress-test the hives against live data, real

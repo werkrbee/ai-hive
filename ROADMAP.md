@@ -90,15 +90,14 @@ not just assembled from it. Both items have an open pull request.
 
 - **Hosted Barry over A2A.** Builds on the approval policy (done in P1): actions the
   Charter gates pause the task for a human (A2A `input-required`) instead of running.
-  Tracked on the `P2 — hosted Barry` milestone (epic #106). Barry's runtime comes first,
-  because hosting him rests on the workflows-hive engine pausing a run for approval and
-  holding each step to its budget. The runtime's first two steps are done: a run pauses
-  for approval before a step, answered with approve or deny (#102), and a step that runs
-  past its budget is stopped (#103). Still to come, in order: decide a step's approval
-  from the approval policy, so the Charter's gated actions pause a run on their own
-  (#104); then a design note for hosted Barry, covering what he runs, where his shell and
-  file access are sandboxed, how a paused run maps to A2A, auth, spend and the model,
-  from which the implementation issues come (#105).
+  Tracked on the `P2 — hosted Barry` milestone (epic #106). Barry's runtime is done: the
+  workflows-hive engine pauses a run for approval (#102), holds each step to its budget
+  (#103) and decides each step's actions with the approval policy (#104). The design note
+  is accepted (#105, `hives/agents-hive/design/hosted-barry.md`), and its seven
+  implementation issues follow it in order (#114–#120). The first is done: the engine is
+  a library, and a run can grow and keep model turns (#114). Barry's deploy (#120) waits
+  for the assurance loop's passport, audit log and human review queue (P2.1), so he ships
+  with his controls.
 - **Public A2A access.** An option to open the hosted agents beyond werkrbee products.
 - **skills-hive marketplace metadata + evals.** Align to the governed SKILL.md standard
   (agentskills.io); ship evals beside each skill; add discovery/publish metadata.
@@ -108,9 +107,41 @@ not just assembled from it. Both items have an open pull request.
   (Airtable option colors, send-less Twilio MCP, Inkbox consent gate) so the next app doesn't
   rediscover them.
 
+## P2.1 — assurance loop
+
+Tracked on the `P2.1 — assurance loop` milestone (epic #122), worked in the order set in
+`docs/sprints/p2.1.md`. Defensive co-scaling: the agents' control systems are built at the
+same pace as the agents (`docs/factory-thesis.md`). None of it is built yet: every agent
+will carry a passport, held by four controls.
+
+- **Vision and roadmap (docs).** Put defensive co-scaling into the factory thesis, the
+  README, this roadmap and a sprint file. (#123)
+- **Design note (docs).** Decide the passport, the four controls and the sub-agent
+  boundary before code, building on what exists: execution contracts, Agent Cards, the
+  approval policy, run records, the usage ledger and Patricia's eval. (#124)
+- **Agent passport (agents-hive).** Versioned metadata per agent: identity, owner, what it
+  may and may not do, its eval baseline and the model, prompt and policy versions it runs.
+  (#125)
+- **Tamper-evident audit log (knowledge-hive).** An append-only, hash-chained record of
+  what every agent did and didn't do, with a verifier. Deleting or editing it violates
+  the Charter. (#126)
+- **Trust evaluation and drift (agents-hive).** Each agent's eval re-runs on any change
+  and on a schedule; a result below its baseline is drift, flagged to a human. (#127)
+- **Rollback.** Back to an earlier passport or checkpoint; an external effect is
+  compensated, as the approval policy decides. (#128)
+- **Human review queue (workflows-hive).** One queue for approvals, drift and escalations
+  across every run and agent. (#129)
+- **Sub-agent and clone boundaries (rules-hive).** A delegate's passport only narrows its
+  parent's; context is passed explicitly; cached context never crosses a trust boundary.
+  (#130)
+
+Hosted Barry's deploy (#120) waits for the passport, the audit log and the review queue.
+
 ## Guardrails
 
 Adopt the two standards the artifacts already ride (**MCP latest + A2A**) first; treat
 payments as design-ahead-of-need. Let `workflows-hive` be the forcing function that proves
 the runtime layer before spreading thin. A working product on durable execution teaches more
-than eight hives at spec parity.
+than eight hives at spec parity. No agent gains autonomy before its controls do: hosted
+Barry ships with his passport, audit log and review queue, and hosted Patricia comes under
+the same controls as they land.
