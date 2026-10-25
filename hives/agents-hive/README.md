@@ -107,6 +107,10 @@ product, a $25 budget alert, and an eval for choosing Patricia's model. The main
 runs the deploy. It is live on Claude Sonnet 5.5, which the eval chose
 ([`deploy/azure/eval/RESULTS.md`](deploy/azure/eval/RESULTS.md)).
 
+Hosting Barry the same way is designed in
+[`design/hosted-barry.md`](design/hosted-barry.md): an agent loop on the workflows-hive
+engine, with gated actions pausing the task for a human's approval over A2A.
+
 ## Repository layout
 
 ```text
@@ -122,6 +126,8 @@ agents-hive/
 ├── cards/                        # HOW others find them — A2A Agent Cards
 │   ├── barry/card.json
 │   └── patricia/card.json
+├── design/
+│   └── hosted-barry.md           # design note: hosting Barry over A2A
 ├── servers/
 │   └── a2a/                      # a reference A2A server (Patricia's governance-review)
 ├── deploy/
