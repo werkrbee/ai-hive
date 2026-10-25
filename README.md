@@ -32,11 +32,12 @@ agent products on any harness, each faster than the last. Success isn't any one 
 it's the **slope** — the marginal cost of the next product trending toward zero.
 
 **Defensive co-scaling.** The factory builds the agents' control systems at the same pace
-as the agents. The more an agent does on its own, the stronger its boundaries: every agent
-carries a passport stating what it may and may not do, held by four controls — a trust
-evaluation that catches drift, a tamper-evident log of what it did and didn't do, rollback
-to an earlier version or state, and a human review queue, because accountability sits
-with a human at the top. Sub-agents and clones can only narrow their parent's passport.
+as the agents, because the more an agent does on its own, the stronger its boundaries
+must be. The plan, not yet built, is that every agent carries a passport stating what it
+may and may not do. Four controls hold it there: a trust evaluation that catches drift, a
+tamper-evident log of what the agent did and didn't do, rollback to an earlier version or
+state, and a human review queue, because accountability sits with a human at the top.
+Sub-agents and clones will only narrow their parent's passport.
 Write-up: [`docs/factory-thesis.md`](docs/factory-thesis.md#defensive-co-scaling-the-controls-grow-with-the-agents);
 plan: the `P2.1 — assurance loop` milestone in [`ROADMAP.md`](ROADMAP.md).
 

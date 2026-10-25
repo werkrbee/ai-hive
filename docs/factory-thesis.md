@@ -123,16 +123,16 @@ control systems at the same pace, so that every gain in what an agent can do com
 an equal gain in how well it is held. That is the defensive half of co-scaling, and the
 governance and assurance loop is the band around it.
 
-Every agent carries a **passport**: versioned metadata stating who it is, who owns it,
-what it may do and what it may not, and which model, prompt and policy it runs. Four
-controls hold an agent to its passport:
+None of this is built yet; it is the plan. Every agent will carry a **passport**:
+versioned metadata stating who it is, who owns it, what it may do and what it may not,
+and which model, prompt and policy it runs. Four controls hold an agent to its passport:
 
 1. **Trust evaluation.** A suite of evals with a recorded baseline, re-run whenever the
    model, prompt or policy changes, and on a schedule. It says exactly when an agent is
    drifting and when it isn't.
 2. **Full traceability.** A tamper-evident log of what the agent did and didn't do: every
    action it ran, was denied, paused for or had approved, and who approved it. Deleting
-   or editing that log violates the Charter's core principles.
+   or editing that log will violate the Charter's first principles.
 3. **Rollback.** A way back to an earlier version or an earlier state. Versions are what
    the passport pins, and state is the run's checkpoints and records. An effect outside
    the system can't be undone, only compensated, and the compensation is approved like

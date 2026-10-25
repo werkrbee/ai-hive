@@ -111,8 +111,8 @@ not just assembled from it. Both items have an open pull request.
 
 Tracked on the `P2.1 — assurance loop` milestone (epic #122), worked in the order set in
 `docs/sprints/p2.1.md`. Defensive co-scaling: the agents' control systems are built at the
-same pace as the agents (`docs/factory-thesis.md`). Every agent carries a passport, held by
-four controls.
+same pace as the agents (`docs/factory-thesis.md`). None of it is built yet: every agent
+will carry a passport, held by four controls.
 
 - **Vision and roadmap (docs).** Put defensive co-scaling into the factory thesis, the
   README, this roadmap and a sprint file. (#123)
