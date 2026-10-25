@@ -82,7 +82,9 @@ opted in.
 `scripts/check_policy.py` checks each policy against the schema and the vocabulary, then
 runs the `cases.json` beside it: each case is a request and the decision the policy must
 reach, optionally with the rule that must decide it and what the approval must present.
-CI runs it. Policies are declarations today: nothing enforces them at runtime yet.
+CI runs it. The workflows-hive engine applies a policy at runtime: a step lists the
+actions it takes, and the engine decides each one with this checker's rules before the
+step runs (see [workflows-hive](../workflows-hive/README.md#run-a-workflow)).
 
 ## Repository layout
 

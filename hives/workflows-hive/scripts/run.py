@@ -7,7 +7,9 @@ from its next step instead of starting over. Each step gets a stable idempotency
 and the run reports its result and its total cost. A step marked "approval": true
 pauses the run in input_required until a human approves or denies it. A step's
 "budget" caps what it may spend: the engine stops a step that runs past its seconds and
-fails the run when a step reports more usd or tokens than its cap.
+fails the run when a step reports more usd or tokens than its cap. A step's "actions" are
+decided by an approval policy (rules-hive's Charter, or --policy): a prohibited action
+fails the run, a gated one pauses it for approval, and one no mandate allows is denied.
 
 Usage:
   python3 scripts/run.py start word-count --input path=README.md
@@ -21,10 +23,12 @@ Exit status: 0 when the run completed, 2 when it is waiting for approval, 1 othe
 
 Run records live in --state-dir (default: ~/.local/state/workflows-hive/runs). Plans are
 read from --workflows-dir (default: workflows/), and a worker's execution contract, if it
-has one, from --contracts-dir (default: agents-hive's contracts/).
+has one, from --contracts-dir (default: agents-hive's contracts/). start --policy picks the
+approval policy, and the run keeps it.
 """
 import argparse
 import getpass
+import importlib.util
 import json
 import math
 import multiprocessing
@@ -40,9 +44,24 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 WORKFLOWS_DIR = REPO_ROOT / "workflows"
 CONTRACTS_DIR = REPO_ROOT.parent / "agents-hive" / "contracts"
 BUDGET_KEYS = {"usd": (int, float), "tokens": int, "seconds": int}
+CHARTER_POLICY = "hives/rules-hive/rules/queen-charter/policy.json"
+REQUEST_KEYS = {"action": str, "scope": dict, "trigger": str, "facts": dict}
 DEFAULT_STATE_DIR = Path("~/.local/state/workflows-hive/runs")
 TERMINAL = ("completed", "failed", "cancelled")
 REF = re.compile(r"\$\{([^}]+)\}")
+
+
+def load_check_policy():
+    """rules-hive's policy checker (check, resolve, decide), loaded by path so it never
+    shadows or is shadowed by another module."""
+    path = REPO_ROOT.parent / "rules-hive" / "scripts" / "check_policy.py"
+    spec = importlib.util.spec_from_file_location("check_policy", path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+check_policy = load_check_policy()
 CRASH_EXIT = 75
 WAITING_EXIT = 2
 
@@ -108,7 +127,45 @@ def check_budget(step, contracts_dir):
                  f"budget ({', '.join(over)})")
 
 
-def load_plan(name, workflows_dir, contracts_dir):
+def load_policy(rel):
+    """The approval policy at rel (a path from the repo root), merged with what it extends."""
+    path = (check_policy.REPO_ROOT / rel).resolve()
+    if check_policy.REPO_ROOT not in path.parents or not path.is_file():
+        sys.exit(f"policy not found in the repo: {rel}")
+    try:
+        problems = check_policy.check(path)
+        merged = None if problems else check_policy.resolve(path)
+        problems = problems or check_policy.check_merged(merged)
+    except check_policy.PolicyError as e:
+        problems = [str(e)]
+    if problems:
+        sys.exit(f"policy {rel} is invalid: {problems[0]}")
+    merged["name"] = rel
+    merged["vocabulary"] = check_policy.UNGATED | check_policy.GATED | set(merged["actions"])
+    return merged
+
+
+def check_actions(step, policy):
+    """Refuse a step's actions unless each is a request the policy can decide."""
+    actions = step.get("actions")
+    if actions is None:
+        return
+    sid = step["id"]
+    if not isinstance(actions, list) or not actions:
+        sys.exit(f"step '{sid}': actions must be a non-empty list")
+    for req in actions:
+        if not isinstance(req, dict) or not isinstance(req.get("action"), str):
+            sys.exit(f"step '{sid}': each action needs an action name")
+        for key in sorted(set(req) - set(REQUEST_KEYS)):
+            sys.exit(f"step '{sid}': unknown field '{key}' in action {req['action']}")
+        for key, kind in REQUEST_KEYS.items():
+            if key in req and not isinstance(req[key], kind) and not REF.fullmatch(str(req[key])):
+                sys.exit(f"step '{sid}': {key} of action {req['action']} must be a {kind.__name__}")
+        if req["action"] not in policy["vocabulary"]:
+            sys.exit(f"step '{sid}': action '{req['action']}' isn't in {policy['name']}'s vocabulary")
+
+
+def load_plan(name, workflows_dir, contracts_dir, policy):
     path = workflows_dir / name / "workflow.json"
     if not path.is_file():
         sys.exit(f"workflow not found: {path}")
@@ -119,6 +176,7 @@ def load_plan(name, workflows_dir, contracts_dir):
         if step["worker"] not in WORKERS:
             sys.exit(f"step '{step['id']}': unknown worker '{step['worker']}'")
         check_budget(step, contracts_dir)
+        check_actions(step, policy)
     return plan
 
 
@@ -204,7 +262,32 @@ def over_cost(cost, cap):
     return None
 
 
-def execute(state_dir, plan, run, crash_after=None):
+class BadAction(Exception):
+    pass
+
+
+def verdict(policy, step, run):
+    """Decide a step's actions with the policy: (denial message or None, rules that need a
+    human's approval, what that approval must present)."""
+    rules, present = [], []
+    for req in resolve(step.get("actions", []), run):
+        for key, kind in REQUEST_KEYS.items():  # a reference can resolve to the wrong type
+            if key in req and not isinstance(req[key], kind):
+                raise BadAction(f"{key} of action {req['action']} resolved to a "
+                                f"{type(req[key]).__name__}, not a {kind.__name__}")
+        decision, rule, show = check_policy.decide(policy, req)
+        if decision == "deny":
+            if rule is None:
+                return f"{req['action']} is denied: no mandate in {policy['name']} allows it", [], []
+            reason = next(p["reason"] for p in policy["prohibitions"] if p["id"] == rule)
+            return f"{req['action']} is prohibited by {rule}: {reason}", [], []
+        if decision == "human":
+            rules.append(rule)
+            present += [x for x in show if x not in present]
+    return None, rules, present
+
+
+def execute(state_dir, plan, policy, run, crash_after=None):
     """Run every step that isn't completed, checkpointing after each one."""
     if run["workflowVersion"] != plan["version"]:
         sys.exit(f"run {run['runId']} started on version {run['workflowVersion']}, "
@@ -217,11 +300,26 @@ def execute(state_dir, plan, run, crash_after=None):
             print(f"skip  {sid} (completed)")
             continue
         run["next"] = sid
-        if step.get("approval") and (state.get("approval") or {}).get("decision") != "approved":
-            # Pause before the step: nothing runs until a human approves it (run.py approve).
-            run.update(status="input_required", pending={"step": sid, "kind": "approval"})
+        try:
+            denied, rules, present = verdict(policy, step, run)
+            label = "deny"
+        except Exception as e:  # the actions couldn't be decided, which fails the run too
+            detail = str(e) if isinstance(e, BadAction) else f"{type(e).__name__}: {e}"
+            denied, rules, present, label = f"actions: {detail}", [], [], "fail"
+        if denied:  # a prohibition holds even after a human's approval
+            run.update(status="failed", error={"step": sid, "message": denied})
             save(state_dir, run)
-            print(f"wait  {sid} (needs approval: run.py approve {run['runId']}, or deny)")
+            print(f"{label:<5} {sid} ({denied})")
+            return run
+        # approval: true adds a pause; approval: false can't remove one the policy requires.
+        if (step.get("approval") or rules) and (state.get("approval") or {}).get("decision") != "approved":
+            # Pause before the step: nothing runs until a human approves it (run.py approve).
+            run.update(status="input_required",
+                       pending={"step": sid, "kind": "approval", "rules": rules, "present": present})
+            save(state_dir, run)
+            why = f" under {', '.join(rules)}" if rules else ""
+            show = f", showing {', '.join(present)}" if present else ""
+            print(f"wait  {sid} (needs approval{why}{show}; run.py approve {run['runId']}, or deny)")
             return run
         state.update(status="working", startedAt=now())
         save(state_dir, run)
@@ -271,12 +369,28 @@ def report(run):
     return WAITING_EXIT if run["status"] == "input_required" else 1
 
 
-def plan_for(args, name):
-    return load_plan(name, Path(args.workflows_dir).expanduser(), Path(args.contracts_dir).expanduser())
+def plan_for(args, name, policy_rel):
+    policy = load_policy(policy_rel)
+    plan = load_plan(name, Path(args.workflows_dir).expanduser(), Path(args.contracts_dir).expanduser(),
+                     policy)
+    return plan, policy
+
+
+def policy_arg(value):
+    """--policy as a path from the repo root, the form an extends uses."""
+    path = Path(value).expanduser().resolve()
+    try:
+        rel = path.relative_to(check_policy.REPO_ROOT).as_posix()
+    except ValueError:
+        rel = ""
+    if not rel.startswith("hives/"):
+        sys.exit(f"--policy must be a policy in this repo, under hives/: {value}")
+    return rel
 
 
 def cmd_start(args, state_dir):
-    plan = plan_for(args, args.workflow)
+    policy_rel = policy_arg(args.policy) if args.policy else CHARTER_POLICY
+    plan, policy = plan_for(args, args.workflow, policy_rel)
     bad = [kv for kv in args.input if "=" not in kv]
     if bad:
         sys.exit(f"--input must be KEY=VALUE: {', '.join(bad)}")
@@ -291,6 +405,7 @@ def cmd_start(args, state_dir):
         "runId": run_id,
         "workflow": plan["name"],
         "workflowVersion": plan["version"],
+        "policy": policy_rel,
         "status": "working",
         "inputs": inputs,
         "next": plan["steps"][0]["id"],
@@ -307,7 +422,7 @@ def cmd_start(args, state_dir):
     }
     save(state_dir, run)  # the run exists before its ID is handed out
     print(f"start {run_id} ({plan['name']} v{plan['version']})")
-    return report(execute(state_dir, plan, run, args.crash_after))
+    return report(execute(state_dir, plan, policy, run, args.crash_after))
 
 
 def cmd_resume(args, state_dir):
@@ -319,7 +434,7 @@ def cmd_resume(args, state_dir):
         print(f"run {run['runId']} is waiting for approval of {run['pending']['step']}")
         return report(run)
     print(f"resume {run['runId']} at {run['next']}")
-    return report(execute(state_dir, plan_for(args, run["workflow"]), run))
+    return report(execute(state_dir, *plan_for(args, run["workflow"], run.get("policy", CHARTER_POLICY)), run))
 
 
 def answer(args, state_dir, decision):
@@ -345,7 +460,7 @@ def answer(args, state_dir, decision):
     run["status"] = "working"
     save(state_dir, run)  # the approval is durable before the step runs
     print(f"approve {sid}")
-    return report(execute(state_dir, plan_for(args, run["workflow"]), run))
+    return report(execute(state_dir, *plan_for(args, run["workflow"], run.get("policy", CHARTER_POLICY)), run))
 
 
 def current_user():
@@ -379,6 +494,8 @@ def main():
     start = sub.add_parser("start", help="Start a new run")
     start.add_argument("workflow", help="Workflow name under workflows/")
     start.add_argument("--input", action="append", default=[], metavar="KEY=VALUE")
+    start.add_argument("--policy", metavar="PATH",
+                       help="Approval policy for the steps' actions (default: the Charter's)")
     start.add_argument("--crash-after", metavar="STEP", help="Exit right after STEP checkpoints (to test resume)")
     for name, help_text in (("resume", "Resume a run from its next step"), ("status", "Show a run")):
         p = sub.add_parser(name, help=help_text)

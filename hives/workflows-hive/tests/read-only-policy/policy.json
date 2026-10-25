@@ -1,0 +1,9 @@
+{
+  "$schema": "../../../rules-hive/schema/approval-policy.schema.json",
+  "policy": "read-only-policy",
+  "version": 1,
+  "description": "A test policy for the engine's checks: reading runs on its own, and everything else is denied because no mandate allows it.",
+  "mandates": [
+    { "id": "auto.fs.read", "type": "mandate.action.open.1", "action": "fs.read" }
+  ]
+}

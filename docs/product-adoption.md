@@ -81,9 +81,11 @@ lineup's `STATUS.md`, `PROJECT_STATE.md` and memory recast in that format.
 
 Two limits today. The policy and contract checkers in this repo check only files in this
 repo, and `extends` takes a path inside it, so a product can't yet check its own policy or
-contracts from its own repo. And policies and contracts are declarations: no harness or
-engine enforces them at runtime yet. Until both change, keep the product's policy as
-review material and enforce the gates in the product's own code.
+contracts from its own repo. And only the workflows-hive reference engine enforces them
+at runtime: it decides the actions a step lists with the policy, and holds a step's
+budget to its worker's contract, for policies and contracts in this repo. No harness
+enforces them yet. Until both change, keep the product's policy as review material and
+enforce the gates in the product's own code.
 
 ## Barry executes, Patricia governs
 
