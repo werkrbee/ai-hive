@@ -262,6 +262,21 @@ outcome "workflows-hive run.py denies an action no mandate allows" 1 \
 outcome "workflows-hive run.py refuses an action outside the policy's vocabulary" 1 \
   "action 'lineup.event.cancel' isn't in" cancel
 
+# workflows-hive: cancel ends a paused run at once, and the step never runs.
+out=$(wf start approved-word-count --input path="$sandbox/words.txt")
+run_id=$(printf '%s\n' "$out" | sed -n 's/^start \(run_[0-9a-f]*\).*/\1/p')
+out=$(wf cancel "$run_id" --by ci); code=$?
+check_wf "workflows-hive run.py cancels a paused run" "$(holds eval \
+  '[ "$code" -eq 1 ] && printf "%s\n" "$out" | grep -q "\"status\": \"cancelled\"" \
+   && printf "%s\n" "$out" | grep -q "cancelled by ci"')"
+out=$(wf approve "$run_id" --by ci); code=$?
+check_wf "workflows-hive run.py can't approve a cancelled run" "$(holds eval \
+  '[ "$code" -eq 1 ] && ! printf "%s\n" "$out" | grep -q "^run   count"')"
+
+# workflows-hive: the engine as a library, with open runs that grow, model turns, crashes
+# mid-turn and mid-step, and cancel.
+run "workflows-hive engine library tests" python3 -m unittest discover -s hives/workflows-hive/tests
+
 if [ "$(repo_status)" != "$before" ]; then
   flunk "installers left changes in the repo"; repo_status | sed 's/^/      /'
 fi
