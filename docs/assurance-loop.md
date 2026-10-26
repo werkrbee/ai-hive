@@ -15,7 +15,7 @@ against each other or against what the agent actually did. Its execution contrac
 approval policy (rules-hive) decides each action. Its model, prompt files and ceiling sit
 in a deployment's config. A run record (workflows-hive) and the usage ledger
 (knowledge-hive) record what happened, but either can be edited without a trace. Patricia's
-eval chose her model once and hasn't run since. A paused run reaches a human one run at a
+eval chose her model and last ran on 2026-10-21. A paused run reaches a human one run at a
 time. And a sub-agent gets whatever its harness hands it.
 
 The fix is one document per agent that says what it is and what it may do, and four
@@ -71,10 +71,11 @@ human is named at the top of every passport. `version` is an integer, bumped on 
 change, and an agent's passport digest (SHA-256 of the file's canonical JSON, defined
 under the audit log) is how the other controls name the exact version they saw.
 
-**What it may and may not do.** `permissions` and `budget` can only narrow the contract's:
-each `granted` and `approval` list is a subset of the contract's, and each budget figure
-is at most the contract's. A permission moved from `granted` to `approval` is a narrowing
-and allowed; the reverse isn't. `never` names actions the agent may not take even with a
+**What it may and may not do.** `permissions` and `budget` can only narrow the contract's.
+Every action the passport grants or puts under approval is one the contract grants or puts
+under approval, and nothing the contract puts under approval is granted, so moving an
+action from granted to approval narrows it and the reverse is refused. Each budget figure
+is at most the contract's. `never` names actions the agent may not take even with a
 human's approval, so what it may not do is written out rather than left to the absence of
 a grant. Every action in `never` becomes a prohibition when the engine decides that
 agent's steps, so the approval policy denies it before any mandate is read. CI refuses a
@@ -122,10 +123,13 @@ what an agent did and didn't do. Every decision goes in, not only the actions th
 `paused` or `denied`), `step.ran`, `step.failed`, `approval.answered` (with `by` and
 `decision`), `run.started`, `run.cancelled`, `run.expired`, `budget.refused`,
 `turn.completed`, `delegation`, `rollback`, `drift` and `eval.ran`. `call` is the digest
-of the exact tool call, the same input the approval `id` uses, so an entry can be matched
+of the exact tool call, the same input as hosted Barry's approval `id`, so an entry can be matched
 to its run record without the log holding the call's arguments. Message text, recipients
 and model output stay in the run record. `by` is the identifier the approving product
-gives its person, never their name or email, as with everything in knowledge-hive.
+gives its person, never their name or email, as with everything in knowledge-hive. On one
+machine, the engine fills `by` from the operating-system login today, which is often a
+name; it will instead take a configured actor ID and refuse to record an answer without
+one.
 
 **How tampering shows.** Each entry's `hash` is the SHA-256 of the entry without `hash`,
 serialized as canonical JSON: keys sorted, no insignificant whitespace, UTF-8, numbers as
@@ -136,7 +140,8 @@ removed, inserted or reordered. A chain can't show that its last entries were cu
 so two things anchor its end. Each run record keeps the `seq` and `hash` of the last
 entry written for it, so the verifier, given the run records, catches a log that ends
 before a run's last entry. And a hosted deployment also writes each entry to an Azure
-Storage append blob in a container with a locked, time-based immutability policy, which
+Storage append blob in a container with a locked, time-based immutability policy that
+allows protected append writes (`allowProtectedAppendWrites`), which
 the storage service enforces even against the subscription's owner until the retention
 period ends. That is generally available. The format and the verifier don't depend on it,
 so a product on another host anchors the log however its host allows.
@@ -154,9 +159,11 @@ human's infrastructure change, gated like any other.
 
 **What it can't stop.** On one machine, an agent that holds `fs.write` over the directory
 holding the log can rewrite all of it and recompute every hash. The chain shows tampering
-by anyone who didn't rewrite it whole; it isn't a lock. The policy closes the gap a little
-by denying `fs.write` scoped to the House's own state directories, and the hosted case,
-where the agent has no file system and the blob is immutable, is the strong one.
+by anyone who didn't rewrite it whole; it isn't a lock. The approval policy can't close
+that gap today: its scopes match exact values, not path prefixes, and an agent with
+`shell.exec` can write files without asking for `fs.write`. So the local log is evidence,
+not a guarantee, and the hosted case, where the agent has no file system or shell and the
+blob is immutable, is the strong one.
 
 ## Trust evaluation and drift
 
@@ -177,7 +184,9 @@ critical case, whatever the threshold. Patricia's threshold is 0, because she is
 governance check. Cost and time per case are recorded too, and a run that costs more than
 twice its baseline's per case is flagged to the review queue without counting as drift.
 Model output varies, so a run that drifts is run once more, and drift is recorded only
-when both runs drift.
+when both runs drift. A critical case missed in either run still sends an item to the
+review queue, marked as an unconfirmed miss, so a governance gate that fails even once
+leaves a trace.
 
 **When it runs.** On any new passport version, before it is deployed, because `deploy.sh`
 refuses a passport whose baseline result wasn't recorded against its exact pins. That is
@@ -185,7 +194,7 @@ what blocks promoting a change. And on a schedule, to catch drift nobody caused,
 provider changing what a model version serves: weekly for Patricia, through a Container
 Apps job on a cron schedule in the same environment, under her identity, so no new
 credential goes into CI. Each run is an entry in `results.jsonl` and the audit log, and
-is metered into the agent's own ledger, against its own ceiling, so the $25 a month holds.
+is metered into the agent's own ledger, against its own model-spend ceiling.
 Patricia's last run was billed $0.13 on Claude Sonnet 5.5, so a weekly run is about
 $0.55 a month. An eval the ceiling refuses goes to the review queue as an eval that
 couldn't run, not as a pass.
@@ -237,8 +246,9 @@ the queue directory, written atomically like a run record, with its `id`, `kind`
 `source` (the run and step, or the passport and eval result), what it must present with
 values, `createdAt`, `expiresAt` and `status` (`open`, `answered` or `expired`). The run
 record stays the source of truth for an approval; the queue item points at it, and
-answering one calls the engine's `approve` or `deny`, with the same `id` check hosted
-Barry's approvals use.
+answering one calls the engine's `approve` or `deny`. The local engine has no approval
+`id` yet; it gains the same digest hosted Barry's approvals use, and refuses an answer
+whose `id` doesn't match what is pending.
 
 **Answers.** An answer records `decision`, `by`, `at` and, for a denial, `reason`, and is
 written to the audit log before the run moves on. An approval or escalation expires after
@@ -250,21 +260,33 @@ MCP server with the same reads as tools and resources. An agent must never answe
 queue, and an MCP tool is something a model can call. So the MCP server's answering tool
 takes no decision from its arguments: it asks the person through an MCP elicitation, which
 the client shows to the user, and records only their reply. A client without elicitation
-gets the queue read-only. Hosted, the queue's items are the A2A approval requests hosted
-Barry already returns, answered by the product as its person's attestation.
+gets the queue read-only.
+
+The command is the harder case, because an agent with `shell.exec` can run it. Three
+things narrow that. The Charter's policy gains `queue.answer` as a prohibition, so no step
+that maps to answering the queue can be opened by a mandate or an approval. The command
+refuses to answer when it isn't attached to an interactive terminal, or when it runs
+inside an engine run, which the engine marks in its steps' environment; harness shells are
+usually not interactive. And every answer's audit entry records how it came (`via` is
+`cli`, `mcp` or `a2a`). None of this is a lock: on one machine an agent with a shell can
+still forge an answer, as it can rewrite the log, so the local trail is evidence rather
+than proof. Hosted is the strong case. There the queue's items are the A2A approval
+requests hosted Barry already returns, answered by the product as its person's
+attestation, and the agent has no shell to reach the queue with.
 
 ## Sub-agents and clones
 
 Every harness now spawns sub-agents or clones, and most reuse the parent's cached context
 to save compute. Three rules hold a delegate inside its parent's bounds.
 
-**Narrowing.** A delegate runs under its own passport, intersected with its parent's: it
-holds only the permissions both grant, only what both put under approval, everything in
-either's `never`, and a budget carved out of what the parent has left, reserved from the
-parent's run. Delegation is the action `agent.delegate`, with the delegate's passport as
-its scope, so the approval policy decides it and refuses a delegate the parent's passport
-doesn't list in `delegates`. The fleet personas in agents-hive (explore, code-review,
-security-review, charter-review) get passports so they can be delegates.
+**Narrowing.** A delegate runs under its own passport, intersected with its parent's. Each
+action takes the stricter of the two passports' treatments, in the order `never`, then
+approval, then granted, and an action either passport leaves out is denied. Its budget is
+carved out of what the parent has left, reserved from the parent's run. Delegation is the
+action `agent.delegate`, with the delegate's passport as its scope, so the approval policy
+decides it and refuses a delegate the parent's passport doesn't list in `delegates`. The
+fleet personas in agents-hive (explore, code-review, security-review, charter-review) get
+passports so they can be delegates.
 
 **Context.** A delegate gets its context explicitly: the delegation names what it passes,
 as A2A message parts or the harness's equivalent, never the parent's whole conversation.
@@ -294,10 +316,12 @@ product elsewhere uses its own host's equivalents.
 
 ## Cost
 
-The scheduled evals are metered into each agent's ledger, against its ceiling, so they
-can't take the month past $25. The immutable blob holds a few kilobytes a day, well under
-a dollar a month, and the Container Apps job runs within the environment's monthly free
-grant. A locked immutability policy can't be shortened or removed until its retention
+The scheduled evals are metered into each agent's ledger, so the ledger's ceiling caps
+their model spend with the rest of the agent's. That ceiling counts model calls only. The
+blob and the job are infrastructure, which the Azure budget covers, and the budget only
+alerts. By estimate, not yet measured, the blob holds a few kilobytes a day, well under a
+dollar a month, and a weekly job of a few minutes stays inside Container Apps' monthly
+free grant. A locked immutability policy can't be shortened or removed until its retention
 ends, so the container is kept for at least that long; it is created through the deploy's
 gated steps with the maintainer's approval.
 
@@ -318,15 +342,19 @@ edited to match:
   extension, and the CI checks above.
 - **#126, audit log.** Adds the canonical JSON and genesis rules, the run record's anchor,
   `audit.edit` and `audit.delete` as prohibitions in the Charter's policy, and opaque `by`
-  identifiers. Its body's "core principles" becomes "first principles".
-- **#127, trust evaluation.** Adds critical cases, the confirming re-run, the cost flag and
+  identifiers, with the engine's operating-system login default replaced by a configured
+  actor ID. Its body's "core principles" becomes "first principles".
+- **#127, trust evaluation.** Adds critical cases, the confirming re-run, the queue item
+  for an unconfirmed critical miss, the cost flag and
   `deploy.sh` refusing a passport with no baseline for its pins.
 - **#128, rollback.** Adds `rolledBack` steps, compensation newest first and the retired
   model check.
-- **#129, review queue.** Adds the item files, expiry rules and elicitation-only answers
-  over MCP.
-- **#130, sub-agents.** Adds passports for the four fleet personas, the clone rule and the
-  cache rule.
+- **#129, review queue.** Adds the item files, expiry rules, elicitation-only answers over
+  MCP, the approval `id` in the local engine, `queue.answer` as a prohibition, the
+  command's refusal outside an interactive terminal or inside a run, and `via` on each
+  answer.
+- **#130, sub-agents.** Adds passports for the four fleet personas, the stricter-treatment
+  intersection, the clone rule and the cache rule.
 
 One new issue covers the deploy side, which the ROADMAP's guardrail already asks for:
 putting hosted Patricia under the controls as they land, with the immutable blob, the
