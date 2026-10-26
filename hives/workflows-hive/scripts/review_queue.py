@@ -2,10 +2,10 @@
 """Read and answer the review queue: everything that needs a person, across runs and agents.
 
 The queue holds three kinds of item. An approval is a step a run paused on, an escalation
-is a question an agent's run asked a person, and drift is the trust evaluation finding an
-agent below its baseline. Each is a JSON file in the queue directory. The run record stays
-the source of truth for an approval or an escalation, so answering one answers its run,
-through the engine in run.py.
+is a question an agent's run asked a person, and drift is what an agent's trust evaluation
+found: the agent below its baseline, or a flag, as its finding says. Each is a JSON file in
+the queue directory. The run record stays the source of truth for an approval or an
+escalation, so answering one answers its run, through the engine in run.py.
 
 A person answers the queue; an agent never does. So this refuses to answer when it isn't
 attached to an interactive terminal, or when it runs inside an engine run. That isn't a
@@ -42,7 +42,7 @@ def summary(item):
     elif item["kind"] == "escalation":
         where = f"run {source['runId']} asks: {item['present']['question']}"
     else:
-        where = f"passport {source['passport']} v{source['version']}"
+        where = f"passport {source['passport']} v{source['version']}: {source['finding']}"
     until = f", expires {item['expiresAt']}" if item["status"] == "open" and item["expiresAt"] else ""
     return f"{item['id'][7:19]}  {item['kind']:<10}  {item['status']:<8}  {where}{until}"
 

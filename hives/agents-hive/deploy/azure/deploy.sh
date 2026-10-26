@@ -1,9 +1,11 @@
 #!/usr/bin/env bash
 # Deploy hosted Patricia to Azure. Deploying is an infrastructure change the Queen Bee's
 # Charter gates, so this script shows Azure's what-if for each change and goes ahead only
-# when you type "yes". Before anything, it checks that every built-in role id main.bicep
-# assigns exists, since what-if doesn't, and that every model is generally available in
-# the region, by the Foundry model catalog.
+# when you type "yes". Before anything, it checks that Patricia's passport may be promoted
+# (its trust evaluation's baseline was recorded against its exact pins, and no drift holds
+# it in the review queue), that every built-in role id main.bicep assigns exists, since
+# what-if doesn't, and that every model is generally available in the region, by the
+# Foundry model catalog.
 #
 #   1. the infrastructure, without the app (registry, identity, Foundry, storage, budget)
 #   2. the image, built in the new registry from this commit
@@ -176,6 +178,14 @@ PY
   fi
   rm -rf "$tmp"
 }
+
+# A change to Patricia is promoted only once her trust evaluation has passed on its exact
+# pins, and while no drift waits for a person (hives/agents-hive/scripts/trust_eval.py).
+echo "== passport"
+if ! python3 "$root/hives/agents-hive/scripts/trust_eval.py" promotion patricia; then
+  echo "error: Patricia's passport can't be promoted; nothing was changed" >&2
+  exit 1
+fi
 
 echo "== role ids"
 check_roles

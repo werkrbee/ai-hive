@@ -165,14 +165,24 @@ correction is a new result that names the one it supersedes.
 ```
 
 `id`, `at`, `kind`, `subject`, `outcome`, `summary` and `evidence` are required, and
-`supersedes` is optional. `id` is unique within the file, and `at` is an ISO 8601 date or
-a date-time with a time zone. `kind` is `test`, `run`, `release`, `check` or `delivery`. `outcome` is
-`passed`, `failed` or `partial`. `evidence` is a non-empty list of what backs the claim,
-each item an object with a `kind` and one field that depends on it: `link` has `url`,
-`command` has `command` (what was run), `file` has `path` (from the product root), `run`
-has `runId` (a workflows-hive run) and `note` has `text`. `supersedes` names an earlier
-result's `id` when this one corrects it. A claim in
+`supersedes` and `eval` are optional. `id` is unique within the file, and `at` is an ISO
+8601 date or a date-time with a time zone. `kind` is `test`, `run`, `release`, `check`,
+`delivery` or `eval`. `outcome` is `passed`, `failed` or `partial`. `evidence` is a
+non-empty list of what backs the claim, each item an object with a `kind` and one field
+that depends on it: `link` has `url`, `command` has `command` (what was run), `file` has
+`path` (from the product root), `run` has `runId` (a workflows-hive run) and `note` has
+`text`. `supersedes` names an earlier result's `id` when this one corrects it. A claim in
 `STATE.md` that something works should be traceable to a result.
+
+An `eval` result is an agent's trust evaluation (agents-hive's `scripts/trust_eval.py`),
+and only it has an `eval` object: the `passport` evaluated and its `version`, the digest
+of its `pins` as canonical JSON, the `suite` of cases, the `commit` and `model` it ran on
+when known, the `baseline` result it was compared with (`null` for the first), its `runs`
+and its `findings`. Each run has the cases it `met`, how many `ran` of the suite's `of`,
+the ids it `missed`, its `usd` and, when timed, its `seconds`; a second run is there only
+when the first drifted. `findings` lists any of `drift`, `unconfirmed-miss`, `cost` and
+`not-run`, and decides `outcome`: `failed` for drift or an eval that couldn't run,
+`partial` for the other two, `passed` for none.
 
 ## Usage ledger: `ledger.jsonl`
 
@@ -219,23 +229,26 @@ design is in [`docs/assurance-loop.md`](../../docs/assurance-loop.md) (accepted,
 is one of `run.started`, `run.completed`, `run.failed`, `run.cancelled`, `run.expired`,
 `step.decided`, `step.ran`, `step.failed`, `budget.refused`, `approval.answered`,
 `escalation.raised`, `escalation.answered`, `drift.answered`, `turn.completed`,
-`turn.failed`, `delegation`, `rollback`, `drift` and `eval.ran`. A run's entries carry its
-`runId`, and a step's or a turn's carry `step` or `turn`. `step.decided` carries the
-`action` it decided, its `decision` (`allowed`, `paused` or `denied`) and the `rules` that
-decided it; a step with no action, or one paused by its plan rather than its policy, has
-one entry with no `action`. `approval.answered` carries `decision` (`approved` or
-`denied`) and `by`, as `run.cancelled` carries `by`. Anything that names a review queue
+`turn.failed`, `delegation`, `rollback`, `drift`, `eval.ran` and `eval.flagged`. A run's
+entries carry its `runId`, and a step's or a turn's carry `step` or `turn`. `step.decided`
+carries the `action` it decided, its `decision` (`allowed`, `paused` or `denied`) and the
+`rules` that decided it; a step with no action, or one paused by its plan rather than its
+policy, has one entry with no `action`. `approval.answered` carries `decision` (`approved`
+or `denied`) and `by`, as `run.cancelled` carries `by`. Anything that names a review queue
 item carries its ID as `item`: a paused `step.decided`, `approval.answered`,
-`run.expired`, `escalation.raised`, `escalation.answered`, `drift` and `drift.answered`,
-which also carries `decision`. A person's answer carries `via`, how it came (`cli`, `mcp`
-or `a2a`); `escalation.answered` and `drift.answered` require it, and `approval.answered`
-has it from the review queue on. `agent` names the passport the run is under, its version
-and its digest, and is left out for a run under none. `call` is the digest of the exact
-call a step makes: its run, step, worker, resolved input and action. So an entry can be
-matched to its run record, which keeps the call's arguments, the model's output, message
-text and a denial's reason, none of which the log holds, nor an escalation's question or
-answer. The kinds the eval, rollback and delegation write get their fields as those are
-built.
+`run.expired`, `escalation.raised`, `escalation.answered`, `drift`, `eval.flagged` and
+`drift.answered`, which also carries `decision`. A person's answer carries `via`, how it
+came (`cli`, `mcp` or `a2a`); `escalation.answered` and `drift.answered` require it, and
+`approval.answered` has it from the review queue on. `agent` names the passport the run is
+under, its version and its digest, and is left out for a run under none. `call` is the
+digest of the exact call a step makes: its run, step, worker, resolved input and action.
+So an entry can be matched to its run record, which keeps the call's arguments, the
+model's output, message text and a denial's reason, none of which the log holds, nor an
+escalation's question or answer. A trust evaluation writes `eval.ran`, with the `agent` it
+evaluated and the `result` id in `results.jsonl` that records it, and for each finding it
+sends the review queue, `drift` for drift and `eval.flagged` for a flag, each with the
+`agent` and the `item`. The kinds rollback and delegation write get their fields as those
+are built.
 
 **Hash rules.** Each `hash` is `sha256:` followed by the SHA-256 of the entry without
 `hash`, serialized as canonical JSON: keys sorted, no insignificant whitespace, UTF-8,

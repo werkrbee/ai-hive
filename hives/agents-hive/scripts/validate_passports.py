@@ -11,7 +11,9 @@ execution contract, so beyond the schema's shape this checks that:
     in `never` is granted or under approval
   - each budget figure is at most the contract's
   - each prompt file and the policy file match their pinned SHA-256
-  - an eval has a model pin, its suite and result exist, and its baseline fits the suite
+  - an eval has a model pin, its suite exists, its critical marks are booleans, and its
+    baseline is a results.jsonl entry for this passport and suite, with one run whose
+    score is the baseline's and nothing found but a cost flag
   - every delegate has a passport
 
 A digest mismatch prints the file's current digest, so a deliberate change can be pinned.
@@ -36,7 +38,7 @@ PROPS = SCHEMA["properties"]
 KEBAB = re.compile(PROPS["passport"]["pattern"])
 OWNER = re.compile(PROPS["owner"]["pattern"])
 SHA256 = re.compile(SCHEMA["$defs"]["sha256"]["pattern"])
-COMMIT = re.compile(PROPS["eval"]["properties"]["baseline"]["properties"]["commit"]["pattern"])
+RESULT = re.compile(PROPS["eval"]["properties"]["baseline"]["properties"]["result"]["pattern"])
 
 
 def canonical(obj):
@@ -59,6 +61,29 @@ def repo_file(rel):
     if not isinstance(rel, str) or not rel.startswith("hives/") or ".." in Path(rel).parts:
         return None
     return REPO_ROOT / rel
+
+
+def read_results(path):
+    """The entries in a results.jsonl file, by id. Lines that aren't objects with an id are
+    skipped; knowledge-hive's checker reports them."""
+    found = {}
+    for line in path.read_text(encoding="utf-8").splitlines():
+        try:
+            entry = json.loads(line)
+        except ValueError:
+            continue
+        if isinstance(entry, dict) and isinstance(entry.get("id"), str):
+            found[entry["id"]] = entry
+    return found
+
+
+def baseline_result(ref):
+    """The results.jsonl entry a baseline's result names (path#id), or None."""
+    if not isinstance(ref, str) or not RESULT.match(ref):
+        return None
+    path, rid = ref.split("#", 1)
+    path = repo_file(path)
+    return read_results(path).get(rid) if path is not None and path.is_file() else None
 
 
 def is_int(v, least):
@@ -237,6 +262,9 @@ def check(path):
             if cases is not None and not isinstance(cases, list):
                 err(f"eval suite {ev['suite']} has no list of cases")
                 cases = None
+            for case in cases or []:
+                if isinstance(case, dict) and not isinstance(case.get("critical", False), bool):
+                    err(f"eval suite case {case.get('id')!r}: critical must be true or false")
         base = ev.get("baseline")
         if fields(base, PROPS["eval"]["properties"]["baseline"], "eval.baseline", err):
             met, of = base.get("met"), base.get("of")
@@ -244,11 +272,24 @@ def check(path):
                 err("eval.baseline needs integers met and of, with met no more than of")
             elif isinstance(cases, list) and of != len(cases):
                 err(f"eval.baseline.of is {of}, but the suite has {len(cases)} cases")
-            result = repo_file(str(base.get("result", "")).split("#")[0])
-            if result is None or not result.is_file():
-                err(f"eval.baseline.result not found: {base.get('result')!r}")
-            if not isinstance(base.get("commit"), str) or not COMMIT.match(base["commit"]):
-                err("eval.baseline.commit must be a git commit hash")
+            ref = base.get("result")
+            result = baseline_result(ref)
+            record = result.get("eval") if isinstance(result, dict) else None
+            runs = record.get("runs") if isinstance(record, dict) else None
+            if not isinstance(ref, str) or not RESULT.match(ref):
+                err("eval.baseline.result must be a results.jsonl file under hives/ and an entry's id, as path#id")
+            elif result is None:
+                err(f"eval.baseline.result not found: {ref!r}")
+            elif not isinstance(record, dict) or record.get("passport") != name or record.get("suite") != ev.get("suite"):
+                err(f"eval.baseline.result {ref} isn't an eval of {name} on {ev.get('suite')}")
+            elif not isinstance(runs, list) or len(runs) != 1 or not isinstance(runs[0], dict):
+                err(f"eval.baseline.result {ref} must have one run; a run that drifted and was run again isn't a baseline")
+            elif (runs[0].get("met"), runs[0].get("of")) != (met, of) or runs[0].get("ran") != of:
+                err(f"eval.baseline is {met} of {of}, but its result's run met "
+                    f"{runs[0].get('met')} of {runs[0].get('of')} with {runs[0].get('ran')} run")
+            elif not isinstance(record.get("findings"), list) or set(map(str, record["findings"])) - {"cost"}:
+                err(f"eval.baseline.result {ref} found {', '.join(map(str, record.get('findings') or []))}; "
+                    "a baseline can carry only a cost flag")
         if not is_int(ev.get("threshold"), 0):
             err("eval.threshold must be an integer of at least 0")
     return errors

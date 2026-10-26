@@ -70,6 +70,7 @@ DEFAULT_STATE_DIR = Path("~/.local/state/workflows-hive/runs")
 TERMINAL = ("completed", "failed", "cancelled")
 EXPIRY = timedelta(days=7)  # how long an approval or escalation waits for a human
 RUN_ENV = "WORKFLOWS_HIVE_RUN"  # set in a step's or turn's environment while it runs
+FINDINGS = ("drift", "unconfirmed-miss", "cost", "not-run")  # what a trust evaluation sends the queue
 REF = re.compile(r"\$\{([^}]+)\}")
 
 
@@ -817,15 +818,20 @@ class Engine:
             "present": present, "createdAt": pending["createdAt"], "expiresAt": pending["expiresAt"],
             "status": "open", "answer": None})
 
-    def drift(self, agent, result, present):
-        """Put drift in the review queue: the trust evaluation found an agent's runs falling
-        below its baseline. agent is {passport, version, sha256}, result the results.jsonl
-        entry that records the runs, and present what a person needs to judge it. Drift never
-        expires; it holds promotion until a person answers it."""
+    def drift(self, agent, result, present, finding="drift"):
+        """Put what the trust evaluation found in the review queue. agent is {passport,
+        version, sha256}, result the id of the results.jsonl entry that records the runs, and
+        present what a person needs to judge it. finding is drift (the agent's runs fell below
+        its baseline, which holds promotion until a person answers), or a flag that doesn't
+        hold it: unconfirmed-miss (a critical case missed once), cost (a run cost more than
+        twice its baseline's per case) or not-run (the ceiling refused the eval). None
+        expires."""
+        if finding not in FINDINGS:
+            raise EngineError(f"a trust evaluation finds one of {', '.join(FINDINGS)}, not {finding!r}")
         created = stamp(self.clock())
-        source = {"passport": agent["passport"], "version": agent["version"], "result": result}
+        source = {"passport": agent["passport"], "version": agent["version"], "result": result, "finding": finding}
         item_id = check_audit.digest({"kind": "drift", "source": source, "present": present, "createdAt": created})
-        self.append_audit({"kind": "drift", "agent": agent, "item": item_id})
+        self.append_audit({"kind": "drift" if finding == "drift" else "eval.flagged", "agent": agent, "item": item_id})
         item = {"id": item_id, "kind": "drift", "source": source, "agent": agent, "present": present,
                 "createdAt": created, "expiresAt": None, "status": "open", "answer": None}
         self.write(self.item_path(item_id), item)
@@ -914,7 +920,7 @@ class Engine:
         self.append_audit({"kind": "drift.answered", "agent": item["agent"], "item": item["id"],
                            "decision": decision, "by": by, "via": via})
         self.close_item(item["id"], "answered", answer)
-        self.log(f"{'approve' if decision == 'approved' else 'deny'} drift {item['id']}")
+        self.log(f"{'approve' if decision == 'approved' else 'deny'} {item['source']['finding']} {item['id']}")
         return json.loads(self.item_path(item["id"]).read_text())
 
     @staticmethod

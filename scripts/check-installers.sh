@@ -123,8 +123,9 @@ run "projects-hive init.py --dry-run" \
 run "agents-hive entra.sh plan and refusals (stubbed az)" \
   bash hives/agents-hive/deploy/azure/tests/entra_test.sh
 
-# agents-hive: deploy.sh checks role ids before its first what-if, against a stubbed az.
-run "agents-hive deploy.sh role id check (stubbed az)" \
+# agents-hive: deploy.sh checks the passport, role ids and models before its first what-if,
+# against a stubbed az.
+run "agents-hive deploy.sh promotion, role id and model checks (stubbed az)" \
   bash hives/agents-hive/deploy/azure/tests/deploy_test.sh
 
 # agents-hive: prices.sh reads the Retail Prices API's pages, against a stubbed curl.
@@ -349,8 +350,9 @@ check_wf "workflows-hive run.py leaves a whole audit log" "$(holds eval '[ "$cod
 # mid-turn and mid-step, and cancel.
 # -B: no __pycache__ left in the repo.
 run "workflows-hive engine library tests" python3 -B -m unittest discover -s hives/workflows-hive/tests
-# agents-hive: passports only narrow their contracts, pins match, and cards link them.
-run "agents-hive passport tests" python3 -B -m unittest discover -s hives/agents-hive/tests
+# agents-hive: passports only narrow their contracts, pins match, cards link them, and the
+# trust evaluation judges drift and gates promotion.
+run "agents-hive passport and trust evaluation tests" python3 -B -m unittest discover -s hives/agents-hive/tests
 # knowledge-hive: the audit log's hash rules, and the verifier's reports and anchors.
 run "knowledge-hive audit log tests" python3 -B -m unittest discover -s hives/knowledge-hive/tests
 

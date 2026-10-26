@@ -1,7 +1,7 @@
 {
   "$schema": "../../schema/passport.schema.json",
   "passport": "patricia",
-  "version": 3,
+  "version": 4,
   "owner": "@werkrbee",
   "contract": { "capability": "governance-review", "version": 1 },
   "policy": { "ruleset": "hives/rules-hive/rules/queen-charter/policy.json", "version": 3 },
@@ -29,8 +29,7 @@
     "suite": "hives/agents-hive/deploy/azure/eval/cases.json",
     "baseline": {
       "met": 12, "of": 12,
-      "result": "hives/agents-hive/deploy/azure/eval/RESULTS.md#2026-10-21-claude-sonnet-55-gpt-54-and-deepseek-v32",
-      "commit": "4ffb36a"
+      "result": "hives/agents-hive/deploy/azure/eval/results.jsonl#2026-10-21-patricia-eval"
     },
     "threshold": 0
   }

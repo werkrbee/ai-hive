@@ -115,6 +115,31 @@ class Reviewer:
             return None
         return Plan(user, max_out, self.config.price(est_input, max_out))
 
+    def entry(self, completion):
+        """The ledger entry for a call that reported its usage."""
+        tokens = completion.input_tokens + completion.output_tokens
+        usd = self.config.price(completion.input_tokens, completion.output_tokens)
+        if usd > self.config.contract.get("budget", {}).get("usd", math.inf):
+            log.warning("a call cost $%.4f, over the contract's per-call budget", usd)
+        return {
+            **self._who(),
+            "usd": round(usd, 6), "tokens": tokens,
+            "tokenDetail": {"input": completion.input_tokens, "output": completion.output_tokens},
+            # usd is computed from configured prices, not billed figures
+            "basis": "estimated",
+        }
+
+    def unmetered(self, usd):
+        """An entry for a call that may have been billed but reported no usage."""
+        return {**self._who(), "usd": round(usd, 6), "basis": "estimated"}
+
+    def _who(self):
+        """What the ledger says about the call: the capability, the model's publisher (lower
+        case, as the ledger recorded it before the API was its own field), the wire API, and
+        the model."""
+        return {"capability": self.config.capability, "provider": self.config.model.publisher.lower(),
+                "api": self.provider.name, "model": self.provider.model}
+
     def verdict(self, text):
         """(output, None), or (None, why the model's reply doesn't meet the contract)."""
         text = text.strip()
@@ -164,7 +189,7 @@ class Executor(AgentExecutor):
         # From here the provider may bill us. Until it reports metered usage, the cost is
         # taken to be the whole reservation, so a timeout or cancel still counts toward the
         # ceiling.
-        entry = self.unmetered(plan.max_usd)
+        entry = r.unmetered(plan.max_usd)
         try:
             await r.ledger.start(context.task_id, entry)
             await updater.start_work()
@@ -178,11 +203,11 @@ class Executor(AgentExecutor):
                     updater, f"The review ran past the contract's {budget['seconds']}-second budget and was stopped."))
                 return
             except ProviderError as e:
-                entry = self._entry(e.completion) if e.completion else entry if e.sent else None
+                entry = r.entry(e.completion) if e.completion else entry if e.sent else None
                 log.warning("provider error on task %s: %s", context.task_id, e)
                 await updater.failed(_message(updater, f"The model provider failed: {e}"))
                 return
-            entry = self._entry(completion)
+            entry = r.entry(completion)
             verdict, problems = r.verdict(completion.text)
             if problems:
                 await updater.failed(_message(
@@ -192,33 +217,6 @@ class Executor(AgentExecutor):
             await updater.complete()
         finally:
             await r.ledger.settle(plan.max_usd, entry, key=context.task_id)
-
-    def _entry(self, completion):
-        r = self.reviewer
-        tokens = completion.input_tokens + completion.output_tokens
-        usd = r.config.price(completion.input_tokens, completion.output_tokens)
-        if usd > r.config.contract.get("budget", {}).get("usd", math.inf):
-            log.warning("a call cost $%.4f, over the contract's per-call budget", usd)
-        return {
-            **self._who(),
-            "usd": round(usd, 6), "tokens": tokens,
-            "tokenDetail": {"input": completion.input_tokens, "output": completion.output_tokens},
-            # usd is computed from configured prices, not billed figures
-            "basis": "estimated",
-        }
-
-    def unmetered(self, usd):
-        """An entry for a call that may have been billed but reported no usage."""
-        r = self.reviewer
-        return {**self._who(), "usd": round(usd, 6), "basis": "estimated"}
-
-    def _who(self):
-        """What the ledger says about the call: the capability, the model's publisher (lower
-        case, as the ledger recorded it before the API was its own field), the wire API, and
-        the model."""
-        r = self.reviewer
-        return {"capability": r.config.capability, "provider": r.config.model.publisher.lower(),
-                "api": r.provider.name, "model": r.provider.model}
 
     async def cancel(self, context, event_queue):
         if context.task_id is None or context.context_id is None:

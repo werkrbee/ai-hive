@@ -3,6 +3,10 @@
 Each run sends the twelve cases in `cases.json` through the server's own reviewer and
 records the verdicts, how many fall within what the Charter allows, and the cost.
 
+These runs compared models to choose Patricia's. Her trust evaluations are recorded in
+`results.jsonl` instead, one entry each; its first is the 2026-10-21 run below, her
+baseline, with the pins it ran on rebuilt from commit `4ffb36a`.
+
 ## 2026-10-13: GPT-5.4, before Claude
 
 The first run, against werkrbee's deployment in eastus2. It has one model, not two:

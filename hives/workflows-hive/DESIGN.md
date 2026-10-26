@@ -263,9 +263,12 @@ atomically like a run record:
 ```
 
 `kind` is `approval`, `escalation` or `drift`. An approval's `source` is its run and step;
-an escalation's is its run and the question's `ask` ID, and it presents the `question`
-and any `values`; drift's is the passport, its version and the `results.jsonl` entry that
-recorded the eval, and it presents what the trust evaluation gives it. `status` is `open`,
+an escalation's is its run and the question's `ask` ID, and it presents the `question` and
+any `values`; drift's is the passport, its version, the `results.jsonl` entry that
+recorded the eval and its `finding`, and it presents what the trust evaluation gives it.
+The finding is `drift`, or a flag that doesn't hold promotion: `unconfirmed-miss` (a
+critical case missed in only one run), `cost` (a run that cost more than twice its
+baseline's per case) or `not-run` (an eval the ceiling refused). `status` is `open`,
 `answered` or `expired`, and `answer` is the answer as the run recorded it, or a cancel.
 Drift has no `expiresAt`.
 
@@ -275,8 +278,8 @@ with its run: an item whose pause is past its expiry expires its run, and one it
 answered some other way, such as by a cancel, is closed. An escalation's answer is kept in
 the record under `answers`, keyed by its `ask` ID, with `text`, `by`, `at`, `via` and the
 item's `id`, and the run goes back to `working` for its loop. Answering drift writes a
-`drift.answered` entry to the audit log; nothing else changes until the trust evaluation
-reads it.
+`drift.answered` entry to the audit log and closes the item; the promotion check that
+`deploy.sh` runs (agents-hive's `scripts/trust_eval.py`) reads it from the queue.
 
 A step's worker and a model turn run with `WORKFLOWS_HIVE_RUN` set to the run's ID in
 their environment, which processes they start inherit. The engine, and so the queue's

@@ -164,11 +164,12 @@ python3 scripts/run.py start <workflow> --passport patricia   # an fs.write step
 
 The review queue is one place where a person sees and answers everything that needs them,
 across every run and agent. It holds three kinds of item: an `approval` (a step a run
-paused on), an `escalation` (a question an agent's run asked a person) and `drift` (the
-trust evaluation finding an agent below its baseline). Each is a JSON file in `queue/`
-beside the state directory, with what a person must see to answer it: for an approval, the
-gated actions, the mandates that gate them and the values they must present. The run
-record stays the source of truth, so answering an approval answers its run.
+paused on), an `escalation` (a question an agent's run asked a person) and `drift` (what
+an agent's trust evaluation found: the agent below its baseline, or a flag for a person to
+look at, which its `finding` names). Each is a JSON file in `queue/` beside the state
+directory, with what a person must see to answer it: for an approval, the gated actions,
+the mandates that gate them and the values they must present. The run record stays the
+source of truth, so answering an approval answers its run.
 
 ```bash
 python3 scripts/review_queue.py list                 # what is waiting, across every run
@@ -183,9 +184,10 @@ run, the step, the exact call, its gated actions, the mandates that gate them an
 values shown. So an answer answers only what was shown. If anything the digest covers has
 changed by the time the step runs, the approval is void and the step waits again. An
 approval or an escalation unanswered for seven days expires, which fails its run. Drift
-doesn't expire: it holds promotion until a person answers it. Every answer, and every
-expiry, is written to the audit log before the run moves on, with how the answer came:
-`via` is `cli`, `mcp` or `a2a`.
+doesn't expire: when its finding is `drift`, it holds promotion of the agent until a
+person answers it, and a denial holds it until a newer baseline is recorded (agents-hive's
+`scripts/trust_eval.py`). Every answer, and every expiry, is written to the audit log
+before the run moves on, with how the answer came: `via` is `cli`, `mcp` or `a2a`.
 
 An agent must never answer its own queue. So `review_queue.py` refuses to answer when it
 isn't attached to an interactive terminal, which harness shells usually aren't, and when
@@ -267,8 +269,8 @@ run, and `turn` raises `Stopped` once the run has failed or been cancelled.
 requires on an ambiguous decision, missing credentials or repeated failure. The run waits
 in `input_required` with an escalation in the review queue, and `escalate` returns `None`.
 Once a person has answered, the same call returns their answer, so a resumed loop asks
-each question once. `drift(agent, result, present)` puts drift in the queue, for the trust
-evaluation.
+each question once. `drift(agent, result, present, finding)` puts what a trust evaluation
+found in the queue: `drift`, or one of the flags `unconfirmed-miss`, `cost` and `not-run`.
 
 ## License
 

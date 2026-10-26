@@ -120,17 +120,16 @@
       "required": ["suite", "baseline", "threshold"],
       "additionalProperties": false,
       "properties": {
-        "suite": { "description": "The cases file, as a path from the repo root.", "type": "string", "pattern": "^hives/" },
+        "suite": { "description": "The cases file, as a path from the repo root. A case marked critical is one where the wrong answer lets a consequential action through.", "type": "string", "pattern": "^hives/" },
         "baseline": {
-          "description": "The cases the pinned versions met, and where that run is recorded.",
+          "description": "The cases a run met, and the results.jsonl entry that records the run. deploy.sh promotes the passport only when that run was made against its exact pins.",
           "type": "object",
-          "required": ["met", "of", "result", "commit"],
+          "required": ["met", "of", "result"],
           "additionalProperties": false,
           "properties": {
             "met": { "type": "integer", "minimum": 0 },
             "of": { "type": "integer", "minimum": 1 },
-            "result": { "description": "Where the run is recorded, as a path from the repo root with an optional #anchor.", "type": "string", "pattern": "^hives/" },
-            "commit": { "description": "The commit the run was made from.", "type": "string", "pattern": "^[0-9a-f]{7,40}$" }
+            "result": { "description": "The results.jsonl file, as a path from the repo root, and the entry's id: path#id.", "type": "string", "pattern": "^hives/[^#]*results\\.jsonl#.+$" }
           }
         },
         "threshold": {

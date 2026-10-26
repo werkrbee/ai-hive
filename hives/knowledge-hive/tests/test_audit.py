@@ -167,6 +167,15 @@ class Format(Log):
             audit.append(self.log, {"kind": "drift.answered", "item": "sha256:" + "a" * 64,
                                     "decision": "approved", "by": "ci"})
 
+    def test_an_eval_names_its_result_and_a_finding_its_item(self):
+        agent = {"passport": "patricia", "version": 4, "sha256": "a" * 64}
+        with self.assertRaisesRegex(audit.AuditError, "missing 'result'"):
+            audit.append(self.log, {"kind": "eval.ran", "agent": agent})
+        with self.assertRaisesRegex(audit.AuditError, "missing 'item'"):
+            audit.append(self.log, {"kind": "eval.flagged", "agent": agent})
+        audit.append(self.log, {"kind": "eval.ran", "agent": agent, "result": "2026-10-27-patricia-eval"})
+        self.assertEqual(self.errors(), [])
+
     def test_the_writer_refuses_an_entry_that_doesnt_fit(self):
         with self.assertRaisesRegex(audit.AuditError, "missing 'by'"):
             audit.append(self.log, {"kind": "run.cancelled", "runId": "run_9"})

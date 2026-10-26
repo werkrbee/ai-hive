@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Exercise deploy.sh's checks against a stubbed az. Role ids: the current ids pass and
+# Exercise deploy.sh's checks against a stubbed az. A passport the promotion check refuses
+# stops before any az call. Role ids: the current ids pass and
 # reach the first what-if; a wrong id, or a lookup that fails, stops before any what-if or
 # change. Models: generally available ones pass, from any publisher, each named with the
 # API the server would use and the chosen one marked; one that is preview, missing from
@@ -82,6 +83,14 @@ run() {
     "${MODELS:-[$gpt, $deepseek]}" "${CHOSEN:-}" > "$STUB/params.json"
   cp "$here/../deploy.sh" "$dir/"
   cp "$2" "$dir/main.bicep"
+  # The promotion check, stubbed: it passes unless $PROMOTION is "refused".
+  mkdir -p "$repo/hives/agents-hive/scripts"
+  cat > "$repo/hives/agents-hive/scripts/trust_eval.py" <<'PY'
+import os, sys
+if os.environ.get("PROMOTION") == "refused":
+    sys.exit("refused: passport patricia v4's baseline was recorded against other pins")
+print(f"{sys.argv[2]}: baseline recorded against its pins, and no drift holds it")
+PY
   git -C "$repo" init -q
   git -C "$repo" add -A
   git -C "$repo" -c user.name=test -c user.email=test@example.com commit -q -m test
@@ -98,6 +107,12 @@ only_lookups() { ! grep -qv "^role definition list" "$STUB/calls"; }
 
 bicep="$here/../main.bicep"
 
+# A passport that can't be promoted stops everything, before any az call.
+PROMOTION=refused run promotion "$bicep"
+check "passport not promotable: refused before any az call" \
+  eval '[ "$code" -ne 0 ] && has "baseline was recorded against other pins" \
+   && has "Patricia.s passport can.t be promoted" && [ ! -s "$STUB/calls" ]'
+
 # The current ids exist, so the check passes and deploy.sh goes on to the first what-if.
 run ok "$bicep"
 check "current ids: each found by name" \
@@ -106,6 +121,8 @@ check "current ids: each found by name" \
    && has "cognitiveServicesOpenAiUser: 5e0bd9bd-7b93-4f28-af87-19fc36ad61bd (Cognitive Services OpenAI User)"'
 check "current ids: goes on to the first what-if" \
   eval 'has "== 1/3 infrastructure" && grep -q "^deployment group what-if" "$STUB/calls"'
+check "a promotable passport: checked first, for Patricia" \
+  eval 'has "patricia: baseline recorded against its pins"'
 
 # The id the first deploy had wrong: refused, naming it, before anything else.
 sed 's/7f951dda-4ed3-4680-a7ca-43fe172d538d/7f951dde-4ef9-41c1-b0ac-8f2d6ec5c76b/' "$bicep" > "$work/wrong.bicep"
