@@ -1,4 +1,5 @@
-"""Tests for the engine as a library: open runs that grow, model turns, crashes and cancel.
+"""Tests for the engine as a library: open runs that grow, model turns, crashes, cancel,
+the audit log, passports and actor IDs.
 
 Run from the repo root: python3 -m unittest discover -s hives/workflows-hive/tests
 """
@@ -329,6 +330,154 @@ class Cancel(Base):
         run = e.finish(e.open("loop"), "done")
         with self.assertRaisesRegex(engine.EngineError, "already completed"):
             e.cancel(run["runId"])
+
+
+def entries(test):
+    """The audit log's entries, after checking its chain against the run records."""
+    log = test.tmp / "audit.jsonl"
+    test.assertEqual(engine.check_audit.check(log, test.tmp / "runs"), [])
+    return [json.loads(line) for line in log.read_text().splitlines()]
+
+
+def kinds(test, run_id):
+    return [(e["kind"], e.get("step") or e.get("turn"), e.get("decision"))
+            for e in entries(test) if e["runId"] == run_id]
+
+
+class Audit(Base):
+    def test_every_decision_of_a_planned_run_is_logged_and_the_record_anchors_the_last(self):
+        words = self.tmp / "words.txt"
+        words.write_text("a b\n")
+        run = self.engine.start("word-count", {"path": str(words)})
+        self.assertEqual(kinds(self, run["runId"]), [
+            ("run.started", None, None),
+            ("step.decided", "read", "allowed"), ("step.ran", "read", None),
+            ("step.decided", "count", "allowed"), ("step.ran", "count", None),
+            ("run.completed", None, None)])
+        last = entries(self)[-1]
+        self.assertEqual(run["audit"], {"seq": last["seq"], "hash": last["hash"]})
+        self.assertEqual(entries(self)[0]["prev"], "sha256:" + "0" * 64)
+
+    def test_a_gated_action_is_logged_paused_then_answered_and_not_decided_again(self):
+        e = self.engine
+        run = e.execute(e.append(e.open("loop"), {"id": "push", "worker": "echo", "input": {"branch": "x"},
+                                                   "actions": [{"action": "vcs.push"}]}))
+        run = e.approve(run["runId"], by="ci")
+        self.assertEqual(kinds(self, run["runId"]), [
+            ("run.started", None, None), ("step.decided", "push", "paused"),
+            ("approval.answered", "push", "approved"), ("step.ran", "push", None)])
+        decided = next(x for x in entries(self) if x["kind"] == "step.decided")
+        self.assertEqual((decided["action"], decided["rules"]), ("vcs.push", ["approve.vcs.push"]))
+        self.assertRegex(decided["call"], r"^sha256:[0-9a-f]{64}$")
+        self.assertNotIn("branch", json.dumps(decided))  # the call's arguments stay in the record
+        self.assertEqual(next(x for x in entries(self) if x["kind"] == "approval.answered")["by"], "ci")
+
+    def test_a_denial_a_cancel_a_failed_turn_and_a_budget_refusal_are_logged(self):
+        e = self.engine
+        denied = e.execute(e.append(e.open("loop"), {"id": "gate", "worker": "echo", "input": {}, "approval": True}))
+        e.deny(denied["runId"], "not now", by="ci")
+        cancelled = e.open("loop")
+        e.cancel(cancelled["runId"], by="ci")
+        e.resume(cancelled["runId"])
+        failed = e.open("loop")
+
+        def broken(_key):
+            raise RuntimeError("model unavailable")
+        with self.assertRaises(engine.Stopped):
+            e.turn(failed, "t1", broken)
+        costly = e.execute(e.append(e.open("loop"), {"id": "big", "worker": "echo", "input": {},
+                                                      "budget": {"tokens": 5}}))
+        self.assertEqual(kinds(self, denied["runId"])[1:], [
+            ("step.decided", "gate", "paused"), ("approval.answered", "gate", "denied"), ("run.failed", None, None)])
+        self.assertEqual(kinds(self, cancelled["runId"])[1:], [("run.cancelled", None, None)])
+        self.assertEqual(kinds(self, failed["runId"])[1:], [("turn.failed", "t1", None), ("run.failed", None, None)])
+        self.assertEqual(kinds(self, costly["runId"])[2:], [("budget.refused", "big", None), ("run.failed", None, None)])
+        self.assertNotIn("not now", (self.tmp / "audit.jsonl").read_text())  # a denial's reason stays in the record
+
+    def test_a_turn_and_a_finish_are_logged(self):
+        e = self.engine
+        run = e.open("loop")
+        e.turn(run, "t1", self.model("hi"))
+        e.turn(e.load(run["runId"]), "t1", self.model("hi"))  # replayed from the record, not logged again
+        e.finish(run, "done")
+        self.assertEqual(kinds(self, run["runId"]), [
+            ("run.started", None, None), ("turn.completed", "t1", None), ("run.completed", None, None)])
+
+    def test_a_log_that_cant_be_written_stops_the_run(self):
+        log = self.tmp / "audit.jsonl"
+        log.write_text('{"seq": 1, "cut off')
+        with self.assertRaisesRegex(engine.EngineError, "last line is incomplete"):
+            self.engine.open("loop")
+        self.assertEqual(list((self.tmp / "runs").glob("*.json")), [])
+
+
+class Passports(Base):
+    def test_a_never_action_is_prohibited_before_any_mandate(self):
+        e = self.engine
+        run = e.open("review", passport="patricia")
+        e.append(run, {"id": "edit", "worker": "echo", "input": {}, "actions": [{"action": "fs.write"}]})
+        run = e.execute(run)  # the Charter lets fs.write run on its own; Patricia's passport doesn't
+        self.assertEqual(run["status"], "failed")
+        self.assertIn("fs.write is prohibited by passport.patricia.never.fs.write", run["error"]["message"])
+        self.assertEqual(calls(self.log), [])
+        decided = next(x for x in entries(self) if x["kind"] == "step.decided")
+        self.assertEqual(decided["rules"], ["passport.patricia.never.fs.write"])
+
+    def test_each_entry_names_the_passport_its_run_is_under(self):
+        e = self.engine
+        passport, sha = engine.load_passport("barry")
+        run = e.execute(e.append(e.open("loop", passport="barry"), {"id": "s1", "worker": "echo", "input": {}}))
+        self.assertEqual(run["agent"], {"passport": "barry", "version": passport["version"], "sha256": sha})
+        self.assertTrue(all(x["agent"] == run["agent"] for x in entries(self)))
+
+    def test_a_run_without_a_passport_names_no_agent(self):
+        run = self.engine.open("loop")
+        self.assertIsNone(run["agent"])
+        self.assertNotIn("agent", entries(self)[0])
+
+    def test_an_unknown_or_malformed_passport_is_refused(self):
+        for name, message in (("nobody", "no passport for 'nobody'"), ("../barry", "kebab-case")):
+            with self.subTest(name), self.assertRaisesRegex(engine.EngineError, message):
+                self.engine.open("loop", passport=name)
+
+    def test_a_run_keeps_the_passport_it_started_under(self):
+        passports = self.tmp / "passports"
+        shutil.copytree(engine.PASSPORTS_DIR, passports)
+        e = engine.Engine(self.tmp / "runs", workers=self.workers, log=lambda *a: None, passports_dir=passports)
+        run = e.append(e.open("loop", passport="barry"), {"id": "s1", "worker": "echo", "input": {}})
+        path = passports / "barry" / "passport.json"
+        changed = json.loads(path.read_text())
+        changed["version"] += 1
+        changed["budget"]["usd"] = 0.01
+        path.write_text(json.dumps(changed))
+        with self.assertRaisesRegex(engine.EngineError, "has changed since"):
+            e.execute(run)
+        self.assertEqual(calls(self.log), [])
+
+
+class Actors(Base):
+    def paused(self):
+        e = self.engine
+        return e.execute(e.append(e.open("loop"), {"id": "gate", "worker": "echo", "input": {}, "approval": True}))
+
+    def test_an_answer_or_cancel_without_an_actor_id_is_refused(self):
+        run = self.paused()
+        for act in (lambda: self.engine.approve(run["runId"]), lambda: self.engine.cancel(run["runId"])):
+            with self.assertRaisesRegex(engine.EngineError, "needs an actor ID"):
+                act()
+        self.assertEqual(self.engine.load(run["runId"])["status"], "input_required")
+
+    def test_a_name_or_email_is_not_an_actor_id(self):
+        run = self.paused()
+        for by in ("Jane Doe", "jane@example.com"):
+            with self.subTest(by), self.assertRaisesRegex(engine.EngineError, "isn't an actor ID"):
+                self.engine.approve(run["runId"], by=by)
+
+    def test_the_configured_actor_answers_when_no_one_else_is_named(self):
+        run = self.paused()
+        e = engine.Engine(self.tmp / "runs", workers=self.workers, log=lambda *a: None, actor="usr_7f3a")
+        run = e.approve(run["runId"])
+        self.assertEqual(run["steps"]["gate"]["approval"]["by"], "usr_7f3a")
 
 
 if __name__ == "__main__":

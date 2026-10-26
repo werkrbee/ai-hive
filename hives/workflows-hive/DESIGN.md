@@ -133,6 +133,8 @@ Each run persists one record, keyed by its run ID:
   "runId": "run_01J9Z…",
   "workflow": "summarize-url",
   "workflowVersion": 1,
+  "policy": "hives/rules-hive/rules/queen-charter/policy.json",
+  "agent": { "passport": "barry", "version": 2, "sha256": "…" },
   "status": "input_required",
   "inputs": { "url": "https://example.com" },
   "next": "summarize",
@@ -151,6 +153,7 @@ Each run persists one record, keyed by its run ID:
   "cost": { "usd": 0.0, "tokens": 0 },
   "result": null,
   "error": null,
+  "audit": { "seq": 41, "hash": "sha256:4be1…" },
   "createdAt": "2026-10-08T14:02:11Z",
   "updatedAt": "2026-10-08T14:02:12Z"
 }
@@ -160,16 +163,18 @@ Each run persists one record, keyed by its run ID:
 `completed` or `failed`. Its `idempotencyKey` is the run ID and step ID, and never
 changes; `attempt` counts deliberate retries after a recorded failure, and resuming after
 a crash doesn't increase it. `pending` is set only while the run waits on input, and it
-becomes one entry in `inputRequests` on `tasks/get`, keyed by the step ID: an
-elicitation asking whether to run the step. The answer is kept on the step as
-`approval`: `decision` (`approved` or `denied`), `by`, `at`, and for a denial its
-`reason`. A step that needs approval runs only once its `approval.decision` is
-`approved`, so resuming a paused run never runs it. A denied approval fails the run,
-with the denial as its error, and the step never runs. A step stopped by its budget
-fails the run, with the reason as its error; a step over its cost cap keeps the cost it
-reported. `cost` is the sum of the step costs, including those, and is reported with the
-result. `result` or `error` is filled when the run
-reaches a terminal status.
+becomes one entry in `inputRequests` on `tasks/get`, keyed by the step ID: an elicitation
+asking whether to run the step. The answer is kept on the step as `approval`: `decision`
+(`approved` or `denied`), `by`, `at`, and for a denial its `reason`. `by` is an opaque
+actor ID, never a name or an email. A step that needs approval runs only once its
+`approval.decision` is `approved`, so resuming a paused run never runs it. A denied
+approval fails the run, with the denial as its error, and the step never runs. A step
+stopped by its budget fails the run, with the reason as its error; a step over its cost
+cap keeps the cost it reported. `cost` is the sum of the step costs, including those, and
+is reported with the result. `result` or `error` is filled when the run reaches a terminal
+status. `agent` is the passport the run is under, if any, as its name, version and digest;
+the run keeps it, and its `never` actions are prohibitions. `audit` is the `seq` and
+`hash` of the last audit log entry written for the run.
 
 The engine keeps these rules:
 
@@ -182,12 +187,16 @@ The engine keeps these rules:
    crashed mid-flight runs again with the same key, so the effect happens once.
 5. Stop a step that would exceed its budget, and fail the run with the reason. A step's
    budget may not exceed the per-call budget in its worker's execution contract.
+6. Append every decision to the audit log before writing the record that follows it, and
+   keep the last entry's `seq` and `hash` in the record. A run whose log can't be written
+   doesn't go on.
 
 A cancelled run ends in `cancelled`, with who cancelled it as its `error`. The request is
 kept apart from the record until a process applies it, so the save of a step in flight
 doesn't lose it: a paused run is cancelled at once, and a working one before its next step
-or turn. The reference engine takes no lock, so a cancel that lands at the same moment as
-an approval in another process can still lose to it.
+or turn. The reference engine takes no lock on the record, so a cancel that lands at the
+same moment as an approval in another process can still lose to it. It does lock the audit
+log while it appends, so two processes never write the same entry.
 
 ## Open runs
 
@@ -224,8 +233,8 @@ step has completed, or fails it.
 
 ## Out of scope here
 
-The reference engine (`scripts/run.py`) implements rules 1 to 5, approvals,
-policy-decided actions, cancel and open runs, with the two-step `word-count`,
+The reference engine (`scripts/run.py`) implements rules 1 to 6, approvals,
+policy-decided actions, passports, cancel and open runs, with the two-step `word-count`,
 `approved-word-count` and `budgeted-word-count` workflows. It is a command and a Python
 module (`Engine`); open runs are offered only through the module. It applies rules-hive's
 own checker (`check_policy.py`), so the engine and the policy's cases can't disagree, and

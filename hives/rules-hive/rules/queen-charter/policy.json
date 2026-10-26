@@ -1,9 +1,33 @@
 {
   "$schema": "../../schema/approval-policy.schema.json",
   "policy": "queen-charter",
-  "version": 1,
-  "description": "The Queen Bee's Charter's approval rules. Local, reversible actions run without asking. Consequential, irreversible or externally visible actions need a human to approve the specific action. Anything else is denied.",
+  "version": 2,
+  "description": "The Queen Bee's Charter's approval rules. Local, reversible actions run without asking. Consequential, irreversible or externally visible actions need a human to approve the specific action. Anything else is denied. Editing or deleting an audit log is prohibited outright.",
   "source": "hives/rules-hive/rules/queen-charter/AGENTS.md",
+  "actions": [
+    {
+      "id": "audit.edit",
+      "description": "Edit, truncate or rewrite an audit log.",
+      "gated": true
+    },
+    {
+      "id": "audit.delete",
+      "description": "Delete an audit log.",
+      "gated": true
+    }
+  ],
+  "prohibitions": [
+    {
+      "id": "audit.no-edit",
+      "action": "audit.edit",
+      "reason": "No agent edits, truncates or rewrites an audit log (the Charter's first principles)."
+    },
+    {
+      "id": "audit.no-delete",
+      "action": "audit.delete",
+      "reason": "No agent deletes an audit log (the Charter's first principles). Archiving one is a human's infrastructure change."
+    }
+  ],
   "mandates": [
     {
       "id": "auto.fs.read",

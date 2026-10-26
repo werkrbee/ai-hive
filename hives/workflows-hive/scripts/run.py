@@ -10,6 +10,12 @@ pauses the run in input_required until a human approves or denies it. A step's
 fails the run when a step reports more usd or tokens than its cap. A step's "actions" are
 decided by an approval policy (rules-hive's Charter, or --policy): a prohibited action
 fails the run, a gated one pauses it for approval, and one no mandate allows is denied.
+A run can run under an agent's passport (--passport), whose never actions are prohibited.
+
+Every decision goes into a hash-chained audit log (knowledge-hive's audit.jsonl format,
+--audit) before the run record that follows it, and the record keeps the seq and hash of
+its run's last entry. A human's answer or cancel is recorded under an opaque actor ID
+(--by, or WORKFLOWS_HIVE_ACTOR), never an operating-system login.
 
 The engine is also a library (Engine, below). There a run can be open: it starts with no
 steps, grows a step at a time, and keeps model turns in its record beside the steps, so
@@ -20,20 +26,21 @@ Usage:
   python3 scripts/run.py start word-count --input path=README.md --crash-after read
   python3 scripts/run.py resume <run-id>
   python3 scripts/run.py status <run-id>
-  python3 scripts/run.py approve <run-id> [--by NAME]
-  python3 scripts/run.py deny <run-id> --reason TEXT [--by NAME]
-  python3 scripts/run.py cancel <run-id> [--by NAME]
+  python3 scripts/run.py start word-count --input path=README.md --passport barry
+  python3 scripts/run.py approve <run-id> [--by ACTOR-ID]
+  python3 scripts/run.py deny <run-id> --reason TEXT [--by ACTOR-ID]
+  python3 scripts/run.py cancel <run-id> [--by ACTOR-ID]
 
 Exit status: 0 when the run completed, 2 when it is waiting for approval, 1 otherwise.
 
 Run records live in --state-dir (default: ~/.local/state/workflows-hive/runs). Plans are
 read from --workflows-dir (default: workflows/), and a worker's execution contract, if it
 has one, from --contracts-dir (default: agents-hive's contracts/). start --policy picks the
-approval policy, and the run keeps it.
+approval policy, and the run keeps it. The audit log defaults to audit.jsonl beside the
+state directory.
 """
 import argparse
 import copy
-import getpass
 import importlib.util
 import json
 import math
@@ -49,6 +56,7 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parent.parent
 WORKFLOWS_DIR = REPO_ROOT / "workflows"
 CONTRACTS_DIR = REPO_ROOT.parent / "agents-hive" / "contracts"
+PASSPORTS_DIR = REPO_ROOT.parent / "agents-hive" / "passports"
 BUDGET_KEYS = {"usd": (int, float), "tokens": int, "seconds": int}
 CHARTER_POLICY = "hives/rules-hive/rules/queen-charter/policy.json"
 REQUEST_KEYS = {"action": str, "scope": dict, "trigger": str, "facts": dict}
@@ -57,17 +65,18 @@ TERMINAL = ("completed", "failed", "cancelled")
 REF = re.compile(r"\$\{([^}]+)\}")
 
 
-def load_check_policy():
-    """rules-hive's policy checker (check, resolve, decide), loaded by path so it never
-    shadows or is shadowed by another module."""
-    path = REPO_ROOT.parent / "rules-hive" / "scripts" / "check_policy.py"
-    spec = importlib.util.spec_from_file_location("check_policy", path)
+def load_script(hive, name):
+    """Another hive's script, loaded by path so it never shadows or is shadowed by another
+    module."""
+    spec = importlib.util.spec_from_file_location(name, REPO_ROOT.parent / hive / "scripts" / f"{name}.py")
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
 
 
-check_policy = load_check_policy()
+check_policy = load_script("rules-hive", "check_policy")              # check, resolve, decide
+check_audit = load_script("knowledge-hive", "check_audit")            # the audit log's format
+validate_passports = load_script("agents-hive", "validate_passports")  # check, digest
 CRASH_EXIT = 75
 WAITING_EXIT = 2
 
@@ -162,6 +171,30 @@ def load_policy(rel):
     merged["name"] = rel
     merged["vocabulary"] = check_policy.UNGATED | check_policy.GATED | set(merged["actions"])
     return merged
+
+
+def load_passport(name, passports_dir=PASSPORTS_DIR):
+    """The passport named name, checked against its contract and pins, and its digest."""
+    if not isinstance(name, str) or not validate_passports.KEBAB.match(name):
+        raise EngineError(f"a passport is named in kebab-case, not {name!r}")
+    path = Path(passports_dir) / name / "passport.json"
+    if not path.is_file():
+        raise EngineError(f"no passport for '{name}' at {path}")
+    problems = validate_passports.check(path)
+    if problems:
+        raise EngineError(f"passport {name} is invalid: {problems[0]}")
+    passport = json.loads(path.read_text())
+    return passport, validate_passports.digest(passport)
+
+
+def under_passport(policy, passport):
+    """The policy with each action in the passport's never as a prohibition, ahead of the
+    policy's own, so no mandate or approval can open it."""
+    name = passport["passport"]
+    never = [{"id": f"passport.{name}.never.{a}", "action": a,
+              "reason": f"{name}'s passport puts it under never, so {name} may not take it even with approval"}
+             for a in passport["permissions"]["never"]]
+    return dict(policy, prohibitions=never + policy["prohibitions"])
 
 
 def check_actions(step, policy):
@@ -274,31 +307,46 @@ class BadAction(Exception):
 
 
 def verdict(policy, step, run):
-    """Decide a step's actions with the policy: (denial message or None, rules that need a
-    human's approval, what that approval must present)."""
-    rules, present = [], []
+    """Decide a step's actions with the policy, in order, up to the first one denied: a list
+    of (request, decision, deciding rule or None, what a human's approval must present)."""
+    decided = []
     for req in resolve(step.get("actions", []), run):
         for key, kind in REQUEST_KEYS.items():  # a reference can resolve to the wrong type
             if key in req and not isinstance(req[key], kind):
                 raise BadAction(f"{key} of action {req['action']} resolved to a "
                                 f"{type(req[key]).__name__}, not a {kind.__name__}")
         decision, rule, show = check_policy.decide(policy, req)
+        decided.append((req, decision, rule, show))
         if decision == "deny":
-            if rule is None:
-                return f"{req['action']} is denied: no mandate in {policy['name']} allows it", [], []
-            reason = next(p["reason"] for p in policy["prohibitions"] if p["id"] == rule)
-            return f"{req['action']} is prohibited by {rule}: {reason}", [], []
-        if decision == "human":
-            rules.append(rule)
-            present += [x for x in show if x not in present]
-    return None, rules, present
+            break
+    return decided
 
 
-def current_user():
-    try:
-        return getpass.getuser()
-    except Exception:  # no USER/LOGNAME and no passwd entry, as in some containers
-        return "unknown"
+def denial(policy, req, rule):
+    if rule is None:
+        return f"{req['action']} is denied: no mandate in {policy['name']} allows it"
+    reason = next(p["reason"] for p in policy["prohibitions"] if p["id"] == rule)
+    return f"{req['action']} is prohibited by {rule}: {reason}"
+
+
+def call_digest(run, step, inp, req=None):
+    """The digest of the exact call a step makes: its run, step, worker, resolved input and,
+    for one action, the action as decided. An audit entry names the call by it, so the log
+    can be matched to the run record without holding the call's arguments."""
+    call = {"runId": run["runId"], "step": step["id"], "worker": step["worker"], "input": inp}
+    if req is not None:
+        call["action"] = req
+    return check_audit.digest(call)
+
+
+def actor_id(by):
+    """by, if it can stand for a person in the record: an opaque ID, never a name or email."""
+    if not by:
+        raise EngineError("an answer or cancel needs an actor ID: pass --by, or set WORKFLOWS_HIVE_ACTOR")
+    if not check_audit.opaque(by):
+        raise EngineError(f"{by!r} isn't an actor ID: use an opaque identifier, never a name or "
+                          "email address (letters, digits and ._:@/+-, no spaces)")
+    return by
 
 
 class Engine:
@@ -307,15 +355,21 @@ class Engine:
     workers maps a worker name to a function from (input, idempotency key, cap) to
     (output, cost); the default is the demo workers. A step with a seconds cap runs its
     worker in a spawned child process, so that worker must be a module-level function.
-    log receives each progress line the CLI prints.
+    audit is the audit log's path (default: audit.jsonl beside state_dir), and actor the
+    opaque ID recorded for an answer or cancel that names no one else. log receives each
+    progress line the CLI prints.
     """
 
     def __init__(self, state_dir=DEFAULT_STATE_DIR, workflows_dir=WORKFLOWS_DIR,
-                 contracts_dir=CONTRACTS_DIR, workers=None, log=print):
+                 contracts_dir=CONTRACTS_DIR, workers=None, log=print, audit=None, actor=None,
+                 passports_dir=PASSPORTS_DIR):
         self.state_dir = Path(state_dir).expanduser()
         self.state_dir.mkdir(parents=True, exist_ok=True)
         self.workflows_dir = Path(workflows_dir).expanduser()
         self.contracts_dir = Path(contracts_dir).expanduser()
+        self.passports_dir = Path(passports_dir).expanduser()
+        self.audit_path = Path(audit).expanduser() if audit else self.state_dir.parent / "audit.jsonl"
+        self.actor = actor
         self.workers = dict(WORKERS if workers is None else workers)
         self.log = log
 
@@ -340,26 +394,68 @@ class Engine:
         if run["status"] in TERMINAL:  # a cancel that lands as the run ends has nothing left to stop
             self.cancel_path(run["runId"]).unlink(missing_ok=True)
 
+    def audit(self, run, kind, **fields):
+        """Append an entry about run to the audit log, and anchor the run record to it. The
+        caller saves the record next, so the log never falls behind the record."""
+        entry = {"kind": kind}
+        if run.get("agent"):
+            entry["agent"] = run["agent"]
+        entry["runId"] = run["runId"]
+        entry.update((k, v) for k, v in fields.items() if v is not None)
+        try:
+            written = check_audit.append(self.audit_path, entry)
+        except (check_audit.AuditError, OSError) as e:  # nothing goes on that the log can't hold
+            raise EngineError(f"audit log {self.audit_path}: {e}") from None
+        run["audit"] = {"seq": written["seq"], "hash": written["hash"]}
+
+    def end(self, run, status, **fields):
+        """End the run with status (completed or failed), audited, and save it."""
+        run.update(status=status, **fields)
+        self.audit(run, f"run.{status}")
+        self.save(run)
+        return run
+
     def load(self, run_id):
         path = self.record_path(run_id)
         if not path.is_file():
             raise EngineError(f"run not found: {path}")
         return json.loads(path.read_text())
 
+    def passport_of(self, run):
+        """The passport the run started under, refused if it has changed since."""
+        agent = run.get("agent")
+        if not agent:
+            return None
+        passport, sha = load_passport(agent["passport"], self.passports_dir)
+        if sha != agent["sha256"]:
+            raise EngineError(f"run {run['runId']} started under passport {agent['passport']} version "
+                              f"{agent['version']}, which has changed since (it is now version "
+                              f"{passport['version']}); a run keeps the passport it started under")
+        return passport
+
     def plan_of(self, run):
-        """The run's plan and policy. An open run carries its plan in its record."""
+        """The run's plan, and its policy under its passport. An open run carries its plan in
+        its record."""
         policy = load_policy(run.get("policy", CHARTER_POLICY))
+        passport = self.passport_of(run)
+        if passport:
+            policy = under_passport(policy, passport)
         if run.get("open"):
             return run["plan"], policy
         return load_plan(run["workflow"], self.workflows_dir, self.workers, self.contracts_dir, policy), policy
 
-    def new_run(self, plan, policy_rel, inputs):
+    def new_run(self, plan, policy_rel, inputs, passport=None):
         run_id = f"run_{uuid.uuid4().hex[:16]}"
+        agent = None
+        if passport is not None:
+            p, sha = load_passport(passport, self.passports_dir)
+            agent = {"passport": p["passport"], "version": p["version"], "sha256": sha}
         return {
             "runId": run_id,
             "workflow": plan["name"],
             "workflowVersion": plan["version"],
             "policy": policy_rel,
+            "agent": agent,
             "status": "working",
             "inputs": inputs,
             "next": plan["steps"][0]["id"] if plan["steps"] else None,
@@ -368,13 +464,14 @@ class Engine:
             "cost": {"usd": 0.0, "tokens": 0},
             "result": None,
             "error": None,
+            "audit": None,
             "createdAt": now(),
         }
 
     # Planned runs
 
-    def start(self, workflow, inputs=None, policy=CHARTER_POLICY, crash_after=None):
-        """Start a run of the plan named workflow, and execute it."""
+    def start(self, workflow, inputs=None, policy=CHARTER_POLICY, crash_after=None, passport=None):
+        """Start a run of the plan named workflow, under passport if one is named, and execute it."""
         plan = load_plan(workflow, self.workflows_dir, self.workers, self.contracts_dir, load_policy(policy))
         inputs = dict(inputs or {})
         missing = [k for k in plan["inputs"].get("required", []) if k not in inputs]
@@ -382,10 +479,36 @@ class Engine:
             raise EngineError(f"missing required input: {', '.join(missing)}")
         if crash_after and crash_after not in [s["id"] for s in plan["steps"]]:
             raise EngineError(f"--crash-after: no step '{crash_after}'")
-        run = self.new_run(plan, policy, inputs)
+        run = self.new_run(plan, policy, inputs, passport)
+        self.audit(run, "run.started")
         self.save(run)  # the run exists before its ID is handed out
         self.log(f"start {run['runId']} ({plan['name']} v{plan['version']})")
         return self.execute(run, crash_after)
+
+    def decide(self, run, step, policy, inp):
+        """Decide the step's actions and audit each decision. Returns (denial message or None,
+        rules that need a human's approval, what that approval must present). Once a human
+        has approved the step, only a denial is audited again: the answer was the decision."""
+        sid, state = step["id"], run["steps"][step["id"]]
+        approved = (state.get("approval") or {}).get("decision") == "approved"
+        rules, present = [], []
+        decided = verdict(policy, step, run)
+        for req, decision, rule, show in decided:
+            word = {"auto": "allowed", "human": "paused", "deny": "denied"}[decision]
+            if decision == "deny" or not approved:
+                self.audit(run, "step.decided", step=sid, action=req["action"], decision=word,
+                           rules=[rule] if rule else [], call=call_digest(run, step, inp, req))
+            if decision == "deny":
+                return denial(policy, req, rule), [], []
+            if decision == "human":
+                rules.append(rule)
+                present += [x for x in show if x not in present]
+        # approval: true adds a pause; approval: false can't remove one the policy requires.
+        pause = bool(step.get("approval") or rules) and not approved
+        if not approved and (not decided or (pause and not rules)):  # a decision no action records
+            self.audit(run, "step.decided", step=sid, decision="paused" if pause else "allowed",
+                       rules=[], call=call_digest(run, step, inp))
+        return None, rules if pause else None, present
 
     def execute(self, run, crash_after=None):
         """Run every step that isn't completed, checkpointing after each one."""
@@ -406,18 +529,27 @@ class Engine:
                 return run
             run["next"] = sid
             try:
-                denied, rules, present = verdict(policy, step, run)
-                label = "deny"
+                inp = resolve(step["input"], run)
+            except Exception as e:  # an input that can't be resolved fails the step, as a worker would
+                message = f"{type(e).__name__}: {e}"
+                state.update(status="failed", endedAt=now())
+                self.audit(run, "step.failed", step=sid)
+                self.log(f"fail  {sid} ({message})")
+                return self.end(run, "failed", error={"step": sid, "message": message})
+            try:
+                denied, rules, present = self.decide(run, step, policy, inp)
+            except EngineError:
+                raise
             except Exception as e:  # the actions couldn't be decided, which fails the run too
                 detail = str(e) if isinstance(e, BadAction) else f"{type(e).__name__}: {e}"
-                denied, rules, present, label = f"actions: {detail}", [], [], "fail"
+                message = f"actions: {detail}"
+                self.audit(run, "step.failed", step=sid)
+                self.log(f"fail  {sid} ({message})")
+                return self.end(run, "failed", error={"step": sid, "message": message})
             if denied:  # a prohibition holds even after a human's approval
-                run.update(status="failed", error={"step": sid, "message": denied})
-                self.save(run)
-                self.log(f"{label:<5} {sid} ({denied})")
-                return run
-            # approval: true adds a pause; approval: false can't remove one the policy requires.
-            if (step.get("approval") or rules) and (state.get("approval") or {}).get("decision") != "approved":
+                self.log(f"deny  {sid} ({denied})")
+                return self.end(run, "failed", error={"step": sid, "message": denied})
+            if rules is not None:
                 # Pause before the step: nothing runs until a human approves it (run.py approve).
                 run.update(status="input_required",
                            pending={"step": sid, "kind": "approval", "rules": rules, "present": present})
@@ -431,26 +563,24 @@ class Engine:
             self.log(f"run   {sid}")
             cap = step.get("budget", {})
             try:
-                output, cost = call_worker(self.workers[step["worker"]], resolve(step["input"], run),
-                                           state["idempotencyKey"], cap)
+                output, cost = call_worker(self.workers[step["worker"]], inp, state["idempotencyKey"], cap)
             except Exception as e:  # a failed step fails the run, with the reason recorded
                 message = str(e) if isinstance(e, OverBudget) else f"{type(e).__name__}: {e}"
                 state.update(status="failed", endedAt=now())
-                run.update(status="failed", error={"step": sid, "message": message})
-                self.save(run)
+                self.audit(run, "budget.refused" if isinstance(e, OverBudget) else "step.failed", step=sid)
                 self.log(f"fail  {sid} ({message})")
-                return run
+                return self.end(run, "failed", error={"step": sid, "message": message})
             over = over_cost(cost, cap)
             if over:  # the cost was spent, so it is recorded and counted, but the run stops
                 state.update(status="failed", cost=cost, endedAt=now())
                 add_cost(run["cost"], cost)
-                run.update(status="failed", error={"step": sid, "message": over})
-                self.save(run)
+                self.audit(run, "budget.refused", step=sid)
                 self.log(f"fail  {sid} ({over})")
-                return run
+                return self.end(run, "failed", error={"step": sid, "message": over})
             state.update(status="completed", output=output, cost=cost, endedAt=now())
             add_cost(run["cost"], cost)
             run["next"] = ids[i + 1] if i + 1 < len(ids) else None
+            self.audit(run, "step.ran", step=sid)
             self.save(run)
             if crash_after == sid:
                 sys.stdout.flush()
@@ -464,22 +594,21 @@ class Engine:
         try:
             result = resolve(plan["output"], run)
         except Exception as e:
-            run.update(status="failed", error={"step": None, "message": f"output: {type(e).__name__}: {e}"})
-        else:
-            run.update(status="completed", next=None, result=result)
-        self.save(run)
-        return run
+            return self.end(run, "failed", error={"step": None, "message": f"output: {type(e).__name__}: {e}"})
+        return self.end(run, "completed", next=None, result=result)
 
     # Open runs
 
-    def open(self, name, inputs=None, policy=CHARTER_POLICY):
-        """Start an open run: no steps yet, grown with append and turn, ended with finish."""
+    def open(self, name, inputs=None, policy=CHARTER_POLICY, passport=None):
+        """Start an open run, under passport if one is named: no steps yet, grown with append
+        and turn, ended with finish."""
         load_policy(policy)
         if not isinstance(name, str) or not name:
             raise EngineError("an open run needs a name")
         plan = {"name": name, "version": 1, "steps": []}
-        run = self.new_run(plan, policy, dict(inputs or {}))
+        run = self.new_run(plan, policy, dict(inputs or {}), passport)
         run.update(open=True, plan=plan, turns={})
+        self.audit(run, "run.started")
         self.save(run)
         self.log(f"start {run['runId']} ({name}, open)")
         return run
@@ -533,12 +662,13 @@ class Engine:
         except Exception as e:
             message = f"{type(e).__name__}: {e}"
             state.update(status="failed", endedAt=now())
-            run.update(status="failed", error={"step": None, "turn": turn_id, "message": message})
-            self.save(run)
+            self.audit(run, "turn.failed", turn=turn_id)
+            self.end(run, "failed", error={"step": None, "turn": turn_id, "message": message})
             self.log(f"fail  turn {turn_id} ({message})")
             raise Stopped(run, message) from e
         state.update(status="completed", output=output, cost=cost, endedAt=now())
         add_cost(run["cost"], cost)
+        self.audit(run, "turn.completed", turn=turn_id)
         self.save(run)
         return output
 
@@ -550,16 +680,12 @@ class Engine:
         unfinished = [sid for sid, s in run["steps"].items() if s["status"] != "completed"]
         if unfinished:
             raise EngineError(f"run {run['runId']} has steps that haven't completed: {', '.join(unfinished)}")
-        run.update(status="completed", next=None, result=result)
-        self.save(run)
-        return run
+        return self.end(run, "completed", next=None, result=result)
 
     def fail(self, run, message):
         """Fail an open run, as its owner's loop decided, with message as its error."""
         self.working_open_run(run, "fail")
-        run.update(status="failed", error={"step": None, "message": message})
-        self.save(run)
-        return run
+        return self.end(run, "failed", error={"step": None, "message": message})
 
     # Commands on a run by its ID
 
@@ -584,18 +710,17 @@ class Engine:
             raise EngineError(f"run {run['runId']} isn't waiting for an approval (it is {run['status']})")
         if decision == "denied" and not (reason or "").strip():
             raise EngineError("deny needs a reason")
+        by = actor_id(by or self.actor)
         sid = pending["step"]
-        by = by or current_user()
         record = {"decision": decision, "by": by, "at": now()}
         if decision == "denied":
             record["reason"] = reason
         run["steps"][sid]["approval"] = record
         run["pending"] = None
+        self.audit(run, "approval.answered", step=sid, decision=decision, by=by)
         if decision == "denied":
-            run.update(status="failed", error={"step": sid, "message": f"approval denied by {by}: {reason}"})
-            self.save(run)
             self.log(f"deny  {sid}")
-            return run
+            return self.end(run, "failed", error={"step": sid, "message": f"approval denied by {by}: {reason}"})
         run["status"] = "working"
         self.save(run)  # the approval is durable before the step runs
         self.log(f"approve {sid}")
@@ -613,9 +738,10 @@ class Engine:
         run = self.load(run_id)
         if run["status"] in TERMINAL:
             raise EngineError(f"run {run['runId']} is already {run['status']}")
+        by = actor_id(by or self.actor)
         path = self.cancel_path(run_id)
         tmp = path.with_suffix(".cancel.tmp")
-        tmp.write_text(json.dumps({"by": by or current_user(), "at": now()}))
+        tmp.write_text(json.dumps({"by": by, "at": now()}))
         os.replace(tmp, path)  # a file of its own, so a save of the record can't overwrite it
         run = self.load(run_id)  # an approval may have started the step since
         if run["status"] in TERMINAL:  # it ended meanwhile, with nothing left to stop
@@ -635,6 +761,7 @@ class Engine:
         request = json.loads(path.read_text())
         run.update(status="cancelled", pending=None,
                    error={"step": run.get("next"), "message": f"cancelled by {request['by']}"})
+        self.audit(run, "run.cancelled", step=run.get("next"), by=request["by"])
         self.save(run)
         path.unlink(missing_ok=True)
         self.log(f"cancel {run['runId']}")
@@ -667,7 +794,7 @@ def cmd_start(args, engine):
         load_plan(args.workflow, engine.workflows_dir, engine.workers, engine.contracts_dir, load_policy(policy))
         raise EngineError(f"--input must be KEY=VALUE: {', '.join(bad)}")
     inputs = dict(kv.split("=", 1) for kv in args.input)
-    return report(engine.start(args.workflow, inputs, policy, args.crash_after))
+    return report(engine.start(args.workflow, inputs, policy, args.crash_after, args.passport))
 
 
 def cmd_status(args, engine):
@@ -693,12 +820,16 @@ def main():
     ap.add_argument("--workflows-dir", default=str(WORKFLOWS_DIR), help="Where plans live")
     ap.add_argument("--contracts-dir", default=str(CONTRACTS_DIR),
                     help="Where execution contracts live, to check step budgets against")
+    ap.add_argument("--audit", metavar="PATH",
+                    help="The audit log to append to (default: audit.jsonl beside --state-dir)")
     sub = ap.add_subparsers(dest="command", required=True)
     start = sub.add_parser("start", help="Start a new run")
     start.add_argument("workflow", help="Workflow name under workflows/")
     start.add_argument("--input", action="append", default=[], metavar="KEY=VALUE")
     start.add_argument("--policy", metavar="PATH",
                        help="Approval policy for the steps' actions (default: the Charter's)")
+    start.add_argument("--passport", metavar="NAME",
+                       help="Run under this agent's passport (agents-hive's passports/NAME)")
     start.add_argument("--crash-after", metavar="STEP", help="Exit right after STEP checkpoints (to test resume)")
     for name, help_text in (("resume", "Resume a run from its next step"), ("status", "Show a run")):
         p = sub.add_parser(name, help=help_text)
@@ -708,14 +839,16 @@ def main():
                             ("cancel", "Cancel a run: now if it is paused, else before its next step")):
         p = sub.add_parser(name, help=help_text)
         p.add_argument("run_id")
-        p.add_argument("--by", help=f"Who {'cancelled' if name == 'cancel' else 'answered'} "
-                                    "(default: your user name)")
+        p.add_argument("--by", metavar="ACTOR-ID",
+                       help=f"Who {'cancelled' if name == 'cancel' else 'answered'}, as an opaque ID, "
+                            "never a name or email (default: $WORKFLOWS_HIVE_ACTOR)")
         if name == "deny":
             p.add_argument("--reason", required=True, help="Why, recorded as the run's error")
     args = ap.parse_args()
 
     try:
-        engine = Engine(args.state_dir, args.workflows_dir, args.contracts_dir)
+        engine = Engine(args.state_dir, args.workflows_dir, args.contracts_dir, audit=args.audit,
+                        actor=os.environ.get("WORKFLOWS_HIVE_ACTOR"))
         sys.exit(COMMANDS[args.command](args, engine))
     except EngineError as e:
         sys.exit(str(e))

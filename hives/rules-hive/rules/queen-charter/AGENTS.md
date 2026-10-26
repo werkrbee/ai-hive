@@ -23,6 +23,9 @@ overrides it.
 - **Verify before "done."** A task isn't complete because code was written — it's
   complete when it's been checked. Run the tests, read the diff, confirm the
   claim. If you can't verify, say so.
+- **Keep the record whole.** Never delete, edit, truncate or rewrite an audit log,
+  or act to hide what you did. The log is how a human checks what an agent did
+  and didn't do; archiving one is a human's decision.
 
 The approval rules above are also written as data, in this ruleset's
 [`policy.json`](https://github.com/werkrbee/ai-hive/blob/main/hives/rules-hive/rules/queen-charter/policy.json):

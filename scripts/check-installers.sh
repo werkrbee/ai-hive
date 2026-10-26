@@ -273,12 +273,27 @@ out=$(wf approve "$run_id" --by ci); code=$?
 check_wf "workflows-hive run.py can't approve a cancelled run" "$(holds eval \
   '[ "$code" -eq 1 ] && ! printf "%s\n" "$out" | grep -q "^run   count"')"
 
+# workflows-hive: a passport's never actions are prohibited before any mandate, an answer
+# needs an actor ID, and every run above left a whole audit log that ends where each run
+# record says it does.
+outcome "workflows-hive run.py prohibits what a passport puts under never" 1 \
+  'fs.write is prohibited by passport.patricia.never.fs.write' write --passport patricia
+out=$(wf start approved-word-count --input path="$sandbox/words.txt")
+run_id=$(printf '%s\n' "$out" | sed -n 's/^start \(run_[0-9a-f]*\).*/\1/p')
+out=$(WORKFLOWS_HIVE_ACTOR= wf approve "$run_id"); code=$?
+check_wf "workflows-hive run.py refuses an answer without an actor ID" "$(holds eval \
+  '[ "$code" -eq 1 ] && printf "%s\n" "$out" | grep -q "needs an actor ID"')"
+out=$(python3 hives/knowledge-hive/scripts/check_audit.py "$sandbox/audit.jsonl" --runs "$runs" 2>&1); code=$?
+check_wf "workflows-hive run.py leaves a whole audit log" "$(holds eval '[ "$code" -eq 0 ]')"
+
 # workflows-hive: the engine as a library, with open runs that grow, model turns, crashes
 # mid-turn and mid-step, and cancel.
 # -B: no __pycache__ left in the repo.
 run "workflows-hive engine library tests" python3 -B -m unittest discover -s hives/workflows-hive/tests
 # agents-hive: passports only narrow their contracts, pins match, and cards link them.
 run "agents-hive passport tests" python3 -B -m unittest discover -s hives/agents-hive/tests
+# knowledge-hive: the audit log's hash rules, and the verifier's reports and anchors.
+run "knowledge-hive audit log tests" python3 -B -m unittest discover -s hives/knowledge-hive/tests
 
 if [ "$(repo_status)" != "$before" ]; then
   flunk "installers left changes in the repo"; repo_status | sed 's/^/      /'

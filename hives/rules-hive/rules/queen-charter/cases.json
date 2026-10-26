@@ -48,6 +48,22 @@
     "rule": "approve.spend"
   },
   {
+    "name": "editing an audit log is prohibited",
+    "request": {
+      "action": "audit.edit"
+    },
+    "decision": "deny",
+    "rule": "audit.no-edit"
+  },
+  {
+    "name": "deleting an audit log is prohibited",
+    "request": {
+      "action": "audit.delete"
+    },
+    "decision": "deny",
+    "rule": "audit.no-delete"
+  },
+  {
     "name": "an action no mandate covers is denied",
     "request": {
       "action": "db.drop"

@@ -82,10 +82,13 @@ simulated price.
 A step marked `approval: true` pauses the run before it, in `input_required`, and nothing
 runs it until a human answers. `approve` continues the run from that step; `deny` fails
 the run, with the reason as its error, and the step never runs. The record keeps who
-answered and when (`--by`, your user name by default). `resume` never answers for you: a
-run restarted while paused stays paused.
+answered and when. Who is an opaque actor ID, never a name or an email: `--by`, or
+`WORKFLOWS_HIVE_ACTOR` when `--by` is left out. The engine refuses to record an answer or
+a cancel without one. `resume` never answers for you: a run restarted while paused stays
+paused.
 
 ```bash
+export WORKFLOWS_HIVE_ACTOR=usr_7f3a                                      # your opaque ID
 python3 scripts/run.py start approved-word-count --input path=README.md   # pauses before count
 python3 scripts/run.py approve <run-id>                                   # runs count, finishes
 python3 scripts/run.py deny <run-id> --reason "not this file"             # or fails the run
@@ -136,10 +139,40 @@ Facts compare strictly, and an `--input` value is a string, so a fact that must 
 python3 scripts/run.py start <workflow> --policy ../rules-hive/examples/lineup-etiquette/policy.json
 ```
 
+`start --passport <name>` runs the run under an agent's passport from agents-hive
+(`passports/<name>/passport.json`), which the engine checks against its contract and pins
+before the run starts. Each action in the passport's `never` is a prohibition, decided
+before any mandate, so neither the policy nor an approval can open it. The run keeps the
+passport's version and digest, and a run whose passport has changed since it started is
+refused rather than resumed under the new one.
+
+```bash
+python3 scripts/run.py start <workflow> --passport patricia   # an fs.write step fails the run
+```
+
+## The audit log
+
+Every run appends to an audit log in knowledge-hive's
+[`audit.jsonl` format](../knowledge-hive/DESIGN.md#audit-log-auditjsonl), by default
+`audit.jsonl` beside the state directory (change it with `--audit`). The engine writes an
+entry for each step decision (one per action, with the rules that decided it), each step
+that runs, fails or is stopped by its budget, each answer, cancel and model turn, and each
+run's start and end. Each entry names the run's passport and the digest of the exact
+call, not the call's arguments, which stay in the run record. Entries are hash-chained,
+and the engine writes each one before the run record that follows it; the record keeps
+the seq and hash of its run's last entry under `audit`. If the log can't be written, the
+run doesn't go on.
+
+```bash
+python3 ../knowledge-hive/scripts/check_audit.py ~/.local/state/workflows-hive/audit.jsonl \
+  --runs ~/.local/state/workflows-hive/runs
+```
+
 ## Use the engine as a library
 
 `run.py` is also a module. `Engine` offers the commands above (`start`, `resume`,
-`approve`, `deny`, `cancel`) on your own workers, and an open run for an agent loop, whose
+`approve`, `deny`, `cancel`) on your own workers, with `audit` and `actor` in place of
+`--audit` and `WORKFLOWS_HIVE_ACTOR`, and an open run for an agent loop, whose
 steps aren't known in advance. An open run starts with no steps. Each tool call the loop
 makes is appended as a step, and `execute` runs it, decided by the policy, held to its
 budget and checkpointed like a planned step. Each model turn goes through `turn`, which
@@ -152,8 +185,9 @@ import sys
 sys.path.insert(0, "hives/workflows-hive/scripts")
 import run
 
-engine = run.Engine(workers={"send": send_message})       # send(input, key, cap) -> (output, cost)
-r = engine.open("orchestration", {"goal": "move tonight's game"},
+engine = run.Engine(workers={"send": send_message},      # send(input, key, cap) -> (output, cost)
+                    actor="usr_7f3a")
+r = engine.open("orchestration", {"goal": "move tonight's game"}, passport="barry",
                 policy="hives/rules-hive/examples/lineup-etiquette/policy.json")
 reply = engine.turn(r, "t1", call_model)                  # call_model(key) -> (reply, cost)
 engine.append(r, {"id": "t1.send", "worker": "send", "input": {...}, "actions": [...]})
