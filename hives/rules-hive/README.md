@@ -55,9 +55,11 @@ Actions come from the permission vocabulary in agents-hive's execution-contract 
 so a contract and a policy speak the same language: a contract says what a worker may do
 at all, and the policy says when it may do it without asking. A product policy can
 `extends` the Charter's and declare its own namespaced actions, such as
-`lineup.event.cancel`. The Charter's policy declares two of its own, `audit.edit` and
-`audit.delete`, and prohibits both, so no mandate or approval can open an audit log to
-an agent.
+`lineup.event.cancel`. The Charter's policy declares three of its own, `audit.edit`,
+`audit.delete` and `queue.answer`, and prohibits all three, so no mandate or approval can
+grant a step that declares one. That doesn't stop an agent with `fs.write` or `shell.exec`
+from reaching the file anyway; the audit log and the review queue each say what they can't
+stop.
 
 A request is decided in this order. A matching **prohibition** denies it, even with a
 human's approval. Otherwise a matching open mandate lets the agent act, and otherwise a

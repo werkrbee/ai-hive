@@ -218,17 +218,23 @@ design is in [`docs/assurance-loop.md`](../../docs/assurance-loop.md) (accepted,
 `seq`, `at` (an ISO 8601 date-time in UTC), `prev`, `hash` and `kind` are required. `kind`
 is one of `run.started`, `run.completed`, `run.failed`, `run.cancelled`, `run.expired`,
 `step.decided`, `step.ran`, `step.failed`, `budget.refused`, `approval.answered`,
-`turn.completed`, `turn.failed`, `delegation`, `rollback`, `drift` and `eval.ran`. A run's
-entries carry its `runId`, and a step's or a turn's carry `step` or `turn`. `step.decided`
-carries the `action` it decided, its `decision` (`allowed`, `paused` or `denied`) and the
-`rules` that decided it; a step with no action, or one paused by its plan rather than its
-policy, has one entry with no `action`. `approval.answered` carries `decision` (`approved`
-or `denied`) and `by`, as `run.cancelled` carries `by`. `agent` names the passport the run
-is under, its version and its digest, and is left out for a run under none. `call` is the
-digest of the exact call a step makes: its run, step, worker, resolved input and action.
-So an entry can be matched to its run record, which keeps the call's arguments, the
-model's output, message text and a denial's reason, none of which the log holds. The kinds
-the review queue, the eval, rollback and delegation write get their fields as those are
+`escalation.raised`, `escalation.answered`, `drift.answered`, `turn.completed`,
+`turn.failed`, `delegation`, `rollback`, `drift` and `eval.ran`. A run's entries carry its
+`runId`, and a step's or a turn's carry `step` or `turn`. `step.decided` carries the
+`action` it decided, its `decision` (`allowed`, `paused` or `denied`) and the `rules` that
+decided it; a step with no action, or one paused by its plan rather than its policy, has
+one entry with no `action`. `approval.answered` carries `decision` (`approved` or
+`denied`) and `by`, as `run.cancelled` carries `by`. Anything that names a review queue
+item carries its ID as `item`: a paused `step.decided`, `approval.answered`,
+`run.expired`, `escalation.raised`, `escalation.answered`, `drift` and `drift.answered`,
+which also carries `decision`. A person's answer carries `via`, how it came (`cli`, `mcp`
+or `a2a`); `escalation.answered` and `drift.answered` require it, and `approval.answered`
+has it from the review queue on. `agent` names the passport the run is under, its version
+and its digest, and is left out for a run under none. `call` is the digest of the exact
+call a step makes: its run, step, worker, resolved input and action. So an entry can be
+matched to its run record, which keeps the call's arguments, the model's output, message
+text and a denial's reason, none of which the log holds, nor an escalation's question or
+answer. The kinds the eval, rollback and delegation write get their fields as those are
 built.
 
 **Hash rules.** Each `hash` is `sha256:` followed by the SHA-256 of the entry without
@@ -241,10 +247,10 @@ workflows-hive run record keeps, under `audit`, the `seq` and `hash` of the last
 written for its run. The engine writes an entry before the record that follows it, so a
 record never points past the log.
 
-**One writer.** The workflows-hive engine writes the log, through `append` in
-`scripts/check_audit.py`, which takes an exclusive lock, numbers and chains the entry, and
-flushes it to disk before returning. The writer refuses an entry that doesn't fit the
-format, and a log whose last line is incomplete.
+**One writer.** The workflows-hive engine writes the log, the review queue's answers
+included, through `append` in `scripts/check_audit.py`, which takes an exclusive lock,
+numbers and chains the entry, and flushes it to disk before returning. The writer refuses
+an entry that doesn't fit the format, and a log whose last line is incomplete.
 
 **What it can't stop.** On one machine, an agent that can write the directory holding the
 log can rewrite all of it and recompute every hash, and its run records' anchors with it.

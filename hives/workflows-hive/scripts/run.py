@@ -17,6 +17,11 @@ Every decision goes into a hash-chained audit log (knowledge-hive's audit.jsonl 
 its run's last entry. A human's answer or cancel is recorded under an opaque actor ID
 (--by, or WORKFLOWS_HIVE_ACTOR), never an operating-system login.
 
+Every pause is also an item in the review queue (review_queue.py), named by an approval ID
+that digests exactly what the human is asked to approve. An answer must come from an
+interactive terminal and from outside any engine run, and a pause unanswered for seven days
+expires, which fails its run.
+
 The engine is also a library (Engine, below). There a run can be open: it starts with no
 steps, grows a step at a time, and keeps model turns in its record beside the steps, so
 an agent loop resumed after a crash repeats neither a completed step nor a completed turn.
@@ -27,8 +32,8 @@ Usage:
   python3 scripts/run.py resume <run-id>
   python3 scripts/run.py status <run-id>
   python3 scripts/run.py start word-count --input path=README.md --passport barry
-  python3 scripts/run.py approve <run-id> [--by ACTOR-ID]
-  python3 scripts/run.py deny <run-id> --reason TEXT [--by ACTOR-ID]
+  python3 scripts/run.py approve <run-id> [--id APPROVAL-ID] [--by ACTOR-ID]
+  python3 scripts/run.py deny <run-id> --reason TEXT [--id APPROVAL-ID] [--by ACTOR-ID]
   python3 scripts/run.py cancel <run-id> [--by ACTOR-ID]
 
 Exit status: 0 when the run completed, 2 when it is waiting for approval, 1 otherwise.
@@ -37,9 +42,10 @@ Run records live in --state-dir (default: ~/.local/state/workflows-hive/runs). P
 read from --workflows-dir (default: workflows/), and a worker's execution contract, if it
 has one, from --contracts-dir (default: agents-hive's contracts/). start --policy picks the
 approval policy, and the run keeps it. The audit log defaults to audit.jsonl beside the
-state directory.
+state directory, and the review queue to queue/ beside it.
 """
 import argparse
+import contextlib
 import copy
 import importlib.util
 import json
@@ -50,7 +56,7 @@ import re
 import sys
 import time
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -62,6 +68,8 @@ CHARTER_POLICY = "hives/rules-hive/rules/queen-charter/policy.json"
 REQUEST_KEYS = {"action": str, "scope": dict, "trigger": str, "facts": dict}
 DEFAULT_STATE_DIR = Path("~/.local/state/workflows-hive/runs")
 TERMINAL = ("completed", "failed", "cancelled")
+EXPIRY = timedelta(days=7)  # how long an approval or escalation waits for a human
+RUN_ENV = "WORKFLOWS_HIVE_RUN"  # set in a step's or turn's environment while it runs
 REF = re.compile(r"\$\{([^}]+)\}")
 
 
@@ -126,8 +134,16 @@ class Stopped(Exception):
         self.run = run
 
 
+def stamp(t):
+    return t.strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
 def now():
-    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    return stamp(datetime.now(timezone.utc))
+
+
+def parse_time(value):
+    return datetime.strptime(value, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
 
 
 def check_budget(step, contracts_dir):
@@ -339,6 +355,55 @@ def call_digest(run, step, inp, req=None):
     return check_audit.digest(call)
 
 
+def presented(names, reqs):
+    """Each item a human's approval must present, with its value from the gated actions'
+    facts or scope, or None when no action gives it."""
+    return {name: next((r[k][name] for r in reqs for k in ("facts", "scope") if name in r.get(k, {})), None)
+            for name in names}
+
+
+def approval_id(run, step, inp, reqs, rules, values):
+    """The ID of a pending approval, as hosted Barry's approvals have: the digest of the run,
+    the step, the exact call, its gated actions, the mandates that gate them and the values
+    shown. An answer names it, so it answers only what was shown, and an approval whose
+    digest no longer matches is void."""
+    return check_audit.digest({"runId": run["runId"], "step": step["id"], "call": call_digest(run, step, inp),
+                               "actions": reqs, "rules": rules, "present": values})
+
+
+@contextlib.contextmanager
+def marked(run_id):
+    """Mark the environment as inside run_id, for a step's worker or a model turn and any
+    process it starts, so an answer to the queue from there is refused."""
+    before = os.environ.get(RUN_ENV)
+    os.environ[RUN_ENV] = run_id
+    try:
+        yield
+    finally:
+        if before is None:
+            os.environ.pop(RUN_ENV, None)
+        else:
+            os.environ[RUN_ENV] = before
+
+
+def outside_runs():
+    """Refuse a person's answer from inside an engine run, where only an agent could be."""
+    if os.environ.get(RUN_ENV):
+        raise EngineError(f"refusing to answer from inside run {os.environ[RUN_ENV]}: an agent never "
+                          "answers its own queue")
+
+
+def answering_here(via="cli"):
+    """Refuse a human's answer from where an agent would give one: inside an engine run, or,
+    on the command line, without an interactive terminal. Neither is a lock; on one machine
+    an agent with a shell can get around both, so the audit log's via and by are evidence.
+    The engine refuses an answer from inside a run on its own, too."""
+    outside_runs()
+    if via == "cli" and not (sys.stdin.isatty() and sys.stdout.isatty()):
+        raise EngineError("refusing to answer without an interactive terminal: a person answers the "
+                          "queue, at a terminal or through an MCP client that asks them")
+
+
 def actor_id(by):
     """by, if it can stand for a person in the record: an opaque ID, never a name or email."""
     if not by:
@@ -355,20 +420,24 @@ class Engine:
     workers maps a worker name to a function from (input, idempotency key, cap) to
     (output, cost); the default is the demo workers. A step with a seconds cap runs its
     worker in a spawned child process, so that worker must be a module-level function.
-    audit is the audit log's path (default: audit.jsonl beside state_dir), and actor the
-    opaque ID recorded for an answer or cancel that names no one else. log receives each
-    progress line the CLI prints.
+    audit is the audit log's path (default: audit.jsonl beside state_dir), queue the review
+    queue's directory (default: queue/ beside state_dir), and actor the opaque ID recorded
+    for an answer or cancel that names no one else. clock returns the current UTC time, for
+    expiry. log receives each progress line the CLI prints.
     """
 
     def __init__(self, state_dir=DEFAULT_STATE_DIR, workflows_dir=WORKFLOWS_DIR,
                  contracts_dir=CONTRACTS_DIR, workers=None, log=print, audit=None, actor=None,
-                 passports_dir=PASSPORTS_DIR):
+                 passports_dir=PASSPORTS_DIR, queue=None, clock=None):
         self.state_dir = Path(state_dir).expanduser()
         self.state_dir.mkdir(parents=True, exist_ok=True)
         self.workflows_dir = Path(workflows_dir).expanduser()
         self.contracts_dir = Path(contracts_dir).expanduser()
         self.passports_dir = Path(passports_dir).expanduser()
         self.audit_path = Path(audit).expanduser() if audit else self.state_dir.parent / "audit.jsonl"
+        self.queue_dir = Path(queue).expanduser() if queue else self.state_dir.parent / "queue"
+        self.queue_dir.mkdir(parents=True, exist_ok=True)
+        self.clock = clock or (lambda: datetime.now(timezone.utc))
         self.actor = actor
         self.workers = dict(WORKERS if workers is None else workers)
         self.log = log
@@ -381,16 +450,20 @@ class Engine:
     def cancel_path(self, run_id):
         return self.state_dir / f"{run_id}.cancel"
 
-    def save(self, run):
-        """Write the run record atomically: a new file, flushed to disk, then renamed."""
-        run["updatedAt"] = now()
-        path = self.record_path(run["runId"])
+    @staticmethod
+    def write(path, obj):
+        """Write obj as JSON atomically: a new file, flushed to disk, then renamed."""
         tmp = path.with_suffix(".json.tmp")
         with open(tmp, "w") as f:
-            json.dump(run, f, indent=2)
+            json.dump(obj, f, indent=2)
             f.flush()
             os.fsync(f.fileno())
         os.replace(tmp, path)
+
+    def save(self, run):
+        """Write the run record atomically."""
+        run["updatedAt"] = now()
+        self.write(self.record_path(run["runId"]), run)
         if run["status"] in TERMINAL:  # a cancel that lands as the run ends has nothing left to stop
             self.cancel_path(run["runId"]).unlink(missing_ok=True)
 
@@ -402,11 +475,14 @@ class Engine:
             entry["agent"] = run["agent"]
         entry["runId"] = run["runId"]
         entry.update((k, v) for k, v in fields.items() if v is not None)
+        written = self.append_audit(entry)
+        run["audit"] = {"seq": written["seq"], "hash": written["hash"]}
+
+    def append_audit(self, entry):
         try:
-            written = check_audit.append(self.audit_path, entry)
+            return check_audit.append(self.audit_path, entry)
         except (check_audit.AuditError, OSError) as e:  # nothing goes on that the log can't hold
             raise EngineError(f"audit log {self.audit_path}: {e}") from None
-        run["audit"] = {"seq": written["seq"], "hash": written["hash"]}
 
     def end(self, run, status, **fields):
         """End the run with status (completed or failed), audited, and save it."""
@@ -487,28 +563,36 @@ class Engine:
 
     def decide(self, run, step, policy, inp):
         """Decide the step's actions and audit each decision. Returns (denial message or None,
-        rules that need a human's approval, what that approval must present). Once a human
-        has approved the step, only a denial is audited again: the answer was the decision."""
+        the pending approval when the step must wait for a human, else None). Once a human
+        has approved exactly what the step would now do, only a denial is audited again: the
+        answer was the decision. An approval of anything else is void, and the step waits again."""
         sid, state = step["id"], run["steps"][step["id"]]
-        approved = (state.get("approval") or {}).get("decision") == "approved"
-        rules, present = [], []
         decided = verdict(policy, step, run)
+        gated = [(req, rule, show) for req, decision, rule, show in decided if decision == "human"]
+        reqs, rules, names = [req for req, _, _ in gated], [rule for _, rule, _ in gated], []
+        for _, _, show in gated:
+            names += [x for x in show if x not in names]
+        # approval: true adds a pause; approval: false can't remove one the policy requires.
+        pause = bool(step.get("approval") or rules) and not (decided and decided[-1][1] == "deny")
+        values = presented(names, reqs)
+        pid = approval_id(run, step, inp, reqs, rules, values) if pause else None
+        given = state.get("approval") or {}
+        approved = pause and given.get("decision") == "approved" and given.get("id") == pid
         for req, decision, rule, show in decided:
             word = {"auto": "allowed", "human": "paused", "deny": "denied"}[decision]
             if decision == "deny" or not approved:
                 self.audit(run, "step.decided", step=sid, action=req["action"], decision=word,
-                           rules=[rule] if rule else [], call=call_digest(run, step, inp, req))
+                           rules=[rule] if rule else [], call=call_digest(run, step, inp, req),
+                           item=pid if decision == "human" else None)
             if decision == "deny":
-                return denial(policy, req, rule), [], []
-            if decision == "human":
-                rules.append(rule)
-                present += [x for x in show if x not in present]
-        # approval: true adds a pause; approval: false can't remove one the policy requires.
-        pause = bool(step.get("approval") or rules) and not approved
+                return denial(policy, req, rule), None
         if not approved and (not decided or (pause and not rules)):  # a decision no action records
             self.audit(run, "step.decided", step=sid, decision="paused" if pause else "allowed",
-                       rules=[], call=call_digest(run, step, inp))
-        return None, rules if pause else None, present
+                       rules=[], call=call_digest(run, step, inp), item=pid)
+        if not pause or approved:
+            return None, None
+        return None, {"id": pid, "kind": "approval", "step": sid, "rules": rules, "present": names,
+                      "values": values, "actions": reqs}
 
     def execute(self, run, crash_after=None):
         """Run every step that isn't completed, checkpointing after each one."""
@@ -537,7 +621,7 @@ class Engine:
                 self.log(f"fail  {sid} ({message})")
                 return self.end(run, "failed", error={"step": sid, "message": message})
             try:
-                denied, rules, present = self.decide(run, step, policy, inp)
+                denied, pending = self.decide(run, step, policy, inp)
             except EngineError:
                 raise
             except Exception as e:  # the actions couldn't be decided, which fails the run too
@@ -549,21 +633,20 @@ class Engine:
             if denied:  # a prohibition holds even after a human's approval
                 self.log(f"deny  {sid} ({denied})")
                 return self.end(run, "failed", error={"step": sid, "message": denied})
-            if rules is not None:
-                # Pause before the step: nothing runs until a human approves it (run.py approve).
-                run.update(status="input_required",
-                           pending={"step": sid, "kind": "approval", "rules": rules, "present": present})
-                self.save(run)
-                why = f" under {', '.join(rules)}" if rules else ""
-                show = f", showing {', '.join(present)}" if present else ""
-                self.log(f"wait  {sid} (needs approval{why}{show}; run.py approve {run['runId']}, or deny)")
+            if pending:
+                # Pause before the step: nothing runs until a human approves it, through the queue.
+                self.pause(run, pending)
+                why = f" under {', '.join(pending['rules'])}" if pending["rules"] else ""
+                show = f", showing {', '.join(pending['present'])}" if pending["present"] else ""
+                self.log(f"wait  {sid} (needs approval{why}{show}; review_queue.py show {pending['id']})")
                 return run
             state.update(status="working", startedAt=now())
             self.save(run)
             self.log(f"run   {sid}")
             cap = step.get("budget", {})
             try:
-                output, cost = call_worker(self.workers[step["worker"]], inp, state["idempotencyKey"], cap)
+                with marked(run["runId"]):
+                    output, cost = call_worker(self.workers[step["worker"]], inp, state["idempotencyKey"], cap)
             except Exception as e:  # a failed step fails the run, with the reason recorded
                 message = str(e) if isinstance(e, OverBudget) else f"{type(e).__name__}: {e}"
                 state.update(status="failed", endedAt=now())
@@ -658,7 +741,8 @@ class Engine:
         self.save(run)
         self.log(f"turn  {turn_id}")
         try:
-            output, cost = call(state["idempotencyKey"])
+            with marked(run["runId"]):
+                output, cost = call(state["idempotencyKey"])
         except Exception as e:
             message = f"{type(e).__name__}: {e}"
             state.update(status="failed", endedAt=now())
@@ -687,11 +771,165 @@ class Engine:
         self.working_open_run(run, "fail")
         return self.end(run, "failed", error={"step": None, "message": message})
 
+    def escalate(self, run, ask_id, question, values=None):
+        """Ask a person in an open run, as the Charter requires on an ambiguous decision,
+        missing credentials or repeated failure. The run waits in input_required with an
+        escalation in the review queue. Returns the person's answer once there is one, else
+        None, so a resumed loop asks each question once."""
+        answered = run.get("answers", {}).get(ask_id)
+        if answered:
+            return answered["text"]
+        pending = run.get("pending") or {}
+        if run["status"] == "input_required" and pending.get("ask") == ask_id:
+            return None
+        if not isinstance(ask_id, str) or not ask_id or not isinstance(question, str) or not question.strip():
+            raise EngineError("an escalation needs an id and a question")
+        if self.cancel_requested(run):
+            raise Stopped(run, f"run {run['runId']} is {run['status']}")
+        self.working_open_run(run, "escalate")
+        values = dict(values or {})
+        pid = check_audit.digest({"runId": run["runId"], "ask": ask_id, "question": question, "values": values})
+        self.audit(run, "escalation.raised", item=pid)
+        self.pause(run, {"id": pid, "kind": "escalation", "ask": ask_id, "question": question, "values": values})
+        self.log(f"ask   {ask_id} (review_queue.py show {pid})")
+        return None
+
+    # The review queue
+
+    def item_path(self, item_id):
+        return self.queue_dir / f"{item_id.split(':', 1)[1]}.json"
+
+    def pause(self, run, pending):
+        """Put the run in input_required on pending, which expires in seven days, and put it
+        in the review queue. The run record is saved first: it is the source of truth."""
+        created = self.clock()
+        pending.update(createdAt=stamp(created), expiresAt=stamp(created + EXPIRY))
+        run.update(status="input_required", pending=pending)
+        self.save(run)
+        if pending["kind"] == "approval":
+            source = {"runId": run["runId"], "step": pending["step"]}
+            present = {k: pending[k] for k in ("actions", "rules", "values")}
+        else:
+            source = {"runId": run["runId"], "ask": pending["ask"]}
+            present = {"question": pending["question"], "values": pending["values"]}
+        self.write(self.item_path(pending["id"]), {
+            "id": pending["id"], "kind": pending["kind"], "source": source, "agent": run.get("agent"),
+            "present": present, "createdAt": pending["createdAt"], "expiresAt": pending["expiresAt"],
+            "status": "open", "answer": None})
+
+    def drift(self, agent, result, present):
+        """Put drift in the review queue: the trust evaluation found an agent's runs falling
+        below its baseline. agent is {passport, version, sha256}, result the results.jsonl
+        entry that records the runs, and present what a person needs to judge it. Drift never
+        expires; it holds promotion until a person answers it."""
+        created = stamp(self.clock())
+        source = {"passport": agent["passport"], "version": agent["version"], "result": result}
+        item_id = check_audit.digest({"kind": "drift", "source": source, "present": present, "createdAt": created})
+        self.append_audit({"kind": "drift", "agent": agent, "item": item_id})
+        item = {"id": item_id, "kind": "drift", "source": source, "agent": agent, "present": present,
+                "createdAt": created, "expiresAt": None, "status": "open", "answer": None}
+        self.write(self.item_path(item_id), item)
+        return item
+
+    def close_item(self, item_id, status, answer=None):
+        path = self.item_path(item_id)
+        if path.is_file():
+            item = json.loads(path.read_text())
+            item.update(status=status, answer=answer)
+            self.write(path, item)
+
+    def expire_if_due(self, run):
+        """Fail the run if its approval or escalation has waited past its expiry. Returns
+        whether it did."""
+        pending = run.get("pending") or {}
+        if run["status"] != "input_required" or not pending.get("expiresAt") \
+                or self.clock() < parse_time(pending["expiresAt"]):
+            return False
+        run.update(status="failed", pending=None, error={
+            "step": pending.get("step"), "message": f"the {pending['kind']} expired unanswered at {pending['expiresAt']}"})
+        self.audit(run, "run.expired", step=pending.get("step"), item=pending["id"])
+        self.save(run)
+        self.close_item(pending["id"], "expired")
+        self.log(f"expire {run['runId']} ({pending['kind']} unanswered since {pending['createdAt']})")
+        return True
+
+    def settle(self, item):
+        """Bring an open item up to date with its run, the source of truth: expire it when it
+        is due, and close it if the run answered it some other way, such as by a cancel."""
+        if item["status"] != "open" or item["kind"] == "drift":
+            return item
+        path = self.record_path(item["source"]["runId"])
+        if not path.is_file():
+            return item
+        run = json.loads(path.read_text())
+        if (run.get("pending") or {}).get("id") == item["id"]:
+            if self.expire_if_due(run):
+                item.update(status="expired")
+            return item
+        given = run.get("answers", {}).get(item["source"].get("ask")) \
+            or run["steps"].get(item["source"].get("step"), {}).get("approval")
+        if given and given.get("id") == item["id"]:
+            self.close_item(item["id"], "answered", given)
+        elif run["status"] == "cancelled":
+            self.close_item(item["id"], "answered", {"decision": "cancelled", "by": None, "at": run.get("updatedAt")})
+        elif run["status"] == "failed" and "expired unanswered" in (run.get("error") or {}).get("message", ""):
+            self.close_item(item["id"], "expired")
+        else:
+            return item
+        return json.loads(self.item_path(item["id"]).read_text())
+
+    def items(self, status="open"):
+        """The queue's items with status (all of them for None), oldest first, each brought
+        up to date with its run."""
+        found = []
+        for path in sorted(self.queue_dir.glob("*.json")):
+            item = self.settle(json.loads(path.read_text()))
+            if status is None or item["status"] == status:
+                found.append(item)
+        return sorted(found, key=lambda i: i["createdAt"])
+
+    def item(self, ref):
+        """The item whose ID is ref: in full, or the start of its hex digits (8 at least)."""
+        hexes = ref.split(":", 1)[1] if ref.startswith("sha256:") else ref
+        if not re.fullmatch(r"[0-9a-f]{8,64}", hexes):
+            raise EngineError(f"{ref!r} isn't an item ID: give sha256:<hex>, or its first 8 or more hex digits")
+        paths = sorted(self.queue_dir.glob(f"{hexes}*.json"))
+        if len(paths) != 1:
+            raise EngineError(f"no item {ref} in the queue" if not paths else f"{ref} names more than one item")
+        return self.settle(json.loads(paths[0].read_text()))
+
+    def answer_item(self, ref, decision, by=None, reason=None, text=None, via="cli"):
+        """Answer the queue item ref. decision is approved or denied for an approval or
+        drift, and answered (with text) for an escalation."""
+        outside_runs()
+        item = self.item(ref)
+        if item["status"] != "open":
+            raise EngineError(f"item {item['id']} is {item['status']}; only an open item can be answered")
+        if item["kind"] != "drift":
+            return self.answer(item["source"]["runId"], decision, by, reason, item["id"], via, text)
+        if decision not in ("approved", "denied"):
+            raise EngineError("drift is answered with approve or deny")
+        by, reason = actor_id(by or self.actor), self.reason_for(decision, reason)
+        answer = {"decision": decision, "by": by, "at": now(), "via": via, **({"reason": reason} if reason else {})}
+        self.append_audit({"kind": "drift.answered", "agent": item["agent"], "item": item["id"],
+                           "decision": decision, "by": by, "via": via})
+        self.close_item(item["id"], "answered", answer)
+        self.log(f"{'approve' if decision == 'approved' else 'deny'} drift {item['id']}")
+        return json.loads(self.item_path(item["id"]).read_text())
+
+    @staticmethod
+    def reason_for(decision, reason):
+        if decision != "denied":
+            return None
+        if not isinstance(reason, str) or not reason.strip():
+            raise EngineError("deny needs a reason")
+        return reason
+
     # Commands on a run by its ID
 
     def resume(self, run_id):
         run = self.load(run_id)
-        if run["status"] not in TERMINAL and self.cancel_requested(run):
+        if (run["status"] not in TERMINAL and self.cancel_requested(run)) or self.expire_if_due(run):
             return run
         if run["status"] in TERMINAL:
             self.log(f"run {run['runId']} is already {run['status']}")
@@ -702,35 +940,67 @@ class Engine:
         self.log(f"resume {run['runId']} at {run['next']}")
         return self.execute(run)
 
-    def answer(self, run_id, decision, by=None, reason=None):
-        """Record a human's answer to a pending approval: approve runs the step, deny fails the run."""
+    def answer(self, run_id, decision, by=None, reason=None, item_id=None, via="cli", text=None):
+        """Record a person's answer to what a run is waiting on. An approval is approved (the
+        step runs) or denied (the run fails); an escalation is answered with text, which its
+        open run's loop reads back from escalate. item_id, when given, must be the pending
+        approval ID, so an answer only answers what was shown. Refused from inside a run."""
+        outside_runs()
         run = self.load(run_id)
+        if self.expire_if_due(run):
+            raise EngineError(f"run {run['runId']} waited too long: {run['error']['message']}")
         pending = run.get("pending")
-        if run["status"] != "input_required" or not pending or pending.get("kind") != "approval":
-            raise EngineError(f"run {run['runId']} isn't waiting for an approval (it is {run['status']})")
-        if decision == "denied" and not (reason or "").strip():
-            raise EngineError("deny needs a reason")
+        if run["status"] != "input_required" or not pending:
+            raise EngineError(f"run {run['runId']} isn't waiting for an answer (it is {run['status']})")
+        if item_id is not None and item_id != pending.get("id"):
+            raise EngineError(f"{item_id} isn't what run {run['runId']} is waiting on, which is "
+                              f"{pending.get('id')}; an answer answers only what was shown")
+        if via not in check_audit.VIA:
+            raise EngineError(f"via must be one of {', '.join(check_audit.VIA)}")
+        kind = pending.get("kind")
+        if kind == "escalation":
+            if decision != "answered" or not isinstance(text, str) or not text.strip():
+                raise EngineError("an escalation is answered with text (review_queue.py answer ID --text ...)")
+        elif decision not in ("approved", "denied"):
+            raise EngineError(f"run {run['runId']} is waiting for an approval: approve or deny it")
+        reason = self.reason_for(decision, reason)
         by = actor_id(by or self.actor)
-        sid = pending["step"]
-        record = {"decision": decision, "by": by, "at": now()}
-        if decision == "denied":
+        record = {"decision": decision, "by": by, "at": now(), "via": via}
+        if pending.get("id"):
+            record["id"] = pending["id"]
+        if reason:
             record["reason"] = reason
-        run["steps"][sid]["approval"] = record
         run["pending"] = None
-        self.audit(run, "approval.answered", step=sid, decision=decision, by=by)
+        if kind == "escalation":
+            record["text"] = text
+            run.setdefault("answers", {})[pending["ask"]] = record
+            run["status"] = "working"
+            self.audit(run, "escalation.answered", item=pending["id"], by=by, via=via)
+            self.save(run)
+            self.close_item(pending["id"], "answered", record)
+            self.log(f"answer {pending['ask']}")
+            return run
+        sid = pending["step"]
+        run["steps"][sid]["approval"] = record
+        self.audit(run, "approval.answered", step=sid, decision=decision, by=by, item=pending.get("id"), via=via)
         if decision == "denied":
             self.log(f"deny  {sid}")
-            return self.end(run, "failed", error={"step": sid, "message": f"approval denied by {by}: {reason}"})
+            run = self.end(run, "failed", error={"step": sid, "message": f"approval denied by {by}: {reason}"})
+            if pending.get("id"):
+                self.close_item(pending["id"], "answered", record)
+            return run
         run["status"] = "working"
         self.save(run)  # the approval is durable before the step runs
+        if pending.get("id"):
+            self.close_item(pending["id"], "answered", record)
         self.log(f"approve {sid}")
         return self.execute(run)
 
-    def approve(self, run_id, by=None):
-        return self.answer(run_id, "approved", by)
+    def approve(self, run_id, by=None, item_id=None, via="cli"):
+        return self.answer(run_id, "approved", by, None, item_id, via)
 
-    def deny(self, run_id, reason, by=None):
-        return self.answer(run_id, "denied", by, reason)
+    def deny(self, run_id, reason, by=None, item_id=None, via="cli"):
+        return self.answer(run_id, "denied", by, reason, item_id, via)
 
     def cancel(self, run_id, by=None):
         """Cancel a run. A paused run is cancelled at once. A working one stops before its
@@ -759,11 +1029,14 @@ class Engine:
         if not path.is_file():
             return False
         request = json.loads(path.read_text())
+        pending = run.get("pending") or {}
         run.update(status="cancelled", pending=None,
                    error={"step": run.get("next"), "message": f"cancelled by {request['by']}"})
         self.audit(run, "run.cancelled", step=run.get("next"), by=request["by"])
         self.save(run)
         path.unlink(missing_ok=True)
+        if pending.get("id"):  # a cancel answers what the run was waiting on
+            self.close_item(pending["id"], "answered", {"decision": "cancelled", **request})
         self.log(f"cancel {run['runId']}")
         return True
 
@@ -799,6 +1072,7 @@ def cmd_start(args, engine):
 
 def cmd_status(args, engine):
     run = engine.load(args.run_id)
+    engine.expire_if_due(run)
     requested = " (cancel requested)" if engine.cancel_path(run["runId"]).is_file() else ""
     print(f"{run['runId']}: {run['status']}{requested}, next: {run['next']}")
     return report(run)
@@ -808,8 +1082,8 @@ COMMANDS = {
     "start": cmd_start,
     "resume": lambda args, engine: report(engine.resume(args.run_id)),
     "status": cmd_status,
-    "approve": lambda args, engine: report(engine.approve(args.run_id, args.by)),
-    "deny": lambda args, engine: report(engine.deny(args.run_id, args.reason, args.by)),
+    "approve": lambda args, engine: answering_here() or report(engine.approve(args.run_id, args.by, args.id)),
+    "deny": lambda args, engine: answering_here() or report(engine.deny(args.run_id, args.reason, args.by, args.id)),
     "cancel": lambda args, engine: report(engine.cancel(args.run_id, args.by)),
 }
 
@@ -844,6 +1118,10 @@ def main():
                             "never a name or email (default: $WORKFLOWS_HIVE_ACTOR)")
         if name == "deny":
             p.add_argument("--reason", required=True, help="Why, recorded as the run's error")
+        if name != "cancel":
+            p.add_argument("--id", metavar="APPROVAL-ID",
+                           help="The approval ID being answered (run.py status shows it); refused "
+                                "if the run is waiting on anything else")
     args = ap.parse_args()
 
     try:

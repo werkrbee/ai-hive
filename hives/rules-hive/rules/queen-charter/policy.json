@@ -1,8 +1,8 @@
 {
   "$schema": "../../schema/approval-policy.schema.json",
   "policy": "queen-charter",
-  "version": 2,
-  "description": "The Queen Bee's Charter's approval rules. Local, reversible actions run without asking. Consequential, irreversible or externally visible actions need a human to approve the specific action. Anything else is denied. Editing or deleting an audit log is prohibited outright.",
+  "version": 3,
+  "description": "The Queen Bee's Charter's approval rules. Local, reversible actions run without asking. Consequential, irreversible or externally visible actions need a human to approve the specific action. Anything else is denied. Editing or deleting an audit log, and answering the human review queue, are prohibited outright.",
   "source": "hives/rules-hive/rules/queen-charter/AGENTS.md",
   "actions": [
     {
@@ -13,6 +13,11 @@
     {
       "id": "audit.delete",
       "description": "Delete an audit log.",
+      "gated": true
+    },
+    {
+      "id": "queue.answer",
+      "description": "Answer an item in the human review queue: an approval, an escalation or drift.",
       "gated": true
     }
   ],
@@ -26,6 +31,11 @@
       "id": "audit.no-delete",
       "action": "audit.delete",
       "reason": "No agent deletes an audit log (the Charter's first principles). Archiving one is a human's infrastructure change."
+    },
+    {
+      "id": "queue.no-answer",
+      "action": "queue.answer",
+      "reason": "Only a person answers the review queue; an agent never answers its own, or any other agent's (the Charter's human gates)."
     }
   ],
   "mandates": [

@@ -160,6 +160,13 @@ class Format(Log):
         self.append_raw(kind="approval.answered", runId="run_9", step="s1", decision="allowed", by="ci")
         self.assertTrue(any("decision must be one of approved, denied" in e for e in audit.check(self.log)))
 
+    def test_an_answer_says_how_it_came(self):
+        self.append_raw(kind="escalation.answered", runId="run_9", item="sha256:" + "a" * 64, by="ci", via="email")
+        self.assertTrue(any("via must be one of cli, mcp, a2a" in e for e in audit.check(self.log)))
+        with self.assertRaisesRegex(audit.AuditError, "missing 'via'"):
+            audit.append(self.log, {"kind": "drift.answered", "item": "sha256:" + "a" * 64,
+                                    "decision": "approved", "by": "ci"})
+
     def test_the_writer_refuses_an_entry_that_doesnt_fit(self):
         with self.assertRaisesRegex(audit.AuditError, "missing 'by'"):
             audit.append(self.log, {"kind": "run.cancelled", "runId": "run_9"})

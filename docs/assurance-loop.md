@@ -122,7 +122,8 @@ what an agent did and didn't do. Every decision goes in, not only the actions th
 
 **What is recorded.** `kind` is one of: `step.decided` (with `decision` `allowed`,
 `paused` or `denied`), `step.ran`, `step.failed`, `approval.answered` (with `by` and
-`decision`), `run.started`, `run.completed`, `run.failed`, `run.cancelled`, `run.expired`,
+`decision`), `escalation.raised`, `escalation.answered` and `drift.answered` (with `by`
+and `via`), `run.started`, `run.completed`, `run.failed`, `run.cancelled`, `run.expired`,
 `budget.refused`, `turn.completed`, `turn.failed`, `delegation`, `rollback`, `drift` and
 `eval.ran`. Every run ends with one of the four `run.` entries that end it. `call` is the
 digest of the exact tool call, the same input as hosted Barry's approval `id`, so an entry
@@ -257,12 +258,13 @@ written to the audit log before the run moves on. An approval or escalation expi
 seven days, as a paused hosted Barry task does, and expiry fails its run. Drift doesn't
 expire: it holds promotion until a human answers it.
 
-**Interfaces.** A command, `queue.py` (`list`, `show`, `approve`, `deny`, `answer`), and an
-MCP server with the same reads as tools and resources. An agent must never answer its own
-queue, and an MCP tool is something a model can call. So the MCP server's answering tool
-takes no decision from its arguments: it asks the person through an MCP elicitation, which
-the client shows to the user, and records only their reply. A client without elicitation
-gets the queue read-only.
+**Interfaces.** A command, `review_queue.py` (`list`, `show`, `approve`, `deny`, `answer`;
+not `queue.py`, which would shadow Python's own `queue` module), and an MCP server with
+the same reads as tools and resources. An agent must never answer its own queue, and an
+MCP tool is something a model can call. So the MCP server's answering tool takes no
+decision from its arguments: it asks the person through an MCP elicitation, which the
+client shows to the user, and records only their reply. A client without elicitation gets
+the queue read-only.
 
 The command is the harder case, because an agent with `shell.exec` can run it. Three
 things narrow that. The Charter's policy gains `queue.answer` as a prohibition, so no step
