@@ -2,7 +2,8 @@
 """Check a product's knowledge/ directory against the formats in DESIGN.md.
 
 Checks STATE.md (frontmatter, the five sections in order, the Components and References
-tables, the numbered lists), every memory entry, results.jsonl and ledger.jsonl. It also
+tables, the numbered lists), every memory entry, results.jsonl, ledger.jsonl and
+audit.jsonl, whose chain check_audit.py checks. It also
 scans every file for things that must never be written down: secrets, email addresses
 and phone numbers. That scan is a heuristic, not a guarantee.
 
@@ -16,6 +17,7 @@ Usage:
   python3 scripts/check_knowledge.py /path/to/product/knowledge
 """
 import datetime
+import importlib.util
 import json
 import math
 import re
@@ -23,6 +25,17 @@ import sys
 from pathlib import Path
 
 HIVE = Path(__file__).resolve().parent.parent
+
+
+def load_check_audit():
+    """check_audit.py beside this script, loaded by path so it never shadows another module."""
+    spec = importlib.util.spec_from_file_location("check_audit", HIVE / "scripts" / "check_audit.py")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+check_audit = load_check_audit()
 
 KEBAB = re.compile(r"[a-z0-9]+(-[a-z0-9]+)*")
 STATUSES = {"planning", "building", "live", "paused", "retired"}
@@ -300,6 +313,12 @@ def check_ledger(path, err):
                 err(f"{at}: {key} must be a non-empty string")
 
 
+def check_audit_log(path, err):
+    errors, _ = check_audit.check_text(read(path), path.name)
+    for e in errors:
+        err(e)
+
+
 def scan(path, rel, err):
     """Report secrets and personal data. Returns False when the file can't be read as UTF-8."""
     try:
@@ -326,7 +345,7 @@ def check(knowledge):
     if not knowledge.is_dir():
         return [f"{knowledge} is not a directory"]
     state = knowledge / "STATE.md"
-    known = {state, knowledge / "results.jsonl", knowledge / "ledger.jsonl"}
+    known = {state, knowledge / "results.jsonl", knowledge / "ledger.jsonl", knowledge / "audit.jsonl"}
     unreadable = set()
     for f in sorted(p for p in knowledge.rglob("*") if p.is_file() or p.is_symlink()):
         if not scan(f, f.relative_to(knowledge), err):
@@ -342,7 +361,8 @@ def check(knowledge):
     for f in sorted((knowledge / "memory").glob("*.md")):
         if f.is_file() and f not in unreadable:
             check_memory(f, err)
-    for name, checker in (("results.jsonl", check_results), ("ledger.jsonl", check_ledger)):
+    for name, checker in (("results.jsonl", check_results), ("ledger.jsonl", check_ledger),
+                          ("audit.jsonl", check_audit_log)):
         f = knowledge / name
         if f.is_file() and f not in unreadable:
             checker(f, err)

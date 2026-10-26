@@ -111,8 +111,8 @@ not just assembled from it. Both items have an open pull request.
 
 Tracked on the `P2.1 — assurance loop` milestone (epic #122), worked in the order set in
 `docs/sprints/p2.1.md`. Defensive co-scaling: the agents' control systems are built at the
-same pace as the agents (`docs/factory-thesis.md`). None of it is built yet: every agent
-will carry a passport, held by four controls.
+same pace as the agents (`docs/factory-thesis.md`). Every agent will carry a passport,
+held by four controls. The passport and the audit log are done.
 
 - **Vision and roadmap (docs).** Put defensive co-scaling into the factory thesis, the
   README, this roadmap and a sprint file. (#123)
@@ -120,12 +120,12 @@ will carry a passport, held by four controls.
   boundary before code, building on what exists: execution contracts, Agent Cards, the
   approval policy, run records, the usage ledger and Patricia's eval. Accepted in
   `docs/assurance-loop.md`. (#124)
-- **Agent passport (agents-hive) (done).** Versioned metadata per agent: identity, owner, what it
-  may and may not do, its eval baseline and the model, prompt and policy versions it runs.
-  (#125)
-- **Tamper-evident audit log (knowledge-hive).** An append-only, hash-chained record of
-  what every agent did and didn't do, with a verifier. Deleting or editing it violates
-  the Charter. (#126)
+- **Agent passport (agents-hive) (done).** Versioned metadata per agent: identity, owner,
+  what it may and may not do, its eval baseline and the model, prompt and policy versions
+  it runs. (#125)
+- **Tamper-evident audit log (knowledge-hive) (done).** An append-only, hash-chained
+  record of what every agent did and didn't do, with a verifier. Deleting or editing it
+  violates the Charter. (#126)
 - **Trust evaluation and drift (agents-hive).** Each agent's eval re-runs on any change
   and on a schedule; a result below its baseline is drift, flagged to a human. (#127)
 - **Rollback.** Back to an earlier passport or checkpoint; an external effect is

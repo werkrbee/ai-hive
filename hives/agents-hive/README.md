@@ -82,9 +82,11 @@ The schema is [`schema/passport.schema.json`](schema/passport.schema.json).
 `scripts/validate_passports.py` checks every passport against it and against its
 contract, policy and pinned files, and requires one for every card; CI runs it. A pin
 that no longer matches is reported with the file's current digest, and
-`validate_passports.py --digest <persona>` prints a passport's own digest. Passports are
-declarations today: the workflows-hive engine doesn't yet read `never` as prohibitions
-(#126), and the deploy doesn't yet check its model against the pin (#127, #133).
+`validate_passports.py --digest <persona>` prints a passport's own digest. The
+workflows-hive engine runs a run under a passport when it names one (`run.py start
+--passport barry`): each action in its `never` is a prohibition, decided before any
+mandate, and each entry in the audit log names the passport, its version and its digest.
+The deploy doesn't yet check its model against the pin (#127, #133).
 
 ## Agent Cards (A2A)
 

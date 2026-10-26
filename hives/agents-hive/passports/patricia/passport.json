@@ -1,10 +1,10 @@
 {
   "$schema": "../../schema/passport.schema.json",
   "passport": "patricia",
-  "version": 1,
+  "version": 2,
   "owner": "@werkrbee",
   "contract": { "capability": "governance-review", "version": 1 },
-  "policy": { "ruleset": "hives/rules-hive/rules/queen-charter/policy.json", "version": 1 },
+  "policy": { "ruleset": "hives/rules-hive/rules/queen-charter/policy.json", "version": 2 },
   "permissions": {
     "granted": ["fs.read"],
     "approval": [],
@@ -19,11 +19,11 @@
   "pins": {
     "model": { "publisher": "anthropic", "name": "claude-sonnet-5-5", "version": "2" },
     "prompt": [
-      { "path": "hives/rules-hive/rules/queen-charter/AGENTS.md", "sha256": "b138f157d72c6b2edeff8a86aec2c9f6b3838230d4220a31d15b8add6c63f22b" },
+      { "path": "hives/rules-hive/rules/queen-charter/AGENTS.md", "sha256": "79ea53fdeff1bc0348c7d8436e3102970175fc4e7605d71f214e5f6bb1267167" },
       { "path": "hives/skills-hive/skills/patricia/SKILL.md", "sha256": "74fd297cdd87903c2f1a67192792c39aecbc1219fa3a340bf042400409a67730" },
       { "path": "hives/agents-hive/agents/charter-review/agent.md", "sha256": "d0bec9fb2bb5ad1ee2ccc85a2e67fd0fd9dfc22d287fa150dad3cdcafbb3031d" }
     ],
-    "policy": { "sha256": "e9e5c3a9ce319b8f84d149d4a135bc040d7bcbc6c9d694374b1920113139d2ac" }
+    "policy": { "sha256": "9a08039ec64eba44e2c049d699e6bf0af676bba845f586b396549562ecc55ec6" }
   },
   "eval": {
     "suite": "hives/agents-hive/deploy/azure/eval/cases.json",

@@ -122,15 +122,16 @@ what an agent did and didn't do. Every decision goes in, not only the actions th
 
 **What is recorded.** `kind` is one of: `step.decided` (with `decision` `allowed`,
 `paused` or `denied`), `step.ran`, `step.failed`, `approval.answered` (with `by` and
-`decision`), `run.started`, `run.cancelled`, `run.expired`, `budget.refused`,
-`turn.completed`, `delegation`, `rollback`, `drift` and `eval.ran`. `call` is the digest
-of the exact tool call, the same input as hosted Barry's approval `id`, so an entry can be
-matched to its run record without the log holding the call's arguments. Message text,
-recipients and model output stay in the run record. `by` is the identifier the approving
-product gives its person, never their name or email, as with everything in knowledge-hive.
-On one machine, the engine fills `by` from the operating-system login today, which is
-often a name; it will instead take a configured actor ID and refuse to record an answer
-without one.
+`decision`), `run.started`, `run.completed`, `run.failed`, `run.cancelled`, `run.expired`,
+`budget.refused`, `turn.completed`, `turn.failed`, `delegation`, `rollback`, `drift` and
+`eval.ran`. Every run ends with one of the four `run.` entries that end it. `call` is the
+digest of the exact tool call, the same input as hosted Barry's approval `id`, so an entry
+can be matched to its run record without the log holding the call's arguments. Message
+text, recipients and model output stay in the run record. `by` is the identifier the
+approving product gives its person, never their name or email, as with everything in
+knowledge-hive. On one machine, the engine used to fill `by` from the operating-system
+login, which is often a name; it now takes a configured actor ID and refuses to record an
+answer or a cancel without one.
 
 **How tampering shows.** Each entry's `hash` is the SHA-256 of the entry without `hash`,
 serialized as canonical JSON: keys sorted, no insignificant whitespace, UTF-8, numbers as

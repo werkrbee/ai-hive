@@ -36,6 +36,10 @@ the product changes, plus memory entries for durable facts that outlive any one
 snapshot. **Results** are what was done and checked, appended and never edited. The
 **usage ledger** is what the work cost, also appended.
 
+The assurance loop (P2.1, [`docs/assurance-loop.md`](../../docs/assurance-loop.md)) adds a
+fourth file in the same style, the **audit log**: what every agent decided and did,
+hash-chained so it can't be quietly edited.
+
 ## Where it lives
 
 A product keeps its knowledge in one directory at its root:
@@ -46,7 +50,8 @@ knowledge/
 ├── memory/             # persistent state: durable facts, one per file
 │   └── <slug>.md
 ├── results.jsonl       # results: append-only
-└── ledger.jsonl        # usage ledger: append-only
+├── ledger.jsonl        # usage ledger: append-only
+└── audit.jsonl         # audit log: append-only and hash-chained
 ```
 
 The product's `AGENTS.md` (or whatever instruction file its harnesses read) tells agents
@@ -200,6 +205,56 @@ entries, reserves each review's worst-case cost before the review runs, and refu
 reviews once spending and reservations reach the ceiling
 ([`servers/a2a/README.md`](../agents-hive/servers/a2a/README.md)).
 
+## Audit log: `audit.jsonl`
+
+One JSON object per line for every decision an agent's run makes, not only the actions
+that ran, chained so that an edited, removed, inserted or reordered entry shows. The
+design is in [`docs/assurance-loop.md`](../../docs/assurance-loop.md) (accepted, #124).
+
+```json
+{"seq": 41, "at": "2026-11-02T14:02:12Z", "prev": "sha256:9f2c…", "kind": "step.decided", "agent": {"passport": "barry", "version": 4, "sha256": "…"}, "runId": "run_01J9Z…", "step": "s7", "action": "message.send", "decision": "paused", "rules": ["organizer.blast"], "call": "sha256:…", "hash": "sha256:4be1…"}
+```
+
+`seq`, `at` (an ISO 8601 date-time in UTC), `prev`, `hash` and `kind` are required. `kind`
+is one of `run.started`, `run.completed`, `run.failed`, `run.cancelled`, `run.expired`,
+`step.decided`, `step.ran`, `step.failed`, `budget.refused`, `approval.answered`,
+`turn.completed`, `turn.failed`, `delegation`, `rollback`, `drift` and `eval.ran`. A run's
+entries carry its `runId`, and a step's or a turn's carry `step` or `turn`. `step.decided`
+carries the `action` it decided, its `decision` (`allowed`, `paused` or `denied`) and the
+`rules` that decided it; a step with no action, or one paused by its plan rather than its
+policy, has one entry with no `action`. `approval.answered` carries `decision` (`approved`
+or `denied`) and `by`, as `run.cancelled` carries `by`. `agent` names the passport the run
+is under, its version and its digest, and is left out for a run under none. `call` is the
+digest of the exact call a step makes: its run, step, worker, resolved input and action.
+So an entry can be matched to its run record, which keeps the call's arguments, the
+model's output, message text and a denial's reason, none of which the log holds. The kinds
+the review queue, the eval, rollback and delegation write get their fields as those are
+built.
+
+**Hash rules.** Each `hash` is `sha256:` followed by the SHA-256 of the entry without
+`hash`, serialized as canonical JSON: keys sorted, no insignificant whitespace, UTF-8,
+numbers as Python's `json` writes them. `prev` is the previous entry's `hash`, and the
+first entry's `prev` is `sha256:` followed by 64 zeros. `seq` counts from 1 with no gaps.
+
+**Anchors.** A chain can't show that its last entries were cut off, so each
+workflows-hive run record keeps, under `audit`, the `seq` and `hash` of the last entry
+written for its run. The engine writes an entry before the record that follows it, so a
+record never points past the log.
+
+**One writer.** The workflows-hive engine writes the log, through `append` in
+`scripts/check_audit.py`, which takes an exclusive lock, numbers and chains the entry, and
+flushes it to disk before returning. The writer refuses an entry that doesn't fit the
+format, and a log whose last line is incomplete.
+
+**What it can't stop.** On one machine, an agent that can write the directory holding the
+log can rewrite all of it and recompute every hash, and its run records' anchors with it.
+The chain shows tampering by anyone who didn't rewrite it whole; it isn't a lock. The
+Charter forbids it, and its policy prohibits `audit.edit` and `audit.delete`, but the
+approval policy can't tell a write to the log from any other `fs.write` or `shell.exec`.
+So a local log is evidence, not a guarantee. The strong case is a hosted deployment that
+also writes each entry to storage the agent can't reach and nobody can rewrite, such as
+an immutable append blob.
+
 ## What the checker holds you to
 
 `scripts/check_knowledge.py` checks everything above, and a few rules this note implies
@@ -209,7 +264,10 @@ named above are rejected, in frontmatter and in JSON lines alike, and so is any 
 outside the layout. `STATE.md` has exactly one `# ` heading, the product's name, and its
 Open work can be the single line `None.` when there is nothing left. An evidence item
 holds its `kind` and its one field, nothing else. `memory/`, `results.jsonl` and
-`ledger.jsonl` can be absent until there is something to put in them.
+`ledger.jsonl` can be absent until there is something to put in them, and so can
+`audit.jsonl`. The checker checks an audit log's format and chain, and reports the first
+place the chain breaks; `scripts/check_audit.py` also checks a log's end against the run
+records.
 
 ## Secrets and personal data
 
@@ -219,7 +277,9 @@ the value. lineup's `PROJECT_STATE.md` redacted its base, table and field IDs by
 before the repo went public; under this format those IDs are references from the start,
 with "restore from the connected Airtable" as the way to find them. Personal data (names,
 phone numbers, emails) stays in the product's own data store and is never copied into
-state, results or the ledger.
+state, results, the ledger or the audit log. The log names a person only by `by`, the
+opaque identifier their product gives them, never a name or an email, and the checker
+refuses one with a space or the shape of an email address.
 
 ## How lineup maps
 

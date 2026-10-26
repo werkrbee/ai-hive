@@ -158,7 +158,8 @@ class ServerTest(unittest.TestCase):
         link = card["capabilities"]["extensions"][0]
         self.assertTrue(link["uri"].endswith("/schema/passport.schema.json"))
         self.assertTrue(link["params"]["passport"].endswith("/passports/patricia/passport.json"))
-        self.assertEqual(link["params"]["version"], "1")
+        passport = json.loads((REPO_ROOT / "hives/agents-hive/passports/patricia/passport.json").read_text())
+        self.assertEqual(link["params"]["version"], str(passport["version"]))
 
     def test_every_request_is_authenticated(self):
         with self.client(write_config(self.root)) as c:
