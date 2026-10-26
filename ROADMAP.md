@@ -120,7 +120,7 @@ will carry a passport, held by four controls.
   boundary before code, building on what exists: execution contracts, Agent Cards, the
   approval policy, run records, the usage ledger and Patricia's eval. Accepted in
   `docs/assurance-loop.md`. (#124)
-- **Agent passport (agents-hive).** Versioned metadata per agent: identity, owner, what it
+- **Agent passport (agents-hive) (done).** Versioned metadata per agent: identity, owner, what it
   may and may not do, its eval baseline and the model, prompt and policy versions it runs.
   (#125)
 - **Tamper-evident audit log (knowledge-hive).** An append-only, hash-chained record of

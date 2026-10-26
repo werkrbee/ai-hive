@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
 # Validate the repo's portable artifacts. Used by CI and the Claude Code PostToolUse hook.
 # Checks every SKILL.md for YAML frontmatter with the required keys, every AGENTS.md
-# for a top-level heading, every agents-hive execution contract against its schema, and
-# every agents-hive A2A Agent Card against the A2A spec, every rules-hive approval
-# policy against its schema and its cases, and knowledge-hive's template and examples.
+# for a top-level heading, every agents-hive execution contract against its schema,
+# every agents-hive passport against its schema, contract and pins, every agents-hive
+# A2A Agent Card against the A2A spec, every rules-hive approval policy against its
+# schema and its cases, and knowledge-hive's template and examples.
 # Fails if no SKILL.md is found at all (e.g. hives not checked out).
 # Exit non-zero on any failure (the hook tolerates failures; CI does not).
 set -uo pipefail
@@ -49,6 +50,11 @@ if ! contracts_out=$(python3 hives/agents-hive/scripts/validate_contracts.py); t
   printf '%s\n' "$contracts_out"; fail=1
 fi
 
+# Passports: schema, narrowing against the contract, and pinned digests.
+if ! passports_out=$(python3 hives/agents-hive/scripts/validate_passports.py); then
+  printf '%s\n' "$passports_out"; fail=1
+fi
+
 # A2A Agent Cards: rendered from their sources and contracts, then checked.
 if ! cards_out=$(python3 hives/agents-hive/scripts/agent_card.py --check); then
   printf '%s\n' "$cards_out"; fail=1
@@ -69,6 +75,6 @@ if [ "$skills" -eq 0 ]; then
 fi
 
 if [ "$fail" -eq 0 ]; then
-  echo "OK  ${skills} SKILL.md and ${agents} AGENTS.md artifacts valid; ${contracts_out#OK  }; ${cards_out#OK  }; ${policies_out#OK  }; ${knowledge_out#OK  }"
+  echo "OK  ${skills} SKILL.md and ${agents} AGENTS.md artifacts valid; ${contracts_out#OK  }; ${passports_out#OK  }; ${cards_out#OK  }; ${policies_out#OK  }; ${knowledge_out#OK  }"
 fi
 exit "$fail"

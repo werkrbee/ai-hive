@@ -155,6 +155,10 @@ class ServerTest(unittest.TestCase):
         flow = card["securitySchemes"]["oauth2"]["oauth2SecurityScheme"]["flows"]["clientCredentials"]
         self.assertIn("api://api-app/.default", flow["scopes"])
         self.assertEqual(card["securityRequirements"][0]["schemes"]["oauth2"]["list"], ["api://api-app/.default"])
+        link = card["capabilities"]["extensions"][0]
+        self.assertTrue(link["uri"].endswith("/schema/passport.schema.json"))
+        self.assertTrue(link["params"]["passport"].endswith("/passports/patricia/passport.json"))
+        self.assertEqual(link["params"]["version"], "1")
 
     def test_every_request_is_authenticated(self):
         with self.client(write_config(self.root)) as c:
