@@ -54,6 +54,39 @@ each `fulfilledBy` path exists, and CI runs it. Contracts are declarations today
 validator checks them statically, but no harness or the workflows-hive engine enforces
 their permissions or budgets at runtime yet.
 
+## Passports
+
+A passport is an agent's versioned metadata: who it is, who owns it, what it may and may
+not do, and which versions of its model, prompt and policy it runs. It joins what is
+otherwise spread across the execution contract, the Agent Card and the approval policy,
+by pointing at them and narrowing them rather than copying them. It is the first part of
+the assurance loop ([`docs/assurance-loop.md`](../../docs/assurance-loop.md)).
+
+| Passport | Contract | Owner | Pins a model |
+|----------|----------|-------|--------------|
+| [**Barry**](passports/barry/passport.json) | `orchestration` | `@werkrbee` | no, he runs in a harness, which picks it |
+| [**Patricia**](passports/patricia/passport.json) | `governance-review` | `@werkrbee` | Claude Sonnet 5.5, version 2, with her eval baseline of 12 of 12 |
+
+A passport can only narrow its contract. Every action it grants or puts under approval is
+one the contract grants or puts under approval, nothing the contract puts under approval
+is granted, and each budget figure is at most the contract's. `never` writes out what the
+agent may not do even with a human's approval; Patricia's lists every action but
+`fs.read`. `delegates` names the passports it may hand work to. `pins` holds the model,
+each prompt file and the policy file, with their SHA-256 digests, so a change to the
+Charter, a skill or the policy fails CI until the passports that run on it are updated
+and their `version` bumped. `eval` names the agent's suite and the baseline its pins
+earned, and only an agent with a model pin can have one, since a baseline belongs to a
+model.
+
+The schema is [`schema/passport.schema.json`](schema/passport.schema.json).
+`scripts/validate_passports.py` checks every passport against it and against its
+contract, policy and pinned files, and requires one for every card; CI runs it. A pin
+that no longer matches is reported with the file's current digest, and
+`validate_passports.py --digest <persona>` prints a passport's own digest. Passports are
+declarations today: the workflows-hive engine doesn't yet read `never` as prohibitions,
+and the deploy doesn't yet check its model against the pin. Both come with the rest of
+the assurance loop.
+
 ## Agent Cards (A2A)
 
 Barry and Patricia each have an [Agent2Agent](https://a2a-protocol.org) (A2A v1.0) Agent
@@ -71,8 +104,9 @@ defines its inputs and output. The rest of the card (name, description, version,
 links, default media types) is written in `cards/<persona>/card.json`.
 
 A card also needs the URL where the agent is served, which only exists once someone
-serves it. So `card.json` leaves out `skills` and `supportedInterfaces`, and
-`scripts/agent_card.py` adds both when it renders the card for a real endpoint:
+serves it, and a link to its passport. So `card.json` leaves out `skills`,
+`supportedInterfaces` and the passport link, and `scripts/agent_card.py` adds them when
+it renders the card for a real endpoint:
 
 ```bash
 python3 scripts/agent_card.py patricia --url https://agents.example.org/a2a/patricia
@@ -82,6 +116,11 @@ Publish the output at `https://<host>/.well-known/agent-card.json`. The endpoint
 HTTPS (plain HTTP only for localhost). `--binding` names the protocol binding: `JSONRPC`
 by default, and the spec's other core bindings are `GRPC` and `HTTP+JSON`. Bump a card's
 `version` when its contracts change.
+
+The passport link is an A2A extension in `capabilities.extensions`. Its `uri` is the
+passport schema's URL, which names the extension, and its `params` hold the passport's
+URL, its `version` (a string) and the SHA-256 of its canonical JSON (keys sorted, no
+insignificant whitespace, UTF-8).
 
 `scripts/agent_card.py --check` renders every card against a stand-in endpoint and checks
 it against the `AgentCard` message in the A2A spec (`specification/a2a.proto`): required
@@ -126,6 +165,9 @@ agents-hive/
 ├── cards/                        # HOW others find them — A2A Agent Cards
 │   ├── barry/card.json
 │   └── patricia/card.json
+├── passports/                    # WHAT each may and may not do, and what it runs on
+│   ├── barry/passport.json
+│   └── patricia/passport.json
 ├── design/
 │   └── hosted-barry.md           # design note: hosting Barry over A2A
 ├── servers/
@@ -133,7 +175,9 @@ agents-hive/
 ├── deploy/
 │   └── azure/                    # werkrbee's deployment of it
 ├── schema/
-│   └── execution-contract.schema.json
+│   ├── execution-contract.schema.json
+│   └── passport.schema.json
+├── tests/                        # passport and card-link tests
 ├── adapters/                     # WHERE they run — harness taxonomy & overrides
 │   ├── claude-code/  cursor/  codex/  gemini-cli/  goose/  opencode/
 │   ├── kiro/  databricks-genie-code/  snowflake-cortex-code/
@@ -142,6 +186,7 @@ agents-hive/
 ├── scripts/
 │   ├── install.py                # render personas into each harness's agent format
 │   ├── validate_contracts.py     # check contracts against the schema
+│   ├── validate_passports.py     # check passports against the schema and their contracts
 │   └── agent_card.py             # render and check A2A Agent Cards
 ├── LICENSE
 └── README.md

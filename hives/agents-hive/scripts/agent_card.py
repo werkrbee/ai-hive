@@ -2,14 +2,16 @@
 """Render and validate A2A Agent Cards (A2A v1.0, specification/a2a.proto) for the House.
 
 `cards/<persona>/card.json` holds what only the persona can say about itself: name,
-description, version, provider, links, capabilities and default media types. Two parts
+description, version, provider, links, capabilities and default media types. Three parts
 of an Agent Card come from elsewhere, so the source must not contain them:
 
   skills               one per execution contract the persona fulfils (contracts/), so a
                        card can't drift from the contracts
   supportedInterfaces  the endpoint, which only exists once someone serves the agent
+  the passport link    an extension in capabilities.extensions naming the persona's
+                       passport (passports/) with its version and digest
 
-Rendering adds both. Publish the result at https://<host>/.well-known/agent-card.json.
+Rendering adds all three. Publish the result at https://<host>/.well-known/agent-card.json.
 `--check` renders every card against a stand-in endpoint and validates it, which is what
 CI runs.
 
@@ -21,6 +23,7 @@ Usage:
   python3 scripts/agent_card.py barry --url https://... --binding HTTP+JSON
 """
 import argparse
+import hashlib
 import json
 import re
 import sys
@@ -45,6 +48,8 @@ SKILL_REQUIRED = {"id", "name", "description", "tags"}
 SKILL_OPTIONAL = {"examples", "inputModes", "outputModes", "securityRequirements"}
 SIGNATURE = {"protected", "signature", "header"}
 MEDIA_TYPE = re.compile(r"^[\w.+-]+/[\w.+-]+$")
+PASSPORT_URI = "https://github.com/werkrbee/ai-hive/blob/main/hives/agents-hive/schema/passport.schema.json"
+PASSPORT_URL = "https://github.com/werkrbee/ai-hive/blob/main/hives/agents-hive/passports/{persona}/passport.json"
 
 
 def require_secure(url):
@@ -102,9 +107,40 @@ def skill(path, contract):
     }
 
 
+def passport_extension(persona):
+    """The A2A extension that links a card to the persona's passport.
+
+    The uri names the passport extension (its schema); params say where this persona's
+    passport is and which version the card was rendered with. The version is a string,
+    because params is a protobuf Struct, whose numbers come back as floats. The digest
+    is the SHA-256 of the passport's canonical JSON, as validate_passports.py computes it.
+    """
+    path = HIVE / "passports" / persona / "passport.json"
+    if not path.is_file():
+        raise CardError(f"no passport at passports/{persona}/passport.json")
+    try:
+        passport = json.loads(path.read_text())
+    except ValueError:
+        raise CardError(f"passports/{persona}/passport.json is not valid JSON; run validate_passports.py")
+    canonical = json.dumps(passport, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+    return {
+        "uri": PASSPORT_URI,
+        "description": "The agent's passport: what it may and may not do, and the versions it runs.",
+        "required": False,
+        "params": {
+            "passport": PASSPORT_URL.format(persona=persona),
+            "version": str(passport.get("version")),
+            "sha256": hashlib.sha256(canonical.encode("utf-8")).hexdigest(),
+        },
+    }
+
+
 def render(persona, url, binding="JSONRPC"):
     source = json.loads((HIVE / "cards" / persona / "card.json").read_text())
     card = dict(source)
+    caps = dict(source.get("capabilities", {}))
+    caps["extensions"] = [*caps.get("extensions", []), passport_extension(persona)]
+    card["capabilities"] = caps
     card["supportedInterfaces"] = [{"url": url, "protocolBinding": binding,
                                     "protocolVersion": PROTOCOL_VERSION}]
     card["skills"] = [skill(p, c) for p, c in contracts_for(persona)]
@@ -129,6 +165,10 @@ def validate_source(source):
     for key in sorted(DERIVED & set(source)):
         errors.append(f"'{key}' is added when the card is rendered; remove it from card.json")
     check_fields(source, CARD_REQUIRED | CARD_OPTIONAL, "card", errors.append)
+    caps = source.get("capabilities")
+    exts = caps.get("extensions", []) if isinstance(caps, dict) else []
+    if isinstance(exts, list) and any(isinstance(x, dict) and x.get("uri") == PASSPORT_URI for x in exts):
+        errors.append("the passport extension is added when the card is rendered; remove it from card.json")
     return errors
 
 

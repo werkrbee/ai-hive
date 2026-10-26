@@ -1,0 +1,37 @@
+{
+  "$schema": "../../schema/passport.schema.json",
+  "passport": "patricia",
+  "version": 1,
+  "owner": "@werkrbee",
+  "contract": { "capability": "governance-review", "version": 1 },
+  "policy": { "ruleset": "hives/rules-hive/rules/queen-charter/policy.json", "version": 1 },
+  "permissions": {
+    "granted": ["fs.read"],
+    "approval": [],
+    "never": [
+      "fs.write", "shell.exec", "net.fetch", "agent.delegate",
+      "vcs.commit", "vcs.push", "vcs.merge", "vcs.release", "vcs.delete-ref",
+      "fs.delete", "infra.change", "deploy", "message.send", "spend"
+    ]
+  },
+  "budget": { "usd": 0.5, "tokens": 200000, "seconds": 600 },
+  "delegates": [],
+  "pins": {
+    "model": { "publisher": "anthropic", "name": "claude-sonnet-5-5", "version": "2" },
+    "prompt": [
+      { "path": "hives/rules-hive/rules/queen-charter/AGENTS.md", "sha256": "b138f157d72c6b2edeff8a86aec2c9f6b3838230d4220a31d15b8add6c63f22b" },
+      { "path": "hives/skills-hive/skills/patricia/SKILL.md", "sha256": "74fd297cdd87903c2f1a67192792c39aecbc1219fa3a340bf042400409a67730" },
+      { "path": "hives/agents-hive/agents/charter-review/agent.md", "sha256": "d0bec9fb2bb5ad1ee2ccc85a2e67fd0fd9dfc22d287fa150dad3cdcafbb3031d" }
+    ],
+    "policy": { "sha256": "e9e5c3a9ce319b8f84d149d4a135bc040d7bcbc6c9d694374b1920113139d2ac" }
+  },
+  "eval": {
+    "suite": "hives/agents-hive/deploy/azure/eval/cases.json",
+    "baseline": {
+      "met": 12, "of": 12,
+      "result": "hives/agents-hive/deploy/azure/eval/RESULTS.md#2026-10-21-claude-sonnet-55-gpt-54-and-deepseek-v32",
+      "commit": "4ffb36a"
+    },
+    "threshold": 0
+  }
+}
