@@ -118,7 +118,7 @@ will carry a passport, held by four controls.
   README, this roadmap and a sprint file. (#123)
 - **Design note (docs).** Decide the passport, the four controls and the sub-agent
   boundary before code, building on what exists: execution contracts, Agent Cards, the
-  approval policy, run records, the usage ledger and Patricia's eval. Proposed in
+  approval policy, run records, the usage ledger and Patricia's eval. Accepted in
   `docs/assurance-loop.md`. (#124)
 - **Agent passport (agents-hive).** Versioned metadata per agent: identity, owner, what it
   may and may not do, its eval baseline and the model, prompt and policy versions it runs.

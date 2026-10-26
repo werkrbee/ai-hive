@@ -1,6 +1,6 @@
 # The assurance loop: design note
 
-Status: proposed (#124). It settles how every agent the House ships is held to what it
+Status: accepted (#124). It settles how every agent the House ships is held to what it
 may do before any code is written, as the hosted Barry note
 ([`hives/agents-hive/design/hosted-barry.md`](../hives/agents-hive/design/hosted-barry.md))
 did for hosting Barry. It ends with what it changes in the implementation issues on the
@@ -123,28 +123,28 @@ what an agent did and didn't do. Every decision goes in, not only the actions th
 `paused` or `denied`), `step.ran`, `step.failed`, `approval.answered` (with `by` and
 `decision`), `run.started`, `run.cancelled`, `run.expired`, `budget.refused`,
 `turn.completed`, `delegation`, `rollback`, `drift` and `eval.ran`. `call` is the digest
-of the exact tool call, the same input as hosted Barry's approval `id`, so an entry can be matched
-to its run record without the log holding the call's arguments. Message text, recipients
-and model output stay in the run record. `by` is the identifier the approving product
-gives its person, never their name or email, as with everything in knowledge-hive. On one
-machine, the engine fills `by` from the operating-system login today, which is often a
-name; it will instead take a configured actor ID and refuse to record an answer without
-one.
+of the exact tool call, the same input as hosted Barry's approval `id`, so an entry can be
+matched to its run record without the log holding the call's arguments. Message text,
+recipients and model output stay in the run record. `by` is the identifier the approving
+product gives its person, never their name or email, as with everything in knowledge-hive.
+On one machine, the engine fills `by` from the operating-system login today, which is
+often a name; it will instead take a configured actor ID and refuse to record an answer
+without one.
 
 **How tampering shows.** Each entry's `hash` is the SHA-256 of the entry without `hash`,
 serialized as canonical JSON: keys sorted, no insignificant whitespace, UTF-8, numbers as
 Python's `json` writes them. `prev` is the previous entry's `hash`, and the first entry's
 `prev` is `sha256:` followed by 64 zeros. `seq` counts from 1 with no gaps. A verifier,
 `check_audit.py`, recomputes the chain and reports the first entry that was edited,
-removed, inserted or reordered. A chain can't show that its last entries were cut off,
-so two things anchor its end. Each run record keeps the `seq` and `hash` of the last
-entry written for it, so the verifier, given the run records, catches a log that ends
-before a run's last entry. And a hosted deployment also writes each entry to an Azure
-Storage append blob in a container with a locked, time-based immutability policy that
-allows protected append writes (`allowProtectedAppendWrites`), which
-the storage service enforces even against the subscription's owner until the retention
-period ends. That is generally available. The format and the verifier don't depend on it,
-so a product on another host anchors the log however its host allows.
+removed, inserted or reordered. A chain can't show that its last entries were cut off, so
+two things anchor its end. Each run record keeps the `seq` and `hash` of the last entry
+written for it, so the verifier, given the run records, catches a log that ends before a
+run's last entry. And a hosted deployment also writes each entry to an Azure Storage
+append blob in a container with a locked, time-based immutability policy that allows
+protected append writes (`allowProtectedAppendWrites`), which the storage service enforces
+even against the subscription's owner until the retention period ends. That is generally
+available. The format and the verifier don't depend on it, so a product on another host
+anchors the log however its host allows.
 
 **Who writes it.** The workflows-hive engine, as the one writer per log, for every step
 decision, approval, denial, cancel and expiry; the review queue, through the engine; the
@@ -345,8 +345,8 @@ edited to match:
   identifiers, with the engine's operating-system login default replaced by a configured
   actor ID. Its body's "core principles" becomes "first principles".
 - **#127, trust evaluation.** Adds critical cases, the confirming re-run, the queue item
-  for an unconfirmed critical miss, the cost flag and
-  `deploy.sh` refusing a passport with no baseline for its pins.
+  for an unconfirmed critical miss, the cost flag and `deploy.sh` refusing a passport with
+  no baseline for its pins.
 - **#128, rollback.** Adds `rolledBack` steps, compensation newest first and the retired
   model check.
 - **#129, review queue.** Adds the item files, expiry rules, elicitation-only answers over
