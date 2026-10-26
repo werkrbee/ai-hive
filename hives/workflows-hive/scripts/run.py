@@ -386,13 +386,19 @@ def marked(run_id):
             os.environ[RUN_ENV] = before
 
 
-def answering_here(via="cli"):
-    """Refuse a human's answer from where an agent would give one: inside an engine run, or,
-    on the command line, without an interactive terminal. Neither is a lock; on one machine
-    an agent with a shell can get around both, so the audit log's via and by are evidence."""
+def outside_runs():
+    """Refuse a person's answer from inside an engine run, where only an agent could be."""
     if os.environ.get(RUN_ENV):
         raise EngineError(f"refusing to answer from inside run {os.environ[RUN_ENV]}: an agent never "
                           "answers its own queue")
+
+
+def answering_here(via="cli"):
+    """Refuse a human's answer from where an agent would give one: inside an engine run, or,
+    on the command line, without an interactive terminal. Neither is a lock; on one machine
+    an agent with a shell can get around both, so the audit log's via and by are evidence.
+    The engine refuses an answer from inside a run on its own, too."""
+    outside_runs()
     if via == "cli" and not (sys.stdin.isatty() and sys.stdout.isatty()):
         raise EngineError("refusing to answer without an interactive terminal: a person answers the "
                           "queue, at a terminal or through an MCP client that asks them")
@@ -895,6 +901,7 @@ class Engine:
     def answer_item(self, ref, decision, by=None, reason=None, text=None, via="cli"):
         """Answer the queue item ref. decision is approved or denied for an approval or
         drift, and answered (with text) for an escalation."""
+        outside_runs()
         item = self.item(ref)
         if item["status"] != "open":
             raise EngineError(f"item {item['id']} is {item['status']}; only an open item can be answered")
@@ -914,7 +921,7 @@ class Engine:
     def reason_for(decision, reason):
         if decision != "denied":
             return None
-        if not (reason or "").strip():
+        if not isinstance(reason, str) or not reason.strip():
             raise EngineError("deny needs a reason")
         return reason
 
@@ -937,7 +944,8 @@ class Engine:
         """Record a person's answer to what a run is waiting on. An approval is approved (the
         step runs) or denied (the run fails); an escalation is answered with text, which its
         open run's loop reads back from escalate. item_id, when given, must be the pending
-        approval ID, so an answer only answers what was shown."""
+        approval ID, so an answer only answers what was shown. Refused from inside a run."""
+        outside_runs()
         run = self.load(run_id)
         if self.expire_if_due(run):
             raise EngineError(f"run {run['runId']} waited too long: {run['error']['message']}")
@@ -951,7 +959,7 @@ class Engine:
             raise EngineError(f"via must be one of {', '.join(check_audit.VIA)}")
         kind = pending.get("kind")
         if kind == "escalation":
-            if decision != "answered" or not (text or "").strip():
+            if decision != "answered" or not isinstance(text, str) or not text.strip():
                 raise EngineError("an escalation is answered with text (review_queue.py answer ID --text ...)")
         elif decision not in ("approved", "denied"):
             raise EngineError(f"run {run['runId']} is waiting for an approval: approve or deny it")

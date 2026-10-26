@@ -98,9 +98,11 @@ python3 scripts/run.py approve <run-id>                                   # runs
 python3 scripts/run.py deny <run-id> --reason "not this file"             # or fails the run
 ```
 
-`approve` and `deny` answer only at an interactive terminal, as the review queue does, and
-`--id` names the approval ID being answered, which the pause prints and `status` shows. An
-answer whose ID isn't what the run is waiting on is refused.
+`approve` and `deny` answer only at an interactive terminal, as the review queue does.
+`--id`, which is optional here, names the approval ID being answered, which the pause
+prints and `status` shows, and an answer whose ID isn't what the run is waiting on is
+refused. Without it, the answer is for whatever the run is waiting on, and the record
+still keeps that ID. `review_queue.py` always names the ID.
 
 `cancel` ends a run. A paused run is cancelled at once; a working one stops before its
 next step, in whichever process is running it, or when it's resumed. A cancelled run keeps
@@ -188,12 +190,14 @@ expiry, is written to the audit log before the run moves on, with how the answer
 An agent must never answer its own queue. So `review_queue.py` refuses to answer when it
 isn't attached to an interactive terminal, which harness shells usually aren't, and when
 it runs inside an engine run, which the engine marks in each step's and turn's environment
-(`WORKFLOWS_HIVE_RUN`). The Charter's policy also prohibits the action `queue.answer`, so
-no mandate or approval can grant a step that declares it. None of this is a lock. On one
-machine, an agent with a shell can still forge an answer, as it can rewrite the audit log,
-so the local trail is evidence rather than proof. Hosting is the strong case: there a
-queue item is the A2A approval request hosted Barry returns, answered by the product as
-its person's attestation, and the agent has no shell to reach the queue with.
+(`WORKFLOWS_HIVE_RUN`); the engine itself refuses an answer from inside a run, whatever
+calls it. The Charter's policy also prohibits the action `queue.answer`, so no mandate or
+approval can grant a step that declares it. None of this is a lock. On one machine, an
+agent with a shell can still forge an answer, as it can rewrite the audit log, so the
+local trail is evidence rather than proof. Hosting will be the strong case: once hosted
+Barry ships (#120), a queue item there will be the A2A approval request he returns,
+answered by the product as its person's attestation, and the agent will have no shell to
+reach the queue with.
 
 `scripts/queue_mcp.py` serves the same queue over MCP (stdio), with `list_items`,
 `show_item` and each open item as a resource. Its answering tool, `answer_item`, takes

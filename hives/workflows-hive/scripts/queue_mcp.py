@@ -147,11 +147,14 @@ class Server:
                             schema)
         if reply.get("action") != "accept":
             return f"not answered: the person chose {reply.get('action', 'nothing')}"
-        content = reply.get("content") or {}
+        content = reply.get("content")
+        if not isinstance(content, dict):
+            raise engine.EngineError("the reply had no answer")
         if item["kind"] == "escalation":
             decision, text, reason = "answered", content.get("answer"), None
         else:
-            decision = {"approve": "approved", "deny": "denied"}.get(content.get("decision"))
+            decision = {"approve": "approved", "deny": "denied"}.get(content.get("decision")) \
+                if isinstance(content.get("decision"), str) else None
             if decision is None:
                 raise engine.EngineError("the reply had no decision")
             text, reason = None, content.get("reason")
@@ -167,10 +170,14 @@ class Server:
         self.send({"jsonrpc": "2.0", "id": rid, "method": "elicitation/create",
                    "params": {"message": message, "requestedSchema": schema}})
         while (message := self.receive()) is not None:
+            if not isinstance(message, dict):
+                continue  # not a message; nothing to answer
             if message.get("id") == rid and "method" not in message:
-                if "error" in message:
-                    raise engine.EngineError(f"the client couldn't ask: {message['error'].get('message')}")
-                return message.get("result") or {}
+                error, result = message.get("error"), message.get("result")
+                if error is not None:
+                    raise engine.EngineError(f"the client couldn't ask: "
+                                             f"{error.get('message') if isinstance(error, dict) else error}")
+                return result if isinstance(result, dict) else {}
             if message.get("method") == "ping" and "id" in message:
                 self.send({"jsonrpc": "2.0", "id": message["id"], "result": {}})
             elif "method" in message and "id" in message:

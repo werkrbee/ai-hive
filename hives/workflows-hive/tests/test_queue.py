@@ -241,6 +241,20 @@ class Refusals(Base):
         self.assertIn("from inside run", seen[0])
         self.assertNotIn(engine.RUN_ENV, os.environ)
 
+    def test_the_engine_refuses_an_answer_from_inside_a_run_whatever_calls_it(self):
+        run = self.paused([BLAST])
+        item = self.engine.drift(Drift.AGENT, "eval_1", {})
+        os.environ[engine.RUN_ENV] = "run_x"
+        try:
+            for answer in (lambda: self.engine.approve(run["runId"]),
+                           lambda: self.engine.answer_item(item["id"], "approved")):
+                with self.assertRaisesRegex(engine.EngineError, "from inside run run_x"):
+                    answer()
+        finally:
+            del os.environ[engine.RUN_ENV]
+        self.assertEqual(self.engine.load(run["runId"])["status"], "input_required")
+        self.assertEqual(len(self.engine.items()), 2)
+
     def cli(self, *args, terminal, env_extra=None):
         env = dict(os.environ, WORKFLOWS_HIVE_ACTOR="usr_7f3a", **(env_extra or {}))
         argv = [sys.executable, "-B", str(SCRIPTS / "review_queue.py"), "--state-dir", str(self.tmp / "runs"), *args]
@@ -344,6 +358,30 @@ class Mcp(Base):
         run = self.engine.load(run["runId"])
         self.assertEqual(run["steps"]["send"]["approval"]["decision"], "approved")
         self.assertEqual(last_entry(self.audit, "approval.answered")["via"], "mcp")
+
+    def test_a_malformed_reply_is_a_tool_error_and_the_server_carries_on(self):
+        run = self.paused([BLAST])
+        ask = self.engine.open("loop")
+        self.engine.escalate(ask, "q", "Go ahead?")
+        escalation = next(i for i in self.engine.items() if i["kind"] == "escalation")
+        self.start()
+        for item_id, reply in ((escalation["id"], {"action": "accept", "content": {"answer": 7}}),
+                               (run["pending"]["id"], {"action": "accept", "content": {"decision": ["approve"]}}),
+                               (run["pending"]["id"], {"action": "accept", "content": "approve"}),
+                               (run["pending"]["id"], {"action": "accept",
+                                                       "content": {"decision": "deny", "reason": 7}})):
+            with self.subTest(reply=reply):
+                text, error = self.call("answer_item", reply=reply, id=item_id)
+                self.assertTrue(error, text)
+        self.n += 1
+        self.send({"jsonrpc": "2.0", "id": self.n, "method": "tools/call",
+                   "params": {"name": "answer_item", "arguments": {"id": run["pending"]["id"]}}})
+        elicit = self.read()
+        self.p.stdin.write("[1, 2]\n")  # not a message, while the server waits on the person
+        self.send({"jsonrpc": "2.0", "id": elicit["id"], "result": {"action": "decline"}})
+        self.assertIn("not answered", self.read()["result"]["content"][0]["text"])
+        self.assertEqual(self.request("ping"), {})
+        self.assertEqual(len(self.engine.items()), 2)
 
     def test_a_declined_elicitation_answers_nothing(self):
         run = self.paused([BLAST])

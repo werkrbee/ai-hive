@@ -279,10 +279,10 @@ item's `id`, and the run goes back to `working` for its loop. Answering drift wr
 reads it.
 
 A step's worker and a model turn run with `WORKFLOWS_HIVE_RUN` set to the run's ID in
-their environment, which processes they start inherit. The queue's command and MCP server
-refuse to answer when it is set, and the command also refuses without an interactive
-terminal. Neither is a lock on one machine; the audit log records each answer's `by` and
-`via` as evidence.
+their environment, which processes they start inherit. The engine, and so the queue's
+command and MCP server, refuse to answer when it is set, and the command also refuses
+without an interactive terminal. Neither is a lock on one machine; the audit log records
+each answer's `by` and `via` as evidence.
 
 ## Out of scope here
 
