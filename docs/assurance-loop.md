@@ -101,9 +101,9 @@ sub-agents and clones, below).
 `capabilities.extensions`, which is how A2A adds to a card without changing it. Its `uri`
 is the passport schema's URL, since A2A uses an extension's `uri` to name the kind of
 extension, and its `params` hold the passport's URL, its version and its digest;
-`agent_card.py --check` already validates extensions. The deployment checks that the pins it is about to run
-match the passport, so `deploy.sh` refuses to deploy a model, prompt or policy the
-passport doesn't pin. The deployment's model choice lives in the git-ignored
+`agent_card.py --check` already validates extensions. The deployment checks that the pins
+it is about to run match the passport, so `deploy.sh` refuses to deploy a model, prompt or
+policy the passport doesn't pin. The deployment's model choice lives in the git-ignored
 `main.bicepparam`, so that check runs at deploy time, not in CI.
 
 ## The audit log
