@@ -58,7 +58,7 @@
       }
     },
     "budget": {
-      "description": "Ceilings for one invocation, each at most the contract's.",
+      "description": "Ceilings for one invocation, each at most the contract's. A figure the passport leaves out is the contract's.",
       "type": "object",
       "minProperties": 1,
       "additionalProperties": false,

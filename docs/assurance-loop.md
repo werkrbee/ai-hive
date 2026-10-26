@@ -97,10 +97,11 @@ evaluation, below).
 **Who it may hand work to.** `delegates` lists the passports it may delegate to (see
 sub-agents and clones, below).
 
-**From the card.** Each Agent Card links its passport through an A2A extension,
-`capabilities.extensions` with the passport's URL as `uri` and its version and digest in
-`params`, which is how A2A adds to a card without changing it; `agent_card.py --check`
-already validates extensions. The deployment checks that the pins it is about to run
+**From the card.** Each Agent Card links its passport through an A2A extension in
+`capabilities.extensions`, which is how A2A adds to a card without changing it. Its `uri`
+is the passport schema's URL, since A2A uses an extension's `uri` to name the kind of
+extension, and its `params` hold the passport's URL, its version and its digest;
+`agent_card.py --check` already validates extensions. The deployment checks that the pins it is about to run
 match the passport, so `deploy.sh` refuses to deploy a model, prompt or policy the
 passport doesn't pin. The deployment's model choice lives in the git-ignored
 `main.bicepparam`, so that check runs at deploy time, not in CI.
@@ -340,10 +341,12 @@ edited to match:
 
 - **#125, passport.** Adds `never`, `delegates`, the prompt and policy digests, the card
   extension, and the CI checks above.
-- **#126, audit log.** Adds the canonical JSON and genesis rules, the run record's anchor,
-  `audit.edit` and `audit.delete` as prohibitions in the Charter's policy, and opaque `by`
-  identifiers, with the engine's operating-system login default replaced by a configured
-  actor ID. Its body's "core principles" becomes "first principles".
+- **#126, audit log.** Adds the engine reading the passport a step runs under, so that
+  each entry names it and its `never` actions become prohibitions, the canonical JSON and
+  genesis rules, the run record's anchor, `audit.edit` and `audit.delete` as prohibitions
+  in the Charter's policy, and opaque `by` identifiers, with the engine's operating-system
+  login default replaced by a configured actor ID. Its body's "core principles" becomes
+  "first principles".
 - **#127, trust evaluation.** Adds critical cases, the confirming re-run, the queue item
   for an unconfirmed critical miss, the cost flag and `deploy.sh` refusing a passport with
   no baseline for its pins.
