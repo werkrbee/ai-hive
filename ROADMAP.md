@@ -112,7 +112,7 @@ not just assembled from it. Both items have an open pull request.
 Tracked on the `P2.1 — assurance loop` milestone (epic #122), worked in the order set in
 `docs/sprints/p2.1.md`. Defensive co-scaling: the agents' control systems are built at the
 same pace as the agents (`docs/factory-thesis.md`). Every agent will carry a passport,
-held by four controls. The passport and the audit log are done.
+held by four controls. The passport, the audit log and the review queue are done.
 
 - **Vision and roadmap (docs).** Put defensive co-scaling into the factory thesis, the
   README, this roadmap and a sprint file. (#123)
@@ -130,8 +130,8 @@ held by four controls. The passport and the audit log are done.
   and on a schedule; a result below its baseline is drift, flagged to a human. (#127)
 - **Rollback.** Back to an earlier passport or checkpoint; an external effect is
   compensated, as the approval policy decides. (#128)
-- **Human review queue (workflows-hive).** One queue for approvals, drift and escalations
-  across every run and agent. (#129)
+- **Human review queue (workflows-hive) (done).** One queue for approvals, drift and
+  escalations across every run and agent. (#129)
 - **Sub-agent and clone boundaries (rules-hive).** A delegate's passport only narrows its
   parent's; context is passed explicitly; cached context never crosses a trust boundary.
   (#130)

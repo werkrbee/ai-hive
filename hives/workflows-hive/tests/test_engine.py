@@ -284,7 +284,7 @@ class Cancel(Base):
         self.assertEqual(run["status"], "cancelled")
         self.assertEqual(run["error"]["message"], "cancelled by ci")
         self.assertIsNone(run["pending"])
-        with self.assertRaisesRegex(engine.EngineError, "isn't waiting for an approval"):
+        with self.assertRaisesRegex(engine.EngineError, "isn't waiting for an answer"):
             e.approve(run["runId"])
 
     def test_a_working_run_stops_before_its_next_step_or_turn(self):

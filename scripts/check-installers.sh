@@ -135,6 +135,25 @@ run "agents-hive prices.sh lookup (stubbed curl)" \
 runs="$sandbox/runs"
 printf 'one two three\nfour five\n' > "$sandbox/words.txt"
 wf() { python3 hives/workflows-hive/scripts/run.py --state-dir "$runs" "$@" 2>&1; }
+# A person answers at a terminal, so answers run with a pseudo-terminal as stdin and stdout.
+at_terminal() {
+  python3 -c 'import os, pty, subprocess, sys
+main, sub = pty.openpty()
+p = subprocess.Popen(sys.argv[1:], stdin=sub, stdout=sub, stderr=sub)
+os.close(sub)
+out = b""
+while True:
+    try:
+        chunk = os.read(main, 4096)
+    except OSError:
+        break
+    if not chunk:
+        break
+    out += chunk
+sys.stdout.write(out.decode(errors="replace").replace("\r\n", "\n"))
+sys.exit(p.wait())' "$@"
+}
+wft() { at_terminal python3 hives/workflows-hive/scripts/run.py --state-dir "$runs" "$@" 2>&1; }
 out=$(wf start word-count --input path="$sandbox/words.txt" --crash-after read); code=$?
 run_id=$(printf '%s\n' "$out" | sed -n 's/^start \(run_[0-9a-f]*\).*/\1/p')
 if [ "$code" -eq 75 ] && [ -n "$run_id" ]; then
@@ -165,13 +184,13 @@ check_wf "workflows-hive run.py pauses before an approval step" "$(holds eval \
 out=$(wf resume "$run_id"); code=$?
 check_wf "workflows-hive run.py stays paused after a restart" "$(holds eval \
   '[ "$code" -eq 2 ] && ! printf "%s\n" "$out" | grep -q "^run   count"')"
-out=$(wf approve "$run_id" --by ci); code=$?
+out=$(wft approve "$run_id" --by ci); code=$?
 check_wf "workflows-hive run.py runs the step once approved" "$(holds eval \
   '[ "$code" -eq 0 ] && printf "%s\n" "$out" | grep -q "^run   count" \
    && printf "%s\n" "$out" | grep -q "\"words\": 5" && grep -q "\"by\": \"ci\"" "$runs/$run_id.json"')"
 out=$(wf start approved-word-count --input path="$sandbox/words.txt")
 run_id=$(printf '%s\n' "$out" | sed -n 's/^start \(run_[0-9a-f]*\).*/\1/p')
-out=$(wf deny "$run_id" --reason "not now" --by ci); code=$?
+out=$(wft deny "$run_id" --reason "not now" --by ci); code=$?
 check_wf "workflows-hive run.py fails the run on deny, without running the step" "$(holds eval \
   '[ "$code" -eq 1 ] && printf "%s\n" "$out" | grep -q "approval denied by ci: not now" \
    && ! printf "%s\n" "$out" | grep -q "^run   count"')"
@@ -244,7 +263,8 @@ outcome() {  # $1 = label, $2 = expected exit, $3 = text the output must have; t
 outcome "workflows-hive run.py runs a step the Charter allows" 0 '"status": "completed"' read
 outcome "workflows-hive run.py pauses a step the Charter gates" 2 'needs approval under approve.vcs.push' push
 run_id=$(printf '%s\n' "$out" | sed -n 's/^start \(run_[0-9a-f]*\).*/\1/p')
-out=$(wfp approve "$run_id" --by ci); code=$?
+out=$(at_terminal python3 hives/workflows-hive/scripts/run.py --state-dir "$runs" \
+  --workflows-dir "$plans" --contracts-dir "$sandbox/contracts" approve "$run_id" --by ci 2>&1); code=$?
 check_wf "workflows-hive run.py runs a gated step once approved" "$(holds eval \
   '[ "$code" -eq 0 ] && printf "%s\n" "$out" | grep -q "^run   count"')"
 outcome "workflows-hive run.py can't skip a gated step with approval: false" 2 \
@@ -269,7 +289,7 @@ out=$(wf cancel "$run_id" --by ci); code=$?
 check_wf "workflows-hive run.py cancels a paused run" "$(holds eval \
   '[ "$code" -eq 1 ] && printf "%s\n" "$out" | grep -q "\"status\": \"cancelled\"" \
    && printf "%s\n" "$out" | grep -q "cancelled by ci"')"
-out=$(wf approve "$run_id" --by ci); code=$?
+out=$(wft approve "$run_id" --by ci); code=$?
 check_wf "workflows-hive run.py can't approve a cancelled run" "$(holds eval \
   '[ "$code" -eq 1 ] && ! printf "%s\n" "$out" | grep -q "^run   count"')"
 
@@ -280,9 +300,48 @@ outcome "workflows-hive run.py prohibits what a passport puts under never" 1 \
   'fs.write is prohibited by passport.patricia.never.fs.write' write --passport patricia
 out=$(wf start approved-word-count --input path="$sandbox/words.txt")
 run_id=$(printf '%s\n' "$out" | sed -n 's/^start \(run_[0-9a-f]*\).*/\1/p')
-out=$(WORKFLOWS_HIVE_ACTOR= wf approve "$run_id"); code=$?
+out=$(WORKFLOWS_HIVE_ACTOR= wft approve "$run_id"); code=$?
 check_wf "workflows-hive run.py refuses an answer without an actor ID" "$(holds eval \
   '[ "$code" -eq 1 ] && printf "%s\n" "$out" | grep -q "needs an actor ID"')"
+
+# workflows-hive: every pause is an item in the review queue. The queue lists it, refuses
+# an answer without a terminal or with the wrong approval ID, and runs the step once a
+# person approves it at a terminal. A pause unanswered for seven days expires and fails
+# its run.
+rq() { python3 hives/workflows-hive/scripts/review_queue.py --state-dir "$runs" "$@" 2>&1; }
+out=$(wf start approved-word-count --input path="$sandbox/words.txt")
+run_id=$(printf '%s\n' "$out" | sed -n 's/^start \(run_[0-9a-f]*\).*/\1/p')
+item=$(sed -n 's/.*review_queue.py show \(sha256:[0-9a-f]*\).*/\1/p' <<<"$out")
+out=$(rq list); code=$?
+check_wf "workflows-hive review_queue.py lists a paused run's approval" "$(holds eval \
+  '[ "$code" -eq 0 ] && [ -n "$item" ] && printf "%s\n" "$out" | grep -q "^${item:7:12}  approval    open .*$run_id"')"
+out=$(rq approve "$item" --by ci < /dev/null); code=$?
+check_wf "workflows-hive review_queue.py refuses to answer without a terminal" "$(holds eval \
+  '[ "$code" -eq 1 ] && printf "%s\n" "$out" | grep -q "without an interactive terminal"')"
+out=$(wft approve "$run_id" --by ci --id "sha256:$(printf '0%.0s' {1..64})"); code=$?
+check_wf "workflows-hive run.py refuses an answer with the wrong approval ID" "$(holds eval \
+  '[ "$code" -eq 1 ] && printf "%s\n" "$out" | grep -q "an answer answers only what was shown" \
+   && ! printf "%s\n" "$out" | grep -q "^run   count"')"
+out=$(at_terminal python3 hives/workflows-hive/scripts/review_queue.py --state-dir "$runs" \
+  approve "${item:7:12}" --by ci 2>&1); code=$?
+check_wf "workflows-hive review_queue.py approves at a terminal, and the step runs" "$(holds eval \
+  '[ "$code" -eq 0 ] && printf "%s\n" "$out" | grep -q "^run   count" \
+   && rq list --all | grep -q "^${item:7:12}  approval    answered"')"
+out=$(wf start approved-word-count --input path="$sandbox/words.txt")
+run_id=$(printf '%s\n' "$out" | sed -n 's/^start \(run_[0-9a-f]*\).*/\1/p')
+python3 - "$runs/$run_id.json" <<'PY'
+import json, sys
+path = sys.argv[1]
+run = json.load(open(path))
+run["pending"]["expiresAt"] = "2000-01-01T00:00:00Z"  # as if seven days had passed
+json.dump(run, open(path, "w"))
+PY
+out=$(rq list); code=$?
+check_wf "workflows-hive review_queue.py expires a pause past seven days, failing its run" "$(holds eval \
+  '[ "$code" -eq 0 ] && printf "%s\n" "$out" | grep -q "^expire $run_id" \
+   && ! printf "%s\n" "$out" | grep -q "open .*$run_id" \
+   && grep -q "expired unanswered" "$runs/$run_id.json" && rq list --all | grep -q "expired"')"
+
 out=$(python3 hives/knowledge-hive/scripts/check_audit.py "$sandbox/audit.jsonl" --runs "$runs" 2>&1); code=$?
 check_wf "workflows-hive run.py leaves a whole audit log" "$(holds eval '[ "$code" -eq 0 ]')"
 

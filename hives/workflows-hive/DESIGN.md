@@ -134,7 +134,7 @@ Each run persists one record, keyed by its run ID:
   "workflow": "summarize-url",
   "workflowVersion": 1,
   "policy": "hives/rules-hive/rules/queen-charter/policy.json",
-  "agent": { "passport": "barry", "version": 2, "sha256": "…" },
+  "agent": { "passport": "barry", "version": 3, "sha256": "…" },
   "status": "input_required",
   "inputs": { "url": "https://example.com" },
   "next": "summarize",
@@ -149,7 +149,9 @@ Each run persists one record, keyed by its run ID:
       "endedAt": "2026-10-08T14:02:12Z"
     }
   },
-  "pending": { "step": "summarize", "kind": "approval", "rules": [], "present": [] },
+  "pending": { "id": "sha256:9c1e…", "kind": "approval", "step": "summarize",
+               "rules": [], "present": [], "values": {}, "actions": [],
+               "createdAt": "2026-10-08T14:02:12Z", "expiresAt": "2026-10-15T14:02:12Z" },
   "cost": { "usd": 0.0, "tokens": 0 },
   "result": null,
   "error": null,
@@ -164,10 +166,16 @@ Each run persists one record, keyed by its run ID:
 changes; `attempt` counts deliberate retries after a recorded failure, and resuming after
 a crash doesn't increase it. `pending` is set only while the run waits on input, and it
 becomes one entry in `inputRequests` on `tasks/get`, keyed by the step ID: an elicitation
-asking whether to run the step. The answer is kept on the step as `approval`: `decision`
-(`approved` or `denied`), `by`, `at`, and for a denial its `reason`. `by` is an opaque
-actor ID, never a name or an email. A step that needs approval runs only once its
-`approval.decision` is `approved`, so resuming a paused run never runs it. A denied
+asking whether to run the step. Its `id` is the approval ID: the digest of the run ID,
+the step, the exact call, its gated `actions`, the mandates that gate them (`rules`) and
+the `values` of the items they must present. The same pause is an item in the review
+queue, below, and it expires seven days after `createdAt`, at `expiresAt`. The answer is
+kept on the step as `approval`: `decision` (`approved` or `denied`), `by`, `at`, `via`
+(`cli`, `mcp` or `a2a`), the `id` it answered, and for a denial its `reason`. `by` is an
+actor ID, which should be opaque. A step that needs approval runs only once its
+`approval.decision` is `approved` and its `approval.id` is the approval ID the step would
+pause on now, so resuming a paused run never runs it, and an approval of anything else is
+void. A denied
 approval fails the run, with the denial as its error, and the step never runs. A step
 stopped by its budget fails the run, with the reason as its error; a step over its cost
 cap keeps the cost it reported. `cost` is the sum of the step costs, including those, and
@@ -190,6 +198,8 @@ The engine keeps these rules:
 6. Append every decision to the audit log before writing the record that follows it, and
    keep the last entry's `seq` and `hash` in the record. A run whose log can't be written
    doesn't go on.
+7. Refuse an answer whose approval ID isn't what the run is waiting on, and an answer to
+   a pause that has expired. Expiry fails the run.
 
 A cancelled run ends in `cancelled`, with who cancelled it as its `error`. The request is
 kept apart from the record until a process applies it, so the save of a step in flight
@@ -231,18 +241,60 @@ same idempotency key. Its cost counts in the run's `cost` with the steps'. An op
 ends when the loop finishes it with its result, which the engine allows only once every
 step has completed, or fails it.
 
+## The review queue
+
+The review queue holds everything that waits on a person, across runs and agents, as one
+JSON file per item in a queue directory (`queue/` beside the state directory), written
+atomically like a run record:
+
+```json
+{
+  "id": "sha256:9c1e…",
+  "kind": "approval",
+  "source": { "runId": "run_01J9Z…", "step": "summarize" },
+  "agent": { "passport": "barry", "version": 3, "sha256": "…" },
+  "present": { "actions": [ … ], "rules": ["organizer.blast"],
+               "values": { "message": "Game moved to 7pm.", "recipient count": 14 } },
+  "createdAt": "2026-10-08T14:02:12Z",
+  "expiresAt": "2026-10-15T14:02:12Z",
+  "status": "open",
+  "answer": null
+}
+```
+
+`kind` is `approval`, `escalation` or `drift`. An approval's `source` is its run and step;
+an escalation's is its run and the question's `ask` ID, and it presents the `question`
+and any `values`; drift's is the passport, its version and the `results.jsonl` entry that
+recorded the eval, and it presents what the trust evaluation gives it. `status` is `open`,
+`answered` or `expired`, and `answer` is the answer as the run recorded it, or a cancel.
+Drift has no `expiresAt`.
+
+The run record stays the source of truth for an approval or an escalation. The engine
+writes the item after the record, and reading the queue brings each open item up to date
+with its run: an item whose pause is past its expiry expires its run, and one its run
+answered some other way, such as by a cancel, is closed. An escalation's answer is kept in
+the record under `answers`, keyed by its `ask` ID, with `text`, `by`, `at`, `via` and the
+item's `id`, and the run goes back to `working` for its loop. Answering drift writes a
+`drift.answered` entry to the audit log; nothing else changes until the trust evaluation
+reads it.
+
+A step's worker and a model turn run with `WORKFLOWS_HIVE_RUN` set to the run's ID in
+their environment, which processes they start inherit. The queue's command and MCP server
+refuse to answer when it is set, and the command also refuses without an interactive
+terminal. Neither is a lock on one machine; the audit log records each answer's `by` and
+`via` as evidence.
+
 ## Out of scope here
 
-The reference engine (`scripts/run.py`) implements rules 1 to 6, approvals,
-policy-decided actions, passports, cancel and open runs, with the two-step `word-count`,
-`approved-word-count` and `budgeted-word-count` workflows. It is a command and a Python
-module (`Engine`); open runs are offered only through the module. It applies rules-hive's
-own checker (`check_policy.py`), so the engine and the policy's cases can't disagree, and
-it reads only policies inside this repo. Its `approve` and `deny` commands stand in for
-`tasks/update`, and `cancel` for `tasks/cancel`. It stops a step past its
+The reference engine (`scripts/run.py`) implements rules 1 to 7, approvals, policy-decided
+actions, passports, cancel, open runs, escalations and the review queue, with the two-step
+`word-count`, `approved-word-count` and `budgeted-word-count` workflows. It is a command
+and a Python module (`Engine`); open runs are offered only through the module. It applies
+rules-hive's own checker (`check_policy.py`), so the engine and the policy's cases can't
+disagree, and it reads only policies inside this repo. Its `approve` and `deny` commands
+stand in for `tasks/update`, and `cancel` for `tasks/cancel`. It stops a step past its
 `seconds` while it runs, in a child process whose start-up counts toward the cap, and
-stops only that process, not any it started. It checks `usd` and `tokens` against what
-the step reports when it finishes, so a worker that calls a model must keep itself
-within its cap. The MCP Tasks server comes later. Worker execution contracts live in
-agents-hive. The Temporal engine is built when a product calls for it, against this
-same contract.
+stops only that process, not any it started. It checks `usd` and `tokens` against what the
+step reports when it finishes, so a worker that calls a model must keep itself within its
+cap. The MCP Tasks server comes later. Worker execution contracts live in agents-hive. The
+Temporal engine is built when a product calls for it, against this same contract.

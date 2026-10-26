@@ -51,6 +51,9 @@ KINDS = {
     "step.failed": ("runId", "step"),
     "budget.refused": ("runId", "step"),
     "approval.answered": ("runId", "step", "decision", "by"),
+    "escalation.raised": ("runId", "item"),
+    "escalation.answered": ("runId", "item", "by", "via"),
+    "drift.answered": ("item", "decision", "by", "via"),
     "turn.completed": ("runId", "turn"),
     "turn.failed": ("runId", "turn"),
     "delegation": (),
@@ -58,9 +61,11 @@ KINDS = {
     "drift": (),
     "eval.ran": (),
 }
-DECISIONS = {"step.decided": {"allowed", "paused", "denied"}, "approval.answered": {"approved", "denied"}}
+DECISIONS = {"step.decided": {"allowed", "paused", "denied"}, "approval.answered": {"approved", "denied"},
+             "drift.answered": {"approved", "denied"}}
 FIELDS = {"seq", "at", "prev", "hash", "kind", "agent", "runId", "step", "turn", "action",
-          "decision", "rules", "call", "by"}
+          "decision", "rules", "call", "by", "item", "via"}
+VIA = ("cli", "mcp", "a2a")  # how a human's answer came
 
 
 class AuditError(Exception):
@@ -112,7 +117,7 @@ def entry_problems(e):
         bad("seq must be an integer of at least 1")
     if "at" in e and not utc(e["at"]):
         bad("at must be an ISO 8601 date-time in UTC")
-    for key in ("prev", "hash", "call"):
+    for key in ("prev", "hash", "call", "item"):
         if key in e and not (isinstance(e[key], str) and DIGEST.fullmatch(e[key])):
             bad(f"{key} must be sha256: followed by 64 lowercase hex digits")
     for key in ("runId", "step", "turn", "action"):
@@ -123,6 +128,8 @@ def entry_problems(e):
         bad(f"decision must be one of {', '.join(sorted(allowed))}" if allowed else f"a {kind} entry has no decision")
     if "rules" in e and (not isinstance(e["rules"], list) or not all(isinstance(r, str) and r for r in e["rules"])):
         bad("rules must be a list of rule ids")
+    if "via" in e and e["via"] not in VIA:
+        bad(f"via must be one of {', '.join(VIA)}")
     if "by" in e and not opaque(e["by"]):
         bad("by must be an opaque identifier, never a name or an email address")
     if "agent" in e:

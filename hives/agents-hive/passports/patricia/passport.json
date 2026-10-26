@@ -1,10 +1,10 @@
 {
   "$schema": "../../schema/passport.schema.json",
   "passport": "patricia",
-  "version": 2,
+  "version": 3,
   "owner": "@werkrbee",
   "contract": { "capability": "governance-review", "version": 1 },
-  "policy": { "ruleset": "hives/rules-hive/rules/queen-charter/policy.json", "version": 2 },
+  "policy": { "ruleset": "hives/rules-hive/rules/queen-charter/policy.json", "version": 3 },
   "permissions": {
     "granted": ["fs.read"],
     "approval": [],
@@ -23,7 +23,7 @@
       { "path": "hives/skills-hive/skills/patricia/SKILL.md", "sha256": "74fd297cdd87903c2f1a67192792c39aecbc1219fa3a340bf042400409a67730" },
       { "path": "hives/agents-hive/agents/charter-review/agent.md", "sha256": "d0bec9fb2bb5ad1ee2ccc85a2e67fd0fd9dfc22d287fa150dad3cdcafbb3031d" }
     ],
-    "policy": { "sha256": "9a08039ec64eba44e2c049d699e6bf0af676bba845f586b396549562ecc55ec6" }
+    "policy": { "sha256": "5fd0e435ed2c739ad5b6c6160efb63ce7b4da66d98fc410d6079d97aa3ebcbcc" }
   },
   "eval": {
     "suite": "hives/agents-hive/deploy/azure/eval/cases.json",

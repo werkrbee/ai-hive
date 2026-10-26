@@ -64,6 +64,14 @@
     "rule": "audit.no-delete"
   },
   {
+    "name": "answering the review queue is prohibited",
+    "request": {
+      "action": "queue.answer"
+    },
+    "decision": "deny",
+    "rule": "queue.no-answer"
+  },
+  {
     "name": "an action no mandate covers is denied",
     "request": {
       "action": "db.drop"

@@ -62,12 +62,13 @@ template and the examples, and CI runs it that way.
 ## The audit log
 
 The workflows-hive engine writes an audit log for every run: each step decision, approval,
-denial, cancel, budget refusal and model turn, and the passport the run is under. Each
-entry holds the hash of the one before it, so an entry that was edited, removed, inserted
-or moved breaks the chain. Each run record keeps the seq and hash of its run's last
-entry, which catches a log whose end was cut off. The log holds no call arguments, model
-output or message text, which stay in the run record, and names a person only by an
-opaque ID. The format is in [`DESIGN.md`](DESIGN.md#audit-log-auditjsonl).
+denial, escalation, cancel, expiry, budget refusal and model turn, and the passport the
+run is under, with each answer from the review queue and how it came. Each entry holds the
+hash of the one before it, so an entry that was edited, removed, inserted or moved breaks
+the chain. Each run record keeps the seq and hash of its run's last entry, which catches a
+log whose end was cut off. The log holds no call arguments, model output or message text,
+which stay in the run record, and names a person only by an opaque ID. The format is in
+[`DESIGN.md`](DESIGN.md#audit-log-auditjsonl).
 
 ```bash
 python3 scripts/check_audit.py ~/.local/state/workflows-hive/audit.jsonl \
