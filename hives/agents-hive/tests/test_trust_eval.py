@@ -31,7 +31,7 @@ audit = load(REPO_ROOT / "hives" / "knowledge-hive" / "scripts" / "check_audit.p
 PATRICIA = te.passport("patricia")
 SUITE = te.cases(PATRICIA)
 CRITICAL = sorted(te.critical(SUITE))
-AT = datetime(2026, 10, 27, 9, 0, tzinfo=timezone.utc)
+AT = datetime(2030, 1, 15, 9, 0, tzinfo=timezone.utc)  # a day with no real evaluation
 
 
 def outcomes(miss=(), usd=0.0104):
@@ -93,7 +93,7 @@ class Drift(unittest.TestCase):
         self.assertEqual(te.findings(PATRICIA, SUITE, both, base), ["drift"])
 
     def test_a_run_costing_more_than_twice_its_baseline_per_case_is_flagged_not_drift(self):
-        base = te.baseline(PATRICIA)  # $0.1253 for 12 cases
+        base = te.baseline(PATRICIA)  # $0.1267 for 12 cases
         self.assertEqual(te.findings(PATRICIA, SUITE, [run(usd=0.02)], base), [])
         self.assertEqual(te.findings(PATRICIA, SUITE, [run(usd=0.03)], base), ["cost"])
 
@@ -129,9 +129,9 @@ class Recorded(unittest.TestCase):
 
     def test_drift_is_a_result_an_audit_entry_and_a_queue_item(self):
         entry, items = self.record([run(miss=["local-typo"]), run(miss=[CRITICAL[0]])])
-        self.assertEqual((entry["id"], entry["outcome"]), ("2026-10-27-patricia-eval", "failed"))
+        self.assertEqual((entry["id"], entry["outcome"]), ("2030-01-15-patricia-eval", "failed"))
         self.assertEqual(entry["eval"]["pins"], te.pins_digest(PATRICIA))
-        self.assertEqual(entry["eval"]["baseline"], "2026-10-21-patricia-eval")
+        self.assertEqual(entry["eval"]["baseline"], te.baseline(PATRICIA)["id"])
         self.assertEqual([i["source"]["finding"] for i in items], ["drift"])
         self.assertEqual(items[0]["present"]["runs"], entry["eval"]["runs"])
         self.assertIsNone(items[0]["expiresAt"])
@@ -159,7 +159,7 @@ class Recorded(unittest.TestCase):
     def test_a_second_evaluation_on_the_same_day_gets_its_own_id(self):
         first, _ = self.record([run()])
         second, _ = self.record([run()])
-        self.assertEqual((first["id"], second["id"]), ("2026-10-27-patricia-eval", "2026-10-27-patricia-eval-2"))
+        self.assertEqual((first["id"], second["id"]), ("2030-01-15-patricia-eval", "2030-01-15-patricia-eval-2"))
 
 
 class Promotion(Recorded):
@@ -168,8 +168,13 @@ class Promotion(Recorded):
         entry = te.result(PATRICIA, SUITE, [run()], AT, "review-a", path=self.results)
         return entry
 
-    def test_patricias_baseline_was_recorded_against_other_pins_so_she_is_held(self):
-        problems = te.holds(PATRICIA, te.baseline(PATRICIA), [])
+    def test_patricias_baseline_was_recorded_against_her_pins_so_she_promotes(self):
+        self.assertEqual(te.holds(PATRICIA, te.baseline(PATRICIA), []), [])
+
+    def test_a_baseline_recorded_against_other_pins_holds_promotion(self):
+        p = copy.deepcopy(PATRICIA)
+        p["eval"]["baseline"]["result"] = p["eval"]["baseline"]["result"].split("#")[0] + "#2026-10-21-patricia-eval"
+        problems = te.holds(PATRICIA, te.baseline(p), [])  # her first, before the Charter changed
         self.assertEqual(len(problems), 1)
         self.assertIn("was recorded against other pins", problems[0])
         self.assertIn(te.pins_digest(PATRICIA), problems[0])

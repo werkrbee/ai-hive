@@ -176,13 +176,15 @@ that depends on it: `link` has `url`, `command` has `command` (what was run), `f
 
 An `eval` result is an agent's trust evaluation (agents-hive's `scripts/trust_eval.py`),
 and only it has an `eval` object: the `passport` evaluated and its `version`, the digest
-of its `pins` as canonical JSON, the `suite` of cases, the `commit` and `model` it ran on
-when known, the `baseline` result it was compared with (`null` for the first), its `runs`
-and its `findings`. Each run has the cases it `met`, how many `ran` of the suite's `of`,
-the ids it `missed`, its `usd` and, when timed, its `seconds`; a second run is there only
-when the first drifted. `findings` lists any of `drift`, `unconfirmed-miss`, `cost` and
-`not-run`, and decides `outcome`: `failed` for drift or an eval that couldn't run,
-`partial` for the other two, `passed` for none.
+of its `pins` as canonical JSON, the `suite` of cases, the `commit` it ran on and the
+`deployment` it called when known, the `baseline` result it was compared with (`null` for
+the first), its `runs` and its `findings`. The model a deployment serves isn't checked
+yet, so the entry records the deployment, not a model; the pinned model is in `pins`. Each
+run has the cases it `met`, how many `ran` of the suite's `of`, the ids it `missed`, its
+`usd` and, when timed, its `seconds`; a second run is there only when the first drifted.
+`findings` lists any of `drift`, `unconfirmed-miss`, `cost` and `not-run`, and decides
+`outcome`: `failed` for drift or an eval that couldn't run, `partial` for the other two,
+`passed` for none.
 
 ## Usage ledger: `ledger.jsonl`
 
