@@ -58,13 +58,14 @@ KINDS = {
     "turn.failed": ("runId", "turn"),
     "delegation": (),
     "rollback": (),
-    "drift": (),
-    "eval.ran": (),
+    "drift": ("agent", "item"),
+    "eval.ran": ("agent", "result"),
+    "eval.flagged": ("agent", "item"),
 }
 DECISIONS = {"step.decided": {"allowed", "paused", "denied"}, "approval.answered": {"approved", "denied"},
              "drift.answered": {"approved", "denied"}}
 FIELDS = {"seq", "at", "prev", "hash", "kind", "agent", "runId", "step", "turn", "action",
-          "decision", "rules", "call", "by", "item", "via"}
+          "decision", "rules", "call", "by", "item", "via", "result"}
 VIA = ("cli", "mcp", "a2a")  # how a human's answer came
 
 
@@ -120,7 +121,7 @@ def entry_problems(e):
     for key in ("prev", "hash", "call", "item"):
         if key in e and not (isinstance(e[key], str) and DIGEST.fullmatch(e[key])):
             bad(f"{key} must be sha256: followed by 64 lowercase hex digits")
-    for key in ("runId", "step", "turn", "action"):
+    for key in ("runId", "step", "turn", "action", "result"):
         if key in e and (not isinstance(e[key], str) or not e[key]):
             bad(f"{key} must be a non-empty string")
     if "decision" in e and e["decision"] not in DECISIONS.get(kind, ()):

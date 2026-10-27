@@ -58,8 +58,10 @@ clients need it to learn how to authenticate.
    true.
 3. **Choose the model.** See below. Until then, `modelDeployment` is either candidate.
 4. **Deploy.** Run `./deploy.sh <resource-group> <location> main.bicepparam` from a clean
-   checkout. It first looks up every built-in role id `main.bicep` assigns, and stops
-   before any change if one doesn't exist, because what-if doesn't check them. It also
+   checkout. It first checks that Patricia's passport may be promoted (see trust
+   evaluation, below), and stops before anything else if not. It then looks up every
+   built-in role id `main.bicep` assigns, and stops before any change if one doesn't
+   exist, because what-if doesn't check them. It also
    checks every model against the region's Foundry catalog and stops if one isn't there,
    isn't generally available, doesn't do chat completions or isn't offered with its sku.
    Then it deploys in three steps, each confirmed after a what-if:
@@ -145,6 +147,25 @@ model's `base_url` and prices. Any eligible model can be a candidate. Your accou
 Cognitive Services User on the Foundry resource. Record the table and the choice in
 `eval/RESULTS.md`, then set `modelDeployment` and the prices to match.
 
+## Trust evaluation
+
+The same cases are Patricia's trust evaluation (the agents-hive README, "Trust
+evaluation"). With `--passport`, `eval/run.py` takes one config, which must name her
+persona, contract and pinned prompt files, on the deployment that serves her pinned model,
+and whose `ledger` is her own: each call is metered there against her monthly ceiling. It
+compares the run with the baseline in her passport, runs it again if it drifted, appends
+the evaluation to `eval/results.jsonl` and the audit log, and sends what it finds to the
+review queue.
+
+```bash
+python ../../deploy/azure/eval/run.py --passport patricia --config patricia.toml
+```
+
+Before a change to her pins is deployed, run it on the new pins. If the run is within her
+baseline, it prints the `eval.baseline` that makes it the new one; set that in her
+passport and bump its version. `deploy.sh` refuses her passport until then, and while
+drift in the review queue holds it.
+
 ## What's verified so far
 
 - `main.bicep` and the example parameters compile, and the Bicep linter is clean. CI
@@ -155,7 +176,9 @@ Cognitive Services User on the Foundry resource. Record the table and the choice
   `az acr build` sends only the files the Dockerfile copies (the repo's `.dockerignore`).
 - The managed-identity credential's async transport (`aiohttp`, now pinned) gets as far
   as requesting a token; it fails there off Azure, as expected.
-- The eval harness runs end to end with the stub model.
+- The eval harness runs end to end with the stub model, and the trust evaluation with
+  the stub and a fake model, through drift, its re-run, the flags and the ceiling
+  (`servers/a2a/tests/test_eval.py`, run in CI).
 - `entra.sh` ran against werkrbee's tenant and created the API app and the lineup and
   singularity clients; a second run reuses all three and adds nothing. That first run
   showed two things the script had assumed wrongly about `az` (2.90), both fixed:
@@ -236,10 +259,11 @@ deploy/azure/
 ├── render_config.py           # the app's environment to the server's config, at start
 ├── tests/
 │   ├── entra_test.sh          # entra.sh's plan and refusals, against a stubbed az
-│   ├── deploy_test.sh         # deploy.sh's role id and model checks, against a stubbed az
+│   ├── deploy_test.sh         # deploy.sh's promotion, role id and model checks, against a stubbed az
 │   └── prices_test.sh         # prices.sh's lookup, against a stubbed curl
 └── eval/
-    ├── cases.json             # governance-review cases and their acceptable verdicts
-    ├── run.py                 # compare models on them
-    └── RESULTS.md             # each run's verdicts, cost and choice
+    ├── cases.json             # governance-review cases, their acceptable verdicts, which are critical
+    ├── run.py                 # Patricia's trust evaluation, or compare models on the cases
+    ├── results.jsonl          # each trust evaluation, and the baseline her passport names
+    └── RESULTS.md             # each comparison's verdicts, cost and choice
 ```

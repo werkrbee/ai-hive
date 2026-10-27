@@ -222,6 +222,13 @@ class Drift(Base):
         with self.assertRaisesRegex(engine.EngineError, "only an open item"):
             self.engine.answer_item(item["id"], "approved")
 
+    def test_a_flag_is_a_drift_item_with_its_finding_audited_as_a_flag(self):
+        item = self.engine.drift(self.AGENT, "eval_2026-10-26", {"runs": [12]}, finding="cost")
+        self.assertEqual((item["kind"], item["source"]["finding"]), ("drift", "cost"))
+        self.assertEqual(last_entry(self.audit, "eval.flagged")["item"], item["id"])
+        with self.assertRaisesRegex(engine.EngineError, "a trust evaluation finds one of"):
+            self.engine.drift(self.AGENT, "eval_2026-10-26", {}, finding="slow")
+
 
 class Refusals(Base):
     def test_a_step_runs_marked_as_inside_its_run(self):

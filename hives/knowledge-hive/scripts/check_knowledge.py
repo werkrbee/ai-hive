@@ -42,10 +42,16 @@ STATUSES = {"planning", "building", "live", "paused", "retired"}
 SECTIONS = ["Summary", "Components", "References", "Open work", "How to resume"]
 COMPONENT_STATES = {"built", "live", "partial", "missing"}
 MEMORY_TYPES = {"decision", "constraint", "preference", "reference"}
-RESULT_KINDS = {"test", "run", "release", "check", "delivery"}
+RESULT_KINDS = {"test", "run", "release", "check", "delivery", "eval"}
 OUTCOMES = {"passed", "failed", "partial"}
 EVIDENCE = {"link": "url", "command": "command", "file": "path", "run": "runId", "note": "text"}
 RESULT_REQUIRED = ("id", "at", "kind", "subject", "outcome", "summary", "evidence")
+EVAL_FIELDS = {"passport", "version", "pins", "suite", "commit", "model", "baseline", "runs", "findings"}
+EVAL_REQUIRED = ("passport", "pins", "suite", "baseline", "runs", "findings")
+RUN_FIELDS = {"met", "ran", "of", "missed", "usd", "seconds"}
+# What a trust evaluation can find, in docs/assurance-loop.md's terms. Drift, and an eval
+# that couldn't run, fail it; the other two are flags for a person.
+FINDINGS = ("drift", "unconfirmed-miss", "cost", "not-run")
 LEDGER_FIELDS = {"at", "basis", "usd", "tokens", "tokenDetail", "runId", "step",
                  "capability", "provider", "api", "model"}
 
@@ -251,7 +257,7 @@ def check_results(path, err):
     seen = set()
     for n, r in jsonl(path, err):
         at = f"results.jsonl:{n}"
-        for key in sorted(set(r) - set(RESULT_REQUIRED) - {"supersedes"}):
+        for key in sorted(set(r) - set(RESULT_REQUIRED) - {"supersedes", "eval"}):
             err(f"{at}: unknown field '{key}'")
         for key in RESULT_REQUIRED:
             if key not in r:
@@ -282,8 +288,75 @@ def check_results(path, err):
                     err(f"{at}: evidence[{i}].kind must be one of {', '.join(EVIDENCE)}")
                 elif set(e) != {"kind", field} or not isinstance(e[field], str) or not e[field].strip():
                     err(f"{at}: evidence[{i}] of kind {e['kind']} needs exactly a non-empty '{field}'")
+        if (r.get("kind") == "eval") != ("eval" in r):
+            err(f"{at}: an eval result needs an eval object, and only an eval result has one")
+        elif "eval" in r:
+            check_eval(r["eval"], r.get("outcome"), at, err)
         if isinstance(rid, str):
             seen.add(rid)
+
+
+def check_eval(e, outcome, at, err):
+    """A trust evaluation's record: the passport and pins it ran against, each run's score
+    and cost, and what it found."""
+    if not isinstance(e, dict):
+        err(f"{at}: eval must be an object")
+        return
+    for key in sorted(set(e) - EVAL_FIELDS):
+        err(f"{at}: eval has unknown field '{key}'")
+    for key in EVAL_REQUIRED:
+        if key not in e:
+            err(f"{at}: eval is missing '{key}'")
+    if "passport" in e and not (isinstance(e["passport"], str) and KEBAB.fullmatch(e["passport"])):
+        err(f"{at}: eval.passport must be a passport's kebab-case name")
+    if "version" in e and not (integer(e["version"]) and e["version"] >= 1):
+        err(f"{at}: eval.version must be an integer of at least 1")
+    if "pins" in e and not (isinstance(e["pins"], str) and check_audit.DIGEST.fullmatch(e["pins"])):
+        err(f"{at}: eval.pins must be sha256: followed by 64 lowercase hex digits")
+    for key in ("suite", "model"):
+        if key in e and (not isinstance(e[key], str) or not e[key].strip()):
+            err(f"{at}: eval.{key} must be a non-empty string")
+    if "commit" in e and not (isinstance(e["commit"], str) and re.fullmatch(r"[0-9a-f]{7,40}", e["commit"])):
+        err(f"{at}: eval.commit must be a git commit hash")
+    if "baseline" in e and e["baseline"] is not None and (not isinstance(e["baseline"], str) or not e["baseline"]):
+        err(f"{at}: eval.baseline must be the id of the result it was compared with, or null")
+    runs = e.get("runs")
+    if "runs" in e and not (isinstance(runs, list) and 1 <= len(runs) <= 2):
+        err(f"{at}: eval.runs must list one run, or two when the first drifted")
+    elif isinstance(runs, list):
+        for i, run in enumerate(runs):
+            check_run(run, f"{at}: eval.runs[{i}]", err)
+    findings = e.get("findings")
+    if "findings" in e and not (isinstance(findings, list) and len(set(map(str, findings))) == len(findings)
+                                and all(f in FINDINGS for f in findings)):
+        err(f"{at}: eval.findings must list each of {', '.join(FINDINGS)} at most once")
+    elif isinstance(findings, list):
+        want = "failed" if {"drift", "not-run"} & set(findings) else "partial" if findings else "passed"
+        if outcome in OUTCOMES and outcome != want:
+            err(f"{at}: an eval that found {', '.join(findings) or 'nothing'} has outcome {want}, not {outcome}")
+
+
+def check_run(run, where, err):
+    if not isinstance(run, dict):
+        err(f"{where} must be an object")
+        return
+    for key in sorted(set(run) - RUN_FIELDS):
+        err(f"{where} has unknown field '{key}'")
+    for key in ("met", "ran", "of", "missed", "usd"):
+        if key not in run:
+            err(f"{where} is missing '{key}'")
+    met, ran, of = run.get("met"), run.get("ran"), run.get("of")
+    if not (all(integer(v) for v in (met, ran, of)) and 0 <= met <= ran <= of and of >= 1):
+        err(f"{where}: met, ran and of must be integers with 0 <= met <= ran <= of, and of at least 1")
+    missed = run.get("missed")
+    if not (isinstance(missed, list) and all(isinstance(m, str) and m for m in missed)
+            and len(set(missed)) == len(missed)):
+        err(f"{where}: missed must list the ids of the cases it missed")
+    elif integer(met) and integer(ran) and len(missed) != ran - met:
+        err(f"{where}: missed must name each case that ran and wasn't met ({ran - met})")
+    for key in ("usd", "seconds"):
+        if key in run and (not number(run[key]) or run[key] < 0):
+            err(f"{where}: {key} must be a non-negative number")
 
 
 def check_ledger(path, err):

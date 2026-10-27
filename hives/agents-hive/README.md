@@ -65,7 +65,7 @@ the assurance loop ([`docs/assurance-loop.md`](../../docs/assurance-loop.md)).
 | Passport | Contract | Owner | Pins a model |
 |----------|----------|-------|--------------|
 | [**Barry**](passports/barry/passport.json) | `orchestration` | `@werkrbee` | no, he runs in a harness, which picks it |
-| [**Patricia**](passports/patricia/passport.json) | `governance-review` | `@werkrbee` | Claude Sonnet 5.5, version 2, with her eval baseline of 12 of 12 |
+| [**Patricia**](passports/patricia/passport.json) | `governance-review` | `@werkrbee` | Claude Sonnet 5.5, version 2, with a trust evaluation baseline of 12 of 12 |
 
 A passport can only narrow its contract. Every action it grants or puts under approval is
 one the contract grants or puts under approval, nothing the contract puts under approval
@@ -73,20 +73,56 @@ is granted, and each budget figure is at most the contract's. `never` writes out
 agent may not do even with a human's approval; Patricia's lists every action but
 `fs.read`. `delegates` names the passports it may hand work to. `pins` holds the model,
 each prompt file and the policy file, with their SHA-256 digests, so a change to the
-Charter, a skill or the policy fails CI until the passports that run on it are updated
-and their `version` bumped. `eval` names the agent's suite and the baseline its pins
-earned, and only an agent with a model pin can have one, since a baseline belongs to a
-model.
+Charter, a skill or the policy fails CI until the passports that run on it are updated and
+their `version` bumped. `eval` names the agent's suite, its baseline (the cases met and
+the `results.jsonl` entry that records the run) and its threshold, and only an agent with
+a model pin can have one, since a baseline belongs to a model.
 
 The schema is [`schema/passport.schema.json`](schema/passport.schema.json).
-`scripts/validate_passports.py` checks every passport against it and against its
-contract, policy and pinned files, and requires one for every card; CI runs it. A pin
-that no longer matches is reported with the file's current digest, and
-`validate_passports.py --digest <persona>` prints a passport's own digest. The
-workflows-hive engine runs a run under a passport when it names one (`run.py start
---passport barry`): each action in its `never` is a prohibition, decided before any
-mandate, and each entry in the audit log names the passport, its version and its digest.
-The deploy doesn't yet check its model against the pin (#127, #133).
+`scripts/validate_passports.py` checks every passport against it and against its contract,
+policy and pinned files, and requires one for every card; CI runs it. A pin that no longer
+matches is reported with the file's current digest, and `validate_passports.py --digest
+<persona>` prints a passport's own digest. The workflows-hive engine runs a run under a
+passport when it names one (`run.py start --passport barry`): each action in its `never`
+is a prohibition, decided before any mandate, and each entry in the audit log names the
+passport, its version and its digest. The deploy doesn't yet check that the model it
+deploys is the one pinned (#133).
+
+## Trust evaluation
+
+An agent drifts when it stops behaving the way it did when it was approved, and its trust
+evaluation is how that shows. Each agent with a model pin has a suite of cases that run
+through its own deployed path, and a baseline in its passport. Patricia's twelve
+governance-review cases are the first suite
+([`deploy/azure/eval/cases.json`](deploy/azure/eval/cases.json)); Barry's orchestration
+eval (#119) joins when it lands. A case marked `critical` is one where the wrong answer
+lets a consequential action through, and Patricia's are the six whose only acceptable
+verdict is `block`.
+
+A run drifts when it meets fewer cases than the baseline minus the passport's `threshold`,
+or misses any critical case. Model output varies, so a run that drifts is run once more,
+and drift is recorded only when both runs drift. Drift goes to the workflows-hive review
+queue and holds promotion of any change to the agent until a person answers it; a denial
+holds it until a newer baseline is recorded. Three findings are flags that hold nothing: a
+critical case missed in only one run (`unconfirmed-miss`), a run costing more than twice
+its baseline's per case (`cost`), and an eval the agent's monthly ceiling refused
+(`not-run`), which is never a pass.
+
+[`scripts/trust_eval.py`](scripts/trust_eval.py) holds those rules. The runner,
+`deploy/azure/eval/run.py --passport patricia`, runs the suite against one server config
+that must run what the passport pins, meters each call into that config's ledger against
+its ceiling, and appends the evaluation to
+[`deploy/azure/eval/results.jsonl`](deploy/azure/eval/results.jsonl) (knowledge-hive's
+results format, as an `eval` result) and the audit log. A run within the baseline prints
+the `eval.baseline` that would make it the baseline for its pins. `deploy.sh` runs
+`trust_eval.py promotion patricia` before anything else and refuses a passport whose
+baseline wasn't recorded against its exact pins, or that drift holds.
+
+Patricia's baseline is her 2026-10-21 run, 12 of 12 on Claude Sonnet 5.5, recorded with
+the pins it ran on. The Charter has changed since, so her current pins have no baseline
+yet, and `deploy.sh` refuses her until her evaluation runs on them. The weekly scheduled
+run, as a Container Apps job under her identity, is deployed with the rest of her controls
+(#133).
 
 ## Agent Cards (A2A)
 
@@ -178,7 +214,7 @@ agents-hive/
 ├── schema/
 │   ├── execution-contract.schema.json
 │   └── passport.schema.json
-├── tests/                        # passport and card-link tests
+├── tests/                        # passport, card-link and trust evaluation tests
 ├── adapters/                     # WHERE they run — harness taxonomy & overrides
 │   ├── claude-code/  cursor/  codex/  gemini-cli/  goose/  opencode/
 │   ├── kiro/  databricks-genie-code/  snowflake-cortex-code/
@@ -188,6 +224,7 @@ agents-hive/
 │   ├── install.py                # render personas into each harness's agent format
 │   ├── validate_contracts.py     # check contracts against the schema
 │   ├── validate_passports.py     # check passports against the schema and their contracts
+│   ├── trust_eval.py             # judge drift, record evaluations, gate promotion
 │   └── agent_card.py             # render and check A2A Agent Cards
 ├── LICENSE
 └── README.md

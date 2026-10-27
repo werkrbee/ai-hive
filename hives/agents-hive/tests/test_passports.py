@@ -9,8 +9,10 @@ import json
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 HIVE = Path(__file__).resolve().parent.parent
+REPO_ROOT = HIVE.parent.parent
 
 
 def load(name):
@@ -137,6 +139,39 @@ class Pins(Checked):
         p["eval"]["baseline"]["of"] = 13
         p["eval"]["baseline"]["met"] = 13
         self.assertRefused(p, "eval.baseline.of is 13, but the suite has 12 cases")
+
+    def test_a_baseline_is_a_results_jsonl_entry(self):
+        p = passport("patricia")
+        p["eval"]["baseline"]["result"] = "hives/agents-hive/deploy/azure/eval/RESULTS.md#2026-10-21"
+        self.assertRefused(p, "must be a results.jsonl file under hives/ and an entry's id")
+        p["eval"]["baseline"]["result"] = "hives/agents-hive/deploy/azure/eval/results.jsonl#no-such-run"
+        self.assertRefused(p, "eval.baseline.result not found")
+
+    def test_a_baseline_whose_score_isnt_its_results_is_refused(self):
+        p = passport("patricia")
+        p["eval"]["baseline"]["met"] = 11
+        self.assertRefused(p, "eval.baseline is 11 of 12, but its result's run met 12 of 12")
+
+    def test_a_baseline_that_drifted_or_belongs_to_another_agent_is_refused(self):
+        good = vp.baseline_result(passport("patricia")["eval"]["baseline"]["result"])
+        for change, text in (
+                (lambda r: r["eval"].update(passport="barry"), "isn't an eval of patricia"),
+                (lambda r: r["eval"]["runs"].append(r["eval"]["runs"][0]), "must have one run"),
+                (lambda r: r["eval"].update(findings=["unconfirmed-miss"]), "a baseline can carry only a cost flag"),
+                (lambda r: r["eval"]["runs"][0].update(ran=5), "with 5 run")):
+            entry = copy.deepcopy(good)
+            change(entry)
+            with self.subTest(text=text), mock.patch.object(vp, "baseline_result", lambda ref: entry):
+                self.assertRefused(passport("patricia"), text)
+
+    def test_a_critical_mark_that_isnt_a_boolean_is_refused(self):
+        with tempfile.TemporaryDirectory(dir=HIVE / "tests") as d:
+            suite = json.loads((REPO_ROOT / passport("patricia")["eval"]["suite"]).read_text())
+            suite["cases"][0]["critical"] = "yes"
+            (Path(d) / "cases.json").write_text(json.dumps(suite))
+            p = passport("patricia")
+            p["eval"]["suite"] = str((Path(d) / "cases.json").relative_to(REPO_ROOT))
+            self.assertRefused(p, "critical must be true or false")
 
 
 class Shape(Checked):
