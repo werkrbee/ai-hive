@@ -144,7 +144,8 @@ held by four controls. The passport, the audit log and the review queue are done
   output. Marked critical, before hosted Barry acts on a caller's tools. (#139)
 
 Hosted Barry's deploy (#120) waits for the passport, the audit log, the review queue and
-the adversarial cases.
+the adversarial cases. Hosted Patricia comes under the same controls, with her weekly
+scheduled eval, in #133.
 
 ## P2.2 — learning loop
 
