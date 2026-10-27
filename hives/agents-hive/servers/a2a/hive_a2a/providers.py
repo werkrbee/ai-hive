@@ -24,10 +24,21 @@ ENTRA_SCOPE = "https://cognitiveservices.azure.com/.default"
 
 
 class ProviderError(Exception):
-    def __init__(self, message, completion=None, sent=True):
+    def __init__(self, message, completion=None, sent=True, status=None, retry_after=None):
         super().__init__(message)
         self.completion = completion
         self.sent = sent  # False when the request never left, so nothing can have been billed
+        self.status = status  # the HTTP status, when the provider answered with one
+        self.retry_after = retry_after  # seconds the provider asked to wait (Retry-After), if any
+
+
+def _http_error(name, r):
+    try:
+        wait = float(r.headers.get("retry-after", ""))
+    except ValueError:
+        wait = None
+    return ProviderError(f"{name} returned HTTP {r.status_code}", status=r.status_code,
+                         retry_after=wait if wait is not None and wait >= 0 else None)
 
 
 @dataclass(frozen=True)
@@ -35,6 +46,7 @@ class Completion:
     text: str
     input_tokens: int
     output_tokens: int
+    cut_off: bool = False  # the reply stopped at its output-token limit
 
 
 class Stub:
@@ -81,7 +93,7 @@ class _HTTP:
         except httpx.HTTPError as e:
             raise ProviderError(f"{self.name} request failed: {type(e).__name__}")
         if r.status_code != 200:
-            raise ProviderError(f"{self.name} returned HTTP {r.status_code}")
+            raise _http_error(self.name, r)
         try:
             return r.json()
         except ValueError:
@@ -116,7 +128,7 @@ class Messages(_HTTP):
         if i is None or o is None:
             raise ProviderError("messages response has no token usage")
         text = "".join(b.get("text", "") for b in data.get("content") or [] if isinstance(b, dict) and b.get("type") == "text")
-        return Completion(text, i, o)
+        return Completion(text, i, o, cut_off=data.get("stop_reason") == "max_tokens")
 
 
 class ChatCompletions(_HTTP):
@@ -129,7 +141,7 @@ class ChatCompletions(_HTTP):
 
     async def complete(self, system, user, max_tokens):
         token = await self._token()
-        text, usage = await self._stream("/chat/completions", {"authorization": f"Bearer {token}"}, {
+        text, usage, finish = await self._stream("/chat/completions", {"authorization": f"Bearer {token}"}, {
             "model": self.model, "max_completion_tokens": max_tokens,
             "response_format": {"type": "json_object"},
             "stream": True, "stream_options": {"include_usage": True},
@@ -140,16 +152,16 @@ class ChatCompletions(_HTTP):
             raise ProviderError("chat-completions response has no token usage")
         if not text:
             raise ProviderError("chat-completions response has no message", Completion("", i, o))
-        return Completion(text, i, o)
+        return Completion(text, i, o, cut_off=finish == "length")
 
     async def _stream(self, path, headers, body):
-        """Reads the server-sent events: the text of each chunk's first choice, in order, and
-        the last usage any chunk carried."""
-        parts, usage = [], {}
+        """Reads the server-sent events: the text of each chunk's first choice, in order, the
+        last usage any chunk carried, and the first choice's finish reason."""
+        parts, usage, finish = [], {}, None
         try:
             async with self.client.stream("POST", self.base_url + path, headers=headers, json=body) as r:
                 if r.status_code != 200:
-                    raise ProviderError(f"{self.name} returned HTTP {r.status_code}")
+                    raise _http_error(self.name, r)
                 async for line in r.aiter_lines():
                     if not line.startswith("data:"):
                         continue
@@ -169,9 +181,11 @@ class ChatCompletions(_HTTP):
                     delta = first.get("delta") if isinstance(first, dict) else None
                     if isinstance(delta, dict) and isinstance(delta.get("content"), str):
                         parts.append(delta["content"])
+                    if isinstance(first, dict) and isinstance(first.get("finish_reason"), str):
+                        finish = first["finish_reason"]
         except httpx.HTTPError as e:
             raise ProviderError(f"{self.name} request failed: {type(e).__name__}")
-        return "".join(parts), usage
+        return "".join(parts), usage, finish
 
 
 def create(model, transport=None):

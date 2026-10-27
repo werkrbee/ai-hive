@@ -48,7 +48,7 @@ EVIDENCE = {"link": "url", "command": "command", "file": "path", "run": "runId",
 RESULT_REQUIRED = ("id", "at", "kind", "subject", "outcome", "summary", "evidence")
 EVAL_FIELDS = {"passport", "version", "pins", "suite", "commit", "deployment", "baseline", "runs", "findings"}
 EVAL_REQUIRED = ("passport", "pins", "suite", "baseline", "runs", "findings")
-RUN_FIELDS = {"met", "ran", "of", "missed", "usd", "seconds"}
+RUN_FIELDS = {"met", "ran", "of", "missed", "errored", "usd", "seconds"}
 # What a trust evaluation can find, in docs/assurance-loop.md's terms. Drift, and an eval
 # that couldn't run, fail it; the other two are flags for a person.
 FINDINGS = ("drift", "unconfirmed-miss", "cost", "not-run")
@@ -331,6 +331,9 @@ def check_eval(e, outcome, at, err):
                                 and all(f in FINDINGS for f in findings)):
         err(f"{at}: eval.findings must list each of {', '.join(FINDINGS)} at most once")
     elif isinstance(findings, list):
+        if isinstance(runs, list) and "not-run" not in findings and any(
+                isinstance(r, dict) and (r.get("errored") or r.get("ran") != r.get("of")) for r in runs):
+            err(f"{at}: an eval with a case that didn't run or got no answer must find not-run")
         want = "failed" if {"drift", "not-run"} & set(findings) else "partial" if findings else "passed"
         if outcome in OUTCOMES and outcome != want:
             err(f"{at}: an eval that found {', '.join(findings) or 'nothing'} has outcome {want}, not {outcome}")
@@ -348,12 +351,16 @@ def check_run(run, where, err):
     met, ran, of = run.get("met"), run.get("ran"), run.get("of")
     if not (all(integer(v) for v in (met, ran, of)) and 0 <= met <= ran <= of and of >= 1):
         err(f"{where}: met, ran and of must be integers with 0 <= met <= ran <= of, and of at least 1")
-    missed = run.get("missed")
-    if not (isinstance(missed, list) and all(isinstance(m, str) and m for m in missed)
-            and len(set(missed)) == len(missed)):
+    def ids(value):
+        return isinstance(value, list) and all(isinstance(m, str) and m for m in value) and len(set(value)) == len(value)
+
+    missed, errored = run.get("missed"), run.get("errored", [])
+    if not ids(missed):
         err(f"{where}: missed must list the ids of the cases it missed")
-    elif integer(met) and integer(ran) and len(missed) != ran - met:
-        err(f"{where}: missed must name each case that ran and wasn't met ({ran - met})")
+    elif not ids(errored) or set(errored) & set(missed):
+        err(f"{where}: errored must list the ids of the cases that got no answer, none of them missed")
+    elif integer(met) and integer(ran) and len(missed) + len(errored) != ran - met:
+        err(f"{where}: missed and errored must name each case that ran and wasn't met ({ran - met})")
     for key in ("usd", "seconds"):
         if key in run and (not number(run[key]) or run[key] < 0):
             err(f"{where}: {key} must be a non-negative number")
