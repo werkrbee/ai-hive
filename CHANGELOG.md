@@ -1,5 +1,30 @@
 # Changelog
 
+## [0.7.0](https://github.com/werkrbee/ai-hive/compare/v0.6.2...v0.7.0) (2026-10-27)
+
+
+### Features
+
+* **agents-hive:** evaluate trust and catch drift ([#137](https://github.com/werkrbee/ai-hive/issues/137)) ([ac7c3be](https://github.com/werkrbee/ai-hive/commit/ac7c3be26e11269c8d3a1cab9370ef8c0796f768)), closes [#127](https://github.com/werkrbee/ai-hive/issues/127)
+* **agents-hive:** give every agent a passport ([#134](https://github.com/werkrbee/ai-hive/issues/134)) ([73f7404](https://github.com/werkrbee/ai-hive/commit/73f74041069427431b141aabe9216469765ff412)), closes [#125](https://github.com/werkrbee/ai-hive/issues/125)
+* **agents-hive:** record Patricia's baseline on her current pins ([#138](https://github.com/werkrbee/ai-hive/issues/138)) ([e6b0cf3](https://github.com/werkrbee/ai-hive/commit/e6b0cf38c02497f65a2915b7b4c14c7e9a22e883)), closes [#127](https://github.com/werkrbee/ai-hive/issues/127)
+* **knowledge-hive:** keep a tamper-evident audit log ([#135](https://github.com/werkrbee/ai-hive/issues/135)) ([f67f45a](https://github.com/werkrbee/ai-hive/commit/f67f45a722bfef01c5db3f8017f27fdb40139c30)), closes [#126](https://github.com/werkrbee/ai-hive/issues/126)
+* **workflows-hive:** add a human review queue ([#136](https://github.com/werkrbee/ai-hive/issues/136)) ([222b801](https://github.com/werkrbee/ai-hive/commit/222b801876aa3c8b41f8198b52d1abdf98765b55)), closes [#129](https://github.com/werkrbee/ai-hive/issues/129)
+* **workflows-hive:** decide a step's approval from the approval policy ([#112](https://github.com/werkrbee/ai-hive/issues/112)) ([31bb188](https://github.com/werkrbee/ai-hive/commit/31bb1889d7164638ff2369dab57ed0b819d47087))
+* **workflows-hive:** let a run grow and keep model turns ([#121](https://github.com/werkrbee/ai-hive/issues/121)) ([b86b24b](https://github.com/werkrbee/ai-hive/commit/b86b24b54041360fa4e6a1bf8777b3c62c831917))
+* **workflows-hive:** pause a run for approval before a step ([#109](https://github.com/werkrbee/ai-hive/issues/109)) ([df1a31b](https://github.com/werkrbee/ai-hive/commit/df1a31bae4c9f288d46370f400c46a3fc36ebbde))
+* **workflows-hive:** stop a step that would exceed its budget ([#110](https://github.com/werkrbee/ai-hive/issues/110)) ([4151674](https://github.com/werkrbee/ai-hive/commit/41516746d2ce25500ac72733d578166fb1a03c54))
+
+
+### Documentation
+
+* add defensive co-scaling to the vision and roadmap ([#131](https://github.com/werkrbee/ai-hive/issues/131)) ([9833929](https://github.com/werkrbee/ai-hive/commit/98339291ae8548192c0413e47bd0e478bf89d2a3)), closes [#123](https://github.com/werkrbee/ai-hive/issues/123)
+* **agents-hive:** design hosted Barry over A2A ([#113](https://github.com/werkrbee/ai-hive/issues/113)) ([dc34ed3](https://github.com/werkrbee/ai-hive/commit/dc34ed34bfaed94c6eb24cc9f7702a999111a63a))
+* design the agent passport and assurance loop ([#132](https://github.com/werkrbee/ai-hive/issues/132)) ([0c2cee0](https://github.com/werkrbee/ai-hive/commit/0c2cee0848936d0226feca263a4a9a6a7f1440c0)), closes [#124](https://github.com/werkrbee/ai-hive/issues/124)
+* fold the frontier ecosystem gaps into the roadmap ([#148](https://github.com/werkrbee/ai-hive/issues/148)) ([3a15c42](https://github.com/werkrbee/ai-hive/commit/3a15c42d473d37c34f42129336cf0f7cf46285f8)), closes [#141](https://github.com/werkrbee/ai-hive/issues/141)
+* mark Barry's approval and budget steps done in ROADMAP.md ([#111](https://github.com/werkrbee/ai-hive/issues/111)) ([4faec6e](https://github.com/werkrbee/ai-hive/commit/4faec6e72436f55bcca36cdd6b6431e18166965e))
+* plan Barry's runtime and hosted Barry in ROADMAP.md ([#107](https://github.com/werkrbee/ai-hive/issues/107)) ([9d720c3](https://github.com/werkrbee/ai-hive/commit/9d720c3ce87253e0343a1c9cbad5cd7171d000e7))
+
 ## [0.6.2](https://github.com/werkrbee/ai-hive/compare/v0.6.1...v0.6.2) (2026-10-23)
 
 
