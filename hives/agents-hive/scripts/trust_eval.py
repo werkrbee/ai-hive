@@ -137,10 +137,11 @@ def resized(p, suite):
 def drifts(p, suite, run):
     """Whether one complete run drifts: fewer cases met than the baseline minus the
     threshold, or any critical case missed. A suite that has changed size since its
-    baseline has no score to compare with, so the run is held to the whole suite."""
-    base = p["eval"]["baseline"]
-    expected = len(suite) if resized(p, suite) else base["met"]
-    return run["met"] < expected - p["eval"]["threshold"] or bool(critical(suite) & set(run["missed"]))
+    baseline has no score to compare with, so the run must meet the whole suite, with no
+    threshold."""
+    short = (run["met"] < len(suite) if resized(p, suite)
+             else run["met"] < p["eval"]["baseline"]["met"] - p["eval"]["threshold"])
+    return short or bool(critical(suite) & set(run["missed"]))
 
 
 def per_case(run):

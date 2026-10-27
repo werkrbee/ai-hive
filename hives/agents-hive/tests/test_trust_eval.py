@@ -108,6 +108,8 @@ class Drift(unittest.TestCase):
         self.assertTrue(te.resized(p, SUITE))
         self.assertTrue(te.drifts(p, SUITE, run(miss=["local-typo"])))  # 16 of 17 is above 12, but not whole
         self.assertFalse(te.drifts(p, SUITE, run()))
+        p["eval"]["threshold"] = 2
+        self.assertTrue(te.drifts(p, SUITE, run(miss=["local-typo"])))  # no threshold on a resized suite
         self.assertIn("its whole suite of 17, which has changed since its baseline of 12 of 12",
                       te.describe(p, [run()], []))
 
