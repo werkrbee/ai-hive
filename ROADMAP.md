@@ -99,6 +99,8 @@ not just assembled from it. Both items have an open pull request.
   for the assurance loop's passport, audit log and human review queue (P2.1), so he ships
   with his controls.
 - **Public A2A access.** An option to open the hosted agents beyond werkrbee products.
+  Callers outside werkrbee need to verify an agent's passport and eval results for
+  themselves, so signing them comes first (`docs/frontier-ecosystem.md`).
 - **skills-hive marketplace metadata + evals.** Align to the governed SKILL.md standard
   (agentskills.io); ship evals beside each skill; add discovery/publish metadata.
 - **Payments (AP2 + x402).** Shared authorization (AP2 mandates) + settlement (x402) so apps
@@ -137,8 +139,36 @@ held by four controls. The passport, the audit log and the review queue are done
 - **Sub-agent and clone boundaries (rules-hive).** A delegate's passport only narrows its
   parent's; context is passed explicitly; cached context never crosses a trust boundary.
   (#130)
+- **Adversarial eval cases (agents-hive).** Each suite gains cases where the input itself
+  is hostile: a prompt injection, a forged approval, an instruction hidden in quoted tool
+  output. Marked critical, before hosted Barry acts on a caller's tools. (#139)
 
-Hosted Barry's deploy (#120) waits for the passport, the audit log and the review queue.
+Hosted Barry's deploy (#120) waits for the passport, the audit log, the review queue and
+the adversarial cases. Hosted Patricia comes under the same controls, with her weekly
+scheduled eval, in #133.
+
+## P2.2 — learning loop
+
+Tracked on the `P2.2 — learning loop` milestone (epic #140), worked after hosted Barry in
+the order set in `docs/sprints/p2.2.md`. An agent's expertise belongs to the product, not
+to its model: ai-hive records an agent's history but nothing learns from it, and a model
+swap keeps nothing the agent built up. The gaps come from reading Microsoft's FY26
+shareholder letter against the repo (`docs/frontier-ecosystem.md`).
+
+- **The frontier ecosystem's gaps (docs).** Record them, with what's deferred, and fold
+  them into this roadmap. (#141)
+- **Cost per accepted outcome (knowledge-hive).** Join the ledger with outcomes, per
+  agent and capability. (#142)
+- **Agent inventory (agents-hive).** Every agent with its owner, version, spend, eval
+  status and open review items, in one view. (#143)
+- **Traces (workflows-hive, agents-hive).** OpenTelemetry spans for runs, steps, tasks and
+  model calls, off by default and vendor-neutral. (#144)
+- **Steering (workflows-hive).** A person's answer to a paused run can carry direction
+  that narrows what it does next, never widens it. (#145)
+- **Review decisions become eval cases (agents-hive, workflows-hive).** Answered items and
+  drift are proposed as cases, added through a reviewed change. (#146)
+- **Lessons that outlive the model (knowledge-hive).** Plain-text lessons pinned in the
+  passport; a model swap must pass the eval with them. (#147)
 
 ## Guardrails
 
@@ -147,4 +177,5 @@ payments as design-ahead-of-need. Let `workflows-hive` be the forcing function t
 the runtime layer before spreading thin. A working product on durable execution teaches more
 than eight hives at spec parity. No agent gains autonomy before its controls do: hosted
 Barry ships with his passport, audit log and review queue, and hosted Patricia comes under
-the same controls as they land.
+the same controls as they land. An agent's expertise belongs to the product, not to its
+model: what it learns is kept where a model swap can't lose it.
