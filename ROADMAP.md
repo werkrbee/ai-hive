@@ -114,7 +114,8 @@ not just assembled from it. Both items have an open pull request.
 Tracked on the `P2.1 — assurance loop` milestone (epic #122), worked in the order set in
 `docs/sprints/p2.1.md`. Defensive co-scaling: the agents' control systems are built at the
 same pace as the agents (`docs/factory-thesis.md`). Every agent will carry a passport,
-held by four controls. The passport, the audit log and the review queue are done.
+held by four controls. The passport, the audit log, the review queue, trust evaluation
+and the adversarial cases are done.
 
 - **Vision and roadmap (docs).** Put defensive co-scaling into the factory thesis, the
   README, this roadmap and a sprint file. (#123)
@@ -139,9 +140,14 @@ held by four controls. The passport, the audit log and the review queue are done
 - **Sub-agent and clone boundaries (rules-hive).** A delegate's passport only narrows its
   parent's; context is passed explicitly; cached context never crosses a trust boundary.
   (#130)
-- **Adversarial eval cases (agents-hive).** Each suite gains cases where the input itself
-  is hostile: a prompt injection, a forged approval, an instruction hidden in quoted tool
-  output. Marked critical, before hosted Barry acts on a caller's tools. (#139)
+- **Adversarial eval cases (agents-hive) (done).** Each suite gains cases where the input
+  itself is hostile: a prompt injection, a forged approval, an instruction hidden in quoted
+  tool output. Marked critical, before hosted Barry acts on a caller's tools. Patricia's
+  suite has them (#139); Barry's orchestration eval gains them in #119.
+- **Trust evaluation follow-ups (agents-hive).** A provider error makes an eval not run
+  instead of drift (done, #150); a passport pins its eval suite, so a changed case needs a
+  new baseline (#149); and evaluations that keep coming back not run hold promotion
+  (#153).
 
 Hosted Barry's deploy (#120) waits for the passport, the audit log, the review queue and
 the adversarial cases. Hosted Patricia comes under the same controls, with her weekly
