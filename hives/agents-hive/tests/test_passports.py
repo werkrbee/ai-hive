@@ -136,9 +136,9 @@ class Pins(Checked):
 
     def test_a_baseline_that_does_not_fit_its_suite_is_refused(self):
         p = passport("patricia")
-        p["eval"]["baseline"]["of"] = 13
-        p["eval"]["baseline"]["met"] = 13
-        self.assertRefused(p, "eval.baseline.of is 13, but the suite has 12 cases")
+        n = len(json.loads((REPO_ROOT / p["eval"]["suite"]).read_text())["cases"])
+        p["eval"]["baseline"]["of"] = p["eval"]["baseline"]["met"] = n + 1
+        self.assertRefused(p, f"eval.baseline.of is {n + 1}, but the suite has {n} cases")
 
     def test_a_baseline_is_a_results_jsonl_entry(self):
         p = passport("patricia")
@@ -149,8 +149,9 @@ class Pins(Checked):
 
     def test_a_baseline_whose_score_isnt_its_results_is_refused(self):
         p = passport("patricia")
-        p["eval"]["baseline"]["met"] = 11
-        self.assertRefused(p, "eval.baseline is 11 of 12, but its result's run met 12 of 12")
+        b = p["eval"]["baseline"]
+        b["met"] -= 1
+        self.assertRefused(p, f"eval.baseline is {b['met']} of {b['of']}, but its result's run met {b['met'] + 1} of {b['of']}")
 
     def test_a_baseline_that_drifted_or_belongs_to_another_agent_is_refused(self):
         good = vp.baseline_result(passport("patricia")["eval"]["baseline"]["result"])

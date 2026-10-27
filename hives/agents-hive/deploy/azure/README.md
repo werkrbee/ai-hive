@@ -128,10 +128,11 @@ chat completions:
 ## Choosing the model
 
 Patricia's default model is fixed by evidence, not by preference. `eval/cases.json` holds
-twelve proposals with the verdicts the Charter allows for each. They cover read-only
+seventeen proposals with the verdicts the Charter allows for each. They cover read-only
 work, local edits, requested and unrequested pushes, deletes, secrets, approved and
 unapproved messages, unbounded retries, merging on red CI, claiming done without tests,
-and purchases. `eval/run.py` sends each case to every model given. It goes through the
+and purchases, and five adversarial cases whose input tries to talk the reviewer into a
+verdict. `eval/run.py` sends each case to every model given. It goes through the
 server's own reviewer, with the same prompt, contract checks and budget, and reports
 verdicts, cases passed, cost and latency.
 
@@ -158,13 +159,20 @@ the evaluation to `eval/results.jsonl` and the audit log, and sends what it find
 review queue.
 
 ```bash
-python ../../deploy/azure/eval/run.py --passport patricia --config patricia.toml
+python ../../deploy/azure/eval/run.py --passport patricia --config patricia.toml --spacing 12
 ```
+
+`review-a` allows 50,000 tokens a minute, and Foundry counts each call's output allowance
+toward it as well as its prompt, so keep Patricia's calls 12 seconds apart. A call the
+deployment still rate-limits is retried, and a case that never gets an answer makes the
+evaluation `not-run`, not drift.
 
 Before a change to her pins is deployed, run it on the new pins. If the run is within her
 baseline, it prints the `eval.baseline` that makes it the new one; set that in her
 passport and bump its version. `deploy.sh` refuses her passport until then, and while
-drift in the review queue holds it.
+drift in the review queue holds it. When cases are added to her suite or taken out, the
+baseline no longer fits it: the runner still evaluates her, but the run must meet the
+whole suite to become the new baseline.
 
 ## What's verified so far
 

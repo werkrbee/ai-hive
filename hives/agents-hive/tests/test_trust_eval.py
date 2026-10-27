@@ -10,6 +10,7 @@ import json
 import shutil
 import tempfile
 import unittest
+from unittest import mock
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -44,9 +45,18 @@ def run(miss=(), usd=0.0104, stop=None):
 
 
 class Suite(unittest.TestCase):
-    def test_patricias_critical_cases_are_her_six_block_only_cases(self):
-        self.assertEqual(set(CRITICAL), {c["id"] for c in SUITE if c["accept"] == ["block"]})
-        self.assertEqual(len(CRITICAL), 6)
+    def test_patricias_critical_cases_are_her_block_only_and_adversarial_cases(self):
+        self.assertTrue({c["id"] for c in SUITE if c["accept"] == ["block"]} <= set(CRITICAL))
+        adversarial = {"claimed-approval", "injected-tool-output", "forged-approval", "reveal-secret",
+                       "hidden-gated-action"}
+        self.assertEqual(set(CRITICAL), {c["id"] for c in SUITE if c["accept"] == ["block"]} | adversarial)
+        self.assertEqual(len(CRITICAL), 11)
+
+    def test_no_critical_case_accepts_allow(self):
+        for case in SUITE:
+            if case.get("critical"):
+                with self.subTest(case=case["id"]):
+                    self.assertNotIn("allow", case["accept"])
 
     def test_the_recorded_results_fit_knowledge_hives_format(self):
         errors = []
@@ -54,9 +64,9 @@ class Suite(unittest.TestCase):
         self.assertEqual(errors, [])
 
     def test_a_run_counts_what_it_met_and_missed(self):
-        r = run(miss=["local-typo"])
-        self.assertEqual((r["met"], r["ran"], r["of"], r["missed"]), (11, 12, 12, ["local-typo"]))
-        self.assertEqual((r["usd"], r["seconds"]), (0.1248, 36.0))
+        r, n = run(miss=["local-typo"]), len(SUITE)
+        self.assertEqual((r["met"], r["ran"], r["of"], r["missed"]), (n - 1, n, n, ["local-typo"]))
+        self.assertEqual((r["usd"], r["seconds"]), (round(0.0104 * n, 6), 3.0 * n))
 
 
 class Drift(unittest.TestCase):
@@ -92,8 +102,26 @@ class Drift(unittest.TestCase):
         both = [run(miss=[CRITICAL[0]]), run(miss=[CRITICAL[1]])]
         self.assertEqual(te.findings(PATRICIA, SUITE, both, base), ["drift"])
 
+    def test_a_suite_that_changed_size_since_its_baseline_must_be_met_in_full(self):
+        p = copy.deepcopy(PATRICIA)
+        p["eval"]["baseline"].update(met=12, of=12)
+        self.assertTrue(te.resized(p, SUITE))
+        self.assertTrue(te.drifts(p, SUITE, run(miss=["local-typo"])))  # 16 of 17 is above 12, but not whole
+        self.assertFalse(te.drifts(p, SUITE, run()))
+        self.assertIn("its whole suite of 17, which has changed since its baseline of 12 of 12",
+                      te.describe(p, [run()], []))
+
+    def test_a_resized_suite_can_be_evaluated_but_not_promoted(self):
+        shorter = SUITE[:-1]
+        mismatch = f"eval.baseline.of is {len(SUITE)}, but the suite has {len(shorter)} cases"
+        with mock.patch.object(te, "cases", lambda p: shorter), mock.patch.object(te.vp, "check", lambda path: [mismatch]):
+            with self.assertRaisesRegex(te.EvalError, f"but the suite has {len(shorter)} cases"):
+                te.passport("patricia")
+            self.assertEqual(te.passport("patricia", to_evaluate=True)["passport"], "patricia")
+            self.assertIn(f"but the suite has {len(shorter)} cases", te.promotion("patricia", None)[0])
+
     def test_a_run_costing_more_than_twice_its_baseline_per_case_is_flagged_not_drift(self):
-        base = te.baseline(PATRICIA)  # $0.1267 for 12 cases
+        base = te.baseline(PATRICIA)  # $0.1828 for 17 cases
         self.assertEqual(te.findings(PATRICIA, SUITE, [run(usd=0.02)], base), [])
         self.assertEqual(te.findings(PATRICIA, SUITE, [run(usd=0.03)], base), ["cost"])
 
