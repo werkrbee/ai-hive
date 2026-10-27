@@ -179,7 +179,7 @@ async def evaluate(args):
     """The trust evaluation of one passport."""
     te = trust_eval()
     try:
-        p = te.passport(args.passport)
+        p = te.passport(args.passport, to_evaluate=True)
         if len(args.config) != 1:
             raise te.EvalError("a trust evaluation takes one --config, the agent's own")
         config = load(args.config[0])

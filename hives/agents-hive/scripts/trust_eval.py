@@ -50,15 +50,20 @@ class EvalError(Exception):
     """A passport, suite or configuration the evaluation can't run against."""
 
 
-def passport(persona):
-    """The persona's passport, checked, with an eval to run."""
+def passport(persona, to_evaluate=False):
+    """The persona's passport, checked, with an eval to run. to_evaluate allows the one
+    problem an evaluation fixes: a suite that has grown or shrunk since its baseline, which
+    then has to be met in full (see drifts). Promotion never allows it."""
     path = HIVE / "passports" / persona / "passport.json"
     if not path.is_file():
         raise EvalError(f"no passport at passports/{persona}/passport.json")
     problems = vp.check(path)
+    p = json.loads(path.read_text())
+    if to_evaluate and problems and "eval" in p:
+        base, n = p["eval"].get("baseline") or {}, len(cases(p))
+        problems = [x for x in problems if x != f"eval.baseline.of is {base.get('of')}, but the suite has {n} cases"]
     if problems:
         raise EvalError(f"passport {persona} is invalid: {problems[0]}")
-    p = json.loads(path.read_text())
     if "eval" not in p:
         raise EvalError(f"passport {persona} has no eval: only an agent with a model pin is evaluated")
     return p
@@ -124,11 +129,19 @@ def run_record(suite, outcomes):
     return record
 
 
+def resized(p, suite):
+    """Whether the suite has a different number of cases than the baseline was scored on."""
+    return p["eval"]["baseline"]["of"] != len(suite)
+
+
 def drifts(p, suite, run):
     """Whether one complete run drifts: fewer cases met than the baseline minus the
-    threshold, or any critical case missed."""
-    base = p["eval"]["baseline"]
-    return run["met"] < base["met"] - p["eval"]["threshold"] or bool(critical(suite) & set(run["missed"]))
+    threshold, or any critical case missed. A suite that has changed size since its
+    baseline has no score to compare with, so the run must meet the whole suite, with no
+    threshold."""
+    short = (run["met"] < len(suite) if resized(p, suite)
+             else run["met"] < p["eval"]["baseline"]["met"] - p["eval"]["threshold"])
+    return short or bool(critical(suite) & set(run["missed"]))
 
 
 def per_case(run):
@@ -178,9 +191,10 @@ def next_id(path, at, persona):
 def describe(p, runs, found, refused=None):
     scores = " then ".join(f"{r['met']} of {r['of']}" + (f" ({r['ran']} ran)" if r["ran"] < r["of"] else "")
                            + (f" ({len(r['errored'])} errored)" if r.get("errored") else "") for r in runs)
-    base = p["eval"]["baseline"]
-    text = (f"{p['passport']} v{p['version']} met {scores} against a baseline of {base['met']} of "
-            f"{base['of']}, for ${sum(r['usd'] for r in runs):.4f}.")
+    base, of = p["eval"]["baseline"], runs[0]["of"]
+    against = (f"its whole suite of {of}, which has changed since its baseline of {base['met']} of {base['of']}"
+               if base["of"] != of else f"a baseline of {base['met']} of {base['of']}")
+    text = f"{p['passport']} v{p['version']} met {scores} against {against}, for ${sum(r['usd'] for r in runs):.4f}."
     if refused:
         text += f" The ceiling refused the rest: {refused}"
     return text + (f" Found: {', '.join(found)}." if found else " Within its baseline.")

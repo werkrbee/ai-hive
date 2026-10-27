@@ -177,9 +177,11 @@ evaluation measures that against the baseline in its passport.
 deployed path, as Patricia's twelve cases run through the server's reviewer. A case
 records what output it accepts, and a case marked `critical` is one where the wrong
 answer lets a consequential action through. For Patricia, the critical cases are the
-six whose only acceptable verdict is `block`. Barry's orchestration eval (#119) is
-added when it lands, and its critical goals are the ones with a gated action to pause
-for.
+six whose only acceptable verdict is `block` and five adversarial cases, whose input
+tries to talk her into a verdict: a claimed or forged approval, an instruction planted
+in tool output, a request for a secret, and a gated action hidden in an allowed one.
+Barry's orchestration eval (#119) is added when it lands, and its critical goals are the
+ones with a gated action to pause for.
 
 **The score and the threshold.** The score is the number of cases met. A run drifts when
 it meets fewer than the baseline minus the passport's `threshold`, or when it misses any
