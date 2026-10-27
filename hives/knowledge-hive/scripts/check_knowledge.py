@@ -46,7 +46,7 @@ RESULT_KINDS = {"test", "run", "release", "check", "delivery", "eval"}
 OUTCOMES = {"passed", "failed", "partial"}
 EVIDENCE = {"link": "url", "command": "command", "file": "path", "run": "runId", "note": "text"}
 RESULT_REQUIRED = ("id", "at", "kind", "subject", "outcome", "summary", "evidence")
-EVAL_FIELDS = {"passport", "version", "pins", "suite", "commit", "model", "baseline", "runs", "findings"}
+EVAL_FIELDS = {"passport", "version", "pins", "suite", "commit", "deployment", "baseline", "runs", "findings"}
 EVAL_REQUIRED = ("passport", "pins", "suite", "baseline", "runs", "findings")
 RUN_FIELDS = {"met", "ran", "of", "missed", "usd", "seconds"}
 # What a trust evaluation can find, in docs/assurance-loop.md's terms. Drift, and an eval
@@ -313,7 +313,7 @@ def check_eval(e, outcome, at, err):
         err(f"{at}: eval.version must be an integer of at least 1")
     if "pins" in e and not (isinstance(e["pins"], str) and check_audit.DIGEST.fullmatch(e["pins"])):
         err(f"{at}: eval.pins must be sha256: followed by 64 lowercase hex digits")
-    for key in ("suite", "model"):
+    for key in ("suite", "deployment"):
         if key in e and (not isinstance(e[key], str) or not e[key].strip()):
             err(f"{at}: eval.{key} must be a non-empty string")
     if "commit" in e and not (isinstance(e["commit"], str) and re.fullmatch(r"[0-9a-f]{7,40}", e["commit"])):

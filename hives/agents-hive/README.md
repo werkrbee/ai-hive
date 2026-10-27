@@ -118,11 +118,10 @@ the `eval.baseline` that would make it the baseline for its pins. `deploy.sh` ru
 `trust_eval.py promotion patricia` before anything else and refuses a passport whose
 baseline wasn't recorded against its exact pins, or that drift holds.
 
-Patricia's baseline is her 2026-10-21 run, 12 of 12 on Claude Sonnet 5.5, recorded with
-the pins it ran on. The Charter has changed since, so her current pins have no baseline
-yet, and `deploy.sh` refuses her until her evaluation runs on them. The weekly scheduled
-run, as a Container Apps job under her identity, is deployed with the rest of her controls
-(#133).
+Patricia's baseline is her 2026-10-27 run, 12 of 12 on Claude Sonnet 5.5, on her current
+pins; her first, the 2026-10-21 run, was recorded on the pins before the Charter changed.
+The weekly scheduled run, as a Container Apps job under her identity, is deployed with the
+rest of her controls (#133).
 
 ## Agent Cards (A2A)
 

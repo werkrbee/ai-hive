@@ -125,7 +125,7 @@ class Evaluate(unittest.TestCase):
         entry = self.recorded()
         self.assertEqual((entry["outcome"], entry["eval"]["findings"]), ("passed", []))
         self.assertEqual(entry["eval"]["runs"][0]["met"], 12)
-        self.assertEqual(entry["eval"]["model"], "review-test")
+        self.assertEqual(entry["eval"]["deployment"], "review-test")
         self.assertEqual(model.calls, 12)
         ledger = self.ledger()
         self.assertEqual(len(ledger), 12)

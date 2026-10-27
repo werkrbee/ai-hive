@@ -177,14 +177,15 @@ def describe(p, runs, found, refused=None):
     return text + (f" Found: {', '.join(found)}." if found else " Within its baseline.")
 
 
-def result(p, suite, runs, at, model, commit=None, refused=None, path=None):
+def result(p, suite, runs, at, deployment, commit=None, refused=None, path=None):
     """The results.jsonl entry for an evaluation's runs, to be appended to path (default:
-    the file the passport's baseline is in). at is a UTC datetime."""
+    the file the passport's baseline is in). at is a UTC datetime; deployment is what the
+    runner called, since the model it serves isn't checked here."""
     base_entry = baseline(p)
     found = findings(p, suite, runs, base_entry)
     path = Path(path) if path else results_file(p)
     record = {"passport": p["passport"], "version": p["version"], "pins": pins_digest(p),
-              "suite": p["eval"]["suite"], **({"commit": commit} if commit else {}), "model": model,
+              "suite": p["eval"]["suite"], **({"commit": commit} if commit else {}), "deployment": deployment,
               "baseline": base_entry["id"] if base_entry else None, "runs": runs, "findings": found}
     return {"id": next_id(path, at.strftime("%Y-%m-%d"), p["passport"]), "at": at.strftime("%Y-%m-%dT%H:%M:%SZ"),
             "kind": "eval", "subject": f"{p['passport']} {p['contract']['capability']} trust evaluation",
