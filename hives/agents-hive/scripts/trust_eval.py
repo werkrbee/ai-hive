@@ -133,9 +133,12 @@ def per_case(run):
 
 
 def findings(p, suite, runs, base_entry):
-    """What the runs found, in results.jsonl's terms."""
+    """What the runs found, in results.jsonl's terms. An eval the ceiling stopped is
+    not-run and judged no further, except that a critical case missed in the cases that did
+    run is still an unconfirmed miss, so it leaves a trace."""
     if any(r["ran"] < r["of"] for r in runs):
-        return ["not-run"]
+        missed = any(critical(suite) & set(r["missed"]) for r in runs)
+        return (["unconfirmed-miss"] if missed else []) + ["not-run"]
     found = []
     if len(runs) == 2 and all(drifts(p, suite, r) for r in runs):
         found.append("drift")
@@ -228,7 +231,8 @@ def holds(p, entry, items):
     since = str(entry["at"])
     for item in items:
         source = item["source"]
-        if item["kind"] != "drift" or source.get("passport") != persona or source.get("finding") != "drift":
+        # An item with no finding predates findings, when every one was drift: it holds too.
+        if item["kind"] != "drift" or source.get("passport") != persona or source.get("finding", "drift") != "drift":
             continue
         answer = item.get("answer") or {}
         if item["status"] == "open":

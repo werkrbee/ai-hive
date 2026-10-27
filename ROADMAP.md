@@ -126,9 +126,10 @@ held by four controls. The passport, the audit log and the review queue are done
 - **Tamper-evident audit log (knowledge-hive) (done).** An append-only, hash-chained
   record of what every agent did and didn't do, with a verifier. Deleting or editing it
   violates the Charter. (#126)
-- **Trust evaluation and drift (agents-hive) (done).** Each agent's eval re-runs on any
-  change, before it is deployed, and on a schedule (deployed with hosted Patricia's
-  controls); a result below its baseline is drift, flagged to a human. (#127)
+- **Trust evaluation and drift (agents-hive) (done).** A change to an agent isn't deployed
+  until its eval has passed on the exact versions it runs; a result below its baseline is
+  drift, flagged to a human, and holds promotion. The weekly scheduled run is deployed
+  with hosted Patricia's controls. (#127)
 - **Rollback.** Back to an earlier passport or checkpoint; an external effect is
   compensated, as the approval policy decides. (#128)
 - **Human review queue (workflows-hive) (done).** One queue for approvals, drift and

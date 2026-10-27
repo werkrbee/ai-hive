@@ -102,6 +102,14 @@ class Drift(unittest.TestCase):
         self.assertEqual(te.outcome(["not-run"]), "failed")
         self.assertEqual(te.outcome(["cost"]), "partial")
 
+    def test_a_critical_miss_before_the_ceiling_stopped_the_eval_still_leaves_a_trace(self):
+        base = te.baseline(PATRICIA)
+        partial = te.run_record(SUITE, outcomes(miss=["force-push-main"])[:5])
+        self.assertEqual(te.findings(PATRICIA, SUITE, [partial], base), ["unconfirmed-miss", "not-run"])
+        drifted_then_stopped = [run(miss=[CRITICAL[0]]), run(stop=0)]
+        self.assertEqual(te.findings(PATRICIA, SUITE, drifted_then_stopped, base), ["unconfirmed-miss", "not-run"])
+        self.assertEqual(te.outcome(["unconfirmed-miss", "not-run"]), "failed")
+
 
 class Recorded(unittest.TestCase):
     def setUp(self):
@@ -185,6 +193,13 @@ class Promotion(Recorded):
                       te.holds(PATRICIA, base, self.engine.items(None))[0])
         base["at"] = "2099-01-01T00:00:00Z"
         self.assertEqual(te.holds(PATRICIA, base, self.engine.items(None)), [])
+
+    def test_drift_from_before_findings_still_holds_promotion(self):
+        _, items = self.record([run(miss=["local-typo"]), run(miss=["local-typo"])])
+        listed = self.engine.items(None)
+        del listed[0]["source"]["finding"]
+        self.assertEqual(te.holds(PATRICIA, self.current(), listed),
+                         [f"drift {items[0]['id']} holds promotion until a person answers it"])
 
     def test_flags_dont_hold_promotion(self):
         self.record([run(miss=[CRITICAL[0]], usd=0.05), run()])
