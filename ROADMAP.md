@@ -141,9 +141,9 @@ and the adversarial cases are done.
   parent's; context is passed explicitly; cached context never crosses a trust boundary.
   (#130)
 - **Adversarial eval cases (agents-hive) (done).** Each suite gains cases where the input
-  itself is hostile: a prompt injection, a forged approval, an instruction hidden in quoted
-  tool output. Marked critical, before hosted Barry acts on a caller's tools. Patricia's
-  suite has them (#139); Barry's orchestration eval gains them in #119.
+  itself is hostile: a prompt injection, a forged approval, an instruction hidden in
+  quoted tool output. Marked critical, before hosted Barry acts on a caller's tools.
+  Patricia's suite has them (#139); Barry's orchestration eval gains them in #119.
 - **Trust evaluation follow-ups (agents-hive).** A provider error makes an eval not run
   instead of drift (done, #150); a passport pins its eval suite, so a changed case needs a
   new baseline (#149); and evaluations that keep coming back not run hold promotion
