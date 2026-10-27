@@ -107,10 +107,11 @@ holds it until a newer baseline is recorded. Three findings are flags that hold 
 critical case missed in only one run (`unconfirmed-miss`), a run costing more than twice
 its baseline's per case (`cost`), and an eval that didn't answer every case (`not-run`),
 which is never a pass. An eval is `not-run` when the agent's monthly ceiling refused it,
-or when a case got no answer because the provider failed, timed out or cut the reply off:
-that case is `errored`, not missed, since it says nothing about the agent. A rate-limited
-call is retried up to three times, waiting as the provider asks, and costs nothing when it
-is refused. A wrong verdict, or a reply the contract rejects, is still a miss.
+or when a case got no answer because the provider failed, timed out or cut the reply off,
+or the case was too large for the contract's budget: that case is `errored`, not missed,
+since it says nothing about the agent. A rate-limited call is retried up to three times,
+waiting as the provider asks, and costs nothing when it is refused. A wrong verdict, or a
+reply the contract rejects, is still a miss.
 
 [`scripts/trust_eval.py`](scripts/trust_eval.py) holds those rules. The runner,
 `deploy/azure/eval/run.py --passport patricia`, runs the suite against one server config

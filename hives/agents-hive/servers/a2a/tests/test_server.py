@@ -10,6 +10,7 @@ import sys
 import tempfile
 import time
 import unittest
+import unittest.mock
 import uuid
 from pathlib import Path
 
@@ -475,8 +476,7 @@ class ServerTest(unittest.TestCase):
             finally:
                 await p.aclose()
 
-        import os
-        os.environ["HIVE_TEST_KEY"] = "test-key"
+        self.enterContext(unittest.mock.patch.dict("os.environ", {"HIVE_TEST_KEY": "test-key"}))
         error, cut = asyncio.run(run("messages"))
         self.assertEqual((error.status, error.retry_after, cut.cut_off), (429, 7.0, True))
         error, cut = asyncio.run(run("chat-completions"))

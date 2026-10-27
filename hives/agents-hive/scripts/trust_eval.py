@@ -8,8 +8,9 @@ minus the passport's threshold, or misses a critical case. A run that drifts is 
 more, and drift is recorded only when both runs drift. What the evaluation finds goes to
 the workflows-hive review queue: drift, which holds promotion until a person answers it,
 and three flags that don't: a critical case missed in only one run (unconfirmed-miss), a
-run costing more than twice its baseline's per case (cost), and an eval the ceiling
-refused (not-run). Each evaluation is an entry in results.jsonl and in the audit log.
+run costing more than twice its baseline's per case (cost), and an eval that didn't
+answer every case, because the ceiling refused it or a case errored (not-run). Each
+evaluation is an entry in results.jsonl and in the audit log.
 
 Promotion is what deploy.sh checks before it deploys: the passport is valid, its baseline
 was recorded against its exact pins, and no drift for it holds promotion. Design:
