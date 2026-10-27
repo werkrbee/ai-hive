@@ -180,11 +180,13 @@ of its `pins` as canonical JSON, the `suite` of cases, the `commit` it ran on an
 `deployment` it called when known, the `baseline` result it was compared with (`null` for
 the first), its `runs` and its `findings`. The model a deployment serves isn't checked
 yet, so the entry records the deployment, not a model; the pinned model is in `pins`. Each
-run has the cases it `met`, how many `ran` of the suite's `of`, the ids it `missed`, its
-`usd` and, when timed, its `seconds`; a second run is there only when the first drifted.
-`findings` lists any of `drift`, `unconfirmed-miss`, `cost` and `not-run`, and decides
-`outcome`: `failed` for drift or an eval that couldn't run, `partial` for the other two,
-`passed` for none.
+run has the cases it `met`, how many `ran` of the suite's `of`, the ids it `missed` (a
+wrong answer) and, when any got no answer because the provider failed, timed out or cut
+the reply off, the ids that `errored`; its `usd` and, when timed, its `seconds`. A second
+run is there only when the first drifted. `findings` lists any of `drift`,
+`unconfirmed-miss`, `cost` and `not-run`, and decides `outcome`: `failed` for drift or an
+eval that couldn't run, `partial` for the other two, `passed` for none. An eval with an
+errored case, or one that ran fewer cases than its suite, is `not-run`.
 
 ## Usage ledger: `ledger.jsonl`
 

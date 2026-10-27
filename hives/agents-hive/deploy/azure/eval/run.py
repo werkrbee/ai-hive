@@ -57,10 +57,21 @@ def trust_eval():
     return module
 
 
+# A rate-limited call is tried again this many times, waiting as the provider asks or, when
+# it doesn't say, BACKOFF seconds doubling each time, up to BACKOFF_MAX.
+RETRIES, BACKOFF, BACKOFF_MAX = 3, 10, 60
+
+
 async def run_model(config, cases, spacing=0, ledger=None):
     """One run of the cases, each call held against ledger's ceiling and recorded in it, as
     the server's are (a throwaway ledger when None). Returns each case's outcome, and the
-    ceiling's refusal if it stopped the run before the last case."""
+    ceiling's refusal if it stopped the run before the last case.
+
+    A case is met when the reply's verdict is one it accepts, and missed when the reply is
+    the agent's own wrong answer: a verdict it doesn't accept or a reply the contract
+    rejects. It is errored when no answer came back: the provider failed, timed out or cut
+    the reply off at its output limit. An errored case is neither met nor missed, and a
+    rate-limited call is retried first, each attempt metered."""
     provider = providers.create(config.model)
     with tempfile.TemporaryDirectory() as tmp:
         ledger = ledger or Ledger(Path(tmp) / "ledger.jsonl", config.monthly_ceiling_usd)
@@ -68,51 +79,73 @@ async def run_model(config, cases, spacing=0, ledger=None):
         results, refused, started = [], None, None
         try:
             for case in cases:
-                if started is not None and spacing:
-                    await asyncio.sleep(max(0, spacing - (time.monotonic() - started)))
                 plan = reviewer.plan({"proposal": case["proposal"], "context": case["context"]})
                 if plan is None:
-                    results.append({"id": case["id"], "verdict": None, "pass": False,
+                    results.append({"id": case["id"], "verdict": None, "pass": False, "errored": True,
                                     "error": "too large for the contract's per-call budget"})
                     continue
-                refusal = await ledger.reserve(plan.max_usd)
-                if refusal:
-                    refused = refusal.text()
+                for attempt in range(RETRIES + 1):
+                    if started is not None and spacing:
+                        await asyncio.sleep(max(0, spacing - (time.monotonic() - started)))
+                    refusal = await ledger.reserve(plan.max_usd)
+                    if refusal:
+                        refused = refusal.text()
+                        break
+                    outcome, limited, retry_after = await attempt_case(config, provider, reviewer, ledger, case, plan)
+                    started = outcome.pop("started")
+                    if not limited or attempt == RETRIES:
+                        if limited:
+                            outcome["error"] += f", {attempt + 1} times"
+                        results.append(outcome)
+                        break
+                    await asyncio.sleep(min(BACKOFF_MAX, BACKOFF * 2 ** attempt if retry_after is None else retry_after))
+                if refused:
                     break
-                key = f"eval-{uuid.uuid4().hex}"
-                entry = reviewer.unmetered(plan.max_usd)  # until the provider reports usage
-                started = time.monotonic()
-                try:
-                    await ledger.start(key, entry)
-                    try:
-                        c = await asyncio.wait_for(
-                            provider.complete(reviewer.system, plan.user_prompt, plan.max_output_tokens),
-                            timeout=config.contract["budget"].get("seconds"))
-                    except (TimeoutError, providers.ProviderError) as e:
-                        if isinstance(e, providers.ProviderError):
-                            entry = reviewer.entry(e.completion) if e.completion else entry if e.sent else None
-                        results.append({"id": case["id"], "verdict": None, "pass": False,
-                                        "error": str(e) or type(e).__name__,
-                                        "usd": entry["usd"] if entry else 0,
-                                        "seconds": round(time.monotonic() - started, 2)})
-                        continue
-                    entry = reviewer.entry(c)
-                    verdict, problem = reviewer.verdict(c.text)
-                    results.append({
-                        "id": case["id"],
-                        "verdict": verdict["verdict"] if verdict else None,
-                        "reason": verdict["reason"] if verdict else None,
-                        "error": problem,
-                        "pass": bool(verdict) and verdict["verdict"] in case["accept"],
-                        "inputTokens": c.input_tokens, "outputTokens": c.output_tokens,
-                        "usd": entry["usd"],
-                        "seconds": round(time.monotonic() - started, 2),
-                    })
-                finally:
-                    await ledger.settle(plan.max_usd, entry, key=key)
         finally:
             await provider.aclose()
     return results, refused
+
+
+async def attempt_case(config, provider, reviewer, ledger, case, plan):
+    """One metered call for a case, after its reservation: its outcome, whether the
+    provider rate-limited it, and how long the provider asked to wait (or None)."""
+    key = f"eval-{uuid.uuid4().hex}"
+    entry = reviewer.unmetered(plan.max_usd)  # until the provider reports usage
+    started = time.monotonic()
+    try:
+        await ledger.start(key, entry)
+        try:
+            c = await asyncio.wait_for(
+                provider.complete(reviewer.system, plan.user_prompt, plan.max_output_tokens),
+                timeout=config.contract["budget"].get("seconds"))
+        except (TimeoutError, providers.ProviderError) as e:
+            limited = isinstance(e, providers.ProviderError) and e.status == 429
+            if limited:
+                entry = None  # refused before the model ran, so nothing was billed
+            elif isinstance(e, providers.ProviderError):
+                entry = reviewer.entry(e.completion) if e.completion else entry if e.sent else None
+            outcome = {"id": case["id"], "verdict": None, "pass": False, "errored": True,
+                       "error": str(e) or type(e).__name__, "usd": entry["usd"] if entry else 0,
+                       "seconds": round(time.monotonic() - started, 2), "started": started}
+            return outcome, limited, getattr(e, "retry_after", None)
+        entry = reviewer.entry(c)
+        verdict, problem = reviewer.verdict(c.text)
+        outcome = {
+            "id": case["id"],
+            "verdict": verdict["verdict"] if verdict else None,
+            "reason": verdict["reason"] if verdict else None,
+            "error": problem,
+            "pass": bool(verdict) and verdict["verdict"] in case["accept"],
+            "inputTokens": c.input_tokens, "outputTokens": c.output_tokens,
+            "usd": entry["usd"],
+            "seconds": round(time.monotonic() - started, 2),
+            "started": started,
+        }
+        if verdict is None and c.cut_off:
+            outcome.update(errored=True, error="the reply was cut off at its output-token limit")
+        return outcome, False, None
+    finally:
+        await ledger.settle(plan.max_usd, entry, key=key)
 
 
 def table(cases, columns):
@@ -167,7 +200,7 @@ async def evaluate(args):
         outcomes, refused = await run_model(config, suite, args.spacing, ledger)
         columns[f"run {attempt} ({config.model.api}:{config.model.name})"] = outcomes
         runs.append(te.run_record(suite, outcomes))
-        if refused or attempt == 2 or not te.drifts(p, suite, runs[-1]):
+        if refused or attempt == 2 or te.incomplete(runs[-1]) or not te.drifts(p, suite, runs[-1]):
             break
         print("the first run drifted; running it once more")
     table(suite, columns)

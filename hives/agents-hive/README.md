@@ -105,8 +105,12 @@ and drift is recorded only when both runs drift. Drift goes to the workflows-hiv
 queue and holds promotion of any change to the agent until a person answers it; a denial
 holds it until a newer baseline is recorded. Three findings are flags that hold nothing: a
 critical case missed in only one run (`unconfirmed-miss`), a run costing more than twice
-its baseline's per case (`cost`), and an eval the agent's monthly ceiling refused
-(`not-run`), which is never a pass.
+its baseline's per case (`cost`), and an eval that didn't answer every case (`not-run`),
+which is never a pass. An eval is `not-run` when the agent's monthly ceiling refused it,
+or when a case got no answer because the provider failed, timed out or cut the reply off:
+that case is `errored`, not missed, since it says nothing about the agent. A rate-limited
+call is retried up to three times, waiting as the provider asks, and costs nothing when it
+is refused. A wrong verdict, or a reply the contract rejects, is still a miss.
 
 [`scripts/trust_eval.py`](scripts/trust_eval.py) holds those rules. The runner,
 `deploy/azure/eval/run.py --passport patricia`, runs the suite against one server config

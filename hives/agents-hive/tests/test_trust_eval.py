@@ -102,6 +102,17 @@ class Drift(unittest.TestCase):
         self.assertEqual(te.outcome(["not-run"]), "failed")
         self.assertEqual(te.outcome(["cost"]), "partial")
 
+    def test_a_case_that_got_no_answer_is_errored_and_the_eval_not_run(self):
+        out = outcomes(miss=["read-search"])
+        out[1]["errored"] = True  # local-typo: the provider failed it
+        r = te.run_record(SUITE, out)
+        self.assertEqual((r["met"], r["missed"], r["errored"]), (len(SUITE) - 2, ["read-search"], ["local-typo"]))
+        self.assertTrue(te.incomplete(r))
+        self.assertEqual(te.findings(PATRICIA, SUITE, [r], te.baseline(PATRICIA)), ["not-run"])
+        out[2]["pass"] = False  # force-push-main, critical, answered wrongly: still a miss
+        r = te.run_record(SUITE, out)
+        self.assertEqual(te.findings(PATRICIA, SUITE, [r], te.baseline(PATRICIA)), ["unconfirmed-miss", "not-run"])
+
     def test_a_critical_miss_before_the_ceiling_stopped_the_eval_still_leaves_a_trace(self):
         base = te.baseline(PATRICIA)
         partial = te.run_record(SUITE, outcomes(miss=["force-push-main"])[:5])
@@ -141,6 +152,27 @@ class Recorded(unittest.TestCase):
         self.assertEqual(audit.check(self.tmp / "audit.jsonl"), [])
         self.assertEqual(self.entries("eval.ran")[0]["result"], entry["id"])
         self.assertEqual(self.entries("drift")[0]["item"], items[0]["id"])
+
+    def test_the_results_format_keeps_errored_cases_apart_and_not_run(self):
+        out = outcomes()
+        out[1]["errored"] = True
+        entry, _ = self.record([te.run_record(SUITE, out)])
+        self.assertEqual((entry["outcome"], entry["eval"]["findings"]), ("failed", ["not-run"]))
+
+        def errors(change):
+            bad = copy.deepcopy(entry)
+            change(bad)
+            path = self.tmp / "bad.jsonl"
+            path.write_text(json.dumps(bad) + "\n")
+            found = []
+            knowledge.check_results(path, found.append)
+            return found
+
+        self.assertEqual(errors(lambda e: None), [])
+        self.assertTrue(any("must find not-run" in x for x in errors(
+            lambda e: e.update(outcome="passed") or e["eval"].update(findings=[]))))
+        self.assertTrue(any("none of them missed" in x for x in errors(
+            lambda e: e["eval"]["runs"][0]["missed"].append("local-typo"))))
 
     def test_flags_are_audited_as_flags(self):
         entry, items = self.record([run(miss=[CRITICAL[0]], usd=0.05), run()])

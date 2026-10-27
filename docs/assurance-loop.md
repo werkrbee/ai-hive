@@ -199,8 +199,8 @@ Apps job on a cron schedule in the same environment, under her identity, so no n
 credential goes into CI. Each run is an entry in `results.jsonl` and the audit log, and
 is metered into the agent's own ledger, against its own model-spend ceiling.
 Patricia's last run was billed $0.13 on Claude Sonnet 5.5, so a weekly run is about
-$0.55 a month. An eval the ceiling refuses goes to the review queue as an eval that
-couldn't run, not as a pass.
+$0.55 a month. An eval the ceiling refuses, or with a case the provider failed to
+answer, goes to the review queue as an eval that couldn't run: not a pass, and not drift.
 
 **What drift does.** It sends an item to the review queue with both runs' results, and it
 blocks promoting any change to that agent until a human answers. The agent keeps running

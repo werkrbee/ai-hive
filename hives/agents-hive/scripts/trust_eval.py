@@ -109,11 +109,13 @@ def check_config(p, persona, capability, prompt_files):
 
 
 def run_record(suite, outcomes):
-    """One run of the suite, from its cases' outcomes in order: each {id, pass, usd,
-    seconds}. Fewer outcomes than cases means the run stopped early."""
+    """One run of the suite, from its cases' outcomes in order: each {id, pass, errored,
+    usd, seconds}. Fewer outcomes than cases means the run stopped early. A case that
+    errored got no answer, so it is neither met nor missed."""
     ran = len(outcomes)
-    record = {"met": sum(1 for o in outcomes if o.get("pass")), "ran": ran, "of": len(suite),
-              "missed": [o["id"] for o in outcomes if not o.get("pass")],
+    record = {"met": sum(1 for o in outcomes if o.get("pass") and not o.get("errored")), "ran": ran, "of": len(suite),
+              "missed": [o["id"] for o in outcomes if not o.get("pass") and not o.get("errored")],
+              "errored": [o["id"] for o in outcomes if o.get("errored")],
               "usd": round(sum(o.get("usd") or 0 for o in outcomes), 6)}
     seconds = [o["seconds"] for o in outcomes if o.get("seconds") is not None]
     if seconds:
@@ -132,11 +134,17 @@ def per_case(run):
     return run["usd"] / run["ran"] if run["ran"] else 0
 
 
+def incomplete(run):
+    """Whether a run didn't answer every case: the ceiling stopped it, or a case errored."""
+    return run["ran"] < run["of"] or bool(run.get("errored"))
+
+
 def findings(p, suite, runs, base_entry):
-    """What the runs found, in results.jsonl's terms. An eval the ceiling stopped is
-    not-run and judged no further, except that a critical case missed in the cases that did
-    run is still an unconfirmed miss, so it leaves a trace."""
-    if any(r["ran"] < r["of"] for r in runs):
+    """What the runs found, in results.jsonl's terms. An eval that didn't answer every case
+    (the ceiling stopped it, or the provider failed a case) is not-run and judged no
+    further, except that a critical case missed in the cases that were answered is still an
+    unconfirmed miss, so it leaves a trace."""
+    if any(incomplete(r) for r in runs):
         missed = any(critical(suite) & set(r["missed"]) for r in runs)
         return (["unconfirmed-miss"] if missed else []) + ["not-run"]
     found = []
@@ -168,7 +176,7 @@ def next_id(path, at, persona):
 
 def describe(p, runs, found, refused=None):
     scores = " then ".join(f"{r['met']} of {r['of']}" + (f" ({r['ran']} ran)" if r["ran"] < r["of"] else "")
-                           for r in runs)
+                           + (f" ({len(r['errored'])} errored)" if r.get("errored") else "") for r in runs)
     base = p["eval"]["baseline"]
     text = (f"{p['passport']} v{p['version']} met {scores} against a baseline of {base['met']} of "
             f"{base['of']}, for ${sum(r['usd'] for r in runs):.4f}.")

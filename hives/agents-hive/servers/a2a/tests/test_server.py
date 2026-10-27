@@ -453,6 +453,36 @@ class ServerTest(unittest.TestCase):
                     self.assertIn(expected, got)
 
 
+    def test_a_refusal_carries_its_status_and_wait_and_a_cut_off_reply_says_so(self):
+        replies = {
+            "messages": [httpx.Response(429, headers={"retry-after": "7"}, json={}),
+                         httpx.Response(200, json={"content": [{"type": "text", "text": '{"verd'}],
+                                                   "stop_reason": "max_tokens",
+                                                   "usage": {"input_tokens": 11, "output_tokens": 100}})],
+            "chat-completions": [httpx.Response(503, text="busy"),
+                                 sse({"choices": [{"delta": {"content": '{"verd'}, "finish_reason": "length"}]},
+                                     {"choices": [], "usage": {"prompt_tokens": 13, "completion_tokens": 100}})],
+        }
+
+        async def run(name):
+            config = write_config(self.root, api=name)
+            queue = list(replies[name])
+            p = providers.create(config.model, transport=httpx.MockTransport(lambda request: queue.pop(0)))
+            try:
+                with self.assertRaises(providers.ProviderError) as refused:
+                    await p.complete("sys", "user", 100)
+                return refused.exception, await p.complete("sys", "user", 100)
+            finally:
+                await p.aclose()
+
+        import os
+        os.environ["HIVE_TEST_KEY"] = "test-key"
+        error, cut = asyncio.run(run("messages"))
+        self.assertEqual((error.status, error.retry_after, cut.cut_off), (429, 7.0, True))
+        error, cut = asyncio.run(run("chat-completions"))
+        self.assertEqual((error.status, error.retry_after, cut.cut_off), (503, None, True))
+
+
 def sse(*chunks):
     """A Chat Completions stream: one data event per chunk, then [DONE]."""
     body = "".join(f"data: {json.dumps(c)}\n\n" for c in chunks) + "data: [DONE]\n\n"
