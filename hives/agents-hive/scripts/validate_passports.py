@@ -10,10 +10,10 @@ execution contract, so beyond the schema's shape this checks that:
     under approval, nothing the contract puts under approval is granted, and no action
     in `never` is granted or under approval
   - each budget figure is at most the contract's
-  - each prompt file and the policy file match their pinned SHA-256
-  - an eval has a model pin, its suite exists, its critical marks are booleans, and its
-    baseline is a results.jsonl entry for this passport and suite, with one run whose
-    score is the baseline's and nothing found but a cost flag
+  - each prompt file, the policy file and an eval's suite match their pinned SHA-256
+  - an eval has a model pin, its suite exists and is pinned, its critical marks are
+    booleans, and its baseline is a results.jsonl entry for this passport and suite, with
+    one run whose score is the baseline's and nothing found but a cost flag
   - every delegate has a passport
 
 A digest mismatch prints the file's current digest, so a deliberate change can be pinned.
@@ -245,6 +245,9 @@ def check(path):
             check_pin(pol["ruleset"], ppin.get("sha256"), "pins.policy", err)
 
     ev = p.get("eval")
+    spin = pins.get("suite") if isinstance(pins, dict) else None
+    if ev is None and spin is not None:
+        err("pins.suite pins an eval suite, but the passport has no eval")
     if ev is not None and fields(ev, PROPS["eval"], "eval", err):
         if model is None:
             err("eval needs pins.model: a baseline belongs to a model")
@@ -253,6 +256,10 @@ def check(path):
         if suite is None or not suite.is_file():
             err(f"eval suite not found: {ev.get('suite')!r}")
         else:
+            if spin is None:
+                err(f"eval needs pins.suite: a baseline belongs to its cases; its sha256 is {file_sha256(suite)}")
+            elif fields(spin, PROPS["pins"]["properties"]["suite"], "pins.suite", err):
+                check_pin(ev["suite"], spin.get("sha256"), "pins.suite", err)
             try:
                 cases = json.loads(suite.read_text())
             except json.JSONDecodeError:

@@ -123,7 +123,7 @@ class Drift(unittest.TestCase):
             self.assertIn(f"but the suite has {len(shorter)} cases", te.promotion("patricia", None)[0])
 
     def test_a_run_costing_more_than_twice_its_baseline_per_case_is_flagged_not_drift(self):
-        base = te.baseline(PATRICIA)  # $0.1828 for 17 cases
+        base = te.baseline(PATRICIA)  # $0.1820 for 17 cases
         self.assertEqual(te.findings(PATRICIA, SUITE, [run(usd=0.02)], base), [])
         self.assertEqual(te.findings(PATRICIA, SUITE, [run(usd=0.03)], base), ["cost"])
 
@@ -240,6 +240,12 @@ class Promotion(Recorded):
         self.assertEqual(len(problems), 1)
         self.assertIn("was recorded against other pins", problems[0])
         self.assertIn(te.pins_digest(PATRICIA), problems[0])
+
+    def test_a_changed_suite_makes_the_baseline_one_recorded_against_other_pins(self):
+        p = copy.deepcopy(PATRICIA)
+        p["pins"]["suite"]["sha256"] = "0" * 64  # a case edited and its pin updated
+        self.assertNotEqual(te.pins_digest(p), te.pins_digest(PATRICIA))
+        self.assertIn("was recorded against other pins", te.holds(p, self.current(), [])[0])
 
     def test_a_baseline_against_its_exact_pins_promotes(self):
         self.assertEqual(te.holds(PATRICIA, self.current(), self.engine.items(None)), [])

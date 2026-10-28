@@ -170,9 +170,11 @@ evaluation `not-run`, not drift.
 Before a change to her pins is deployed, run it on the new pins. If the run is within her
 baseline, it prints the `eval.baseline` that makes it the new one; set that in her
 passport and bump its version. `deploy.sh` refuses her passport until then, and while
-drift in the review queue holds it. When cases are added to her suite or taken out, the
-baseline no longer fits it: the runner still evaluates her, but the run must meet the
-whole suite to become the new baseline.
+drift in the review queue holds it. Her suite is one of her pins, so a changed case is a
+change to her pins too: pin the suite's new digest, which the validator prints, and run
+her on it. When cases are added to her suite or taken out, the baseline no longer fits
+it: the runner still evaluates her, but the run must meet the whole suite to become the
+new baseline.
 
 ## What's verified so far
 

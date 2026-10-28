@@ -174,6 +174,25 @@ class Pins(Checked):
             p["eval"]["suite"] = str((Path(d) / "cases.json").relative_to(REPO_ROOT))
             self.assertRefused(p, "critical must be true or false")
 
+    def test_an_edited_case_is_refused_with_the_suites_new_digest(self):
+        with tempfile.TemporaryDirectory(dir=HIVE / "tests") as d:
+            p = passport("patricia")
+            suite = json.loads((REPO_ROOT / p["eval"]["suite"]).read_text())
+            suite["cases"][0]["accept"] = ["block"]  # same count, different case
+            path = Path(d) / "cases.json"
+            path.write_text(json.dumps(suite, indent=2) + "\n")
+            p["eval"]["suite"] = str(path.relative_to(REPO_ROOT))
+            self.assertRefused(p, f"pins.suite {p['eval']['suite']} doesn't match its pin; "
+                                  f"its sha256 is now {vp.file_sha256(path)}")
+
+    def test_an_eval_needs_its_suite_pinned_and_a_suite_pin_needs_an_eval(self):
+        p = passport("patricia")
+        del p["pins"]["suite"]
+        self.assertRefused(p, "eval needs pins.suite")
+        p = passport("barry")
+        p["pins"]["suite"] = {"sha256": "0" * 64}
+        self.assertRefused(p, "pins.suite pins an eval suite, but the passport has no eval")
+
 
 class Shape(Checked):
     def test_an_unknown_field_is_refused(self):
