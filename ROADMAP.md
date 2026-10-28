@@ -5,6 +5,11 @@ refactor assessment: ai-hive is strong at design-time but the apps built on it (
 proved it needs a **runtime layer**, and the standards it rides (MCP, A2A, SKILL.md,
 AGENTS.md) have advanced. Rationale: `docs/interface-independence.md`, `docs/factory-thesis.md`.
 
+The vision is every person and organization on the planet being the world's best user of
+AI and an expert at it, and ai-hive is the framework that gets them there
+(`docs/factory-thesis.md`, "Vision and mission"). P0 to P2.2 build the factory and its
+controls; P3 makes how to use AI the framework's own subject.
+
 ## Sprint 0 — project setup (done)
 
 Convert to a monorepo and stand up the open-source + Claude Code lifecycle. See
@@ -176,6 +181,36 @@ shareholder letter against the repo (`docs/frontier-ecosystem.md`).
 - **Lessons that outlive the model (knowledge-hive).** Plain-text lessons pinned in the
   passport; a model swap must pass the eval with them. (#147)
 
+## P3 — how to use AI
+
+Proposed; not yet a milestone or issues. ai-hive becomes an expert in how to use AI and
+passes that expertise on, for every model, harness and part of the craft
+(`docs/factory-thesis.md`, "Obsessed with how to use AI"). Each item is an artifact a
+person can read and an agent can run, with the evidence behind it and the date it was
+last checked.
+
+- **Model guides (knowledge-hive, agents-hive).** For each model the House runs: what it
+  is good and bad at, context, caching, tool use and price, linked to its eval results.
+- **Harness guides (skills-hive).** Grow Barry's harness references into a guide per
+  harness: skills, rules, memory, sub-agents, hooks and MCP, and how to get the most from
+  each.
+- **Memory (knowledge-hive).** What an agent remembers, where, for how long and for whom;
+  how memory is consolidated, corrected and forgotten; and how it stays inside its trust
+  boundary. Builds on lessons in the passport (#147) and the sub-agent boundary (#130).
+- **Knowledge graphs (knowledge-hive, mcp-hive).** Turn documents, records and decisions
+  into a graph an agent can query with provenance, served over MCP, with guidance on when
+  a graph beats retrieval over plain text.
+- **A path to expertise (skills-hive).** A skill that teaches a person or a team to use AI
+  well, from a first prompt to running governed agents, using the House's own artifacts as
+  worked examples and explaining why each works.
+- **Beyond developers (docs, plugins-hive).** Today the framework assumes someone who
+  works in git and a terminal. Every person means a way in without either, through the
+  interfaces in `docs/interface-independence.md`.
+- **Keeping current (docs).** A recurring check of models, harnesses and standards, as
+  `docs/frontier-ecosystem.md` did once, that flags each guide it makes stale.
+- **Measuring expertise (knowledge-hive).** How a person or organization knows it is
+  getting better at AI, starting from cost per accepted outcome (#142).
+
 ## Guardrails
 
 Adopt the two standards the artifacts already ride (**MCP latest + A2A**) first; treat
@@ -184,4 +219,6 @@ the runtime layer before spreading thin. A working product on durable execution 
 than eight hives at spec parity. No agent gains autonomy before its controls do: hosted
 Barry ships with his passport, audit log and review queue, and hosted Patricia comes under
 the same controls as they land. An agent's expertise belongs to the product, not to its
-model: what it learns is kept where a model swap can't lose it.
+model: what it learns is kept where a model swap can't lose it. Advice about AI is held to
+the same standard as code: it names its evidence and when it was checked, and stale
+advice is fixed like a bug.

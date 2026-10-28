@@ -14,9 +14,20 @@ directory with its own installer; the top level explains how they fit together a
 defines the shared conventions every hive follows. Think of it as the entry hall of
 the House of Agents — each room (hive) furnishes one layer of an agent system.
 
-## Mission — build the factory, then the product
+## Vision and mission
 
-werkrbee is a bet on building the **factory**, not one-off products. Instead of
+**Vision.** Every person and every organization on the planet is the world's best user of
+AI, and an expert at it.
+
+**Mission.** ai-hive is the AI agent development framework that gets them there. It is
+obsessed with how to use AI: every model, every harness and every part of the craft, from
+prompts, context and tools to memory, knowledge graphs, evaluation, cost and governance.
+It turns what works into portable artifacts anyone can install, and explains why it works,
+so the people who use it become experts rather than depend on one. Write-up:
+[`docs/factory-thesis.md`](docs/factory-thesis.md#vision-and-mission).
+
+**How: build the factory, then the product.** werkrbee is a bet on building the
+**factory**, not one-off products. Instead of
 prompting an agent, shipping one app, and starting over from zero, ai-hive builds the
 reusable layer that *stamps out* agent products — so every next product ships faster and
 stronger. In Allie K. Miller's framing, we invest in the factory behind the task, not
