@@ -480,5 +480,146 @@ class Actors(Base):
         self.assertEqual(run["steps"]["gate"]["approval"]["by"], "usr_7f3a")
 
 
+class Rollback(Base):
+    """A plan whose read takes no effect, whose write and publish do, each with a compensate
+    step, and whose send pauses for a person under the Charter, as does its compensation."""
+
+    STEPS = [
+        {"id": "read", "worker": "echo", "input": {"path": "${inputs.path}"}, "actions": [{"action": "fs.read"}]},
+        {"id": "count", "worker": "echo", "input": {"of": "${steps.read.output.path}"}},
+        {"id": "write", "worker": "echo", "input": {"file": "out.txt"}, "actions": [{"action": "fs.write"}],
+         "compensate": {"worker": "echo", "input": {"remove": "${steps.write.output.file}"},
+                        "actions": [{"action": "fs.write"}]}},
+        {"id": "publish", "worker": "echo", "input": {"page": "p1"}, "actions": [{"action": "fs.write"}],
+         "compensate": {"worker": "echo", "input": {"unpublish": "${steps.publish.output.page}"},
+                        "actions": [{"action": "fs.write"}]}},
+    ]
+    SEND = {"id": "send", "worker": "echo", "input": {"to": 14}, "actions": [{"action": "message.send"}],
+            "compensate": {"worker": "echo", "input": {"correct": "${steps.send.output.to}"},
+                           "actions": [{"action": "message.send"}]}}
+
+    def make(self):
+        return engine.Engine(self.tmp / "runs", workflows_dir=self.tmp / "workflows", workers=self.workers,
+                             log=lambda *a: None, actor="usr_7f3a")
+
+    def plan(self, steps, name="effects"):
+        path = self.tmp / "workflows" / name / "workflow.json"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps({"name": name, "version": 1, "inputs": {"required": ["path"]},
+                                    "steps": steps, "output": "${steps.%s.output}" % steps[-1]["id"]}))
+        return name
+
+    def completed(self, steps=None):
+        run = self.engine.start(self.plan(steps or self.STEPS), {"path": "README.md"})
+        self.assertEqual(run["status"], "completed")
+        open(self.log, "w").close()
+        return run
+
+    def test_effects_are_compensated_newest_first_then_later_steps_are_marked_and_the_run_waits(self):
+        run = self.completed()
+        rid = run["runId"]
+        run = self.engine.rollback(rid, "read", reason="wrote to the wrong page")
+        self.assertEqual(calls(self.log), [f"echo {rid}:compensate-publish-1", f"echo {rid}:compensate-write-1"])
+        self.assertEqual((run["status"], run["next"], run["rollback"]), ("working", "count", None))
+        for sid in ("count", "write", "publish"):
+            self.assertEqual(run["steps"][sid]["status"], "rolledBack")
+            self.assertEqual(run["steps"][sid]["undone"]["status"], "completed")
+        self.assertEqual(run["steps"]["read"]["status"], "completed")
+        record = run["rollbacks"][0]
+        self.assertEqual((record["to"], record["by"], record["reason"], record["status"]),
+                         ("read", "usr_7f3a", "wrote to the wrong page", "completed"))
+        self.assertEqual(record["result"], {"page": "p1"})
+        self.assertEqual(record["compensate"], [["publish", "compensate-publish-1"], ["write", "compensate-write-1"]])
+        self.assertEqual(run["steps"]["compensate-write-1"]["output"], {"remove": "out.txt"})
+        entry = [e for e in entries(self) if e["kind"] == "rollback"][0]
+        self.assertEqual((entry["runId"], entry["step"], entry["by"], entry["via"], entry["record"]),
+                         (rid, "read", "usr_7f3a", "cli", record["id"]))
+        self.assertNotIn("wrong page", (self.tmp / "audit.jsonl").read_text())
+        self.assertEqual(engine.check_audit.digest({k: v for k, v in record.items() if k not in ("id", "endedAt")}),
+                         record["id"])
+
+        cost = run["cost"]["tokens"]
+        run = self.engine.resume(rid)  # each later step runs again, as a new attempt
+        self.assertEqual(run["status"], "completed")
+        self.assertEqual(calls(self.log)[2:], [f"echo {rid}:count:2", f"echo {rid}:write:2", f"echo {rid}:publish:2"])
+        self.assertEqual(run["steps"]["write"]["attempt"], 2)
+        self.assertEqual(run["steps"]["write"]["history"][0]["status"], "rolledBack")
+        self.assertEqual(run["cost"]["tokens"], cost + 30)  # what was spent stays spent
+
+    def test_a_step_with_no_effect_is_only_marked(self):
+        run = self.completed(self.STEPS[:2])
+        run = self.engine.rollback(run["runId"], "read", reason="recount")
+        self.assertEqual(calls(self.log), [])
+        self.assertEqual((run["steps"]["count"]["status"], run["next"]), ("rolledBack", "count"))
+
+    def test_a_step_that_failed_before_its_worker_started_isnt_compensated(self):
+        steps = [dict(s) for s in self.STEPS]
+        steps[3]["input"] = {"page": "${steps.write.output.missing}"}
+        run = self.engine.start(self.plan(steps), {"path": "README.md"})
+        self.assertEqual((run["status"], run["error"]["step"]), ("failed", "publish"))
+        open(self.log, "w").close()
+        run = self.engine.rollback(run["runId"], "read", reason="fix the page reference")
+        self.assertEqual(calls(self.log), [f"echo {run['runId']}:compensate-write-1"])
+        self.assertEqual(run["steps"]["publish"]["undone"]["status"], "failed")
+        self.assertEqual(run["rollbacks"][0]["status"], "failed")
+
+    def test_rolling_back_past_an_effect_without_a_compensate_step_is_refused(self):
+        steps = [dict(s) for s in self.STEPS]
+        del steps[2]["compensate"]
+        run = self.completed(steps)
+        with self.assertRaisesRegex(engine.EngineError, "can't be rolled back past write: it takes an action "
+                                    "with an effect outside the system"):
+            self.engine.rollback(run["runId"], "read", reason="undo")
+        self.assertEqual(self.engine.load(run["runId"])["status"], "completed")
+        self.engine.rollback(run["runId"], "write", reason="republish")  # publish has one
+
+    def test_a_compensating_step_is_decided_by_the_policy_like_any_other(self):
+        run = self.engine.start(self.plan(self.STEPS[:1] + [self.SEND]), {"path": "README.md"})
+        run = self.engine.approve(run["runId"], item_id=run["pending"]["id"])
+        self.assertEqual(run["status"], "completed")
+        rid = run["runId"]
+        run = self.engine.rollback(rid, "read", reason="sent to the wrong list")
+        self.assertEqual((run["status"], run["pending"]["step"]), ("input_required", "compensate-send-1"))
+        self.assertEqual(run["pending"]["rules"], ["approve.message.send"])
+        item = self.engine.item(run["pending"]["id"])
+        self.assertEqual(item["present"]["actions"], [{"action": "message.send"}])
+
+        run = self.engine.deny(rid, "not yet", item_id=run["pending"]["id"])  # a denial fails the run
+        self.assertEqual(run["status"], "failed")
+        self.assertEqual(run["steps"]["send"]["status"], "completed")
+        self.assertTrue(run["rollback"])
+
+        run = self.engine.rollback(rid, "read", reason="sent to the wrong list, again")  # tried again
+        self.assertEqual(len(run["rollbacks"]), 1)  # the unfinished one is kept
+        self.assertEqual(run["steps"]["compensate-send-1"]["history"][0]["approval"]["decision"], "denied")
+        run = self.engine.approve(rid, item_id=run["pending"]["id"])
+        self.assertEqual((run["status"], run["next"]), ("working", "send"))
+        self.assertEqual(run["steps"]["send"]["status"], "rolledBack")
+        self.assertEqual(calls(self.log)[-1], f"echo {rid}:compensate-send-1")
+
+    def test_only_a_completed_or_failed_run_rolls_back_to_a_step_that_completed(self):
+        run = self.engine.start(self.plan(self.STEPS[:1] + [self.SEND]), {"path": "README.md"})
+        with self.assertRaisesRegex(engine.EngineError, "is input_required; only a completed or failed run"):
+            self.engine.rollback(run["runId"], "read", reason="undo")
+        run = self.completed()
+        for to, why in (("nope", "has no completed step 'nope'"), ("read", "needs a reason")):
+            with self.subTest(to), self.assertRaisesRegex(engine.EngineError, why):
+                self.engine.rollback(run["runId"], to, reason="" if to == "read" else "undo")
+        e = engine.Engine(self.tmp / "runs", workflows_dir=self.tmp / "workflows", workers=self.workers,
+                          log=lambda *a: None)
+        with self.assertRaisesRegex(engine.EngineError, "needs an actor ID"):
+            e.rollback(run["runId"], "read", reason="undo")
+        with engine.marked("run_other"), self.assertRaisesRegex(engine.EngineError, "inside run run_other"):
+            self.engine.rollback(run["runId"], "read", reason="undo")
+        self.assertEqual(self.engine.load(run["runId"])["status"], "completed")
+
+    def test_a_plan_with_a_compensate_step_that_doesnt_check_is_refused(self):
+        for comp, why in (({"worker": "echo"}, "compensate must be a step with a worker and an input"),
+                          ({"worker": "echo", "input": {}, "retries": 3}, "unknown field 'retries' in compensate"),
+                          ({"worker": "nope", "input": {}}, "unknown worker 'nope'")):
+            with self.subTest(why), self.assertRaisesRegex(engine.EngineError, why):
+                self.engine.start(self.plan([dict(self.STEPS[2], compensate=comp)]), {"path": "x"})
+
+
 if __name__ == "__main__":
     unittest.main()

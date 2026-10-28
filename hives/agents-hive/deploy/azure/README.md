@@ -176,6 +176,36 @@ her on it. When cases are added to her suite or taken out, the baseline no longe
 it: the runner still evaluates her, but the run must meet the whole suite to become the
 new baseline.
 
+## Rolling back
+
+To roll Patricia back to an earlier passport version, deploy it again with `--rollback`.
+Her passport's history is its git history, so `deploy.sh` deploys the newest commit at
+which her passport was that version, from a temporary worktree, with the model, prompt
+files and policy it pins. Nothing is undone in place: it is a new deploy, through the
+same what-if and typed yes at each step.
+
+```bash
+./deploy.sh --rollback 6 --reason "v8 misreads the Charter" --by usr_7f3a \
+  rg-patricia eastus2 main.bicepparam
+```
+
+Before any change, it checks that she was ever that version and that it is earlier than
+the one checked out, and it runs the promotion check as it was at that commit, against the
+results recorded then, since that passport's baseline still applies. A version from before
+trust evaluation can't be promoted, so it can't be rolled back to. `modelDeployment` in
+the parameters must be the model that passport pins, by name and version, and the model
+check refuses it if the catalog no longer offers it as generally available, since a
+retired model can't come back. Once the app is deployed, the audit log (`--audit`, by
+default the workflows-hive engine's) records who rolled her back (`--by`, or
+`WORKFLOWS_HIVE_ACTOR`) and the digest of a record in `rollbacks/` beside it, which keeps
+the reason. If a step fails partway, nothing is recorded, and what was applied stays
+applied until the next deploy.
+
+Some things a rollback doesn't restore. The role assignments a later deploy added stay,
+since a deploy adds roles but doesn't remove them. The ledger and the audit log keep
+everything since, and so does her results file: a run is corrected by a newer result, not
+by going back.
+
 ## What's verified so far
 
 - `main.bicep` and the example parameters compile, and the Bicep linter is clean. CI
@@ -263,13 +293,13 @@ deploy/azure/
 ├── main.bicep                 # everything above, in one resource group
 ├── main.example.bicepparam    # copy to main.bicepparam and fill in
 ├── entra.sh                   # the API app and one client app per product
-├── deploy.sh                  # what-if, confirm, deploy, in three steps
+├── deploy.sh                  # what-if, confirm, deploy, in three steps; or roll back
 ├── prices.sh                  # the models' list prices, from the Retail Prices API
 ├── Dockerfile                 # the server image, built from the repo root
 ├── render_config.py           # the app's environment to the server's config, at start
 ├── tests/
 │   ├── entra_test.sh          # entra.sh's plan and refusals, against a stubbed az
-│   ├── deploy_test.sh         # deploy.sh's promotion, role id and model checks, against a stubbed az
+│   ├── deploy_test.sh         # deploy.sh's checks and rollback, against a stubbed az
 │   └── prices_test.sh         # prices.sh's lookup, against a stubbed curl
 └── eval/
     ├── cases.json             # governance-review cases, their acceptable verdicts, which are critical

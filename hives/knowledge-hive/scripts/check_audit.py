@@ -57,7 +57,7 @@ KINDS = {
     "turn.completed": ("runId", "turn"),
     "turn.failed": ("runId", "turn"),
     "delegation": (),
-    "rollback": (),
+    "rollback": ("by", "via", "record"),
     "drift": ("agent", "item"),
     "eval.ran": ("agent", "result"),
     "eval.flagged": ("agent", "item"),
@@ -65,7 +65,7 @@ KINDS = {
 DECISIONS = {"step.decided": {"allowed", "paused", "denied"}, "approval.answered": {"approved", "denied"},
              "drift.answered": {"approved", "denied"}}
 FIELDS = {"seq", "at", "prev", "hash", "kind", "agent", "runId", "step", "turn", "action",
-          "decision", "rules", "call", "by", "item", "via", "result"}
+          "decision", "rules", "call", "by", "item", "via", "result", "record"}
 VIA = ("cli", "mcp", "a2a")  # how a human's answer came
 
 
@@ -118,7 +118,7 @@ def entry_problems(e):
         bad("seq must be an integer of at least 1")
     if "at" in e and not utc(e["at"]):
         bad("at must be an ISO 8601 date-time in UTC")
-    for key in ("prev", "hash", "call", "item"):
+    for key in ("prev", "hash", "call", "item", "record"):
         if key in e and not (isinstance(e[key], str) and DIGEST.fullmatch(e[key])):
             bad(f"{key} must be sha256: followed by 64 lowercase hex digits")
     for key in ("runId", "step", "turn", "action", "result"):
@@ -131,6 +131,8 @@ def entry_problems(e):
         bad("rules must be a list of rule ids")
     if "via" in e and e["via"] not in VIA:
         bad(f"via must be one of {', '.join(VIA)}")
+    if kind == "rollback" and "runId" not in e and "agent" not in e:
+        bad("a rollback names the run it rolled back (runId) or the agent (agent)")
     if "by" in e and not opaque(e["by"]):
         bad("by must be an opaque identifier, never a name or an email address")
     if "agent" in e:

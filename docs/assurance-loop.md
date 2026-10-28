@@ -219,19 +219,21 @@ Rollback restores an earlier version or state, and never erases history to do it
 rollback is a new entry, a new checkpoint or a new deploy, recorded with who did it and
 why.
 
-**Versions.** A passport's history is its git history. Rolling an agent back is
-deploying an earlier passport version, through `deploy.sh`, which restores the model
-deployment, prompt files and policy it pins. That is a deploy, so the Charter gates it,
-and the audit log records who approved it and why. A model version the catalog has since
-retired can't come back, so `deploy.sh` checks the catalog first and stops if it is gone.
-The earlier passport's baseline still applies, since its pins didn't change.
+**Versions.** A passport's history is its git history. Rolling an agent back is deploying
+an earlier passport version, through `deploy.sh`, which restores the model deployment,
+prompt files and policy it pins. That is a deploy, so the Charter gates it, and the audit
+log records who approved it and the digest of a rollback record that keeps why, since the
+log holds no free text. A model version the catalog has since retired can't come back, so
+`deploy.sh` checks the catalog first and stops if it is gone. The earlier passport's
+baseline still applies, since its pins didn't change.
 
 **Run state.** The engine already writes a checkpoint after every step. Rolling a run back
 to an earlier step marks each later step `rolledBack`, never deleting it, and sets `next`
 to the step after the target, so the record shows both what ran and what was undone. A
-step whose actions all read, or write only the run's own record, has no effect outside
-the system and is simply marked. Any other step had an external effect, and rolling past
-it needs a compensating step first, newest first.
+step whose actions all read (of the core actions, only `fs.read`; a fetch can have effects
+too), or write only the run's own record, has no effect outside the system and is simply
+marked. Any other step had an external effect, and rolling past it needs a compensating
+step first, newest first.
 
 **Effects outside the system.** A sent message can't be unsent or a charge uncharged; it
 can only be compensated, by a correction or a refund. A compensating step is an ordinary

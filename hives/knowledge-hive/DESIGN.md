@@ -251,8 +251,13 @@ model's output, message text and a denial's reason, none of which the log holds,
 escalation's question or answer. A trust evaluation writes `eval.ran`, with the `agent` it
 evaluated and the `result` id in `results.jsonl` that records it, and for each finding it
 sends the review queue, `drift` for drift and `eval.flagged` for a flag, each with the
-`agent` and the `item`. The kinds rollback and delegation write get their fields as those
-are built.
+`agent` and the `item`. A `rollback` carries `by`, `via` and `record`, the digest of a
+rollback record that keeps the reason, which the log never holds. A run's rollback names
+the `runId` and the `step` it went back to, and its record is in the run record, under
+`rollbacks`. An agent's rollback to an earlier passport version (agents-hive's `deploy.sh
+--rollback`) names the `agent` it went back to, and its record is a JSON file in
+`rollbacks/` beside the log, named by the digest's hex digits. The kinds delegation writes
+get their fields as it is built.
 
 **Hash rules.** Each `hash` is `sha256:` followed by the SHA-256 of the entry without
 `hash`, serialized as canonical JSON: keys sorted, no insignificant whitespace, UTF-8,
