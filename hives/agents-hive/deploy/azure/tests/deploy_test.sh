@@ -10,11 +10,13 @@
 # deploy.sh from a throwaway git checkout, since it deploys only a clean one.
 #
 # Rollback: from a checkout whose passport went from v1 to v2, --rollback 1 deploys v1's
-# commit, through every gated step, and records who did it in the audit log and why in a
-# record beside it. A modelDeployment that isn't the model v1 pins, a pinned model the
-# catalog no longer has, a version that isn't earlier, a missing reason and a passport
-# from before trust evaluation each stop it before any change. Bash 3.2 safe; run it with
-# /bin/bash on macOS.
+# commit, through every gated step, with v1's promotion check, and records who did it in
+# the audit log and why in a record beside it. Stopped before the app, it records nothing;
+# deployed but unable to write the audit log, it fails, naming the command that records
+# it. A modelDeployment that isn't the model v1 pins, a pinned model the catalog no longer
+# has, a version that isn't earlier, a missing reason and a passport from before trust
+# evaluation each stop it before any change. Bash 3.2 safe; run it with /bin/bash on
+# macOS.
 #
 # Usage: tests/deploy_test.sh           (from hives/agents-hive/deploy/azure, or anywhere)
 set -u
@@ -76,9 +78,10 @@ deepseek='{"deployment": "review-c", "format": "DeepSeek", "name": "DeepSeek-V3.
 # run CASE BICEP — deploy.sh from a clean checkout holding BICEP as main.bicep, with
 # $MODELS (a JSON array, default GPT-5.4 and DeepSeek) as the models parameter and
 # $CHOSEN (default the first model's deployment) as modelDeployment, answering $ANSWER
-# (default no) at every prompt, with deploy_args before the positional ones. With
-# $HISTORY set, Patricia's passport is v1, pinning $PINNED (default claude-x 1), in one
-# commit and v2, pinning GPT-5.4, in the next; $NO_EVAL_AT_V1 leaves trust_eval.py out of v1.
+# (default no) at every prompt, or $ANSWERS in turn, with deploy_args before the
+# positional ones. With $HISTORY set, Patricia's passport is v1, pinning $PINNED (default
+# claude-x 1), in one commit and v2, pinning GPT-5.4, in the next, whose promotion check
+# says so; $NO_EVAL_AT_V1 leaves trust_eval.py out of v1.
 deploy_args=()
 run() {
   export STUB="$work/$1"
@@ -113,11 +116,15 @@ PY
     passport "$repo" 1 "$1" "$2"
     [ -z "${NO_EVAL_AT_V1:-}" ] || git -C "$repo" rm -q --cached hives/agents-hive/scripts/trust_eval.py
     git -C "$repo" -c user.name=test -c user.email=test@example.com commit -q -m v1
+    echo 'print("checked by v2'"'"'s promotion check")' >> "$repo/hives/agents-hive/scripts/trust_eval.py"
     passport "$repo" 2 gpt-5.4 2026-03-05
   fi
   git -C "$repo" add -A
   git -C "$repo" -c user.name=test -c user.email=test@example.com commit -q -m test
-  out=$(printf '%s\n' "${ANSWER:-no}" "${ANSWER:-no}" "${ANSWER:-no}" "${ANSWER:-no}" |
+  local answers=${ANSWERS:-"${ANSWER:-no} ${ANSWER:-no} ${ANSWER:-no} ${ANSWER:-no}"}
+  # One answer per word.
+  # shellcheck disable=SC2086
+  out=$(printf '%s\n' $answers |
     PATH="$work/bin:$PATH" /bin/bash "$dir/deploy.sh" ${deploy_args[@]+"${deploy_args[@]}"} \
     rg-test eastus2 p.bicepparam 2>&1)
   code=$?
@@ -295,6 +302,24 @@ assert "Charter" not in (log / "audit.jsonl").read_text()
 PY'
 check "rollback: the worktree is removed afterwards" \
   eval '[ "$(git -C "$STUB/repo" worktree list | wc -l)" -eq 1 ]'
+check "rollback: the promotion check is v1's, not the checked-out one" \
+  eval 'has "patricia: baseline recorded against its pins" && ! has "checked by v2.s promotion check"'
+
+# Stopped at the app: the infrastructure and image stand, but nothing is recorded.
+deploy_args=(--rollback 1 --reason "why" --by usr_test --audit "$work/rbstop/audit/audit.jsonl")
+HISTORY=1 MODELS="[$gpt, $claude]" CHOSEN=review-a ANSWERS="yes yes no" run rbstop "$bicep"
+check "rollback: stopped before the app, nothing is recorded" \
+  eval '[ "$code" -ne 0 ] && has "== 3/3 app" && has "stopped; nothing more was changed" \
+   && [ "$(grep -c "^deployment group create" "$STUB/calls")" -eq 1 ] && [ ! -e "$STUB/audit" ]'
+
+# Deployed, but the audit log can't be written: it fails, saying how to record it.
+mkdir -p "$work/rbunrec" && : > "$work/rbunrec/file"
+deploy_args=(--rollback 1 --reason "why" --by usr_test --audit "$work/rbunrec/file/audit.jsonl")
+HISTORY=1 MODELS="[$gpt, $claude]" CHOSEN=review-a ANSWER=yes run rbunrec "$bicep"
+check "rollback: deployed but not recorded, it fails naming the command that records it" \
+  eval '[ "$code" -ne 0 ] && [ "$(grep -c "^deployment group create" "$STUB/calls")" -eq 2 ] \
+   && has "deployed at passport v1, but the rollback wasn.t recorded" \
+   && has "rollback.py record patricia $(v1) --by usr_test" && ! has Traceback'
 
 deploy_args=(--rollback 1 --reason "v2 misreads the Charter" --by usr_test --audit "$work/rbmodel/audit/audit.jsonl")
 HISTORY=1 ANSWER=yes run rbmodel "$bicep"

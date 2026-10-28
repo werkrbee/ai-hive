@@ -191,15 +191,20 @@ same what-if and typed yes at each step.
 
 Before any change, it checks that she was ever that version and that it is earlier than
 the one checked out, and it runs the promotion check as it was at that commit, against the
-results recorded then, since that passport's baseline still applies. A version from before
-trust evaluation can't be promoted, so it can't be rolled back to. `modelDeployment` in
-the parameters must be the model that passport pins, by name and version, and the model
-check refuses it if the catalog no longer offers it as generally available, since a
-retired model can't come back. Once the app is deployed, the audit log (`--audit`, by
-default the workflows-hive engine's) records who rolled her back (`--by`, or
-`WORKFLOWS_HIVE_ACTOR`) and the digest of a record in `rollbacks/` beside it, which keeps
-the reason. If a step fails partway, nothing is recorded, and what was applied stays
-applied until the next deploy.
+results recorded then, since that passport's baseline still applies. That check can't see
+a result recorded later, so if a later evaluation of the same pins found something (drift,
+say, or a not-run), it names it in a warning before the first what-if, for you to weigh
+before typing yes. A version from before trust evaluation can't be promoted, so it can't
+be rolled back to. `modelDeployment` in the parameters must be the model that passport
+pins, by name and version, and the model check refuses it if the catalog no longer offers
+it as generally available, since a retired model can't come back. Once the app is
+deployed, the audit log (`--audit`, by default the workflows-hive engine's) records who
+rolled her back (`--by`, or `WORKFLOWS_HIVE_ACTOR`) and the digest of a record in
+`rollbacks/` beside it, which keeps the reason. If a step fails or you stop it partway,
+nothing is recorded, and what was applied stays applied until the next deploy. If the app
+deploys but the rollback can't be recorded (the audit log isn't writable, say),
+`deploy.sh` fails and prints the `rollback.py record` command to run once the cause is
+fixed.
 
 Some things a rollback doesn't restore. The role assignments a later deploy added stay,
 since a deploy adds roles but doesn't remove them. The ledger and the audit log keep

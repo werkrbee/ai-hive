@@ -74,6 +74,32 @@ class History(unittest.TestCase):
             with self.subTest(by=by, reason=reason), self.assertRaisesRegex(rb.RollbackError, why):
                 rb.plan("patricia", 2, by, reason)
 
+    def test_findings_recorded_since_against_the_earlier_pins_are_named(self):
+        results = self.repo / "results.jsonl"
+        pins = {"model": {"publisher": "test", "name": "claude-x", "version": "1"}}
+        digest = "sha256:" + rb.hashlib.sha256(rb.check_audit.canonical(pins)).hexdigest()
+
+        def entry(rid, found, pinned=digest):
+            return json.dumps({"id": rid, "eval": {"passport": "patricia", "pins": pinned, "findings": found}})
+
+        path = self.repo / rb.passport_path("patricia")
+        path.write_text(json.dumps({"passport": "patricia", "version": 5, "pins": pins,
+                                    "eval": {"baseline": {"result": "results.jsonl#base"}}}))
+        results.write_text(entry("base", []) + "\n")
+        self.git("add", "-A")
+        self.git("commit", "-q", "-m", "v5")
+        then = self.git("rev-parse", "HEAD")
+        self.assertEqual(rb.newer_findings("patricia", then), [])
+        self.commit(6, "gpt-5.4", "e")
+        with results.open("a") as f:
+            for line in (entry("later-pass", []), entry("later-drift", ["drift", "cost"]),
+                         entry("other-pins", ["drift"], "sha256:00")):
+                f.write(line + "\n")
+        self.git("add", "-A")
+        self.git("commit", "-q", "-m", "results")
+        self.assertEqual(rb.newer_findings("patricia", then), ["later-drift (drift, cost)"])
+        self.assertEqual(rb.newer_findings("patricia", self.commits["c"]), [])  # v2 has no eval
+
     def test_the_record_keeps_the_reason_and_the_log_only_who_and_the_records_digest(self):
         audit = self.repo / "state" / "audit.jsonl"
         entry, path = rb.record("patricia", self.commits["c"], "usr_7f3a", "v4 misreads the Charter", audit)

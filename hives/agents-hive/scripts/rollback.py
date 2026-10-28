@@ -5,10 +5,11 @@ A passport's history is its git history, so rolling an agent back is deploying t
 at which its passport was that version, with the model, prompt files and policy it pins.
 deploy.sh --rollback uses this script twice. plan finds the newest commit before the
 checked-out one at which the passport was VERSION, and prints it with the model that
-passport pins, for deploy.sh to check against the model catalog and the parameters.
-record, once the deploy is done, writes a rollback record beside the audit log, with who
-rolled the agent back and why, and a rollback entry to the log naming the record's
-digest, since the log itself holds no free text.
+passport pins, for deploy.sh to check against the model catalog and the parameters, and
+warns of any findings recorded since against that passport's pins, which the promotion
+check at that commit can't see. record, once the deploy is done, writes a rollback record
+beside the audit log, with who rolled the agent back and why, and a rollback entry to the
+log naming the record's digest, since the log itself holds no free text.
 
 Standard library only.
 
@@ -80,6 +81,44 @@ def find(persona, version):
     raise RollbackError(f"passport {persona} was never version {version} in this checkout's history")
 
 
+def results_at(commit, path):
+    """The entries of the results.jsonl at path as it was at commit, by id, or {} when it
+    didn't exist then."""
+    try:
+        text = git("show", f"{commit}:{path}")
+    except RollbackError:
+        return {}
+    found = {}
+    for line in text.splitlines():
+        try:
+            entry = json.loads(line)
+        except ValueError:
+            continue
+        if isinstance(entry, dict) and isinstance(entry.get("id"), str):
+            found[entry["id"]] = entry
+    return found
+
+
+def newer_findings(persona, commit):
+    """The results recorded since commit that found something against the pins of the
+    persona's passport at commit, as "ID (FINDINGS)". The promotion check at commit reads
+    the results file as it was then, so it can't see them."""
+    then = passport_at(commit, persona)
+    ref = ((then.get("eval") or {}).get("baseline") or {}).get("result")
+    if not isinstance(ref, str) or "pins" not in then:
+        return []
+    path = ref.split("#", 1)[0]
+    pins = "sha256:" + hashlib.sha256(check_audit.canonical(then["pins"])).hexdigest()
+    recorded = results_at(commit, path)
+    found = []
+    for rid, entry in results_at("HEAD", path).items():
+        ev = entry.get("eval") or {}
+        if rid not in recorded and ev.get("passport") == persona and ev.get("pins") == pins \
+                and ev.get("findings"):
+            found.append(f"{rid} ({', '.join(map(str, ev['findings']))})")
+    return found
+
+
 def check_reason(by, reason):
     if not check_audit.opaque(by):
         raise RollbackError(f"{by!r} isn't an actor ID: use an opaque identifier, never a name or email "
@@ -113,10 +152,10 @@ def record(persona, commit, by, reason, audit=DEFAULT_AUDIT, via="cli"):
     rec_id = check_audit.digest(rec)
     audit = Path(audit).expanduser()
     path = audit.parent / "rollbacks" / f"{rec_id.split(':', 1)[1]}.json"
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(rec, indent=2) + "\n")  # the record exists before the log names it
     agent = {"passport": persona, "version": after["version"], "sha256": rec["to"]["sha256"]}
     try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(rec, indent=2) + "\n")  # the record exists before the log names it
         entry = check_audit.append(audit, {"kind": "rollback", "agent": agent, "by": by, "via": via, "record": rec_id})
     except (check_audit.AuditError, OSError) as e:
         raise RollbackError(f"audit log {audit}: {e}") from None
@@ -139,7 +178,13 @@ def main():
     args = ap.parse_args()
     try:
         if args.command == "plan":
-            print(plan(args.persona, args.version, args.by, args.reason))
+            planned = plan(args.persona, args.version, args.by, args.reason)
+            later = newer_findings(args.persona, planned.split()[0])
+            if later:
+                print(f"warning: since that commit, evaluations of passport {args.persona} v{args.version}'s "
+                      f"pins found: {'; '.join(later)}. Its promotion check reads only the results "
+                      "recorded then, so it doesn't see them.", file=sys.stderr)
+            print(planned)
         else:
             entry, path = record(args.persona, args.commit, args.by, args.reason, args.audit)
             print(f"recorded: {args.persona} rolled back to v{entry['agent']['version']}, entry {entry['seq']} "

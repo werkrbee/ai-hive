@@ -11,13 +11,14 @@
 #   2. the image, built in the new registry from this commit
 #   3. the app, running that image
 #
-# --rollback VERSION rolls Patricia back to an earlier passport version instead: it deploys
-# the newest commit at which her passport was VERSION, from a temporary worktree, with the
-# model, prompt files and policy that passport pins. The same checks run against that
-# commit, and modelDeployment must be the model it pins, so a model the catalog has since
-# retired stops it. Once the app is deployed, the audit log records who rolled her back
-# (--by, or WORKFLOWS_HIVE_ACTOR) and the digest of a record, beside the log, that keeps
-# the reason.
+# --rollback VERSION rolls Patricia back to an earlier passport version instead: it
+# deploys the newest commit at which her passport was VERSION, from a temporary worktree,
+# with the model, prompt files and policy that passport pins. The same checks run against
+# that commit, and modelDeployment must be the model it pins, so a model the catalog has
+# since retired stops it. It warns of findings recorded since against those pins, which
+# that commit's promotion check can't see. Once the app is deployed, the audit log records
+# who rolled her back (--by, or WORKFLOWS_HIVE_ACTOR) and the digest of a record, beside
+# the log, that keeps the reason.
 #
 # Usage: ./deploy.sh [--rollback VERSION --reason TEXT [--by ACTOR-ID] [--audit PATH]]
 #                    <resource-group> <location> <params.bicepparam>
@@ -263,7 +264,13 @@ echo "== 3/3 app"
 outputs=$(deploy "$registry/hive-a2a:$tag")
 echo "Agent Card: $(output "$outputs" agentCard)"
 
-if [ -n "$rollback" ]; then
-  python3 "$root/hives/agents-hive/scripts/rollback.py" record patricia "$commit" --by "$by" \
-    --reason "$reason" ${audit:+--audit "$audit"}
+# The app is deployed by now, so a rollback that can't be recorded says so, and how to
+# record it, rather than leaving the deploy unrecorded without a word.
+rollback_py=$root/hives/agents-hive/scripts/rollback.py
+if [ -n "$rollback" ] && ! python3 "$rollback_py" record patricia "$commit" --by "$by" \
+    --reason "$reason" ${audit:+--audit "$audit"}; then
+  echo "error: Patricia is deployed at passport v$rollback, but the rollback wasn't" \
+    "recorded; fix the cause above, then run: python3 $rollback_py record patricia" \
+    "$commit --by $by --reason <the reason>${audit:+ --audit $audit}" >&2
+  exit 1
 fi
