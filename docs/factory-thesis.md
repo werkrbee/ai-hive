@@ -2,6 +2,22 @@
 
 _Why werkrbee builds a harness-agnostic factory, not a pile of one-off products._
 
+## Vision and mission
+
+**Vision.** Every person and every organization on the planet is the world's best user of
+AI, and an expert at it.
+
+**Mission.** ai-hive is the AI agent development framework that gets them there. It is
+obsessed with how to use AI: every model, every harness and every part of the craft, from
+prompts, context and tools to memory, knowledge graphs, evaluation, cost and governance.
+It turns what works into portable artifacts anyone can install, and explains why it works,
+so the people who use it become experts rather than depend on one.
+
+The factory below is how. A master's skill with AI is worth little if it stays in one
+person's head or one product's code; the factory is where it is encoded once and inherited
+by everyone who builds on the House. The rest of this note is the case for that approach,
+and the section on how to use AI says what the framework has to know.
+
 ## Executive summary
 
 There are two ways to build with AI agents.
@@ -105,6 +121,11 @@ before we ask "how do I fix lineup?" That's what turns a product into a proving 
 The measure of success is not any single product. It's the **slope**: the marginal cost
 of the next product trending toward zero, while quality trends up.
 
+werkrbee's small team is the first user, not the last. The mission is for anyone, so the
+same slope has to hold for a person or an organization adopting the framework: the time
+from first install to using AI well, and from there to being an expert at it, keeps
+falling as the framework learns.
+
 ## Why harness-agnostic is the moat
 
 A factory only compounds if it isn't bolted to one machine. Because every ai-hive
@@ -153,6 +174,35 @@ inherited by every agent the House produces, they make "governed" the default ra
 than something each product has to remember. The work is tracked on the
 `P2.1 — assurance loop` milestone (epic #122).
 
+## Obsessed with how to use AI
+
+A framework that makes people experts at AI has to be an expert itself, and stay one as
+models, harnesses and standards change every few months. ai-hive treats how to use AI as
+its subject, not a side effect of shipping products. For each part of the craft it holds
+what works, the evidence for it and the reason, as an artifact a person can read and an
+agent can run.
+
+- **Models.** What each model the House runs is good and bad at, its context, caching,
+  tool use and price, and the eval results that say so. A model is configuration chosen
+  by an eval, as Patricia's was, never a belief.
+- **Harnesses.** How each harness the hives install into handles skills, rules, memory,
+  sub-agents, hooks and MCP, and how to get the most from it. Barry's harness references
+  are the start.
+- **Context and memory.** What an agent should remember, where, for how long and for
+  whom; how memory is consolidated, corrected and forgotten; and how it stays inside its
+  trust boundary. knowledge-hive and the learning loop (P2.2) are the start.
+- **Knowledge graphs.** How to turn a body of knowledge, such as documents, records and
+  decisions, into a graph an agent can query with provenance, and when a graph beats
+  retrieval over plain text.
+- **Evaluation, cost and governance.** How to know an agent works, what an accepted
+  outcome costs, and how to hold an agent to what it may do. The assurance loop (P2.1) is
+  the start.
+
+Two things follow. The framework explains as well as does, because a person who only
+runs a black box hasn't become an expert. And it is kept current, because advice about AI
+goes stale faster than code: each artifact names what it was checked against and when,
+and a change in a model, a harness or a standard is a reason to check it again.
+
 ## What "the factory works" looks like
 
 Concrete success criteria we hold ourselves to:
@@ -171,6 +221,10 @@ Concrete success criteria we hold ourselves to:
 6. **Controls at the pace of autonomy.** Every agent the House ships carries a passport,
    a trust evaluation, an audit log, a way back and a human review queue, and no agent
    gains autonomy before its controls do.
+7. **Expertise people keep.** For every model, harness and part of the craft the House
+   uses, there is a current, evidenced artifact that says how to use it well and why, and
+   a person adopting the framework gets measurably better at using AI, not only at using
+   ai-hive.
 
 When those hold, the one singular task is handled *and* the factory behind it is
 stronger for the next one. That is the werkrbee superpower: a small team with agency,

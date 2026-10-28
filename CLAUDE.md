@@ -10,6 +10,12 @@ agent products. It is not an app; it is the reusable layers apps are assembled f
 guiding thesis: build the factory, then the product (`docs/factory-thesis.md`), and keep a
 product's capabilities independent of any one interface (`docs/interface-independence.md`).
 
+**Vision and mission.** Every person and every organization on the planet is the world's
+best user of AI, and an expert at it; ai-hive is the framework that gets them there. It is
+obsessed with how to use AI across every model, harness and part of the craft (memory,
+knowledge graphs, evaluation, cost, governance), and it explains why what works works, so
+its users become experts. Advice about AI names its evidence and when it was checked.
+
 **Monorepo.** The hives live under `hives/` as plain directories (migrated off git
 submodules — see `scripts/monorepo-migrate.sh`). Change them with ordinary edits; PRs can
 span hives atomically.
