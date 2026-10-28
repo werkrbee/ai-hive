@@ -193,7 +193,10 @@ twice its baseline's per case is flagged to the review queue without counting as
 Model output varies, so a run that drifts is run once more, and drift is recorded only
 when both runs drift. A critical case missed in either run still sends an item to the
 review queue, marked as an unconfirmed miss, so a governance gate that fails even once
-leaves a trace.
+leaves a trace. An evaluation that doesn't answer every case, because the ceiling refused
+it or the provider failed a case, is flagged as not run. It is never a pass, and three in
+a row on the same pins hold promotion, or two when the same critical case errored in both,
+until one meets the baseline or a person approves each.
 
 **When it runs.** On any new passport version, before it is deployed, because `deploy.sh`
 refuses a passport whose baseline result wasn't recorded against its exact pins. That is

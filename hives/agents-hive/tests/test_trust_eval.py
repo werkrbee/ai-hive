@@ -278,6 +278,91 @@ class Promotion(Recorded):
         self.record([run(miss=[CRITICAL[0]], usd=0.05), run()])
         self.assertEqual(te.holds(PATRICIA, self.current(), self.engine.items(None)), [])
 
+    def not_run(self, errored=("local-typo",)):
+        """Record an evaluation the provider failed on the cases in errored."""
+        out = [dict(o, errored=o["id"] in errored) for o in outcomes()]
+        return self.record([te.run_record(SUITE, out)])
+
+    def unanswered(self):
+        history = te.vp.read_results(self.results).values()
+        return te.unanswered(PATRICIA, CRITICAL, history, self.engine.items(None))
+
+    def test_repeated_not_run_evaluations_hold_promotion_until_one_meets_its_baseline(self):
+        for _ in range(te.NOT_RUN_LIMIT - 1):
+            self.not_run()
+        self.assertEqual(self.unanswered(), [])  # a flag, until the limit
+        entry, _ = self.not_run()
+        problems = self.unanswered()
+        self.assertEqual(len(problems), 1)
+        self.assertIn(f"its last {te.NOT_RUN_LIMIT} evaluations on these pins were not run, through {entry['id']}",
+                      problems[0])
+        self.assertNotIn("critical", problems[0])
+        with mock.patch.object(te, "results_file", lambda p: self.results):
+            self.assertIn(problems[0], te.promotion("patricia", self.engine))
+        self.record([run()])
+        self.assertEqual(self.unanswered(), [])
+
+    def test_a_person_approving_each_not_run_item_releases_promotion(self):
+        items = [self.not_run()[1][0] for _ in range(te.NOT_RUN_LIMIT)]
+        for item in items[:-1]:
+            self.engine.answer_item(item["id"], "approved")
+        self.assertEqual(len(self.unanswered()), 1)
+        self.engine.answer_item(items[-1]["id"], "denied", reason="the provider is still failing")
+        self.assertEqual(len(self.unanswered()), 1)  # denied holds it
+        self.not_run()
+        for item in self.engine.items(None):
+            if item["status"] == "open":
+                self.engine.answer_item(item["id"], "approved")
+        self.assertEqual(len(self.unanswered()), 1)  # the denied one still holds
+        self.record([run()])
+        self.assertEqual(self.unanswered(), [])
+
+    def test_a_critical_case_that_errored_in_a_row_holds_promotion_sooner(self):
+        self.not_run(errored=(CRITICAL[0], "local-typo"))
+        self.assertEqual(self.unanswered(), [])
+        self.not_run(errored=(CRITICAL[1],))  # a different critical case: no hold yet
+        self.assertEqual(self.unanswered(), [])
+        self.not_run(errored=(CRITICAL[1], "local-typo"))
+        self.assertEqual(len(self.unanswered()), 1)  # three not run, too
+        self.record([run()])
+        for _ in range(te.CRITICAL_LIMIT):
+            self.not_run(errored=(CRITICAL[0], "local-typo"))
+        problems = self.unanswered()
+        self.assertEqual(len(problems), 1)
+        self.assertIn(f"its last {te.CRITICAL_LIMIT} evaluations on these pins were not run", problems[0])
+        self.assertIn(f"critical cases that errored in the last {te.CRITICAL_LIMIT}: {CRITICAL[0]}", problems[0])
+        for item in self.engine.items(None):
+            if item["status"] == "open":
+                self.engine.answer_item(item["id"], "approved")
+        self.assertEqual(self.unanswered(), [])
+
+    def test_a_hand_edited_entry_without_runs_names_no_critical_case(self):
+        for _ in range(te.CRITICAL_LIMIT):
+            self.not_run(errored=(CRITICAL[0],))
+        history = copy.deepcopy(list(te.vp.read_results(self.results).values()))
+        for runs in (None, [], ["not an object"]):
+            for entry in history:
+                if runs is None:
+                    entry["eval"].pop("runs", None)
+                else:
+                    entry["eval"]["runs"] = runs
+            self.assertEqual(te.unanswered(PATRICIA, CRITICAL, history, self.engine.items(None)), [])
+        self.not_run(errored=(CRITICAL[0],))
+        history = copy.deepcopy(list(te.vp.read_results(self.results).values()))
+        for entry in history:
+            entry["eval"].pop("runs", None)
+        problems = te.unanswered(PATRICIA, CRITICAL, history, self.engine.items(None))
+        self.assertEqual(len(problems), 1)  # three not run still hold it
+        self.assertNotIn("critical", problems[0])
+
+    def test_not_run_evaluations_on_other_pins_dont_count(self):
+        for _ in range(te.NOT_RUN_LIMIT):
+            self.not_run()
+        p = copy.deepcopy(PATRICIA)
+        p["pins"]["suite"]["sha256"] = "0" * 64
+        history = te.vp.read_results(self.results).values()
+        self.assertEqual(te.unanswered(p, CRITICAL, history, self.engine.items(None)), [])
+
     def test_a_passport_without_an_eval_cant_be_promoted(self):
         problems = te.promotion("barry", self.engine)
         self.assertEqual(problems, ["passport barry has no eval: only an agent with a model pin is evaluated"])

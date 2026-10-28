@@ -824,8 +824,8 @@ class Engine:
         present what a person needs to judge it. finding is drift (the agent's runs fell below
         its baseline, which holds promotion until a person answers), or a flag that doesn't
         hold it: unconfirmed-miss (a critical case missed once), cost (a run cost more than
-        twice its baseline's per case) or not-run (the ceiling refused the eval). None
-        expires."""
+        twice its baseline's per case) or not-run (the eval didn't answer every case; the
+        trust evaluation holds promotion after several in a row). None expires."""
         if finding not in FINDINGS:
             raise EngineError(f"a trust evaluation finds one of {', '.join(FINDINGS)}, not {finding!r}")
         created = stamp(self.clock())

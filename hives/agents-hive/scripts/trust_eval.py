@@ -13,7 +13,10 @@ answer every case, because the ceiling refused it or a case errored (not-run). E
 evaluation is an entry in results.jsonl and in the audit log.
 
 Promotion is what deploy.sh checks before it deploys: the passport is valid, its baseline
-was recorded against its exact pins, and no drift for it holds promotion. Design:
+was recorded against its exact pins, no drift for it holds promotion, and its latest
+evaluations on those pins haven't all gone unanswered: NOT_RUN_LIMIT not-run evaluations
+in a row, or CRITICAL_LIMIT when the same critical case errored in each, hold it until
+one meets its baseline or a person approves each. Design:
 docs/assurance-loop.md.
 
 Standard library only.
@@ -32,6 +35,8 @@ from pathlib import Path
 HIVE = Path(__file__).resolve().parent.parent
 REPO_ROOT = HIVE.parent.parent
 COST_FACTOR = 2  # a run costing more than this times its baseline's per case is flagged
+NOT_RUN_LIMIT = 3  # this many not-run evaluations in a row on the same pins hold promotion
+CRITICAL_LIMIT = 2  # or this many, when the same critical case errored in every one
 
 
 def load(path, name):
@@ -239,7 +244,41 @@ def promotion(persona, e):
         p = passport(persona)
     except EvalError as err:
         return [str(err)]
-    return holds(p, baseline(p), e.items(None))
+    items = e.items(None)
+    history = vp.read_results(results_file(p)).values()
+    return holds(p, baseline(p), items) + unanswered(p, critical(cases(p)), history, items)
+
+
+def unanswered(p, crit, history, items):
+    """What holds the passport p back when its trust evaluation keeps failing to answer:
+    its latest evaluations on its current pins, in results.jsonl's order (history), were
+    all not-run, NOT_RUN_LIMIT or more of them, or CRITICAL_LIMIT or more with the same
+    critical case (one of crit) errored in every run, and a person hasn't approved the
+    not-run item each sent the review queue. Any other evaluation ends the streak. An
+    entry whose runs are missing, empty or not objects names no case as errored, so only
+    the NOT_RUN_LIMIT holds it."""
+    streak = []
+    for entry in history:
+        ev = entry.get("eval") or {}
+        if ev.get("passport") != p["passport"] or ev.get("pins") != pins_digest(p):
+            continue
+        streak = streak + [entry] if "not-run" in (ev.get("findings") or []) else []
+    errored = set(crit)
+    for entry in streak[-CRITICAL_LIMIT:]:
+        for run in entry["eval"].get("runs") or [{}]:
+            errored &= set(run.get("errored") or []) if isinstance(run, dict) else set()
+    if len(streak) < NOT_RUN_LIMIT and not (len(streak) >= CRITICAL_LIMIT and errored):
+        return []
+    approved = {item["source"].get("result") for item in items
+                if item["kind"] == "drift" and item["source"].get("finding") == "not-run"
+                and (item.get("answer") or {}).get("decision") == "approved"}
+    if all(entry["id"] in approved for entry in streak):
+        return []
+    text = (f"its last {len(streak)} evaluations on these pins were not run, through "
+            f"{streak[-1]['id']}; promotion waits until one meets its baseline or a person approves "
+            "each one's not-run item")
+    return [text + (f"; critical cases that errored in the last {CRITICAL_LIMIT}: {', '.join(sorted(errored))}"
+                    if errored else "")]
 
 
 def holds(p, entry, items):
