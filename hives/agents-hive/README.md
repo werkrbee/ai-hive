@@ -72,11 +72,11 @@ one the contract grants or puts under approval, nothing the contract puts under 
 is granted, and each budget figure is at most the contract's. `never` writes out what the
 agent may not do even with a human's approval; Patricia's lists every action but
 `fs.read`. `delegates` names the passports it may hand work to. `pins` holds the model,
-each prompt file and the policy file, with their SHA-256 digests, so a change to the
-Charter, a skill or the policy fails CI until the passports that run on it are updated and
-their `version` bumped. `eval` names the agent's suite, its baseline (the cases met and
-the `results.jsonl` entry that records the run) and its threshold, and only an agent with
-a model pin can have one, since a baseline belongs to a model.
+each prompt file, the policy file and the eval suite, with their SHA-256 digests, so a
+change to the Charter, a skill, the policy or a case fails CI until the passports that run
+on it are updated and their `version` bumped. `eval` names the agent's suite, its baseline
+(the cases met and the `results.jsonl` entry that records the run) and its threshold, and
+only an agent with a model pin can have one, since a baseline belongs to a model.
 
 The schema is [`schema/passport.schema.json`](schema/passport.schema.json).
 `scripts/validate_passports.py` checks every passport against it and against its contract,
@@ -126,9 +126,11 @@ the `eval.baseline` that would make it the baseline for its pins. `deploy.sh` ru
 `trust_eval.py promotion patricia` before anything else and refuses a passport whose
 baseline wasn't recorded against its exact pins, or that drift holds.
 
-Patricia's baseline is her fourth 2026-10-27 run, 17 of 17 with the adversarial cases, on
-`review-a`, the deployment pinned to Claude Sonnet 5.5. Her first, the 2026-10-21 run, was
-recorded on the pins before the Charter changed, and the next on the first twelve cases.
+Patricia's baseline is her fifth 2026-10-27 run, 17 of 17 with the adversarial cases, on
+`review-a`, the deployment pinned to Claude Sonnet 5.5, recorded after her suite was
+pinned (#149). Her first, the 2026-10-21 run, was recorded on the pins before the Charter
+changed, the next on the first twelve cases, and the fourth 2026-10-27 run on the pins
+before her suite was one of them.
 The weekly scheduled run, as a Container Apps job under her identity, is deployed with the
 rest of her controls (#133).
 

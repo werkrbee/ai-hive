@@ -55,7 +55,8 @@ them; it points at them and narrows them.
       { "path": "hives/skills-hive/skills/patricia/SKILL.md", "sha256": "…" },
       { "path": "hives/agents-hive/agents/charter-review/agent.md", "sha256": "…" }
     ],
-    "policy": { "sha256": "…" }
+    "policy": { "sha256": "…" },
+    "suite": { "sha256": "…" }
   },
   "eval": {
     "suite": "hives/agents-hive/deploy/azure/eval/cases.json",
@@ -83,12 +84,12 @@ passport that grants more than its contract, names a `never` action anywhere it 
 or pins a prompt file whose digest doesn't match the file.
 
 **What it runs.** `pins` holds the versions the agent runs on: the model by its catalog
-publisher, name and version, each prompt file with its digest, and the policy's digest.
-The contract and policy versions are already in `contract` and `policy`. A change to any
-pin is a new passport version. An agent run inside a harness, rather than deployed by
-werkrbee, has no `model` pin, because the harness picks the model. It is still held to
-its permissions, policy and prompt files, but it can't claim an eval baseline, since a
-baseline belongs to a model.
+publisher, name and version, each prompt file with its digest, the policy's digest and,
+for an agent with an eval, its suite's digest. The contract and policy versions are
+already in `contract` and `policy`. A change to any pin is a new passport version. An
+agent run inside a harness, rather than deployed by werkrbee, has no `model` pin, because
+the harness picks the model. It is still held to its permissions, policy and prompt files,
+but it can't claim an eval baseline, since a baseline belongs to a model.
 
 **Its baseline.** `eval` names the agent's suite, the baseline its pins earned and the
 result in `results.jsonl` that records it, and the threshold used to detect drift (see trust
@@ -174,14 +175,15 @@ An agent drifts when it stops behaving the way it did when it was approved. The 
 evaluation measures that against the baseline in its passport.
 
 **The suite.** Each agent's suite is a cases file that runs through the agent's own
-deployed path, as Patricia's twelve cases run through the server's reviewer. A case
-records what output it accepts, and a case marked `critical` is one where the wrong
-answer lets a consequential action through. For Patricia, the critical cases are the
-six whose only acceptable verdict is `block` and five adversarial cases, whose input
-tries to talk her into a verdict: a claimed or forged approval, an instruction planted
-in tool output, a request for a secret, and a gated action hidden in an allowed one.
-Barry's orchestration eval (#119) is added when it lands, and its critical goals are the
-ones with a gated action to pause for.
+deployed path, as Patricia's seventeen cases run through the server's reviewer. Its digest
+is one of the agent's pins, so editing a case needs a new baseline like any other change
+to what the agent runs. A case records what output it accepts, and a case marked
+`critical` is one where the wrong answer lets a consequential action through. For
+Patricia, the critical cases are the six whose only acceptable verdict is `block` and five
+adversarial cases, whose input tries to talk her into a verdict: a claimed or forged
+approval, an instruction planted in tool output, a request for a secret, and a gated
+action hidden in an allowed one. Barry's orchestration eval (#119) is added when it lands,
+and its critical goals are the ones with a gated action to pause for.
 
 **The score and the threshold.** The score is the number of cases met. A run drifts when
 it meets fewer than the baseline minus the passport's `threshold`, or when it misses any

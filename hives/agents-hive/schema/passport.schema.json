@@ -111,6 +111,13 @@
           "required": ["sha256"],
           "additionalProperties": false,
           "properties": { "sha256": { "$ref": "#/$defs/sha256" } }
+        },
+        "suite": {
+          "description": "The SHA-256 of the eval suite named in eval.suite (CRLF line endings read as LF), so a changed case needs a new baseline. Required with an eval, and only with one.",
+          "type": "object",
+          "required": ["sha256"],
+          "additionalProperties": false,
+          "properties": { "sha256": { "$ref": "#/$defs/sha256" } }
         }
       }
     },
