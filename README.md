@@ -27,11 +27,10 @@ so the people who use it become experts rather than depend on one. Write-up:
 [`docs/factory-thesis.md`](docs/factory-thesis.md#vision-and-mission).
 
 **How: build the factory, then the product.** werkrbee is a bet on building the
-**factory**, not one-off products. Instead of
-prompting an agent, shipping one app, and starting over from zero, ai-hive builds the
-reusable layer that *stamps out* agent products — so every next product ships faster and
-stronger. In Allie K. Miller's framing, we invest in the factory behind the task, not
-the task itself.
+**factory**, not one-off products. Instead of prompting an agent, shipping one app, and
+starting over from zero, ai-hive builds the reusable layer that *stamps out* agent
+products — so every next product ships faster and stronger. In Allie K. Miller's framing,
+we invest in the factory behind the task, not the task itself.
 
 - **Primitives** → open standards (`SKILL.md`, `AGENTS.md`, MCP) + connectors + reusable skills/rules/agents.
 - **The factory** → the House of Hives (the two-axis pattern, `plugins-hive` packs, `projects-hive` scaffolds).

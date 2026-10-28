@@ -5,8 +5,8 @@ refactor assessment: ai-hive is strong at design-time but the apps built on it (
 proved it needs a **runtime layer**, and the standards it rides (MCP, A2A, SKILL.md,
 AGENTS.md) have advanced. Rationale: `docs/interface-independence.md`, `docs/factory-thesis.md`.
 
-The vision is every person and organization on the planet being the world's best user of
-AI and an expert at it, and ai-hive is the framework that gets them there
+The vision is every person and every organization on the planet being the world's best
+user of AI, and an expert at it, and ai-hive is the framework that gets them there
 (`docs/factory-thesis.md`, "Vision and mission"). P0 to P2.2 build the factory and its
 controls; P3 makes how to use AI the framework's own subject.
 
