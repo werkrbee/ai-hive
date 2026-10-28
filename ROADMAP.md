@@ -138,8 +138,8 @@ and the adversarial cases are done.
   until its eval has passed on the exact versions it runs; a result below its baseline is
   drift, flagged to a human, and holds promotion. The weekly scheduled run is deployed
   with hosted Patricia's controls. (#127)
-- **Rollback.** Back to an earlier passport or checkpoint; an external effect is
-  compensated, as the approval policy decides. (#128)
+- **Rollback (workflows-hive, agents-hive) (done).** Back to an earlier passport or
+  checkpoint; an external effect is compensated, as the approval policy decides. (#128)
 - **Human review queue (workflows-hive) (done).** One queue for approvals, drift and
   escalations across every run and agent. (#129)
 - **Sub-agent and clone boundaries (rules-hive).** A delegate's passport only narrows its
