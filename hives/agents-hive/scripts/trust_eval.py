@@ -254,7 +254,9 @@ def unanswered(p, crit, history, items):
     its latest evaluations on its current pins, in results.jsonl's order (history), were
     all not-run, NOT_RUN_LIMIT or more of them, or CRITICAL_LIMIT or more with the same
     critical case (one of crit) errored in every run, and a person hasn't approved the
-    not-run item each sent the review queue. Any other evaluation ends the streak."""
+    not-run item each sent the review queue. Any other evaluation ends the streak. An
+    entry whose runs are missing, empty or not objects names no case as errored, so only
+    the NOT_RUN_LIMIT holds it."""
     streak = []
     for entry in history:
         ev = entry.get("eval") or {}
@@ -263,8 +265,8 @@ def unanswered(p, crit, history, items):
         streak = streak + [entry] if "not-run" in (ev.get("findings") or []) else []
     errored = set(crit)
     for entry in streak[-CRITICAL_LIMIT:]:
-        for run in entry["eval"]["runs"]:
-            errored &= set(run.get("errored") or [])
+        for run in entry["eval"].get("runs") or [{}]:
+            errored &= set(run.get("errored") or []) if isinstance(run, dict) else set()
     if len(streak) < NOT_RUN_LIMIT and not (len(streak) >= CRITICAL_LIMIT and errored):
         return []
     approved = {item["source"].get("result") for item in items

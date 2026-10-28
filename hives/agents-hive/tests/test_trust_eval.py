@@ -336,6 +336,25 @@ class Promotion(Recorded):
                 self.engine.answer_item(item["id"], "approved")
         self.assertEqual(self.unanswered(), [])
 
+    def test_a_hand_edited_entry_without_runs_names_no_critical_case(self):
+        for _ in range(te.CRITICAL_LIMIT):
+            self.not_run(errored=(CRITICAL[0],))
+        history = copy.deepcopy(list(te.vp.read_results(self.results).values()))
+        for runs in (None, [], ["not an object"]):
+            for entry in history:
+                if runs is None:
+                    entry["eval"].pop("runs", None)
+                else:
+                    entry["eval"]["runs"] = runs
+            self.assertEqual(te.unanswered(PATRICIA, CRITICAL, history, self.engine.items(None)), [])
+        self.not_run(errored=(CRITICAL[0],))
+        history = copy.deepcopy(list(te.vp.read_results(self.results).values()))
+        for entry in history:
+            entry["eval"].pop("runs", None)
+        problems = te.unanswered(PATRICIA, CRITICAL, history, self.engine.items(None))
+        self.assertEqual(len(problems), 1)  # three not run still hold it
+        self.assertNotIn("critical", problems[0])
+
     def test_not_run_evaluations_on_other_pins_dont_count(self):
         for _ in range(te.NOT_RUN_LIMIT):
             self.not_run()

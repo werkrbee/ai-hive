@@ -118,7 +118,8 @@ refused. A wrong verdict, or a reply the contract rejects, is still a miss. Thre
 evaluations in a row on the same pins that are all `not-run` do hold promotion, or two
 when the same critical case errored in both, until one meets its baseline or a person
 approves each one's item, so an agent whose provider keeps failing can't keep promoting on
-a baseline it no longer shows.
+a baseline it no longer shows. A critical case the ceiling stopped before it ran didn't
+error, so only the three-in-a-row rule counts it.
 
 [`scripts/trust_eval.py`](scripts/trust_eval.py) holds those rules. The runner,
 `deploy/azure/eval/run.py --passport patricia`, runs the suite against one server config
