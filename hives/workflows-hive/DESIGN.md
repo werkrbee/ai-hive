@@ -124,6 +124,12 @@ the policy doesn't require, but `approval: false` can't remove one it does.
   "actions": [{ "action": "vcs.push", "scope": { "remote": "origin" } }] }
 ```
 
+A step whose actions have an effect outside the system, any action but `fs.read`, can
+declare a `compensate` step: a `worker`, an `input` and optionally `actions`, `approval`
+and `budget`, checked like the step itself. Its input can read the step's own output, so
+it undoes what was done, such as a correction for a sent message. Rolling a run back past
+the step runs it (below).
+
 ## Run record (the checkpoint)
 
 Each run persists one record, keyed by its run ID:
@@ -162,20 +168,20 @@ Each run persists one record, keyed by its run ID:
 ```
 
 `next` is the step to run on resume. A step's `status` is `not_started`, `working`,
-`completed` or `failed`. Its `idempotencyKey` is the run ID and step ID, and never
-changes; `attempt` counts deliberate retries after a recorded failure, and resuming after
-a crash doesn't increase it. `pending` is set only while the run waits on input, and it
-becomes one entry in `inputRequests` on `tasks/get`, keyed by the step ID: an elicitation
-asking whether to run the step. Its `id` is the approval ID: the digest of the run ID,
-the step, the exact call, its gated `actions`, the mandates that gate them (`rules`) and
-the `values` of the items they must present. The same pause is an item in the review
-queue, below, and it expires seven days after `createdAt`, at `expiresAt`. The answer is
-kept on the step as `approval`: `decision` (`approved` or `denied`), `by`, `at`, `via`
-(`cli`, `mcp` or `a2a`), the `id` it answered, and for a denial its `reason`. `by` is an
-actor ID, which should be opaque. A step that needs approval runs only once its
-`approval.decision` is `approved` and its `approval.id` is the approval ID the step would
-pause on now, so resuming a paused run never runs it, and an approval of anything else is
-void. A denied
+`completed`, `failed` or `rolledBack`. Its `idempotencyKey` is the run ID and step ID, and
+resuming after a crash doesn't change it; `attempt` counts deliberate retries, and a step
+run again after a rollback is attempt 2 onward, with the attempt appended to its key.
+`pending` is set only while the run waits on input, and it becomes one entry in
+`inputRequests` on `tasks/get`, keyed by the step ID: an elicitation asking whether to run
+the step. Its `id` is the approval ID: the digest of the run ID, the step, the exact call,
+its gated `actions`, the mandates that gate them (`rules`) and the `values` of the items
+they must present. The same pause is an item in the review queue, below, and it expires
+seven days after `createdAt`, at `expiresAt`. The answer is kept on the step as
+`approval`: `decision` (`approved` or `denied`), `by`, `at`, `via` (`cli`, `mcp` or
+`a2a`), the `id` it answered, and for a denial its `reason`. `by` is an actor ID, which
+should be opaque. A step that needs approval runs only once its `approval.decision` is
+`approved` and its `approval.id` is the approval ID the step would pause on now, so
+resuming a paused run never runs it, and an approval of anything else is void. A denied
 approval fails the run, with the denial as its error, and the step never runs. A step
 stopped by its budget fails the run, with the reason as its error; a step over its cost
 cap keeps the cost it reported. `cost` is the sum of the step costs, including those, and
@@ -183,6 +189,22 @@ is reported with the result. `result` or `error` is filled when the run reaches 
 status. `agent` is the passport the run is under, if any, as its name, version and digest;
 the run keeps it, and its `never` actions are prohibitions. `audit` is the `seq` and
 `hash` of the last audit log entry written for the run.
+
+A person rolls a completed or failed run back to an earlier completed step, with a
+reason. Nothing is deleted. `rollback` holds the rollback while it is under way: the
+target (`to`), the step after it (`next`), the later steps with an effect to compensate,
+newest first, each with its compensating step's ID (`compensate-<step>-<attempt>`), the
+later steps that ran (`rolledBack`), who did it (`by`, `via`), when, why (`reason`), and
+the run's status, result and error before it; its `id` is the digest of those. Each
+compensating step runs as a step of the run, under that ID in `steps`, so it is decided,
+paused, budgeted and audited like any other. When the last one completes, each step in
+`rolledBack` gets `status: "rolledBack"` and `undone` (its status before, when, and the
+rollback's `id`), the record moves to `rollbacks`, and `next` is the step after the
+target; the run is `working`, waiting for resume. A rolled-back step runs again as a new
+attempt, with its earlier attempts kept under `history`. A compensating step that is
+denied or fails fails the run with the rollback unfinished; rolling back again tries the
+compensations that didn't complete, and keeps the unfinished record in `rollbacks`.
+`cost` is never reduced.
 
 The engine keeps these rules:
 
@@ -200,6 +222,9 @@ The engine keeps these rules:
    doesn't go on.
 7. Refuse an answer whose approval ID isn't what the run is waiting on, and an answer to
    a pause that has expired. Expiry fails the run.
+8. Roll back by adding, never by deleting: compensate each later step with an effect
+   outside the system, newest first, before marking any step `rolledBack`, and refuse a
+   rollback past an effect with no compensation.
 
 A cancelled run ends in `cancelled`, with who cancelled it as its `error`. The request is
 kept apart from the record until a process applies it, so the save of a step in flight
@@ -289,15 +314,16 @@ each answer's `by` and `via` as evidence.
 
 ## Out of scope here
 
-The reference engine (`scripts/run.py`) implements rules 1 to 7, approvals, policy-decided
-actions, passports, cancel, open runs, escalations and the review queue, with the two-step
-`word-count`, `approved-word-count` and `budgeted-word-count` workflows. It is a command
-and a Python module (`Engine`); open runs are offered only through the module. It applies
-rules-hive's own checker (`check_policy.py`), so the engine and the policy's cases can't
-disagree, and it reads only policies inside this repo. Its `approve` and `deny` commands
-stand in for `tasks/update`, and `cancel` for `tasks/cancel`. It stops a step past its
-`seconds` while it runs, in a child process whose start-up counts toward the cap, and
-stops only that process, not any it started. It checks `usd` and `tokens` against what the
-step reports when it finishes, so a worker that calls a model must keep itself within its
-cap. The MCP Tasks server comes later. Worker execution contracts live in agents-hive. The
-Temporal engine is built when a product calls for it, against this same contract.
+The reference engine (`scripts/run.py`) implements rules 1 to 8, approvals, policy-decided
+actions, passports, cancel, rollback, open runs, escalations and the review queue, with
+the two-step `word-count`, `approved-word-count` and `budgeted-word-count` workflows. It
+is a command and a Python module (`Engine`); open runs are offered only through the
+module. It applies rules-hive's own checker (`check_policy.py`), so the engine and the
+policy's cases can't disagree, and it reads only policies inside this repo. Its `approve`
+and `deny` commands stand in for `tasks/update`, and `cancel` for `tasks/cancel`. It stops
+a step past its `seconds` while it runs, in a child process whose start-up counts toward
+the cap, and stops only that process, not any it started. It checks `usd` and `tokens`
+against what the step reports when it finishes, so a worker that calls a model must keep
+itself within its cap. The MCP Tasks server comes later. Worker execution contracts live
+in agents-hive. The Temporal engine is built when a product calls for it, against this
+same contract.

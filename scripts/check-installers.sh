@@ -124,8 +124,8 @@ run "agents-hive entra.sh plan and refusals (stubbed az)" \
   bash hives/agents-hive/deploy/azure/tests/entra_test.sh
 
 # agents-hive: deploy.sh checks the passport, role ids and models before its first what-if,
-# against a stubbed az.
-run "agents-hive deploy.sh promotion, role id and model checks (stubbed az)" \
+# and rolls back to an earlier passport version, against a stubbed az.
+run "agents-hive deploy.sh promotion, role id and model checks, and rollback (stubbed az)" \
   bash hives/agents-hive/deploy/azure/tests/deploy_test.sh
 
 # agents-hive: prices.sh reads the Retail Prices API's pages, against a stubbed curl.

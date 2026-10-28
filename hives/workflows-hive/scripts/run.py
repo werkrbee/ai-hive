@@ -22,6 +22,12 @@ that digests exactly what the human is asked to approve. An answer must come fro
 interactive terminal and from outside any engine run, and a pause unanswered for seven days
 expires, which fails its run.
 
+A person can roll a completed or failed run back to an earlier step (rollback). Each later
+step with an effect outside the system is compensated first, newest first, by the
+compensate step its plan declares, and each later step that ran is marked rolledBack,
+never deleted. The rollback's reason stays in the run record, and the audit log records
+who did it and the record's digest.
+
 The engine is also a library (Engine, below). There a run can be open: it starts with no
 steps, grows a step at a time, and keeps model turns in its record beside the steps, so
 an agent loop resumed after a crash repeats neither a completed step nor a completed turn.
@@ -35,8 +41,10 @@ Usage:
   python3 scripts/run.py approve <run-id> [--id APPROVAL-ID] [--by ACTOR-ID]
   python3 scripts/run.py deny <run-id> --reason TEXT [--id APPROVAL-ID] [--by ACTOR-ID]
   python3 scripts/run.py cancel <run-id> [--by ACTOR-ID]
+  python3 scripts/run.py rollback <run-id> --to STEP --reason TEXT [--by ACTOR-ID]
 
-Exit status: 0 when the run completed, 2 when it is waiting for approval, 1 otherwise.
+Exit status: 0 when the run completed, 2 when it is waiting for approval, 1 otherwise. A
+rollback exits 0 once it is done, with the run waiting at the step after STEP for resume.
 
 Run records live in --state-dir (default: ~/.local/state/workflows-hive/runs). Plans are
 read from --workflows-dir (default: workflows/), and a worker's execution contract, if it
@@ -120,6 +128,20 @@ def wait(inp, _key, _cap):
 
 
 WORKERS = {"read-text": read_text, "count-words": count_words, "wait": wait}
+
+
+READS = ("fs.read",)  # actions with no effect outside the system
+
+
+def has_effect(step):
+    """Whether a step takes an action with an effect outside the system: any but a read. A
+    step that lists no actions takes none the engine knows of."""
+    return any(req["action"] not in READS for req in step.get("actions", []))
+
+
+def compensation_id(sid, attempt):
+    """The id of the step that compensates attempt of step sid."""
+    return f"compensate-{sid}-{attempt}"
 
 
 class EngineError(Exception):
@@ -235,14 +257,23 @@ def check_actions(step, policy):
 
 
 def check_step(step, workers, contracts_dir, policy):
-    """Refuse a step the engine couldn't run: a bad approval flag, an unknown worker, or a
-    budget or actions that don't check."""
+    """Refuse a step the engine couldn't run: a bad approval flag, an unknown worker, a
+    budget or actions that don't check, or a compensate step that doesn't."""
     if not isinstance(step.get("approval", False), bool):
         raise EngineError(f"step '{step['id']}': approval must be true or false")
     if step["worker"] not in workers:
         raise EngineError(f"step '{step['id']}': unknown worker '{step['worker']}'")
     check_budget(step, contracts_dir)
     check_actions(step, policy)
+    comp = step.get("compensate")
+    if comp is None:
+        return
+    if not isinstance(comp, dict) or not isinstance(comp.get("worker"), str) \
+            or not isinstance(comp.get("input"), dict):
+        raise EngineError(f"step '{step['id']}': compensate must be a step with a worker and an input object")
+    for key in sorted(set(comp) - {"worker", "input", "actions", "approval", "budget"}):
+        raise EngineError(f"step '{step['id']}': unknown field '{key}' in compensate")
+    check_step(dict(comp, id=f"compensate-{step['id']}"), workers, contracts_dir, policy)
 
 
 def load_plan(name, workflows_dir, workers, contracts_dir, policy):
@@ -596,81 +627,29 @@ class Engine:
                       "values": values, "actions": reqs}
 
     def execute(self, run, crash_after=None):
-        """Run every step that isn't completed, checkpointing after each one."""
+        """Run every step that isn't completed, checkpointing after each one. A run being
+        rolled back finishes its rollback instead, and stops there."""
         if run["status"] != "working":  # an ended or paused run never runs another step
             raise EngineError(f"run {run['runId']} is {run['status']}; only a working run executes")
         plan, policy = self.plan_of(run)
         if run["workflowVersion"] != plan["version"]:
             raise EngineError(f"run {run['runId']} started on version {run['workflowVersion']}, "
                               f"but the plan is now version {plan['version']}")
+        if run.get("rollback"):
+            return self.compensate(run, plan, policy, crash_after) or run
         ids = [s["id"] for s in plan["steps"]]
         for i, step in enumerate(plan["steps"]):
             sid = step["id"]
-            state = run["steps"][sid]
-            if state["status"] == "completed":
+            if run["steps"][sid]["status"] == "completed":
                 self.log(f"skip  {sid} (completed)")
                 continue
             if self.cancel_requested(run):
                 return run
-            run["next"] = sid
-            try:
-                inp = resolve(step["input"], run)
-            except Exception as e:  # an input that can't be resolved fails the step, as a worker would
-                message = f"{type(e).__name__}: {e}"
-                state.update(status="failed", endedAt=now())
-                self.audit(run, "step.failed", step=sid)
-                self.log(f"fail  {sid} ({message})")
-                return self.end(run, "failed", error={"step": sid, "message": message})
-            try:
-                denied, pending = self.decide(run, step, policy, inp)
-            except EngineError:
-                raise
-            except Exception as e:  # the actions couldn't be decided, which fails the run too
-                detail = str(e) if isinstance(e, BadAction) else f"{type(e).__name__}: {e}"
-                message = f"actions: {detail}"
-                self.audit(run, "step.failed", step=sid)
-                self.log(f"fail  {sid} ({message})")
-                return self.end(run, "failed", error={"step": sid, "message": message})
-            if denied:  # a prohibition holds even after a human's approval
-                self.log(f"deny  {sid} ({denied})")
-                return self.end(run, "failed", error={"step": sid, "message": denied})
-            if pending:
-                # Pause before the step: nothing runs until a human approves it, through the queue.
-                self.pause(run, pending)
-                why = f" under {', '.join(pending['rules'])}" if pending["rules"] else ""
-                show = f", showing {', '.join(pending['present'])}" if pending["present"] else ""
-                self.log(f"wait  {sid} (needs approval{why}{show}; review_queue.py show {pending['id']})")
-                return run
-            state.update(status="working", startedAt=now())
-            self.save(run)
-            self.log(f"run   {sid}")
-            cap = step.get("budget", {})
-            try:
-                with marked(run["runId"]):
-                    output, cost = call_worker(self.workers[step["worker"]], inp, state["idempotencyKey"], cap)
-            except Exception as e:  # a failed step fails the run, with the reason recorded
-                message = str(e) if isinstance(e, OverBudget) else f"{type(e).__name__}: {e}"
-                state.update(status="failed", endedAt=now())
-                self.audit(run, "budget.refused" if isinstance(e, OverBudget) else "step.failed", step=sid)
-                self.log(f"fail  {sid} ({message})")
-                return self.end(run, "failed", error={"step": sid, "message": message})
-            over = over_cost(cost, cap)
-            if over:  # the cost was spent, so it is recorded and counted, but the run stops
-                state.update(status="failed", cost=cost, endedAt=now())
-                add_cost(run["cost"], cost)
-                self.audit(run, "budget.refused", step=sid)
-                self.log(f"fail  {sid} ({over})")
-                return self.end(run, "failed", error={"step": sid, "message": over})
-            state.update(status="completed", output=output, cost=cost, endedAt=now())
-            add_cost(run["cost"], cost)
-            run["next"] = ids[i + 1] if i + 1 < len(ids) else None
-            self.audit(run, "step.ran", step=sid)
-            self.save(run)
-            if crash_after == sid:
-                sys.stdout.flush()
-                print(f"crash after {sid} (simulated); resume with: run.py resume {run['runId']}",
-                      file=sys.stderr)
-                os._exit(CRASH_EXIT)
+            if run["steps"][sid]["status"] == "rolledBack":
+                self.retry(run, sid)
+            stopped = self.run_step(run, step, policy, ids[i + 1] if i + 1 < len(ids) else None, crash_after)
+            if stopped:
+                return stopped
         if run.get("open"):  # an open run ends only when its owner finishes it
             run["next"] = None
             self.save(run)
@@ -680,6 +659,168 @@ class Engine:
         except Exception as e:
             return self.end(run, "failed", error={"step": None, "message": f"output: {type(e).__name__}: {e}"})
         return self.end(run, "completed", next=None, result=result)
+
+    def run_step(self, run, step, policy, after, crash_after=None):
+        """Run one step: resolve its input, decide its actions, wait for a person or run its
+        worker, and checkpoint, with after as the run's next step once it completes. Returns
+        the run if it has to stop here, because it ended or is waiting, else None."""
+        sid = step["id"]
+        state = run["steps"][sid]
+        run["next"] = sid
+        try:
+            inp = resolve(step["input"], run)
+        except Exception as e:  # an input that can't be resolved fails the step, as a worker would
+            message = f"{type(e).__name__}: {e}"
+            state.update(status="failed", endedAt=now())
+            self.audit(run, "step.failed", step=sid)
+            self.log(f"fail  {sid} ({message})")
+            return self.end(run, "failed", error={"step": sid, "message": message})
+        try:
+            denied, pending = self.decide(run, step, policy, inp)
+        except EngineError:
+            raise
+        except Exception as e:  # the actions couldn't be decided, which fails the run too
+            detail = str(e) if isinstance(e, BadAction) else f"{type(e).__name__}: {e}"
+            message = f"actions: {detail}"
+            self.audit(run, "step.failed", step=sid)
+            self.log(f"fail  {sid} ({message})")
+            return self.end(run, "failed", error={"step": sid, "message": message})
+        if denied:  # a prohibition holds even after a human's approval
+            self.log(f"deny  {sid} ({denied})")
+            return self.end(run, "failed", error={"step": sid, "message": denied})
+        if pending:
+            # Pause before the step: nothing runs until a human approves it, through the queue.
+            self.pause(run, pending)
+            why = f" under {', '.join(pending['rules'])}" if pending["rules"] else ""
+            show = f", showing {', '.join(pending['present'])}" if pending["present"] else ""
+            self.log(f"wait  {sid} (needs approval{why}{show}; review_queue.py show {pending['id']})")
+            return run
+        state.update(status="working", startedAt=now())
+        self.save(run)
+        self.log(f"run   {sid}")
+        cap = step.get("budget", {})
+        try:
+            with marked(run["runId"]):
+                output, cost = call_worker(self.workers[step["worker"]], inp, state["idempotencyKey"], cap)
+        except Exception as e:  # a failed step fails the run, with the reason recorded
+            message = str(e) if isinstance(e, OverBudget) else f"{type(e).__name__}: {e}"
+            state.update(status="failed", endedAt=now())
+            self.audit(run, "budget.refused" if isinstance(e, OverBudget) else "step.failed", step=sid)
+            self.log(f"fail  {sid} ({message})")
+            return self.end(run, "failed", error={"step": sid, "message": message})
+        over = over_cost(cost, cap)
+        if over:  # the cost was spent, so it is recorded and counted, but the run stops
+            state.update(status="failed", cost=cost, endedAt=now())
+            add_cost(run["cost"], cost)
+            self.audit(run, "budget.refused", step=sid)
+            self.log(f"fail  {sid} ({over})")
+            return self.end(run, "failed", error={"step": sid, "message": over})
+        state.update(status="completed", output=output, cost=cost, endedAt=now())
+        add_cost(run["cost"], cost)
+        run["next"] = after
+        self.audit(run, "step.ran", step=sid)
+        self.save(run)
+        if crash_after == sid:
+            sys.stdout.flush()
+            print(f"crash after {sid} (simulated); resume with: run.py resume {run['runId']}",
+                  file=sys.stderr)
+            os._exit(CRASH_EXIT)
+        return None
+
+    # Rollback
+
+    def rollback(self, run_id, to, by=None, reason=None, via="cli"):
+        """Roll a completed or failed run back to its step to, as a person decided, for
+        reason. Each later step that had an effect outside the system is compensated first,
+        newest first, by the compensate step its plan declares, decided by the policy like
+        any other step, so one can wait for a person. Then each later step that ran is
+        marked rolledBack, never deleted, and the run waits at the step after to, working,
+        for resume. What was spent stays spent. Refused from inside a run."""
+        outside_runs()
+        run = self.load(run_id)
+        if run["status"] not in ("completed", "failed"):
+            raise EngineError(f"run {run['runId']} is {run['status']}; only a completed or failed run "
+                              "can be rolled back")
+        if via not in check_audit.VIA:
+            raise EngineError(f"via must be one of {', '.join(check_audit.VIA)}")
+        plan, _ = self.plan_of(run)
+        if run["workflowVersion"] != plan["version"]:
+            raise EngineError(f"run {run['runId']} started on version {run['workflowVersion']}, "
+                              f"but the plan is now version {plan['version']}")
+        ids = [s["id"] for s in plan["steps"]]
+        if to not in ids or run["steps"][to]["status"] != "completed":
+            raise EngineError(f"run {run['runId']} has no completed step '{to}' to roll back to")
+        if not isinstance(reason, str) or not reason.strip():
+            raise EngineError("a rollback needs a reason")
+        by = actor_id(by or self.actor)
+        steps = {s["id"]: s for s in plan["steps"]}
+        later = [sid for sid in ids[ids.index(to) + 1:]
+                 if run["steps"][sid]["status"] not in ("not_started", "rolledBack")]
+        # A step that failed before its worker started had no effect to compensate.
+        effects = [sid for sid in later if has_effect(steps[sid]) and run["steps"][sid]["startedAt"]]
+        bare = [sid for sid in effects if "compensate" not in steps[sid]]
+        if bare:
+            raise EngineError(f"run {run['runId']} can't be rolled back past {', '.join(bare)}: "
+                              f"{'it takes' if len(bare) == 1 else 'each takes'} an action with an effect "
+                              "outside the system, and the plan declares no compensate step for it")
+        undo = [[sid, compensation_id(sid, run["steps"][sid]["attempt"])] for sid in reversed(effects)]
+        undo = [[sid, cid] for sid, cid in undo if run["steps"].get(cid, {}).get("status") != "completed"]
+        clash = [cid for _, cid in undo if cid in steps]
+        if clash:
+            raise EngineError(f"the plan has a step named {clash[0]}, the name of a compensating step")
+        record = {"to": to, "next": ids[ids.index(to) + 1] if ids.index(to) + 1 < len(ids) else None,
+                  "compensate": undo, "rolledBack": later, "by": by, "via": via, "at": now(),
+                  "reason": reason, "status": run["status"], "result": run["result"], "error": run["error"]}
+        record["id"] = check_audit.digest(record)
+        if run.get("rollback"):  # an earlier rollback that didn't finish; its record is kept
+            run.setdefault("rollbacks", []).append(run["rollback"])
+        for _, cid in undo:
+            old = run["steps"].get(cid)
+            run["steps"][cid] = new_step_state(run["runId"], cid)
+            if old:  # a compensation that failed before is tried again, with its key
+                run["steps"][cid]["history"] = old.pop("history", []) + [old]
+        run.update(status="working", rollback=record, result=None, error=None, pending=None)
+        self.audit(run, "rollback", step=to, by=by, via=via, record=record["id"])
+        self.save(run)
+        first = f", compensating {', '.join(sid for sid, _ in undo)} first" if undo else ""
+        self.log(f"rollback {run['runId']} to {to}{first}")
+        return self.execute(run)
+
+    def compensate(self, run, plan, policy, crash_after=None):
+        """Finish the run's rollback: run its compensating steps, newest first, then mark the
+        later steps rolledBack and set next to the step after the target. Returns the run if
+        it has to stop first, else None."""
+        record = run["rollback"]
+        steps = {s["id"]: s for s in plan["steps"]}
+        for n, (sid, cid) in enumerate(record["compensate"]):
+            if run["steps"][cid]["status"] == "completed":
+                continue
+            if self.cancel_requested(run):
+                return run
+            after = record["compensate"][n + 1][1] if n + 1 < len(record["compensate"]) else record["next"]
+            stopped = self.run_step(run, dict(steps[sid]["compensate"], id=cid), policy, after, crash_after)
+            if stopped:
+                return stopped
+        at = now()
+        for sid in record["rolledBack"]:
+            state = run["steps"][sid]
+            state.update(status="rolledBack", undone={"status": state["status"], "at": at, "rollback": record["id"]})
+        record["endedAt"] = at
+        run.update(next=record["next"], rollback=None)
+        run.setdefault("rollbacks", []).append(record)
+        self.save(run)
+        self.log(f"rolled back {run['runId']} to {record['to']}; resume with: run.py resume {run['runId']}")
+        return None
+
+    def retry(self, run, sid):
+        """Start a rolled-back step over as a new attempt, with a new idempotency key so its
+        effect happens again, and its earlier attempts kept in its history."""
+        old = run["steps"][sid]
+        attempt = old["attempt"] + 1
+        state = new_step_state(run["runId"], sid)
+        state.update(attempt=attempt, idempotencyKey=f"{run['runId']}:{sid}:{attempt}",
+                     history=old.pop("history", []) + [old])
+        run["steps"][sid] = state
 
     # Open runs
 
@@ -1076,6 +1217,12 @@ def cmd_start(args, engine):
     return report(engine.start(args.workflow, inputs, policy, args.crash_after, args.passport))
 
 
+def cmd_rollback(args, engine):
+    answering_here()
+    run = engine.rollback(args.run_id, args.to, args.by, args.reason)
+    return 0 if run["status"] == "working" else report(run)
+
+
 def cmd_status(args, engine):
     run = engine.load(args.run_id)
     engine.expire_if_due(run)
@@ -1091,6 +1238,7 @@ COMMANDS = {
     "approve": lambda args, engine: answering_here() or report(engine.approve(args.run_id, args.by, args.id)),
     "deny": lambda args, engine: answering_here() or report(engine.deny(args.run_id, args.reason, args.by, args.id)),
     "cancel": lambda args, engine: report(engine.cancel(args.run_id, args.by)),
+    "rollback": cmd_rollback,
 }
 
 
@@ -1128,6 +1276,12 @@ def main():
             p.add_argument("--id", metavar="APPROVAL-ID",
                            help="The approval ID being answered (run.py status shows it); refused "
                                 "if the run is waiting on anything else")
+    rollback = sub.add_parser("rollback", help="Roll a completed or failed run back to an earlier step")
+    rollback.add_argument("run_id")
+    rollback.add_argument("--to", required=True, metavar="STEP", help="The step to roll back to; it stays done")
+    rollback.add_argument("--reason", required=True, help="Why, kept in the run record")
+    rollback.add_argument("--by", metavar="ACTOR-ID",
+                          help="Who rolled it back, as an opaque ID (default: $WORKFLOWS_HIVE_ACTOR)")
     args = ap.parse_args()
 
     try:

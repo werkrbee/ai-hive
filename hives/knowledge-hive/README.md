@@ -62,13 +62,13 @@ template and the examples, and CI runs it that way.
 ## The audit log
 
 The workflows-hive engine writes an audit log for every run: each step decision, approval,
-denial, escalation, cancel, expiry, budget refusal and model turn, and the passport the
-run is under, with each answer from the review queue and how it came. Each entry holds the
-hash of the one before it, so an entry that was edited, removed, inserted or moved breaks
-the chain. Each run record keeps the seq and hash of its run's last entry, which catches a
-log whose end was cut off. The log holds no call arguments, model output or message text,
-which stay in the run record, and names a person only by an opaque ID. The format is in
-[`DESIGN.md`](DESIGN.md#audit-log-auditjsonl).
+denial, escalation, cancel, expiry, budget refusal, rollback and model turn, and the
+passport the run is under, with each answer from the review queue and how it came. Each
+entry holds the hash of the one before it, so an entry that was edited, removed, inserted
+or moved breaks the chain. Each run record keeps the seq and hash of its run's last entry,
+which catches a log whose end was cut off. The log holds no call arguments, model output
+or message text, which stay in the run record, and names a person only by an opaque ID.
+The format is in [`DESIGN.md`](DESIGN.md#audit-log-auditjsonl).
 
 ```bash
 python3 scripts/check_audit.py ~/.local/state/workflows-hive/audit.jsonl \
@@ -87,6 +87,15 @@ and a shell can write files without asking for `fs.write`. So the local log is e
 of tampering by anyone who didn't rewrite it whole, not a lock. A hosted deployment, where
 the agent has no file system or shell and each entry also goes to storage nobody can
 rewrite, is the strong case.
+
+## Rolling knowledge back
+
+Rollback never erases history, and each part goes back its own way. A result is never
+edited: a correction is a new result whose `supersedes` names the one it corrects.
+`STATE.md` and the memory files are rolled back with git, by a commit that restores them,
+so the history keeps both. The ledger and the audit log are never rolled back: money spent
+stays spent, and what happened stays recorded. A rollback of a run or an agent is itself
+recorded in the audit log, with who did it and the digest of a record that keeps why.
 
 ## Worked example: lineup
 

@@ -7,8 +7,16 @@
 # the catalog, offered only for another account kind, without chat completions or not
 # offered with its sku stops before the what-if, as does a modelDeployment that names no
 # model. A what-if that fails stops without asking to apply anything. Each case runs
-# deploy.sh from a throwaway git checkout, since it deploys only a clean one. Bash 3.2
-# safe; run it with /bin/bash on macOS.
+# deploy.sh from a throwaway git checkout, since it deploys only a clean one.
+#
+# Rollback: from a checkout whose passport went from v1 to v2, --rollback 1 deploys v1's
+# commit, through every gated step, with v1's promotion check, and records who did it in
+# the audit log and why in a record beside it. Stopped before the app, it records nothing;
+# deployed but unable to write the audit log, it fails, naming the command that records
+# it. A modelDeployment that isn't the model v1 pins, a pinned model the catalog no longer
+# has, a version that isn't earlier, a missing reason and a passport from before trust
+# evaluation each stop it before any change. Bash 3.2 safe; run it with /bin/bash on
+# macOS.
 #
 # Usage: tests/deploy_test.sh           (from hives/agents-hive/deploy/azure, or anywhere)
 set -u
@@ -39,6 +47,8 @@ case "$args" in
   "bicep build-params"*) cat "$STUB/params.json" ;;
   "cognitiveservices model list"*) cat "$STUB/catalog.json" ;;
   "deployment group what-if"*) echo "what-if shown" ;;
+  "deployment group create"*) echo '{"registry": {"value": "reg.azurecr.io"}, "agentCard": {"value": "https://card"}}' ;;
+  "acr build"*) echo "built" ;;
 esac
 STUB
 chmod +x "$work/bin/az"
@@ -68,7 +78,11 @@ deepseek='{"deployment": "review-c", "format": "DeepSeek", "name": "DeepSeek-V3.
 # run CASE BICEP — deploy.sh from a clean checkout holding BICEP as main.bicep, with
 # $MODELS (a JSON array, default GPT-5.4 and DeepSeek) as the models parameter and
 # $CHOSEN (default the first model's deployment) as modelDeployment, answering $ANSWER
-# (default no) at the first prompt
+# (default no) at every prompt, or $ANSWERS in turn, with deploy_args before the
+# positional ones. With $HISTORY set, Patricia's passport is v1, pinning $PINNED (default
+# claude-x 1), in one commit and v2, pinning GPT-5.4, in the next, whose promotion check
+# says so; $NO_EVAL_AT_V1 leaves trust_eval.py out of v1.
+deploy_args=()
 run() {
   export STUB="$work/$1"
   local repo="$STUB/repo" dir="$STUB/repo/hives/agents-hive/deploy/azure"
@@ -92,10 +106,33 @@ if os.environ.get("PROMOTION") == "refused":
 print(f"{sys.argv[2]}: baseline recorded against its pins, and no drift holds it")
 PY
   git -C "$repo" init -q
+  if [ -n "${HISTORY:-}" ]; then
+    for script in hives/agents-hive/scripts/rollback.py hives/knowledge-hive/scripts/check_audit.py; do
+      mkdir -p "$repo/$(dirname "$script")"
+      cp "$here/../../../../../$script" "$repo/$script"
+    done
+    mkdir -p "$repo/hives/agents-hive/passports/patricia"
+    set -- ${PINNED:-claude-x 1}
+    passport "$repo" 1 "$1" "$2"
+    [ -z "${NO_EVAL_AT_V1:-}" ] || git -C "$repo" rm -q --cached hives/agents-hive/scripts/trust_eval.py
+    git -C "$repo" -c user.name=test -c user.email=test@example.com commit -q -m v1
+    echo 'print("checked by v2'"'"'s promotion check")' >> "$repo/hives/agents-hive/scripts/trust_eval.py"
+    passport "$repo" 2 gpt-5.4 2026-03-05
+  fi
   git -C "$repo" add -A
   git -C "$repo" -c user.name=test -c user.email=test@example.com commit -q -m test
-  out=$(printf '%s\n' "${ANSWER:-no}" | PATH="$work/bin:$PATH" /bin/bash "$dir/deploy.sh" rg-test eastus2 p.bicepparam 2>&1)
+  local answers=${ANSWERS:-"${ANSWER:-no} ${ANSWER:-no} ${ANSWER:-no} ${ANSWER:-no}"}
+  # One answer per word.
+  # shellcheck disable=SC2086
+  out=$(printf '%s\n' $answers |
+    PATH="$work/bin:$PATH" /bin/bash "$dir/deploy.sh" ${deploy_args[@]+"${deploy_args[@]}"} \
+    rg-test eastus2 p.bicepparam 2>&1)
   code=$?
+}
+passport() {  # REPO VERSION MODEL MODEL-VERSION — write Patricia's passport and stage it all
+  printf '{"passport": "patricia", "version": %s, "pins": {"model": {"publisher": "test", "name": "%s", "version": "%s"}}}\n' \
+    "$2" "$3" "$4" > "$1/hives/agents-hive/passports/patricia/passport.json"
+  git -C "$1" add -A
 }
 check() {  # LABEL CONDITION...
   local label="$1"; shift
@@ -241,6 +278,81 @@ STUB_FAIL="deployment group what-if" ANSWER=yes run whatiffails "$bicep"
 check "what-if fails: stops without asking, and nothing is applied" \
   eval '[ "$code" -ne 0 ] && has "the what-if failed, so there.s no plan to approve" \
    && ! grep -q "^deployment group create" "$STUB/calls"'
+
+# Rollback.
+claude='{"deployment": "review-a", "format": "Anthropic", "name": "claude-x", "version": "1", "sku": "GlobalStandard"}'
+v1() { git -C "$STUB/repo" rev-parse HEAD~1; }
+deploy_args=(--rollback 1 --reason "v2 misreads the Charter" --by usr_test --audit "$work/rb/audit/audit.jsonl")
+HISTORY=1 MODELS="[$gpt, $claude]" CHOSEN=review-a ANSWER=yes run rb "$bicep"
+check "rollback: deploys v1's commit through every step" \
+  eval '[ "$code" -eq 0 ] && has "== rollback: passport v1, at commit $(v1 | cut -c1-12), pinning claude-x 1" \
+   && grep -q "^acr build .*hive-a2a:$(v1 | cut -c1-12)" "$STUB/calls" \
+   && [ "$(grep -c "^deployment group create" "$STUB/calls")" -eq 2 ]'
+check "rollback: the audit log records who, and a record beside it why" \
+  eval 'python3 "$here/../../../../knowledge-hive/scripts/check_audit.py" "$STUB/audit/audit.jsonl" >/dev/null \
+   && python3 - "$STUB/audit" "$(v1)" <<'"'PY'"'
+import json, pathlib, sys
+log = pathlib.Path(sys.argv[1])
+entry = json.loads((log / "audit.jsonl").read_text().splitlines()[-1])
+record = json.loads((log / "rollbacks" / (entry["record"].split(":")[1] + ".json")).read_text())
+assert entry["kind"] == "rollback" and entry["by"] == "usr_test" and entry["agent"]["version"] == 1, entry
+assert record["reason"] == "v2 misreads the Charter" and record["to"]["commit"] == sys.argv[2], record
+assert (record["from"]["version"], record["to"]["version"]) == (2, 1), record
+assert "Charter" not in (log / "audit.jsonl").read_text()
+PY'
+check "rollback: the worktree is removed afterwards" \
+  eval '[ "$(git -C "$STUB/repo" worktree list | wc -l)" -eq 1 ]'
+check "rollback: the promotion check is v1's, not the checked-out one" \
+  eval 'has "patricia: baseline recorded against its pins" && ! has "checked by v2.s promotion check"'
+
+# Stopped at the app: the infrastructure and image stand, but nothing is recorded.
+deploy_args=(--rollback 1 --reason "why" --by usr_test --audit "$work/rbstop/audit/audit.jsonl")
+HISTORY=1 MODELS="[$gpt, $claude]" CHOSEN=review-a ANSWERS="yes yes no" run rbstop "$bicep"
+check "rollback: stopped before the app, nothing is recorded" \
+  eval '[ "$code" -ne 0 ] && has "== 3/3 app" && has "stopped; nothing more was changed" \
+   && [ "$(grep -c "^deployment group create" "$STUB/calls")" -eq 1 ] && [ ! -e "$STUB/audit" ]'
+
+# Deployed, but the audit log can't be written: it fails, saying how to record it.
+mkdir -p "$work/rbunrec" && : > "$work/rbunrec/file"
+deploy_args=(--rollback 1 --reason "why" --by usr_test --audit "$work/rbunrec/file/audit.jsonl")
+HISTORY=1 MODELS="[$gpt, $claude]" CHOSEN=review-a ANSWER=yes run rbunrec "$bicep"
+check "rollback: deployed but not recorded, it fails naming the command that records it" \
+  eval '[ "$code" -ne 0 ] && [ "$(grep -c "^deployment group create" "$STUB/calls")" -eq 2 ] \
+   && has "deployed at passport v1, but the rollback wasn.t recorded" \
+   && has "rollback.py record patricia $(v1) --by usr_test" && ! has Traceback'
+
+deploy_args=(--rollback 1 --reason "v2 misreads the Charter" --by usr_test --audit "$work/rbmodel/audit/audit.jsonl")
+HISTORY=1 ANSWER=yes run rbmodel "$bicep"
+check "rollback: a modelDeployment that isn't the pinned model is refused before any what-if" \
+  eval '[ "$code" -ne 0 ] && has "modelDeployment .review-b. is gpt-5.4 2026-03-05, but the passport being rolled back to pins claude-x 1" \
+   && ! has "== 1/3" && read_only && [ ! -e "$STUB/audit" ]'
+
+deploy_args=(--rollback 1 --reason "why" --by usr_test --audit "$work/rbretired/audit/audit.jsonl")
+HISTORY=1 PINNED="claude-old 1" MODELS="[$gpt, {\"deployment\": \"review-a\", \"format\": \"Anthropic\", \"name\": \"claude-old\", \"version\": \"1\", \"sku\": \"GlobalStandard\"}]" \
+  CHOSEN=review-a ANSWER=yes run rbretired "$bicep"
+check "rollback: a pinned model the catalog no longer has is refused before any what-if" \
+  eval '[ "$code" -ne 0 ] && has "review-a: Anthropic claude-old 1 isn.t in the Foundry model catalog" \
+   && ! has "== 1/3" && read_only && [ ! -e "$STUB/audit" ]'
+
+deploy_args=(--rollback 2 --reason "why" --by usr_test)
+HISTORY=1 ANSWER=yes run rbcurrent "$bicep"
+check "rollback: a version that isn't earlier is refused before any az call" \
+  eval '[ "$code" -ne 0 ] && has "passport patricia is version 2; roll it back to an earlier version" && [ ! -s "$STUB/calls" ]'
+
+deploy_args=(--rollback 1 --reason "" --by usr_test)
+HISTORY=1 ANSWER=yes run rbreason "$bicep"
+check "rollback: a missing reason is refused before any az call" \
+  eval '[ "$code" -ne 0 ] && has "a rollback needs a reason" && [ ! -s "$STUB/calls" ]'
+
+deploy_args=(--rollback 1 --reason "why" --by usr_test)
+HISTORY=1 NO_EVAL_AT_V1=1 ANSWER=yes run rbnoeval "$bicep"
+check "rollback: a passport from before trust evaluation is refused before any az call" \
+  eval '[ "$code" -ne 0 ] && has "passport v1 predates trust evaluation" && [ ! -s "$STUB/calls" ]'
+
+deploy_args=(--reason "why" rg)
+run rbusage "$bicep"
+check "a reason without --rollback is a usage error" eval '[ "$code" -eq 2 ] && has "usage:"'
+deploy_args=()
 
 [ "$fail" -eq 0 ] && echo "OK  deploy.sh checks passed"
 exit "$fail"

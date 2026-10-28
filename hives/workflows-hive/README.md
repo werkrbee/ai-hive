@@ -160,6 +160,37 @@ refused rather than resumed under the new one.
 python3 scripts/run.py start <workflow> --passport patricia   # an fs.write step fails the run
 ```
 
+## Roll a run back
+
+A person can roll a completed or failed run back to an earlier step, and the engine does
+it without erasing anything. Each later step that took an action with an effect outside
+the system, anything but `fs.read`, is undone first by the `compensate` step its plan
+declares, newest first. A compensating step is an ordinary step, decided by the policy
+like any other, so correcting a message that needed approval waits for approval too. Then
+each later step that ran is marked `rolledBack`, kept with its output, and the run waits
+at the step after the target. `resume` runs those steps again, each as a new attempt with
+a new idempotency key, keeping the earlier attempt in its history.
+
+```json
+{ "id": "notify", "worker": "send-message", "input": { "text": "${steps.draft.output}" },
+  "actions": [{ "action": "message.send" }],
+  "compensate": { "worker": "send-correction",
+                  "input": { "message": "${steps.notify.output.id}" },
+                  "actions": [{ "action": "message.send" }] } }
+```
+
+```bash
+python3 scripts/run.py rollback <run-id> --to draft --reason "sent to the wrong group"
+python3 scripts/run.py resume <run-id>
+```
+
+A rollback past a step with an effect and no `compensate` is refused, since a sent message
+can't be unsent, only corrected. A step that lists no actions is taken to have none. The
+run's cost isn't reduced: what was spent stays spent. Like an answer, a rollback needs an
+actor ID and an interactive terminal, and is refused from inside a run. Its reason stays
+in the run record, under `rollbacks`; the audit log's `rollback` entry has who did it and
+the digest of that record. Model turns in an open run aren't rolled back.
+
 ## The review queue
 
 The review queue is one place where a person sees and answers everything that needs them,
@@ -221,12 +252,12 @@ Every run appends to an audit log in knowledge-hive's [`audit.jsonl`
 format](../knowledge-hive/DESIGN.md#audit-log-auditjsonl), by default `audit.jsonl` beside
 the state directory (change it with `--audit`). The engine writes an entry for each step
 decision (one per action, with the rules that decided it), each step that runs, fails or
-is stopped by its budget, each answer, escalation, cancel, expiry and model turn, and each
-run's start and end. Each entry names the run's passport and the digest of the exact call,
-not the call's arguments, which stay in the run record. Entries are hash-chained, and the
-engine writes each one before the run record that follows it; the record keeps the seq and
-hash of its run's last entry under `audit`. If the log can't be written, the run doesn't
-go on.
+is stopped by its budget, each answer, escalation, cancel, expiry, rollback and model
+turn, and each run's start and end. Each entry names the run's passport and the digest of
+the exact call, not the call's arguments, which stay in the run record. Entries are
+hash-chained, and the engine writes each one before the run record that follows it; the
+record keeps the seq and hash of its run's last entry under `audit`. If the log can't be
+written, the run doesn't go on.
 
 ```bash
 python3 ../knowledge-hive/scripts/check_audit.py ~/.local/state/workflows-hive/audit.jsonl \
@@ -236,15 +267,16 @@ python3 ../knowledge-hive/scripts/check_audit.py ~/.local/state/workflows-hive/a
 ## Use the engine as a library
 
 `run.py` is also a module. `Engine` offers the commands above (`start`, `resume`,
-`approve`, `deny`, `cancel`, and the queue's `items`, `item` and `answer_item`) on your
-own workers, with `audit`, `queue` and `actor` in place of `--audit`, the queue directory
-and `WORKFLOWS_HIVE_ACTOR`, and an open run for an agent loop, whose steps aren't known in
-advance. An open run starts with no steps. Each tool call the loop makes is appended as a
-step, and `execute` runs it, decided by the policy, held to its budget and checkpointed
-like a planned step. Each model turn goes through `turn`, which records the reply and its
-cost, and returns the recorded reply instead of calling again once the turn has completed.
-So a loop restarted after a crash replays its turns and steps from the record and repeats
-neither. `finish` completes the run with its result.
+`approve`, `deny`, `cancel`, `rollback`, and the queue's `items`, `item` and
+`answer_item`) on your own workers, with `audit`, `queue` and `actor` in place of
+`--audit`, the queue directory and `WORKFLOWS_HIVE_ACTOR`, and an open run for an agent
+loop, whose steps aren't known in advance. An open run starts with no steps. Each tool
+call the loop makes is appended as a step, and `execute` runs it, decided by the policy,
+held to its budget and checkpointed like a planned step. Each model turn goes through
+`turn`, which records the reply and its cost, and returns the recorded reply instead of
+calling again once the turn has completed. So a loop restarted after a crash replays its
+turns and steps from the record and repeats neither. `finish` completes the run with its
+result.
 
 ```python
 import sys

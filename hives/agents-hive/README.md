@@ -129,7 +129,10 @@ its ceiling, and appends the evaluation to
 results format, as an `eval` result) and the audit log. A run within the baseline prints
 the `eval.baseline` that would make it the baseline for its pins. `deploy.sh` runs
 `trust_eval.py promotion patricia` before anything else and refuses a passport whose
-baseline wasn't recorded against its exact pins, or that drift holds.
+baseline wasn't recorded against its exact pins, or that drift holds. `deploy.sh
+--rollback VERSION` deploys an earlier passport version instead, with
+[`scripts/rollback.py`](scripts/rollback.py) finding its commit and recording who rolled
+it back and why (`deploy/azure/README.md`, "Rolling back").
 
 Patricia's baseline is her fifth 2026-10-27 run, 17 of 17 with the adversarial cases, on
 `review-a`, the deployment pinned to Claude Sonnet 5.5, recorded after her suite was
@@ -229,7 +232,7 @@ agents-hive/
 ├── schema/
 │   ├── execution-contract.schema.json
 │   └── passport.schema.json
-├── tests/                        # passport, card-link and trust evaluation tests
+├── tests/                        # passport, card-link, trust eval and rollback tests
 ├── adapters/                     # WHERE they run — harness taxonomy & overrides
 │   ├── claude-code/  cursor/  codex/  gemini-cli/  goose/  opencode/
 │   ├── kiro/  databricks-genie-code/  snowflake-cortex-code/
@@ -240,6 +243,7 @@ agents-hive/
 │   ├── validate_contracts.py     # check contracts against the schema
 │   ├── validate_passports.py     # check passports against the schema and their contracts
 │   ├── trust_eval.py             # judge drift, record evaluations, gate promotion
+│   ├── rollback.py               # find an earlier version's commit, record a rollback
 │   └── agent_card.py             # render and check A2A Agent Cards
 ├── LICENSE
 └── README.md

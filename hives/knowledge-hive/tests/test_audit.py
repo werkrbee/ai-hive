@@ -176,6 +176,21 @@ class Format(Log):
         audit.append(self.log, {"kind": "eval.ran", "agent": agent, "result": "2026-10-27-patricia-eval"})
         self.assertEqual(self.errors(), [])
 
+    def test_a_rollback_names_who_did_it_its_record_and_what_it_rolled_back(self):
+        record = "sha256:" + "b" * 64
+        with self.assertRaisesRegex(audit.AuditError, "missing 'record'"):
+            audit.append(self.log, {"kind": "rollback", "runId": "run_1", "step": "read", "by": "ci", "via": "cli"})
+        with self.assertRaisesRegex(audit.AuditError, "names the run it rolled back"):
+            audit.append(self.log, {"kind": "rollback", "by": "ci", "via": "cli", "record": record})
+        with self.assertRaisesRegex(audit.AuditError, "record must be sha256"):
+            audit.append(self.log, {"kind": "rollback", "runId": "run_1", "by": "ci", "via": "cli",
+                                    "record": "the provider was down"})
+        audit.append(self.log, {"kind": "rollback", "runId": "run_1", "step": "read", "by": "ci", "via": "cli",
+                                "record": record})
+        audit.append(self.log, {"kind": "rollback", "agent": {"passport": "patricia", "version": 7,
+                                "sha256": "a" * 64}, "by": "ci", "via": "cli", "record": record})
+        self.assertEqual(self.errors(), [])
+
     def test_the_writer_refuses_an_entry_that_doesnt_fit(self):
         with self.assertRaisesRegex(audit.AuditError, "missing 'by'"):
             audit.append(self.log, {"kind": "run.cancelled", "runId": "run_9"})

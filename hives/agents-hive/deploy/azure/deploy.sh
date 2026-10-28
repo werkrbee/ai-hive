@@ -11,14 +11,41 @@
 #   2. the image, built in the new registry from this commit
 #   3. the app, running that image
 #
-# Usage: ./deploy.sh <resource-group> <location> <params.bicepparam>
+# --rollback VERSION rolls Patricia back to an earlier passport version instead: it
+# deploys the newest commit at which her passport was VERSION, from a temporary worktree,
+# with the model, prompt files and policy that passport pins. The same checks run against
+# that commit, and modelDeployment must be the model it pins, so a model the catalog has
+# since retired stops it. It warns of findings recorded since against those pins, which
+# that commit's promotion check can't see. Once the app is deployed, the audit log records
+# who rolled her back (--by, or WORKFLOWS_HIVE_ACTOR) and the digest of a record, beside
+# the log, that keeps the reason.
+#
+# Usage: ./deploy.sh [--rollback VERSION --reason TEXT [--by ACTOR-ID] [--audit PATH]]
+#                    <resource-group> <location> <params.bicepparam>
 # Needs: az login; run from anywhere inside the repo, on a clean checkout of the commit
 # to deploy.
 set -euo pipefail
 
-if [ "$#" -ne 3 ]; then
-  echo "usage: $0 <resource-group> <location> <params.bicepparam>" >&2
+usage() {
+  echo "usage: $0 [--rollback VERSION --reason TEXT [--by ACTOR-ID] [--audit PATH]]" \
+    "<resource-group> <location> <params.bicepparam>" >&2
   exit 2
+}
+rollback='' reason='' by=${WORKFLOWS_HIVE_ACTOR:-} audit=''
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    --rollback|--reason|--by|--audit)
+      [ "$#" -ge 2 ] || usage
+      case "$1" in
+        --rollback) rollback=$2 ;; --reason) reason=$2 ;; --by) by=$2 ;; --audit) audit=$2 ;;
+      esac
+      shift 2 ;;
+    -*) usage ;;
+    *) break ;;
+  esac
+done
+if [ "$#" -ne 3 ] || { [ -z "$rollback" ] && [ -n "$reason$audit" ]; }; then
+  usage
 fi
 rg=$1 location=$2 params=$3
 here=$(cd "$(dirname "$0")" && pwd)
@@ -28,7 +55,22 @@ if [ -n "$(git -C "$root" status --porcelain)" ]; then
   echo "error: the checkout has uncommitted changes; deploy a commit" >&2
   exit 1
 fi
-tag=$(git -C "$root" rev-parse --short=12 HEAD)
+
+# What is deployed: this checkout, or for a rollback, the earlier commit in a worktree.
+src=$root pinned=''
+if [ -n "$rollback" ]; then
+  plan=$(python3 "$root/hives/agents-hive/scripts/rollback.py" plan patricia "$rollback" \
+    --by "$by" --reason "$reason") || exit 1
+  read -r commit pinned_name pinned_version <<< "$plan"
+  pinned="$pinned_name $pinned_version"
+  worktree=$(mktemp -d)
+  trap 'git -C "$root" worktree remove --force "$worktree/src" 2>/dev/null; rm -rf "$worktree"' EXIT
+  git -C "$root" worktree add --quiet --detach "$worktree/src" "$commit"
+  src=$worktree/src
+  echo "== rollback: passport v$rollback, at commit ${commit:0:12}, pinning $pinned"
+fi
+azure=$src/hives/agents-hive/deploy/azure
+tag=$(git -C "$src" rev-parse --short=12 HEAD)
 
 confirm() {
   read -r -p "$1 Type yes to go ahead: " answer
@@ -40,7 +82,7 @@ output() {  # $1 = deployment outputs JSON, $2 = output name
 }
 
 deploy() {  # $1 = image ('' for infrastructure only)
-  local args=(--resource-group "$rg" --template-file "$here/main.bicep" --parameters "$params"
+  local args=(--resource-group "$rg" --template-file "$azure/main.bicep" --parameters "$params"
               --parameters image="$1")
   # deploy runs inside $(...), where bash doesn't apply set -e (and 3.2 has no
   # inherit_errexit), so a failed what-if is checked here; otherwise it would still ask
@@ -59,14 +101,14 @@ deploy() {  # $1 = image ('' for infrastructure only)
 check_roles() {
   local found assigned refs ref id role
   found=$(sed -n "s/.*subscriptionResourceId('Microsoft.Authorization\/roleDefinitions', *\([^)]*\)).*/\1/p" \
-    "$here/main.bicep")
+    "$azure/main.bicep")
   if [ -z "$found" ]; then
     echo "error: found no role assignments in main.bicep to check" >&2
     exit 1
   fi
   # Every assignment must be one this check reads, or a role written another way would
   # go unchecked.
-  assigned=$(grep -c 'roleDefinitionId:' "$here/main.bicep")
+  assigned=$(grep -c 'roleDefinitionId:' "$azure/main.bicep")
   if [ "$(printf '%s\n' "$found" | wc -l)" -ne "$assigned" ]; then
     echo "error: main.bicep assigns $assigned roles, but only the ones written as" \
       "subscriptionResourceId('Microsoft.Authorization/roleDefinitions', <id>) can be checked" >&2
@@ -76,7 +118,7 @@ check_roles() {
   for ref in $refs; do
     case "$ref" in
       \'*) id=${ref//\'/} ;;
-      *) id=$(sed -n "s/^var $ref = '\([^']*\)'.*/\1/p" "$here/main.bicep") ;;
+      *) id=$(sed -n "s/^var $ref = '\([^']*\)'.*/\1/p" "$azure/main.bicep") ;;
     esac
     if [ -z "$id" ]; then
       echo "error: can't find the role id $ref names in main.bicep" >&2
@@ -102,11 +144,12 @@ check_roles() {
 # account kind, and what each kind offers can differ, so only the rows for the kind of
 # account main.bicep deploys count. Each model's line names the API the server would use
 # with it, by main.bicep's messagesFormats, and marks the one modelDeployment chooses,
-# which must be one of them.
+# which must be one of them. For a rollback, modelDeployment must also be the model the
+# earlier passport pins, by name and version, so a model since retired can't come back.
 check_models() {
   local region tmp kind
   kind=$(awk "/^resource ai 'Microsoft.CognitiveServices\/accounts@/{f=1} f && /^}/{exit} f && /^  kind: /{gsub(/[' ]|kind:/, \"\"); print; exit}" \
-    "$here/main.bicep")
+    "$azure/main.bicep")
   if [ -z "$kind" ]; then
     echo "error: can't find the Foundry account's kind in main.bicep" >&2
     exit 1
@@ -124,7 +167,7 @@ check_models() {
     echo "error: couldn't read the Foundry model catalog for $region" >&2
     rm -rf "$tmp"; exit 1
   fi
-  if ! python3 - "$tmp/params.json" "$tmp/catalog.json" "$region" "$kind" "$here/main.bicep" <<'PY'
+  if ! python3 - "$tmp/params.json" "$tmp/catalog.json" "$region" "$kind" "$azure/main.bicep" "$pinned" <<'PY'
 import json, re, sys
 
 params = json.loads(json.load(open(sys.argv[1]))["parametersJson"])["parameters"]
@@ -138,6 +181,12 @@ chosen = (params.get("modelDeployment") or {}).get("value")
 if chosen not in [m.get("deployment") for m in params["models"]["value"]]:
     print(f"error: modelDeployment {chosen!r} isn't the deployment of any entry in models", file=sys.stderr)
     sys.exit(1)
+if sys.argv[6]:
+    entry = next(m for m in params["models"]["value"] if m.get("deployment") == chosen)
+    if f"{entry.get('name')} {entry.get('version')}" != sys.argv[6]:
+        print(f"error: modelDeployment {chosen!r} is {entry.get('name')} {entry.get('version')}, but the passport "
+              f"being rolled back to pins {sys.argv[6]}; point modelDeployment at a deployment of it", file=sys.stderr)
+        sys.exit(1)
 bad = False
 for m in params["models"]["value"]:
     if not all(isinstance(m.get(k), str) for k in ("deployment", "format", "name", "version", "sku")):
@@ -181,8 +230,14 @@ PY
 
 # A change to Patricia is promoted only once her trust evaluation has passed on its exact
 # pins, and while no drift waits for a person (hives/agents-hive/scripts/trust_eval.py).
+# A rollback checks the earlier passport with the check as it was at that commit, against
+# the results recorded then, since that passport's baseline still applies.
 echo "== passport"
-if ! python3 "$root/hives/agents-hive/scripts/trust_eval.py" promotion patricia; then
+if [ ! -f "$src/hives/agents-hive/scripts/trust_eval.py" ]; then
+  echo "error: passport v$rollback predates trust evaluation, so it can't be promoted; nothing was changed" >&2
+  exit 1
+fi
+if ! python3 "$src/hives/agents-hive/scripts/trust_eval.py" promotion patricia; then
   echo "error: Patricia's passport can't be promoted; nothing was changed" >&2
   exit 1
 fi
@@ -203,8 +258,19 @@ registry=$(output "$outputs" registry)
 echo "== 2/3 image hive-a2a:$tag in $registry"
 confirm "Build and push the image to $registry?"
 az acr build --registry "${registry%%.*}" --image "hive-a2a:$tag" \
-  --file "$root/hives/agents-hive/deploy/azure/Dockerfile" "$root"
+  --file "$azure/Dockerfile" "$src"
 
 echo "== 3/3 app"
 outputs=$(deploy "$registry/hive-a2a:$tag")
 echo "Agent Card: $(output "$outputs" agentCard)"
+
+# The app is deployed by now, so a rollback that can't be recorded says so, and how to
+# record it, rather than leaving the deploy unrecorded without a word.
+rollback_py=$root/hives/agents-hive/scripts/rollback.py
+if [ -n "$rollback" ] && ! python3 "$rollback_py" record patricia "$commit" --by "$by" \
+    --reason "$reason" ${audit:+--audit "$audit"}; then
+  echo "error: Patricia is deployed at passport v$rollback, but the rollback wasn't" \
+    "recorded; fix the cause above, then run: python3 $rollback_py record patricia" \
+    "$commit --by $by --reason <the reason>${audit:+ --audit $audit}" >&2
+  exit 1
+fi
