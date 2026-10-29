@@ -223,6 +223,50 @@ Hosting Barry the same way is designed in
 [`design/hosted-barry.md`](design/hosted-barry.md): an agent loop on the workflows-hive
 engine, with gated actions pausing the task for a human's approval over A2A.
 
+## Caller registrations
+
+A product that calls hosted Barry registers its tools for him in
+`registrations/<caller>/registration.json` (`schema/registration.schema.json`). A
+registration is server config, set when the caller is onboarded and never sent with a
+request. It names the caller's approval policy, which must be the Queen Bee's Charter or
+extend it, so every action the Charter gates stays gated. It lists the caller's MCP
+servers in mcp-hive's format, each a remote server with a Server Card, and the scope Barry
+asks his managed identity's token for when he calls it. And it maps each tool, keyed
+`<server>/<tool>`, either to an action in the policy's vocabulary or as a fact source,
+which the server calls itself and the model is never offered. A tool that isn't listed is
+never offered, and a call to it is denied.
+
+An action's map says where each part of the request the policy decides comes from, so the
+model can choose a call's arguments without vouching for a fact that unlocks it
+([`design/hosted-barry.md`](design/hosted-barry.md), "Actions, facts and trust"):
+
+- **Scope values** come from the call's arguments (`{"from": "argument", "path":
+  "channel"}`), or are fixed by the registration (`{"from": "value", ...}`).
+- **The trigger** is always the caller's: the `trigger` in the metadata of the request that
+  started the task, never the model's.
+- **Facts about the actor**, such as `actor.role`, come from the caller's request
+  (`{"from": "request", "field": "actor.role"}`), and every other fact from a lookup
+  (`{"from": "lookup", "tool": ..., "input": ..., "path": ...}`). A lookup's input comes
+  only from the call that will run, its subjects or the caller's request. A fact from the
+  call's arguments is refused.
+- **Subjects**, such as a message's recipients, are a list in the call's arguments. A
+  lookup whose input is `{"from": "subject"}` is made for each of them, and the fact holds
+  only when it is the same for every one. A lookup that fails, or recipients who disagree,
+  leave the fact missing, and a missing fact never satisfies a mandate or lets a call
+  escape a prohibition.
+- **Present items** come from the arguments, a fixed value, the number of subjects
+  (`{"from": "count"}`) or a lookup, and each must be one the policy presents for that
+  action. An item with no value is shown as missing.
+
+`scripts/registrations.py` checks each registration, then runs the `cases.json` beside it:
+each case is a tool call, the caller's request and what lookups return, with the decision,
+rule, facts and presented values the policy must reach. CI runs it. Its `resolve()` turns a
+tool call into that request, for the orchestration executor to decide. lineup's
+registration, against the `lineup-etiquette` policy, is the worked example
+([`registrations/lineup/`](registrations/lineup/registration.json)). Its `lineup` MCP
+server is illustrative: lineup sends through third-party connectors today, which take API
+keys rather than Barry's Entra token, so they can't be registered for him yet.
+
 ## Repository layout
 
 ```text
@@ -247,14 +291,17 @@ agents-hive/
 │   └── explore/  code-review/  security-review/  charter-review/
 ├── design/
 │   └── hosted-barry.md           # design note: hosting Barry over A2A
+├── registrations/                # WHAT a caller's tools do — tool-to-action maps for hosted Barry
+│   └── lineup/registration.json  # the worked example, with its cases.json
 ├── servers/
 │   └── a2a/                      # a reference A2A server (Patricia's governance-review)
 ├── deploy/
 │   └── azure/                    # werkrbee's deployment of it
 ├── schema/
 │   ├── execution-contract.schema.json
-│   └── passport.schema.json
-├── tests/                        # passport, card-link, trust eval and rollback tests
+│   ├── passport.schema.json
+│   └── registration.schema.json
+├── tests/                        # passport, card-link, trust eval, rollback and registration tests
 ├── adapters/                     # WHERE they run — harness taxonomy & overrides
 │   ├── claude-code/  cursor/  codex/  gemini-cli/  goose/  opencode/
 │   ├── kiro/  databricks-genie-code/  snowflake-cortex-code/
@@ -266,6 +313,7 @@ agents-hive/
 │   ├── validate_passports.py     # check passports against the schema and their contracts
 │   ├── trust_eval.py             # judge drift, record evaluations, gate promotion
 │   ├── rollback.py               # find an earlier version's commit, record a rollback
+│   ├── registrations.py          # check caller registrations; resolve a tool call to a policy request
 │   └── agent_card.py             # render and check A2A Agent Cards
 ├── LICENSE
 └── README.md

@@ -1,0 +1,67 @@
+{
+  "$schema": "../../schema/registration.schema.json",
+  "registration": "lineup",
+  "version": 1,
+  "description": "lineup's tools for hosted Barry, a worked example against the lineup-etiquette policy. The lineup MCP server is illustrative: lineup sends through third-party connectors today, which take API keys, not Barry's Entra token, so they can't be registered for him yet. A message goes only to members a lookup says opted in, the trigger and the actor's role come from lineup's request, and an organizer's approval is shown the message, the recipient count and the estimated cost.",
+  "policy": "hives/rules-hive/examples/lineup-etiquette/policy.json",
+  "servers": [
+    {
+      "mcp": {
+        "name": "lineup",
+        "description": "lineup's groups, members, events and messages, behind its own sign-in.",
+        "transport": "streamable-http",
+        "discovery": { "card": "https://lineup.example.org/mcp/server-card" }
+      },
+      "token_scope": "api://<lineup-api-app-id>/.default"
+    }
+  ],
+  "tools": {
+    "lineup/send_message": {
+      "action": "message.send",
+      "subjects": { "from": "argument", "path": "recipients" },
+      "scope": {
+        "channel": { "from": "argument", "path": "channel" },
+        "audience": { "from": "argument", "path": "audience" }
+      },
+      "facts": {
+        "recipient.notifyOptIn": {
+          "from": "lookup", "tool": "lineup/get_member",
+          "input": { "member": { "from": "subject" } },
+          "path": "notifyOptIn"
+        }
+      },
+      "present": {
+        "message": { "from": "argument", "path": "text" },
+        "recipient count": { "from": "count" },
+        "estimated cost": {
+          "from": "lookup", "tool": "lineup/estimate_cost",
+          "input": {
+            "channel": { "from": "argument", "path": "channel" },
+            "recipients": { "from": "argument", "path": "recipients" }
+          },
+          "path": "estimate"
+        }
+      }
+    },
+    "lineup/cancel_event": {
+      "action": "lineup.event.cancel",
+      "facts": { "actor.role": { "from": "request", "field": "actor.role" } }
+    },
+    "lineup/remove_member": {
+      "action": "lineup.member.remove",
+      "facts": { "actor.role": { "from": "request", "field": "actor.role" } }
+    },
+    "lineup/delete_group": {
+      "action": "lineup.group.delete",
+      "facts": { "actor.role": { "from": "request", "field": "actor.role" } }
+    },
+    "lineup/get_member": {
+      "fact_source": true,
+      "description": "A member's record: name, role and notifyOptIn."
+    },
+    "lineup/estimate_cost": {
+      "fact_source": true,
+      "description": "What a message would cost on a channel, for its recipients."
+    }
+  }
+}

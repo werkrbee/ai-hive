@@ -1,0 +1,134 @@
+[
+  {
+    "name": "a bullpen call to two opted-in players sends on its own",
+    "tool": "lineup/send_message",
+    "arguments": { "channel": "sms", "audience": "bullpen", "recipients": ["m1", "m2"], "text": "A spot opened at 7pm." },
+    "request": { "trigger": "bullpen.slot-opened" },
+    "lookups": [
+      { "tool": "lineup/get_member", "input": { "member": "m1" }, "result": { "notifyOptIn": true } },
+      { "tool": "lineup/get_member", "input": { "member": "m2" }, "result": { "notifyOptIn": true } }
+    ],
+    "decision": "auto",
+    "rule": "bullpen.open-slot-call",
+    "facts": { "recipient.notifyOptIn": true }
+  },
+  {
+    "name": "one of two recipients hasn't opted in, so the call is denied",
+    "tool": "lineup/send_message",
+    "arguments": { "channel": "sms", "audience": "bullpen", "recipients": ["m1", "m3"], "text": "A spot opened at 7pm." },
+    "request": { "trigger": "bullpen.slot-opened" },
+    "lookups": [
+      { "tool": "lineup/get_member", "input": { "member": "m1" }, "result": { "notifyOptIn": true } },
+      { "tool": "lineup/get_member", "input": { "member": "m3" }, "result": { "notifyOptIn": false } }
+    ],
+    "decision": "deny",
+    "rule": "messages.opt-in-only",
+    "facts": {}
+  },
+  {
+    "name": "the model saying the recipient opted in proves nothing",
+    "tool": "lineup/send_message",
+    "arguments": { "channel": "sms", "audience": "bullpen", "recipients": ["m3"], "text": "A spot opened.",
+                   "notifyOptIn": true, "recipient.notifyOptIn": true },
+    "request": { "trigger": "bullpen.slot-opened" },
+    "lookups": [
+      { "tool": "lineup/get_member", "input": { "member": "m3" }, "result": { "notifyOptIn": false } }
+    ],
+    "decision": "deny",
+    "rule": "messages.opt-in-only",
+    "facts": { "recipient.notifyOptIn": false }
+  },
+  {
+    "name": "a lookup that fails leaves the fact missing, and the call is denied",
+    "tool": "lineup/send_message",
+    "arguments": { "channel": "sms", "audience": "bullpen", "recipients": ["m1"], "text": "A spot opened." },
+    "request": { "trigger": "bullpen.slot-opened" },
+    "lookups": [],
+    "decision": "deny",
+    "rule": "messages.opt-in-only",
+    "facts": {}
+  },
+  {
+    "name": "a message with no recipients has no fact to hold, and is denied",
+    "tool": "lineup/send_message",
+    "arguments": { "channel": "sms", "audience": "bullpen", "recipients": [], "text": "A spot opened." },
+    "request": { "trigger": "bullpen.slot-opened" },
+    "decision": "deny",
+    "rule": "messages.opt-in-only"
+  },
+  {
+    "name": "a trigger the model names, but lineup's request doesn't, isn't one",
+    "tool": "lineup/send_message",
+    "arguments": { "channel": "sms", "audience": "bullpen", "recipients": ["m1"], "text": "A spot opened.",
+                   "trigger": "bullpen.slot-opened" },
+    "request": {},
+    "lookups": [
+      { "tool": "lineup/get_member", "input": { "member": "m1" }, "result": { "notifyOptIn": true } }
+    ],
+    "decision": "human"
+  },
+  {
+    "name": "an organizer blast pauses, showing the message, the count and the estimate",
+    "tool": "lineup/send_message",
+    "arguments": { "channel": "sms", "audience": "group", "recipients": ["m1", "m2"], "text": "Game moved to 7pm." },
+    "request": { "facts": { "actor.role": "organizer" } },
+    "lookups": [
+      { "tool": "lineup/get_member", "input": { "member": "m1" }, "result": { "notifyOptIn": true } },
+      { "tool": "lineup/get_member", "input": { "member": "m2" }, "result": { "notifyOptIn": true } },
+      { "tool": "lineup/estimate_cost", "input": { "channel": "sms", "recipients": ["m1", "m2"] },
+        "result": { "estimate": "$0.02" } }
+    ],
+    "decision": "human",
+    "rule": "organizer.blast",
+    "present": { "message": "Game moved to 7pm.", "recipient count": 2, "estimated cost": "$0.02" }
+  },
+  {
+    "name": "an estimate that can't be looked up is shown as missing",
+    "tool": "lineup/send_message",
+    "arguments": { "channel": "sms", "audience": "group", "recipients": ["m1"], "text": "Game moved to 7pm." },
+    "request": {},
+    "lookups": [
+      { "tool": "lineup/get_member", "input": { "member": "m1" }, "result": { "notifyOptIn": true } }
+    ],
+    "decision": "human",
+    "rule": "organizer.blast",
+    "present": { "message": "Game moved to 7pm.", "recipient count": 1, "estimated cost": null }
+  },
+  {
+    "name": "an organizer cancelling an event needs approval",
+    "tool": "lineup/cancel_event",
+    "arguments": { "event": "e1" },
+    "request": { "facts": { "actor.role": "organizer" } },
+    "decision": "human",
+    "rule": "event.cancel"
+  },
+  {
+    "name": "the model naming the actor an organizer doesn't make them one",
+    "tool": "lineup/cancel_event",
+    "arguments": { "event": "e1", "actor.role": "organizer", "actor": { "role": "organizer" } },
+    "request": { "facts": { "actor.role": "member" } },
+    "decision": "deny",
+    "rule": "organizers-only.cancel",
+    "facts": { "actor.role": "member" }
+  },
+  {
+    "name": "a request that doesn't say who the actor is can't remove a member",
+    "tool": "lineup/remove_member",
+    "arguments": { "member": "m2" },
+    "request": {},
+    "decision": "deny",
+    "rule": "organizers-only.remove"
+  },
+  {
+    "name": "a fact source isn't an action Barry may take",
+    "tool": "lineup/get_member",
+    "arguments": { "member": "m1" },
+    "decision": "deny"
+  },
+  {
+    "name": "a tool the registration doesn't list is denied",
+    "tool": "lineup/charge_fee",
+    "arguments": { "member": "m1", "usd": 20 },
+    "decision": "deny"
+  }
+]
