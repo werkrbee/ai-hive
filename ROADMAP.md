@@ -119,8 +119,8 @@ not just assembled from it. Both items have an open pull request.
 Tracked on the `P2.1 — assurance loop` milestone (epic #122), worked in the order set in
 `docs/sprints/p2.1.md`. Defensive co-scaling: the agents' control systems are built at the
 same pace as the agents (`docs/factory-thesis.md`). Every agent will carry a passport,
-held by four controls. The passport, the audit log, the review queue, trust evaluation
-and the adversarial cases are done.
+held by four controls. The passport, the audit log, the review queue, trust evaluation,
+rollback, the adversarial cases and the sub-agent boundary are done.
 
 - **Vision and roadmap (docs).** Put defensive co-scaling into the factory thesis, the
   README, this roadmap and a sprint file. (#123)
@@ -142,9 +142,9 @@ and the adversarial cases are done.
   checkpoint; an external effect is compensated, as the approval policy decides. (#128)
 - **Human review queue (workflows-hive) (done).** One queue for approvals, drift and
   escalations across every run and agent. (#129)
-- **Sub-agent and clone boundaries (rules-hive).** A delegate's passport only narrows its
-  parent's; context is passed explicitly; cached context never crosses a trust boundary.
-  (#130)
+- **Sub-agent and clone boundaries (rules-hive) (done).** A delegate's passport only
+  narrows its parent's; context is passed explicitly; cached context never crosses a
+  trust boundary. (#130)
 - **Adversarial eval cases (agents-hive) (done).** Each suite gains cases where the input
   itself is hostile: a prompt injection, a forged approval, an instruction hidden in
   quoted tool output. Marked critical, before hosted Barry acts on a caller's tools.
