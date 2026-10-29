@@ -1,5 +1,31 @@
 # Changelog
 
+## [0.8.0](https://github.com/werkrbee/ai-hive/compare/v0.7.0...v0.8.0) (2026-10-29)
+
+
+### Features
+
+* **agents-hive:** add adversarial cases to trust evaluations ([#154](https://github.com/werkrbee/ai-hive/issues/154)) ([cccb3fb](https://github.com/werkrbee/ai-hive/commit/cccb3fbfbce49717cec71827118e1fbb86130511)), closes [#139](https://github.com/werkrbee/ai-hive/issues/139)
+* **agents-hive:** hold promotion on repeated not-run evaluations ([#157](https://github.com/werkrbee/ai-hive/issues/157)) ([6659192](https://github.com/werkrbee/ai-hive/commit/6659192f61e4d9133790e0aba62dc579d9991174)), closes [#153](https://github.com/werkrbee/ai-hive/issues/153)
+* **agents-hive:** pin each eval suite in its passport ([#156](https://github.com/werkrbee/ai-hive/issues/156)) ([230a74b](https://github.com/werkrbee/ai-hive/commit/230a74b0db9da583bbc1695232f64478f3debb6a)), closes [#149](https://github.com/werkrbee/ai-hive/issues/149)
+* **agents-hive:** put hosted Patricia under the assurance loop ([#165](https://github.com/werkrbee/ai-hive/issues/165)) ([77e243f](https://github.com/werkrbee/ai-hive/commit/77e243f6c64111de89df7b8009f6994c791c5cce))
+* bound sub-agents and clones ([#162](https://github.com/werkrbee/ai-hive/issues/162)) ([92092bb](https://github.com/werkrbee/ai-hive/commit/92092bb8b374b29e16926057d59df2aa4b2b342e)), closes [#130](https://github.com/werkrbee/ai-hive/issues/130)
+* roll back a run or an agent's passport version ([#160](https://github.com/werkrbee/ai-hive/issues/160)) ([0e7050a](https://github.com/werkrbee/ai-hive/commit/0e7050aa2ad08c2b61673c6c1ba83b5f1c93c5f3)), closes [#128](https://github.com/werkrbee/ai-hive/issues/128)
+
+
+### Bug fixes
+
+* **agents-hive:** count provider errors in an eval as not run, not missed ([#151](https://github.com/werkrbee/ai-hive/issues/151)) ([959d542](https://github.com/werkrbee/ai-hive/commit/959d5421dc15718414d70d069e442149d87dd65b)), closes [#150](https://github.com/werkrbee/ai-hive/issues/150)
+
+
+### Documentation
+
+* list the trust evaluation follow-ups in the P2.1 plan ([#155](https://github.com/werkrbee/ai-hive/issues/155)) ([1094083](https://github.com/werkrbee/ai-hive/commit/1094083b159c86e1ff50be4e815ea75ef4c5c83a)), closes [#122](https://github.com/werkrbee/ai-hive/issues/122)
+* mark rollback done in the P2.1 plan ([#161](https://github.com/werkrbee/ai-hive/issues/161)) ([9a53f00](https://github.com/werkrbee/ai-hive/commit/9a53f003ccb433b08d72a7ad46a6beea82cac4c9))
+* mark sub-agent boundaries done in the P2.1 plan ([#164](https://github.com/werkrbee/ai-hive/issues/164)) ([fb3d19a](https://github.com/werkrbee/ai-hive/commit/fb3d19adb31158665d5dd71d443458b54e4f2718)), closes [#130](https://github.com/werkrbee/ai-hive/issues/130)
+* mark the trust evaluation follow-ups done ([#159](https://github.com/werkrbee/ai-hive/issues/159)) ([db0a789](https://github.com/werkrbee/ai-hive/commit/db0a7892d82cd77ff2eb6b8fc58fe74c298db63c))
+* set ai-hive's vision and mission ([#158](https://github.com/werkrbee/ai-hive/issues/158)) ([9796a12](https://github.com/werkrbee/ai-hive/commit/9796a12c218aa5e725b7f6e6161294d301310fbc))
+
 ## [0.7.0](https://github.com/werkrbee/ai-hive/compare/v0.6.2...v0.7.0) (2026-10-27)
 
 
