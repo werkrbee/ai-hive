@@ -65,7 +65,7 @@ clients need it to learn how to authenticate.
    checkout. It first checks that Patricia's passport may be promoted (see trust
    evaluation, below), and stops before anything else if not. Once a template with the
    weekly evaluation is deployed, it then reads what that evaluation recorded on the share
-   and stops if drift there holds her. It looks up every built-in role id `main.bicep`
+   and stops if drift there holds her, or if it has recorded nothing in eight days. It looks up every built-in role id `main.bicep`
    assigns, and stops before any change if one doesn't exist, because what-if doesn't
    check them. It checks every model against the region's Foundry catalog and stops if
    one isn't there, isn't generally available, doesn't do chat completions or isn't
@@ -209,7 +209,11 @@ az containerapp job execution list --name <prefix>-eval --resource-group <rg> -o
 ```
 
 What it finds holds promotion: `deploy.sh` downloads `assurance/`, read-only, with the
-account key in its environment, and runs the promotion check on it. Answer an item with
+account key in its environment, and runs the promotion check on it. So does its silence. A
+run whose first audit push fails exits before it records anything, so `deploy.sh` also
+stops when the newest evaluation, or the job's creation if it has none, is more than eight
+days old (`HOSTED_MAX_DAYS`, a week and a day's grace; a less frequent `evalSchedule`
+needs it raised). The job's execution history says why it went quiet. Answer an item with
 `assurance.sh`, at your terminal, under your actor id:
 
 ```bash
@@ -220,8 +224,9 @@ account key in its environment, and runs the promotion check on it. Answer an it
 
 It downloads `assurance/`, answers with workflows-hive's `review_queue.py`, which refuses
 without an interactive terminal, and uploads the item and the audit log, unless the
-share's log changed while you answered, in which case nothing is uploaded and you answer
-again. The job pushes your answer's audit entry to the immutable copy when it next runs.
+share's log changed after it was downloaded, in which case nothing is uploaded and you
+answer again. The log's etag is read before the download, so a run that finishes during
+or just after it is caught too. The job pushes your answer's audit entry to the immutable copy when it next runs.
 
 ## The audit log's immutable copy
 

@@ -13,7 +13,9 @@
 # Hosted evaluations: once a template with the weekly job is deployed, its results and
 # queue are downloaded from the share, with the account key in the environment and never
 # an argument, and drift there stops the deploy before any change, as does a download that
-# fails. Retention: the audit log's policy is set after the infrastructure, as its own
+# fails. So does a job that has gone quiet: one whose newest evaluation, or whose creation
+# when it has none, is more than eight days old, or one that can't be looked up; a job
+# that recorded recently, or was created within the week, goes on. Retention: the audit log's policy is set after the infrastructure, as its own
 # gated step, and locked only with --lock-audit-retention and the account's name typed; a
 # locked policy is left alone.
 #
@@ -38,8 +40,8 @@ fail=0
 # $STUB/params.json what build-params prints and $STUB/catalog.json the region's model
 # catalog; every call is appended to $STUB/calls. $STUB/deployed is whether a deployment
 # named main exists (0 or 1), $STUB/outputs its outputs, $STUB/hosted/ what the share's
-# assurance/ holds and $STUB/policy the audit container's retention policy, as
-# container-rm show prints it. STUB_FAIL, when set, is a pattern; a call whose arguments
+# assurance/ holds, $STUB/job-created when the weekly job was created (none: no job) and
+# $STUB/policy the audit container's retention policy, as container-rm show prints it. STUB_FAIL, when set, is a pattern; a call whose arguments
 # match it fails.
 mkdir -p "$work/bin"
 cat > "$work/bin/az" <<'STUB'
@@ -64,6 +66,7 @@ case "$args" in
     echo "${AZURE_STORAGE_KEY:-}" > "$STUB/key"
     dest=$(printf '%s' "$args" | sed -n 's/.*--destination \([^ ]*\).*/\1/p')
     if [ -d "$STUB/hosted" ]; then mkdir -p "$dest/assurance" && cp -R "$STUB/hosted/." "$dest/assurance/"; fi ;;
+  "containerapp job list"*) cat "$STUB/job-created" 2>/dev/null || true ;;
   "storage container-rm show"*) cat "$STUB/policy" 2>/dev/null || printf 'False\n' ;;
   "storage container immutability-policy create"*) printf 'True\tUnlocked\t365\tTrue\n' > "$STUB/policy" ;;
   "storage container immutability-policy show"*) echo '"etag-1"' ;;
@@ -362,6 +365,40 @@ hosted_setup hostedfail "$data"
 STUB_FAIL="storage file download-batch" ANSWER=yes run hostedfail "$bicep"
 check "hosted: a download that fails stops it, rather than skipping the check" \
   eval '[ "$code" -ne 0 ] && has "couldn.t download the hosted evaluations from patriciasttest" && ! has "== 1/4"'
+
+# A job that has gone quiet holds her; one that recorded recently, or is new, doesn't.
+ago() {  # DAYS — that long ago, as az prints a creation time
+  python3 -c 'import datetime, sys; print((datetime.datetime.now(datetime.timezone.utc)
+    - datetime.timedelta(days=float(sys.argv[1]))).strftime("%Y-%m-%dT%H:%M:%S.1234567+00:00"))' "$1"
+}
+quiet() {  # CASE JOB-AGE-DAYS [RESULT-AGE-DAYS] — the job, and its newest evaluation if any
+  hosted_setup "$1" "$data" && mkdir -p "$work/$1/hosted"
+  ago "$2" > "$work/$1/job-created"
+  if [ -n "${3:-}" ]; then
+    printf '{"id": "x-patricia-weekly-eval", "at": "%s"}\n' "$(ago "$3" | cut -c1-19)Z" > "$work/$1/hosted/results.jsonl"
+  fi
+}
+quiet hostedfresh 30 2
+ANSWER=yes run hostedfresh "$bicep"
+check "hosted: an evaluation two days old goes on" \
+  eval 'has "hosted: last recorded on" && has "== 1/4"'
+quiet hostednew 1
+ANSWER=yes run hostednew "$bicep"
+check "hosted: a job a day old with nothing recorded yet goes on" \
+  eval 'has "nothing recorded yet, and the job is 1 day old" && has "== 1/4"'
+quiet hostedstale 30 10
+ANSWER=yes run hostedstale "$bicep"
+check "hosted: an evaluation ten days old stops it before any change" \
+  eval '[ "$code" -ne 0 ] && has "hasn.t recorded one in 10 days (the last on" && has "held until the weekly evaluation records again" \
+   && ! has "== 1/4" && ! grep -q "^role definition list" "$STUB/calls"'
+quiet hostedsilent 30
+ANSWER=yes run hostedsilent "$bicep"
+check "hosted: a month-old job that never recorded stops it before any change" \
+  eval '[ "$code" -ne 0 ] && has "none since the job was created" && ! has "== 1/4"'
+quiet hostedjobfail 30 2
+STUB_FAIL="containerapp job list" ANSWER=yes run hostedjobfail "$bicep"
+check "hosted: a job it can't look up stops it, rather than skipping the check" \
+  eval '[ "$code" -ne 0 ] && has "couldn.t read Patricia.s weekly evaluation job" && ! has "== 1/4"'
 
 STUB_FAIL="deployment group list" ANSWER=yes run hostedlist "$bicep"
 check "hosted: deployments it can't list stop it, rather than skipping the check" \

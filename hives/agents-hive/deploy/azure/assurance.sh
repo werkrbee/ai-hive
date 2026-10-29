@@ -54,9 +54,6 @@ export AZURE_STORAGE_KEY
 work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT
 state=$work/assurance
-az storage file download-batch --account-name "$account" --source "$share" --pattern 'assurance/*' \
-  --destination "$work" -o none
-mkdir -p "$state/queue" "$state/runs"
 queue() { python3 "$queue_py" --state-dir "$state/runs" --queue-dir "$state/queue" --audit "$state/audit.jsonl" "$@"; }
 
 # The share's audit log's etag, or "none" before the job has written one.
@@ -65,11 +62,17 @@ etag() {
     --query properties.etag -o tsv 2>/dev/null || echo none
 }
 
+# An answer's etag is read before the download, so a log the job wrote at any point after
+# it, during the download included, stops the upload rather than being overwritten.
+case "$command" in approve|deny) before=$(etag) ;; esac
+az storage file download-batch --account-name "$account" --source "$share" --pattern 'assurance/*' \
+  --destination "$work" -o none
+mkdir -p "$state/queue" "$state/runs"
+
 case "$command" in
   list|show)
     queue "$command" "$@" ;;
   approve|deny)
-    before=$(etag)
     queue "$command" "$@"
     if [ "$(etag)" != "$before" ]; then
       echo "error: the share's audit log changed while you answered (the weekly job may be running);" \

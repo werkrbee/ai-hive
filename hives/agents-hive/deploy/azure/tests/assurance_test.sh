@@ -3,8 +3,8 @@
 # hosted queue lists what the weekly evaluation found; an answer at a terminal goes back
 # to the share with its audit entry, the key only ever in the environment; an answer
 # without a terminal is refused and nothing is uploaded; and when the share's audit log
-# changes while a person answers, nothing is uploaded. A template from before the weekly
-# job has nothing to read. Bash 3.2 safe; run it with /bin/bash on macOS.
+# changes while a person answers, or just after the download, before the answer began,
+# nothing is uploaded. A template from before the weekly job has nothing to read. Bash 3.2 safe; run it with /bin/bash on macOS.
 #
 # Usage: tests/assurance_test.sh        (from hives/agents-hive/deploy/azure, or anywhere)
 set -u
@@ -18,7 +18,8 @@ export STUB="$work/stub"
 
 # The stub. $STUB/share is the file share; $STUB/outputs the last deployment's outputs.
 # Every call is appended to $STUB/calls. Once $STUB/race exists, the share's audit log
-# gains a line the first time its etag is read after that.
+# gains a line the first time its etag is read after that; once $STUB/race-download
+# exists, it gains one just after the download.
 mkdir -p "$work/bin"
 cat > "$work/bin/az" <<'STUB'
 #!/usr/bin/env bash
@@ -30,7 +31,8 @@ case "$args" in
   "deployment group show"*) cat "$STUB/outputs" ;;
   "storage account keys list"*) echo "s3cretkey" ;;
   "storage file download-batch"*)
-    mkdir -p "$(arg --destination)" && cp -R "$STUB/share/assurance" "$(arg --destination)/" ;;
+    mkdir -p "$(arg --destination)" && cp -R "$STUB/share/assurance" "$(arg --destination)/"
+    [ ! -f "$STUB/race-download" ] || echo '{"seq": 98}' >> "$STUB/share/assurance/audit.jsonl" ;;
   "storage file show"*)
     log="$STUB/share/assurance/audit.jsonl"
     [ -f "$log" ] || exit 1
@@ -128,6 +130,14 @@ in_terminal deny rg-test "$item" --reason "the provider changed the model"
 check "deny while the job writes the log: nothing is uploaded" \
   eval '[ "$code" -ne 0 ] && has "the share.s audit log changed while you answered" \
    && [ "$(status)" = open ] && ! grep -q "^storage file upload" "$STUB/calls"'
+
+setup
+touch "$STUB/race-download"
+in_terminal approve rg-test "$item"
+check "approve when the job wrote the log just after the download: nothing is uploaded" \
+  eval '[ "$code" -ne 0 ] && has "the share.s audit log changed while you answered" \
+   && [ "$(status)" = open ] && grep -q "\"seq\": 98" "$STUB/share/assurance/audit.jsonl" \
+   && ! grep -q "^storage file upload" "$STUB/calls"'
 
 setup
 echo '{"registry": {"value": "reg.azurecr.io"}}' > "$STUB/outputs"

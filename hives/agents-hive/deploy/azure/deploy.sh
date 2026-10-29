@@ -3,7 +3,8 @@
 # Charter gates, so this script shows Azure's what-if for each change and goes ahead only
 # when you type "yes". Before anything, it checks that Patricia's passport may be promoted
 # (its trust evaluation's baseline was recorded against its exact pins, and no drift holds
-# it in the review queue, here or in what her weekly evaluation recorded in Azure), that
+# it in the review queue, here or in what her weekly evaluation recorded in Azure, and
+# that evaluation has recorded within eight days), that
 # every built-in role id main.bicep assigns exists, since what-if doesn't, and that every
 # model is generally available in the region, by the Foundry model catalog, and that the
 # one the server calls is the model her passport pins.
@@ -269,8 +270,10 @@ fi
 # share, so drift it found holds promotion only once read from there. They are downloaded,
 # read-only, and checked as the local ones were. A rollback skips this: the earlier
 # passport's check can't read them, and answering drift is what a rollback is for.
+# Weekly, with a day's grace; a less frequent evalSchedule needs this raised.
+HOSTED_MAX_DAYS=8
 hosted_check() {
-  local deployed outputs account key
+  local deployed outputs account key created
   if [ "$(az group exists --name "$rg")" != "true" ]; then
     echo "nothing is deployed in $rg yet, so there are no hosted evaluations"
     return
@@ -308,6 +311,47 @@ hosted_check() {
       --queue-dir "$hosted/assurance/queue" --results "$hosted/assurance/results.jsonl"; then
     echo "error: what Patricia's weekly evaluation found holds her passport; answer it with" \
       "assurance.sh; nothing was changed" >&2
+    exit 1
+  fi
+  # A job that stops recording, because its audit push fails, say, leaves nothing for the
+  # check above to find, so its silence holds her too: the newest evaluation, or the job's
+  # creation if it hasn't recorded one yet, must be within HOSTED_MAX_DAYS.
+  if ! created=$(az containerapp job list --resource-group "$rg" \
+      --query "[?ends_with(name, '-eval')].systemData.createdAt | [0]" -o tsv); then
+    echo "error: couldn't read Patricia's weekly evaluation job in $rg; nothing was changed" >&2
+    exit 1
+  fi
+  if [ -z "$created" ]; then
+    echo "the weekly evaluation job isn't deployed yet, so it has nothing to have recorded"
+    return
+  fi
+  if ! python3 - "$hosted/assurance/results.jsonl" "$created" "$HOSTED_MAX_DAYS" <<'PY'
+import datetime, json, re, sys
+from pathlib import Path
+
+def when(text):  # "2026-10-27", "2026-10-27T01:29:05Z" or az's "2026-10-27T01:29:05.1234567+00:00"
+    # Python before 3.11 takes neither Z nor more than six digits of a second.
+    text = re.sub(r"(\.\d{6})\d+", r"\1", text.replace("Z", "+00:00"))
+    t = datetime.datetime.fromisoformat(text)
+    return t if t.tzinfo else t.replace(tzinfo=datetime.timezone.utc)
+
+results, created, days = Path(sys.argv[1]), when(sys.argv[2]), int(sys.argv[3])
+lines = results.read_text().splitlines() if results.is_file() else []
+newest = max((when(json.loads(line)["at"]) for line in lines if line.strip()), default=None)
+now = datetime.datetime.now(datetime.timezone.utc)
+age = (now - (newest or created)).days
+ago = f"{age} day{'' if age == 1 else 's'}"
+if now - (newest or created) <= datetime.timedelta(days=days):
+    print(f"hosted: last recorded on {newest:%Y-%m-%d}" if newest
+          else f"hosted: nothing recorded yet, and the job is {ago} old")
+    sys.exit(0)
+print(f"error: Patricia's weekly evaluation hasn't recorded one in {ago}"
+      + (f" (the last on {newest:%Y-%m-%d})" if newest else ", none since the job was created")
+      + f", more than {days}; see why in the job's execution history", file=sys.stderr)
+sys.exit(1)
+PY
+  then
+    echo "error: her passport is held until the weekly evaluation records again; nothing was changed" >&2
     exit 1
   fi
 }
