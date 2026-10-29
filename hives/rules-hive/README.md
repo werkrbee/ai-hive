@@ -92,7 +92,7 @@ step runs (see [workflows-hive](../workflows-hive/README.md#run-a-workflow)).
 
 ## Sub-agents and clones
 
-Every harness now spawns sub-agents or clones and reuses the parent's cached context to
+Most harnesses now spawn sub-agents or clones and reuse the parent's cached context to
 save compute. The Charter's "Sub-agents and clones" section keeps a delegate inside its
 delegator's bounds with four rules, from `docs/assurance-loop.md`.
 

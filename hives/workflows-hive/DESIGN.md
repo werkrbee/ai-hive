@@ -290,8 +290,9 @@ prohibitions, and with an action under `approval` paused even where the policy w
 it run. `budget` is the delegate's passport's budget cut to what the delegator has left:
 its budget less its cost, the budget each open delegate holds and what each ended one
 spent, counted down the tree. The delegator's record lists its delegates' runs under
-`delegations`. A delegate's run that spends past its `budget` fails with
-`budget.refused`.
+`delegations`. A delegate's run that spends past its `budget`'s `usd` or `tokens` fails
+with `budget.refused`. Its `seconds` is the lower of the two passports' limits, recorded
+but not yet enforced.
 
 ## The review queue
 

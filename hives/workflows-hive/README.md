@@ -332,15 +332,21 @@ order never, then approval, then granted, and an action either leaves out is pro
 An action under approval in the grant waits for a person even where the Charter would let
 it run. Its budget is the delegate's passport's, cut to what the delegator has left, which
 is the delegator's budget less what it has spent, what each open delegate holds in reserve
-and what each ended one spent. A delegate that runs past its budget fails, and a
-delegation with nothing left to carve fails its delegator's run. The audit log's
+and what each ended one spent. A delegate that spends past its `usd` or `tokens` fails,
+and a delegation with nothing left to carve fails its delegator's run. The audit log's
 `delegation` entry names both passports, the digest of the grant and the digest of each
 item passed, not the items, which stay in the run records. Calling `delegate` again with
 the same step returns the same run.
 
 A delegate's run is the delegator's to drive, and cancelling the delegator doesn't cancel
 it. A delegation counts as an effect for a rollback, so a run can't be rolled back past
-one.
+one. A delegate's `seconds` isn't drawn from a pool the delegator shares: it is the lower
+of the two passports' limits, and it is recorded in the delegate's budget but not yet
+enforced, so only each step's own `seconds` stops a slow delegate. The grant binds only a
+delegate: a run started under a passport is held to that passport's `never` and nothing
+more, so an action outside its `granted` and `approval` is still decided by the policy
+alone. And `context.whole` is the caller's word: the engine can't tell when a list of
+items amounts to the whole conversation.
 
 ## License
 
