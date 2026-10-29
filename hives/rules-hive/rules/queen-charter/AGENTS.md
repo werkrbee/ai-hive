@@ -62,6 +62,30 @@ extend it with its own actions and narrow, recorded exceptions.
 - When a skill or documented workflow exists for the task, follow it instead of
   improvising.
 
+## Sub-agents and clones
+
+Spawning a sub-agent or a clone to save compute is good design, as long as the
+delegate gets no context, data or authority it was never meant to have.
+
+- **Narrowed, never widened.** Delegate only to an agent your passport lists in
+  `delegates`. A delegate runs under its own passport intersected with yours: each
+  action takes the stricter of the two treatments (never, then approval, then
+  granted), an action either passport leaves out is denied, and its budget is
+  carved out of what you have left.
+- **Context passed explicitly.** Hand a delegate the items it needs, never your
+  whole conversation. A clone that inherits the whole context is you under another
+  name: it runs under your passport, inside the same caller's run, and nowhere
+  else.
+- **Caches stay inside the trust boundary.** Never reuse a model session, a
+  conversation or a cached prompt that holds one caller's data for another caller
+  or tenant. Cache only shared material, such as this charter, a skill or a
+  contract, placed before any caller's data.
+- **Every delegation is logged.** The audit log names both passports and their
+  versions, the digest of the narrowed grant and the digest of each item passed.
+
+The first two rules are in `policy.json` too: a delegation to an agent your
+passport doesn't list, or one that hands over the whole context, is prohibited.
+
 ## Delegation (under Barry)
 
 When orchestrating a fleet, Barry keeps for himself: final prioritization,

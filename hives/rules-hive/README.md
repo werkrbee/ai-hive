@@ -90,6 +90,42 @@ CI runs it. The workflows-hive engine applies a policy at runtime: a step lists 
 actions it takes, and the engine decides each one with this checker's rules before the
 step runs (see [workflows-hive](../workflows-hive/README.md#run-a-workflow)).
 
+## Sub-agents and clones
+
+Every harness now spawns sub-agents or clones and reuses the parent's cached context to
+save compute. The Charter's "Sub-agents and clones" section keeps a delegate inside its
+delegator's bounds with four rules, from `docs/assurance-loop.md`.
+
+**Narrowed, never widened.** An agent delegates only to an agent its passport
+(agents-hive) lists in `delegates`. The delegate runs under its own passport intersected
+with its delegator's grant. Each action takes the stricter of the two treatments, in the
+order never, then approval, then granted, and an action either one leaves out is denied.
+Its budget is carved out of what the delegator has left.
+
+**Context passed explicitly.** A delegate gets the items it needs, never the delegator's
+whole conversation. A clone that inherits the whole context is the delegator under another
+name: it runs under the delegator's passport, inside the same caller's run, and nowhere
+else.
+
+**Caches stay inside the trust boundary.** A hosted server never reuses a model session, a
+conversation or a cached prompt holding one caller's data for another caller or tenant.
+Only shared material, such as the Charter, a skill or a contract, is cached, placed before
+any caller's data.
+
+**Every delegation is logged.** Its audit entry names both passports and their versions,
+the digest of the narrowed grant and the digest of each item passed.
+
+The Charter's policy holds the first two as prohibitions on `agent.delegate`, decided with
+the delegate's passport as the scope. `delegate.unlisted` denies a delegation unless the
+fact `delegate.listed` is true, and `delegate.whole-context` denies one whose
+`context.whole` is true or left out, so a delegation must say what it passes. Its cases
+test both. A policy can't read a passport, so the engine that applies it supplies
+`delegate.listed` from the delegator's passport rather than taking it from the request.
+The workflows-hive engine does that, narrows the grant, carves the budget and writes the
+audit entry ([delegating](../workflows-hive/README.md#delegate-to-another-agent)). The A2A
+server in agents-hive keeps the cache rule: its system prompt is only the shared prompt
+files, and each call sends only its own input after it.
+
 ## Repository layout
 
 ```text

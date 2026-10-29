@@ -63,7 +63,13 @@ def read_input(message):
 
 
 class Reviewer:
-    """Everything a call needs that doesn't change between calls."""
+    """Everything a call needs that doesn't change between calls.
+
+    The cache stays inside the trust boundary (the Charter's sub-agents and clones). The
+    system prompt is built once from the shared prompt files and holds no caller's data,
+    and each call sends only its own input after it, with no session, conversation or
+    earlier message. So a provider's prompt cache can only ever hold the shared prefix,
+    and nothing one caller sent reaches another's call."""
 
     def __init__(self, config, ledger, provider):
         self.config = config

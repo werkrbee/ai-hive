@@ -114,6 +114,18 @@ class Fixed:
         pass
 
 
+class Recording(Fixed):
+    """Records each call's system and user prompts."""
+
+    def __init__(self, text):
+        super().__init__(text)
+        self.calls = []
+
+    async def complete(self, system, user, max_tokens):
+        self.calls.append((system, user))
+        return await super().complete(system, user, max_tokens)
+
+
 class ServerTest(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
@@ -305,6 +317,29 @@ class ServerTest(unittest.TestCase):
             self.assertEqual(self.rpc(c, "GetTask", {"id": theirs}).json()["error"]["code"], -32001)
             self.assertEqual(self.rpc(c, "CancelTask", {"id": theirs}).json()["error"]["code"], -32001)
             self.assertEqual(self.rpc(c, "GetTask", {"id": theirs}, who=OTHER).json()["result"]["id"], theirs)
+
+    def test_no_caller_s_data_reaches_another_call_or_the_shared_prefix(self):
+        provider = Recording(json.dumps({"verdict": "allow", "reason": "r"}))
+        first = [{"data": {"proposal": "Rotate the lineup signing key."}}]
+        theirs = [{"data": {"proposal": "Email the singularity beta list."}}]
+        follow_up = [{"data": {"proposal": "And delete the old key."}}]
+        with self.client(write_config(self.root), provider=provider) as c:
+            context = self.send(c, first)["result"]["task"]["contextId"]
+            self.send(c, theirs, who=OTHER)
+            params = message(follow_up)
+            params["message"]["contextId"] = context
+            r = self.rpc(c, "SendMessage", params)
+            self.assertEqual(r.status_code, 200, r.text)
+        self.assertEqual(len(provider.calls), 3)
+        systems = {system for system, _ in provider.calls}
+        self.assertEqual(len(systems), 1, "every call shares one prefix, the only part a cache could hold")
+        [(_, mine), (_, other), (_, later)] = provider.calls
+        for text in ("signing key", "beta list", "old key"):
+            self.assertNotIn(text, next(iter(systems)))
+        self.assertIn("signing key", mine)
+        self.assertNotIn("signing key", other)  # another caller's call
+        self.assertNotIn("signing key", later)  # the same caller's next message carries no history
+        self.assertIn("old key", later)
 
     def test_cancel_stops_a_working_review(self):
         gate = Gate()

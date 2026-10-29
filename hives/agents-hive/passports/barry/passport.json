@@ -1,10 +1,10 @@
 {
   "$schema": "../../schema/passport.schema.json",
   "passport": "barry",
-  "version": 3,
+  "version": 4,
   "owner": "@werkrbee",
   "contract": { "capability": "orchestration", "version": 1 },
-  "policy": { "ruleset": "hives/rules-hive/rules/queen-charter/policy.json", "version": 3 },
+  "policy": { "ruleset": "hives/rules-hive/rules/queen-charter/policy.json", "version": 4 },
   "permissions": {
     "granted": ["fs.read", "fs.write", "shell.exec", "net.fetch", "agent.delegate"],
     "approval": [
@@ -14,13 +14,13 @@
     "never": ["infra.change"]
   },
   "budget": { "usd": 5, "tokens": 2000000, "seconds": 3600 },
-  "delegates": ["patricia"],
+  "delegates": ["patricia", "explore", "code-review", "security-review", "charter-review"],
   "pins": {
     "prompt": [
-      { "path": "hives/rules-hive/rules/queen-charter/AGENTS.md", "sha256": "79ea53fdeff1bc0348c7d8436e3102970175fc4e7605d71f214e5f6bb1267167" },
+      { "path": "hives/rules-hive/rules/queen-charter/AGENTS.md", "sha256": "388c6cea931b3ddb06f5a231bcdc6386359cbe965a505904a6b09860828c04fd" },
       { "path": "hives/skills-hive/skills/barry/SKILL.md", "sha256": "12257889bb332dea87dd89e93a8d994edc75c2b2e7625b354629f839ad98ec10" },
       { "path": "hives/skills-hive/skills/barry/references/fleet.md", "sha256": "b1e92b0243b28beaba6cf0a80abda844029cc719e1d4107d80b35d0d75c8f4b4" }
     ],
-    "policy": { "sha256": "5fd0e435ed2c739ad5b6c6160efb63ce7b4da66d98fc410d6079d97aa3ebcbcc" }
+    "policy": { "sha256": "25f0579ee39e2e1f480abbd6352a7955adb2fe3ac6c5f1299d51e2c45497c09e" }
   }
 }

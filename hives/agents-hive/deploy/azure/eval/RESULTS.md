@@ -7,9 +7,11 @@ had the first twelve cases; the five adversarial ones came later (#139).
 These runs compared models to choose Patricia's. Her trust evaluations are recorded in
 `results.jsonl` instead, one entry each. Its first is the 2026-10-21 run below, her
 first baseline, with the pins it ran on rebuilt from commit `4ffb36a`; her current
-baseline is `2026-10-27-patricia-eval-5`, all seventeen cases, recorded after her suite
-was pinned (#149). It replaced `2026-10-27-patricia-eval-4`, also seventeen of seventeen,
-on the pins before. The two before that on the same day were rate-limited (#150).
+baseline is `2026-10-29-patricia-eval`, all seventeen cases, recorded after the Charter
+gained its rules for sub-agents and clones (#130). It replaced
+`2026-10-27-patricia-eval-5`, recorded after her suite was pinned (#149), and that
+replaced `2026-10-27-patricia-eval-4`, both seventeen of seventeen on the pins before.
+The two before those, on 2026-10-27, were rate-limited (#150).
 
 ## 2026-10-13: GPT-5.4, before Claude
 

@@ -191,6 +191,30 @@ class Format(Log):
                                 "sha256": "a" * 64}, "by": "ci", "via": "cli", "record": record})
         self.assertEqual(self.errors(), [])
 
+    def test_a_delegation_names_both_passports_the_grant_and_the_context_passed(self):
+        barry = {"passport": "barry", "version": 4, "sha256": "a" * 64}
+        explore = {"passport": "explore", "version": 1, "sha256": "c" * 64}
+        entry = {"kind": "delegation", "runId": "run_1", "step": "map", "agent": barry, "delegate": explore,
+                 "grant": "sha256:" + "d" * 64, "context": ["sha256:" + "e" * 64]}
+        for key in ("agent", "delegate", "grant", "context"):
+            with self.subTest(missing=key), self.assertRaisesRegex(audit.AuditError, f"missing '{key}'"):
+                audit.append(self.log, {k: v for k, v in entry.items() if k != key})
+        for key, value, why in (("delegate", {"passport": "explore"}, "delegate must be"),
+                                ("grant", "fs.read", "grant must be sha256"),
+                                ("context", ["the whole conversation"], "context must be a list of digests")):
+            with self.subTest(bad=key), self.assertRaisesRegex(audit.AuditError, why):
+                audit.append(self.log, dict(entry, **{key: value}))
+        audit.append(self.log, entry)
+        audit.append(self.log, dict(entry, context=[]))
+        self.assertEqual(self.errors(), [])
+
+    def test_a_budget_refusal_names_its_step_or_its_turn(self):
+        with self.assertRaisesRegex(audit.AuditError, "names the step or the turn"):
+            audit.append(self.log, {"kind": "budget.refused", "runId": "run_1"})
+        audit.append(self.log, {"kind": "budget.refused", "runId": "run_1", "step": "read"})
+        audit.append(self.log, {"kind": "budget.refused", "runId": "run_1", "turn": "t1"})
+        self.assertEqual(self.errors(), [])
+
     def test_the_writer_refuses_an_entry_that_doesnt_fit(self):
         with self.assertRaisesRegex(audit.AuditError, "missing 'by'"):
             audit.append(self.log, {"kind": "run.cancelled", "runId": "run_9"})

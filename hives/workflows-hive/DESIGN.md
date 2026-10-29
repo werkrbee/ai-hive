@@ -266,6 +266,33 @@ same idempotency key. Its cost counts in the run's `cost` with the steps'. An op
 ends when the loop finishes it with its result, which the engine allows only once every
 step has completed, or fails it.
 
+An open run under a passport can delegate (rules-hive's Charter, sub-agents and clones).
+`delegate` appends a step whose worker is the engine's own `delegate`, which no plan or
+appended step may name, taking `agent.delegate` with the delegate's passport as its
+scope. The engine sets the request's `delegate.listed` fact from the delegator's passport,
+overriding any the step carries, and the caller says whether the context passed is the
+whole conversation, which the Charter's policy denies. Allowed, the step starts the
+delegate's open run, whose id is derived from the step's idempotency key, so a step run
+again finds the run it started. That record carries four more fields:
+
+```json
+"grant": { "granted": ["fs.read"], "approval": [], "never": ["agent.delegate", "…"] },
+"budget": { "usd": 0.4, "tokens": 200000, "seconds": 600 },
+"parent": { "runId": "run_01J9Z…", "step": "map" },
+"inputs": { "context": ["Find where approvals are answered."] }
+```
+
+`grant` is the delegator's grant, or its passport's permissions, intersected with the
+delegate's passport: each action takes the stricter treatment, and one either leaves out
+is in no list. The engine decides the delegate's steps under the policy with the
+delegate's `never` actions and every action outside `granted` and `approval` as
+prohibitions, and with an action under `approval` paused even where the policy would let
+it run. `budget` is the delegate's passport's budget cut to what the delegator has left:
+its budget less its cost, the budget each open delegate holds and what each ended one
+spent, counted down the tree. The delegator's record lists its delegates' runs under
+`delegations`. A delegate's run that spends past its `budget` fails with
+`budget.refused`.
+
 ## The review queue
 
 The review queue holds everything that waits on a person, across runs and agents, as one
@@ -315,15 +342,15 @@ each answer's `by` and `via` as evidence.
 ## Out of scope here
 
 The reference engine (`scripts/run.py`) implements rules 1 to 8, approvals, policy-decided
-actions, passports, cancel, rollback, open runs, escalations and the review queue, with
-the two-step `word-count`, `approved-word-count` and `budgeted-word-count` workflows. It
-is a command and a Python module (`Engine`); open runs are offered only through the
-module. It applies rules-hive's own checker (`check_policy.py`), so the engine and the
-policy's cases can't disagree, and it reads only policies inside this repo. Its `approve`
-and `deny` commands stand in for `tasks/update`, and `cancel` for `tasks/cancel`. It stops
-a step past its `seconds` while it runs, in a child process whose start-up counts toward
-the cap, and stops only that process, not any it started. It checks `usd` and `tokens`
-against what the step reports when it finishes, so a worker that calls a model must keep
-itself within its cap. The MCP Tasks server comes later. Worker execution contracts live
-in agents-hive. The Temporal engine is built when a product calls for it, against this
-same contract.
+actions, passports, cancel, rollback, open runs, delegation, escalations and the review
+queue, with the two-step `word-count`, `approved-word-count` and `budgeted-word-count`
+workflows. It is a command and a Python module (`Engine`); open runs are offered only
+through the module. It applies rules-hive's own checker (`check_policy.py`), so the engine
+and the policy's cases can't disagree, and it reads only policies inside this repo. Its
+`approve` and `deny` commands stand in for `tasks/update`, and `cancel` for
+`tasks/cancel`. It stops a step past its `seconds` while it runs, in a child process whose
+start-up counts toward the cap, and stops only that process, not any it started. It checks
+`usd` and `tokens` against what the step reports when it finishes, so a worker that calls
+a model must keep itself within its cap. The MCP Tasks server comes later. Worker
+execution contracts live in agents-hive. The Temporal engine is built when a product calls
+for it, against this same contract.

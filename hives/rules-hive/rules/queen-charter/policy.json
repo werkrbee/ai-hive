@@ -1,8 +1,8 @@
 {
   "$schema": "../../schema/approval-policy.schema.json",
   "policy": "queen-charter",
-  "version": 3,
-  "description": "The Queen Bee's Charter's approval rules. Local, reversible actions run without asking. Consequential, irreversible or externally visible actions need a human to approve the specific action. Anything else is denied. Editing or deleting an audit log, and answering the human review queue, are prohibited outright.",
+  "version": 4,
+  "description": "The Queen Bee's Charter's approval rules. Local, reversible actions run without asking. Consequential, irreversible or externally visible actions need a human to approve the specific action. Anything else is denied. Editing or deleting an audit log, answering the human review queue, delegating to an agent the delegator's passport doesn't list, and handing a delegate the whole context are prohibited outright.",
   "source": "hives/rules-hive/rules/queen-charter/AGENTS.md",
   "actions": [
     {
@@ -36,6 +36,22 @@
       "id": "queue.no-answer",
       "action": "queue.answer",
       "reason": "Only a person answers the review queue; an agent never answers its own, or any other agent's (the Charter's human gates)."
+    },
+    {
+      "id": "delegate.unlisted",
+      "action": "agent.delegate",
+      "unless": [
+        { "type": "action.condition", "field": "delegate.listed", "equals": true }
+      ],
+      "reason": "An agent delegates only to an agent its passport lists in delegates (the Charter's sub-agents and clones)."
+    },
+    {
+      "id": "delegate.whole-context",
+      "action": "agent.delegate",
+      "constraints": [
+        { "type": "action.condition", "field": "context.whole", "equals": true }
+      ],
+      "reason": "A delegate gets its context passed explicitly, never the delegator's whole conversation; a clone that inherits it is the delegator, inside the delegator's run (the Charter's sub-agents and clones)."
     }
   ],
   "mandates": [

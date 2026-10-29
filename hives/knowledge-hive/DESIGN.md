@@ -256,8 +256,12 @@ rollback record that keeps the reason, which the log never holds. A run's rollba
 the `runId` and the `step` it went back to, and its record is in the run record, under
 `rollbacks`. An agent's rollback to an earlier passport version (agents-hive's `deploy.sh
 --rollback`) names the `agent` it went back to, and its record is a JSON file in
-`rollbacks/` beside the log, named by the digest's hex digits. The kinds delegation writes
-get their fields as it is built.
+`rollbacks/` beside the log, named by the digest's hex digits. A `delegation` is written
+in the delegator's run, with the `step` that delegated, and names both passports: the
+delegator's as `agent` and the delegate's as `delegate`, each with its version and digest.
+`grant` is the digest of the narrowed grant the delegate runs under, and `context` lists
+the digest of each item passed to it, an empty list when nothing was, never the items
+themselves. A `budget.refused` names the `step` or the `turn` that ran past the budget.
 
 **Hash rules.** Each `hash` is `sha256:` followed by the SHA-256 of the entry without
 `hash`, serialized as canonical JSON: keys sorted, no insignificant whitespace, UTF-8,

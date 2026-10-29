@@ -72,6 +72,79 @@
     "rule": "queue.no-answer"
   },
   {
+    "name": "delegating to a listed agent, passing context explicitly, runs on its own",
+    "request": {
+      "action": "agent.delegate",
+      "scope": {
+        "passport": "explore"
+      },
+      "facts": {
+        "delegate.listed": true,
+        "context.whole": false
+      }
+    },
+    "decision": "auto",
+    "rule": "auto.agent.delegate"
+  },
+  {
+    "name": "delegating to an agent the passport doesn't list is prohibited",
+    "request": {
+      "action": "agent.delegate",
+      "scope": {
+        "passport": "deploy-bot"
+      },
+      "facts": {
+        "delegate.listed": false,
+        "context.whole": false
+      }
+    },
+    "decision": "deny",
+    "rule": "delegate.unlisted"
+  },
+  {
+    "name": "a delegation that doesn't say whether its delegate is listed is prohibited",
+    "request": {
+      "action": "agent.delegate",
+      "scope": {
+        "passport": "explore"
+      },
+      "facts": {
+        "context.whole": false
+      }
+    },
+    "decision": "deny",
+    "rule": "delegate.unlisted"
+  },
+  {
+    "name": "handing a delegate the whole context is prohibited",
+    "request": {
+      "action": "agent.delegate",
+      "scope": {
+        "passport": "explore"
+      },
+      "facts": {
+        "delegate.listed": true,
+        "context.whole": true
+      }
+    },
+    "decision": "deny",
+    "rule": "delegate.whole-context"
+  },
+  {
+    "name": "a delegation that doesn't say what context it passes is prohibited",
+    "request": {
+      "action": "agent.delegate",
+      "scope": {
+        "passport": "explore"
+      },
+      "facts": {
+        "delegate.listed": true
+      }
+    },
+    "decision": "deny",
+    "rule": "delegate.whole-context"
+  },
+  {
     "name": "an action no mandate covers is denied",
     "request": {
       "action": "db.drop"

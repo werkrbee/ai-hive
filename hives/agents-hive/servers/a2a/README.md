@@ -98,6 +98,13 @@ identity it runs as. With `"api-key"`, it reads the key from the environment var
 named by `model.api_key_env`. The system prompt is built from the files in
 `server.prompt_files`: the Charter, Patricia's skill and the charter-review agent.
 
+**Cache scope.** The Charter keeps a cache inside its trust boundary, and the server holds
+to that by never keeping a session. The system prompt is built once, from the shared
+prompt files only, and each call sends its own input after it, with no conversation and
+no earlier message, even one from the same caller in the same context. So a provider's
+prompt cache can only ever hold that shared prefix, and nothing one caller sends reaches
+another's call. A test checks it across two callers and a follow-up message.
+
 **Durability.** Tasks are kept in SQLite at `server.database` and survive a restart. A
 review that was running when the server stopped can't resume, so at startup it is marked
 failed, with a message asking the caller to send it again.

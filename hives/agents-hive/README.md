@@ -40,6 +40,9 @@ so workers stay replaceable. Workflow steps in workflows-hive name a capability 
 |----------|--------------|-------------|
 | [**governance-review**](contracts/governance-review/contract.json) | Patricia (skill), `charter-review` (agent) | read only |
 | [**orchestration**](contracts/orchestration/contract.json) | Barry (skill) | read, write, shell, fetch, delegate; commits, pushes, merges, releases, deletes, deploys, messages and spending need approval |
+| [**code-discovery**](contracts/code-discovery/contract.json) | `explore` (agent) | read only |
+| [**code-review**](contracts/code-review/contract.json) | `code-review` (agent) | read only |
+| [**security-review**](contracts/security-review/contract.json) | `security-review` (agent) | read only |
 
 The schema is [`schema/execution-contract.schema.json`](schema/execution-contract.schema.json).
 Permissions come from a fixed vocabulary. Anything a contract doesn't list is denied, and
@@ -66,27 +69,37 @@ the assurance loop ([`docs/assurance-loop.md`](../../docs/assurance-loop.md)).
 |----------|----------|-------|--------------|
 | [**Barry**](passports/barry/passport.json) | `orchestration` | `@werkrbee` | no, he runs in a harness, which picks it |
 | [**Patricia**](passports/patricia/passport.json) | `governance-review` | `@werkrbee` | Claude Sonnet 5.5, version 2, with a trust evaluation baseline of 17 of 17 |
+| [**explore**](passports/explore/passport.json) | `code-discovery` | `@werkrbee` | no, it runs in a harness |
+| [**code-review**](passports/code-review/passport.json) | `code-review` | `@werkrbee` | no, it runs in a harness |
+| [**security-review**](passports/security-review/passport.json) | `security-review` | `@werkrbee` | no, it runs in a harness |
+| [**charter-review**](passports/charter-review/passport.json) | `governance-review` | `@werkrbee` | no, it runs in a harness |
 
 A passport can only narrow its contract. Every action it grants or puts under approval is
 one the contract grants or puts under approval, nothing the contract puts under approval
 is granted, and each budget figure is at most the contract's. `never` writes out what the
 agent may not do even with a human's approval; Patricia's lists every action but
-`fs.read`. `delegates` names the passports it may hand work to. `pins` holds the model,
-each prompt file, the policy file and the eval suite, with their SHA-256 digests, so a
-change to the Charter, a skill, the policy or a case fails CI until the passports that run
-on it are updated and their `version` bumped. `eval` names the agent's suite, its baseline
-(the cases met and the `results.jsonl` entry that records the run) and its threshold, and
-only an agent with a model pin can have one, since a baseline belongs to a model.
+`fs.read`, as do the four fleet personas'. `delegates` names the passports it may hand
+work to: Barry's lists Patricia and the fleet, so each can be his delegate, and the others
+list none. `pins` holds the model, each prompt file, the policy file and the eval suite,
+with their SHA-256 digests, so a change to the Charter, a skill, the policy or a case
+fails CI until the passports that run on it are updated and their `version` bumped. `eval`
+names the agent's suite, its baseline (the cases met and the `results.jsonl` entry that
+records the run) and its threshold, and only an agent with a model pin can have one, since
+a baseline belongs to a model.
 
 The schema is [`schema/passport.schema.json`](schema/passport.schema.json).
 `scripts/validate_passports.py` checks every passport against it and against its contract,
-policy and pinned files, and requires one for every card; CI runs it. A pin that no longer
-matches is reported with the file's current digest, and `validate_passports.py --digest
-<persona>` prints a passport's own digest. The workflows-hive engine runs a run under a
-passport when it names one (`run.py start --passport barry`): each action in its `never`
-is a prohibition, decided before any mandate, and each entry in the audit log names the
-passport, its version and its digest. The deploy doesn't yet check that the model it
-deploys is the one pinned (#133).
+policy and pinned files, and requires one for every card. A passport needs an Agent Card
+or, for a persona run inside a harness, its agent definition in `agents/`; CI runs it. A
+pin that no longer matches is reported with the file's current digest, and
+`validate_passports.py --digest <persona>` prints a passport's own digest. The
+workflows-hive engine runs a run under a passport when it names one (`run.py start
+--passport barry`): each action in its `never` is a prohibition, decided before any
+mandate, and each entry in the audit log names the passport, its version and its digest. A
+run under a passport delegates through the engine, which holds the delegate to the
+stricter of the two passports and carves its budget out of the run's
+([delegating](../workflows-hive/README.md#delegate-to-another-agent)). The deploy doesn't
+yet check that the model it deploys is the one pinned (#133).
 
 ## Trust evaluation
 
@@ -216,13 +229,17 @@ agents-hive/
 │   └── charter-review/agent.md
 ├── contracts/                    # WHAT a worker must do — execution contracts
 │   ├── governance-review/contract.json
-│   └── orchestration/contract.json
+│   ├── orchestration/contract.json
+│   ├── code-discovery/contract.json
+│   ├── code-review/contract.json
+│   └── security-review/contract.json
 ├── cards/                        # HOW others find them — A2A Agent Cards
 │   ├── barry/card.json
 │   └── patricia/card.json
 ├── passports/                    # WHAT each may and may not do, and what it runs on
 │   ├── barry/passport.json
-│   └── patricia/passport.json
+│   ├── patricia/passport.json
+│   └── explore/  code-review/  security-review/  charter-review/
 ├── design/
 │   └── hosted-barry.md           # design note: hosting Barry over A2A
 ├── servers/
