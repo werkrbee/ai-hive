@@ -61,7 +61,11 @@ the process dies: calls in flight are kept in `<ledger>.pending`, and any left t
 recorded when the server next starts. So the most a month can
 end over the ceiling is one review's reservation, at most $0.50. The exception is a reply
 that runs past its token estimate, which the server logs. The running total is kept in
-the server process, so one instance must own the ledger: run a single replica.
+the server process, so one instance must own the ledger: run a single replica. Another
+process that spends against the same ceiling, such as Patricia's weekly evaluation, keeps
+a ledger of its own, and each names the other in `server.shared_ledgers`: at every
+reservation, a shared ledger's spending this month and its calls in flight are read
+afresh and counted toward the ceiling.
 
 The ledger's `usd` is computed from the prices in the config, so its `basis` is
 `estimated`. Each entry names the model three ways: `provider` is its publisher,

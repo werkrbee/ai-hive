@@ -33,6 +33,7 @@ import argparse
 import asyncio
 import importlib.util
 import json
+import os
 import subprocess
 import sys
 import tempfile
@@ -168,6 +169,9 @@ def table(cases, columns):
 
 
 def commit():
+    """The commit being evaluated: git's HEAD, or in an image with no git, HIVE_COMMIT."""
+    if os.environ.get("HIVE_COMMIT"):
+        return os.environ["HIVE_COMMIT"]
     try:
         return subprocess.run(["git", "-C", str(REPO_ROOT), "rev-parse", "--short=12", "HEAD"],
                               capture_output=True, text=True, check=True).stdout.strip() or None
@@ -194,7 +198,7 @@ async def evaluate(args):
         sys.exit(f"refused: {e}")
     e = te.engine.Engine(args.state_dir, queue=args.queue_dir, audit=args.audit, log=print)
     suite = te.cases(p)
-    ledger = Ledger(config.ledger, config.monthly_ceiling_usd)
+    ledger = Ledger(config.ledger, config.monthly_ceiling_usd, shared=config.shared_ledgers)
     runs, columns, refused = [], {}, None
     for attempt in (1, 2):
         outcomes, refused = await run_model(config, suite, args.spacing, ledger)
@@ -204,7 +208,8 @@ async def evaluate(args):
             break
         print("the first run drifted; running it once more")
     table(suite, columns)
-    entry = te.result(p, suite, runs, ledger.clock(), config.model.name, commit(), refused, args.results)
+    entry = te.result(p, suite, runs, ledger.clock(), config.model.name, commit(), refused, args.results,
+                      args.label)
     items = te.record(e, p, entry, args.results)
     print(f"{entry['id']}: {entry['outcome']}. {entry['summary']}")
     for item in items:
@@ -251,6 +256,8 @@ def main():
     ap.add_argument("--out", help="write a comparison's full results as JSON here")
     ap.add_argument("--spacing", type=float, default=0, help="seconds between the starts of one model's calls")
     ap.add_argument("--results", help="the results.jsonl to append an evaluation to (default: the passport's)")
+    ap.add_argument("--label", default="eval", help="the evaluation's id is <date>-<passport>-<label>; a runner "
+                    "recording outside the repo gives its own, e.g. weekly-eval")
     ap.add_argument("--state-dir", default="~/.local/state/workflows-hive/runs",
                     help="the workflows-hive state directory; the queue and audit log sit beside it")
     ap.add_argument("--queue-dir", help="the review queue (default: queue/ beside --state-dir)")

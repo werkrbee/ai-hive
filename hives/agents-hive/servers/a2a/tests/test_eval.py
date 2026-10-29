@@ -116,7 +116,7 @@ class Evaluate(unittest.TestCase):
     def evaluate(self, config, model=None):
         self.enterContext(mock.patch.object(runner, "BACKOFF", 0))
         args = argparse.Namespace(passport="patricia", config=[str(config)], spacing=0, results=str(self.results),
-                                  state_dir=str(self.tmp / "runs"), queue_dir=None, audit=None)
+                                  label="eval", state_dir=str(self.tmp / "runs"), queue_dir=None, audit=None)
         out = io.StringIO()
         with contextlib.redirect_stdout(out):
             if model is None:

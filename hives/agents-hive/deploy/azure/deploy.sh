@@ -3,13 +3,17 @@
 # Charter gates, so this script shows Azure's what-if for each change and goes ahead only
 # when you type "yes". Before anything, it checks that Patricia's passport may be promoted
 # (its trust evaluation's baseline was recorded against its exact pins, and no drift holds
-# it in the review queue), that every built-in role id main.bicep assigns exists, since
-# what-if doesn't, and that every model is generally available in the region, by the
-# Foundry model catalog.
+# it in the review queue, here or in what her weekly evaluation recorded in Azure), that
+# every built-in role id main.bicep assigns exists, since what-if doesn't, and that every
+# model is generally available in the region, by the Foundry model catalog, and that the
+# one the server calls is the model her passport pins.
 #
-#   1. the infrastructure, without the app (registry, identity, Foundry, storage, budget)
-#   2. the image, built in the new registry from this commit
-#   3. the app, running that image
+#   1. the infrastructure, without the app (registry, identity, Foundry, storage, the
+#      audit log's storage, budget)
+#   2. the audit log's retention policy: 365 days, protected append writes allowed; it is
+#      locked, which can't be undone, only with --lock-audit-retention
+#   3. the image, built in the new registry from this commit
+#   4. the app and the weekly evaluation job, running that image
 #
 # --rollback VERSION rolls Patricia back to an earlier passport version instead: it
 # deploys the newest commit at which her passport was VERSION, from a temporary worktree,
@@ -20,20 +24,22 @@
 # who rolled her back (--by, or WORKFLOWS_HIVE_ACTOR) and the digest of a record, beside
 # the log, that keeps the reason.
 #
-# Usage: ./deploy.sh [--rollback VERSION --reason TEXT [--by ACTOR-ID] [--audit PATH]]
+# Usage: ./deploy.sh [--lock-audit-retention]
+#                    [--rollback VERSION --reason TEXT [--by ACTOR-ID] [--audit PATH]]
 #                    <resource-group> <location> <params.bicepparam>
 # Needs: az login; run from anywhere inside the repo, on a clean checkout of the commit
 # to deploy.
 set -euo pipefail
 
 usage() {
-  echo "usage: $0 [--rollback VERSION --reason TEXT [--by ACTOR-ID] [--audit PATH]]" \
-    "<resource-group> <location> <params.bicepparam>" >&2
+  echo "usage: $0 [--lock-audit-retention] [--rollback VERSION --reason TEXT [--by ACTOR-ID]" \
+    "[--audit PATH]] <resource-group> <location> <params.bicepparam>" >&2
   exit 2
 }
-rollback='' reason='' by=${WORKFLOWS_HIVE_ACTOR:-} audit=''
+rollback='' reason='' by=${WORKFLOWS_HIVE_ACTOR:-} audit='' lock=''
 while [ "$#" -gt 0 ]; do
   case "$1" in
+    --lock-audit-retention) lock=1; shift ;;
     --rollback|--reason|--by|--audit)
       [ "$#" -ge 2 ] || usage
       case "$1" in
@@ -56,6 +62,15 @@ if [ -n "$(git -C "$root" status --porcelain)" ]; then
   exit 1
 fi
 
+worktree='' hosted=''
+cleanup() {
+  if [ -n "$worktree" ]; then
+    git -C "$root" worktree remove --force "$worktree/src" 2>/dev/null; rm -rf "$worktree"
+  fi
+  if [ -n "$hosted" ]; then rm -rf "$hosted"; fi
+}
+trap cleanup EXIT
+
 # What is deployed: this checkout, or for a rollback, the earlier commit in a worktree.
 src=$root pinned=''
 if [ -n "$rollback" ]; then
@@ -64,10 +79,16 @@ if [ -n "$rollback" ]; then
   read -r commit pinned_name pinned_version <<< "$plan"
   pinned="$pinned_name $pinned_version"
   worktree=$(mktemp -d)
-  trap 'git -C "$root" worktree remove --force "$worktree/src" 2>/dev/null; rm -rf "$worktree"' EXIT
   git -C "$root" worktree add --quiet --detach "$worktree/src" "$commit"
   src=$worktree/src
   echo "== rollback: passport v$rollback, at commit ${commit:0:12}, pinning $pinned"
+else
+  # The model the server calls must be the one her passport pins, as for a rollback.
+  pinned=$(python3 -c 'import json, sys; m = json.load(open(sys.argv[1]))["pins"]["model"]
+print(m["name"], m["version"])' "$root/hives/agents-hive/passports/patricia/passport.json") || {
+    echo "error: can't read the model Patricia's passport pins; nothing was changed" >&2
+    exit 1
+  }
 fi
 azure=$src/hives/agents-hive/deploy/azure
 tag=$(git -C "$src" rev-parse --short=12 HEAD)
@@ -77,8 +98,9 @@ confirm() {
   [ "$answer" = "yes" ] || { echo "stopped; nothing more was changed" >&2; exit 1; }
 }
 
-output() {  # $1 = deployment outputs JSON, $2 = output name
-  python3 -c 'import json, sys; print(json.loads(sys.argv[1])[sys.argv[2]]["value"])' "$1" "$2"
+output() {  # $1 = deployment outputs JSON, $2 = output name; empty when there is none
+  python3 -c 'import json, sys; print((json.loads(sys.argv[1] or "{}").get(sys.argv[2]) or {}).get("value", ""))' \
+    "$1" "$2"
 }
 
 deploy() {  # $1 = image ('' for infrastructure only)
@@ -144,8 +166,8 @@ check_roles() {
 # account kind, and what each kind offers can differ, so only the rows for the kind of
 # account main.bicep deploys count. Each model's line names the API the server would use
 # with it, by main.bicep's messagesFormats, and marks the one modelDeployment chooses,
-# which must be one of them. For a rollback, modelDeployment must also be the model the
-# earlier passport pins, by name and version, so a model since retired can't come back.
+# which must be one of them and the model Patricia's passport pins, by name and version:
+# for a rollback, the earlier passport's, so a model since retired can't come back.
 check_models() {
   local region tmp kind
   kind=$(awk "/^resource ai 'Microsoft.CognitiveServices\/accounts@/{f=1} f && /^}/{exit} f && /^  kind: /{gsub(/[' ]|kind:/, \"\"); print; exit}" \
@@ -167,7 +189,8 @@ check_models() {
     echo "error: couldn't read the Foundry model catalog for $region" >&2
     rm -rf "$tmp"; exit 1
   fi
-  if ! python3 - "$tmp/params.json" "$tmp/catalog.json" "$region" "$kind" "$azure/main.bicep" "$pinned" <<'PY'
+  if ! python3 - "$tmp/params.json" "$tmp/catalog.json" "$region" "$kind" "$azure/main.bicep" "$pinned" \
+      "${rollback:+the passport being rolled back to}" <<'PY'
 import json, re, sys
 
 params = json.loads(json.load(open(sys.argv[1]))["parametersJson"])["parameters"]
@@ -181,13 +204,13 @@ chosen = (params.get("modelDeployment") or {}).get("value")
 if chosen not in [m.get("deployment") for m in params["models"]["value"]]:
     print(f"error: modelDeployment {chosen!r} isn't the deployment of any entry in models", file=sys.stderr)
     sys.exit(1)
-if sys.argv[6]:
-    entry = next(m for m in params["models"]["value"] if m.get("deployment") == chosen)
-    if f"{entry.get('name')} {entry.get('version')}" != sys.argv[6]:
-        print(f"error: modelDeployment {chosen!r} is {entry.get('name')} {entry.get('version')}, but the passport "
-              f"being rolled back to pins {sys.argv[6]}; point modelDeployment at a deployment of it", file=sys.stderr)
-        sys.exit(1)
 bad = False
+entry = next(m for m in params["models"]["value"] if m.get("deployment") == chosen)
+if f"{entry.get('name')} {entry.get('version')}" != sys.argv[6]:
+    whose = sys.argv[7] or "Patricia's passport"
+    print(f"error: modelDeployment {chosen!r} is {entry.get('name')} {entry.get('version')}, but {whose} "
+          f"pins {sys.argv[6]}; point modelDeployment at a deployment of it", file=sys.stderr)
+    bad = True
 for m in params["models"]["value"]:
     if not all(isinstance(m.get(k), str) for k in ("deployment", "format", "name", "version", "sku")):
         print(f"error: each models entry needs deployment, format, name, version and sku: {m}", file=sys.stderr)
@@ -242,12 +265,118 @@ if ! python3 "$src/hives/agents-hive/scripts/trust_eval.py" promotion patricia; 
   exit 1
 fi
 
+# Patricia's weekly evaluation records its results and findings on the deployment's file
+# share, so drift it found holds promotion only once read from there. They are downloaded,
+# read-only, and checked as the local ones were. A rollback skips this: the earlier
+# passport's check can't read them, and answering drift is what a rollback is for.
+hosted_check() {
+  local deployed outputs account key
+  if [ "$(az group exists --name "$rg")" != "true" ]; then
+    echo "nothing is deployed in $rg yet, so there are no hosted evaluations"
+    return
+  fi
+  deployed=$(az deployment group list --resource-group "$rg" --query "length([?name=='main'])" -o tsv) || {
+    echo "error: couldn't list the deployments in $rg; nothing was changed" >&2
+    exit 1
+  }
+  if [ "$deployed" = "0" ]; then
+    echo "nothing is deployed in $rg yet, so there are no hosted evaluations"
+    return
+  fi
+  outputs=$(az deployment group show --resource-group "$rg" --name main --query properties.outputs -o json) || {
+    echo "error: couldn't read the last deployment in $rg; nothing was changed" >&2
+    exit 1
+  }
+  account=$(output "$outputs" dataAccount)
+  if [ -z "$account" ]; then
+    echo "the deployed template predates the weekly evaluation, so there are no hosted evaluations"
+    return
+  fi
+  # The share takes the account key; it is passed in the environment, never an argument.
+  if ! key=$(az storage account keys list --resource-group "$rg" --account-name "$account" \
+      --query '[0].value' -o tsv) || [ -z "$key" ]; then
+    echo "error: couldn't read $account's key to download the hosted evaluations; nothing was changed" >&2
+    exit 1
+  fi
+  hosted=$(mktemp -d)
+  if ! AZURE_STORAGE_KEY=$key az storage file download-batch --account-name "$account" \
+      --source hive-a2a-data --pattern 'assurance/*' --destination "$hosted" -o none; then
+    echo "error: couldn't download the hosted evaluations from $account; nothing was changed" >&2
+    exit 1
+  fi
+  if ! python3 "$src/hives/agents-hive/scripts/trust_eval.py" promotion patricia \
+      --queue-dir "$hosted/assurance/queue" --results "$hosted/assurance/results.jsonl"; then
+    echo "error: what Patricia's weekly evaluation found holds her passport; answer it with" \
+      "assurance.sh; nothing was changed" >&2
+    exit 1
+  fi
+}
+
+# The audit log's immutable copy is held by a time-based retention policy on its container
+# (docs/assurance-loop.md). Setting it, and changing it while it is unlocked, is one gated
+# step; locking it is another, taken only with --lock-audit-retention and the account's
+# name typed, because a locked policy can't be shortened or removed, and its account and
+# this resource group can't be deleted, until the period ends.
+RETENTION_DAYS=365
+retention() {  # $1 = deployment outputs JSON
+  local account container info has state days appends etag answer
+  account=$(output "$1" auditAccount) container=$(output "$1" auditContainer)
+  if [ -z "$account" ]; then
+    echo "this template has no audit log storage; nothing to do"
+    return
+  fi
+  local q='[hasImmutabilityPolicy, immutabilityPolicy.state, immutabilityPolicy.immutabilityPeriodSinceCreationInDays'
+  q+=', immutabilityPolicy.allowProtectedAppendWrites]'
+  info=$(az storage container-rm show --resource-group "$rg" --storage-account "$account" \
+    --name "$container" --query "$q" -o tsv) || {
+    echo "error: couldn't read $account/$container's retention policy" >&2
+    exit 1
+  }
+  # az's tsv prints booleans as True and False.
+  read -r has state days appends <<< "$(printf '%s' "$info" | tr '\n\t' '  ')"
+  has=$(printf '%s' "$has" | tr '[:upper:]' '[:lower:]')
+  appends=$(printf '%s' "$appends" | tr '[:upper:]' '[:lower:]')
+  if [ "$has" != "true" ] || { [ "$state" != "Locked" ] \
+      && { [ "$days" != "$RETENTION_DAYS" ] || [ "$appends" != "true" ]; }; }; then
+    if [ "$has" = "true" ]; then
+      echo "$account/$container's policy is $state, $days days, protected appends $appends"
+    fi
+    confirm "Set a $RETENTION_DAYS-day time-based retention policy on $account/$container, allowing protected append writes? Until it is locked, it can be removed."
+    az storage container immutability-policy create --resource-group "$rg" --account-name "$account" \
+      --container-name "$container" --period "$RETENTION_DAYS" --allow-protected-append-writes true -o none
+    state=Unlocked
+  fi
+  if [ "$state" = "Locked" ]; then
+    echo "$account/$container: locked, $days days, protected appends allowed"
+    return
+  fi
+  if [ -z "$lock" ]; then
+    echo "$account/$container: unlocked, $RETENTION_DAYS days; to lock it, deploy with --lock-audit-retention"
+    return
+  fi
+  echo "Locking can't be undone. For $RETENTION_DAYS days from each blob's creation, nobody, the" \
+    "subscription's owner included, can change or delete what $container holds, shorten or" \
+    "remove the policy, or delete $account or the resource group $rg."
+  read -r -p "Type the account name, $account, to lock it: " answer
+  [ "$answer" = "$account" ] || { echo "stopped; the policy stays unlocked" >&2; exit 1; }
+  etag=$(az storage container immutability-policy show --resource-group "$rg" --account-name "$account" \
+    --container-name "$container" --query etag -o tsv) || exit 1
+  az storage container immutability-policy lock --resource-group "$rg" --account-name "$account" \
+    --container-name "$container" --if-match "$etag" -o none
+  echo "$account/$container: locked"
+}
+
+if [ -z "$rollback" ]; then
+  echo "== hosted evaluations"
+  hosted_check
+fi
+
 echo "== role ids"
 check_roles
 echo "== models"
 check_models
 
-echo "== 1/3 infrastructure"
+echo "== 1/4 infrastructure"
 if [ "$(az group exists --name "$rg")" != "true" ]; then
   confirm "Create resource group $rg in $location?"
   az group create --name "$rg" --location "$location" -o none
@@ -255,12 +384,15 @@ fi
 outputs=$(deploy "")
 registry=$(output "$outputs" registry)
 
-echo "== 2/3 image hive-a2a:$tag in $registry"
+echo "== 2/4 audit log retention"
+retention "$outputs"
+
+echo "== 3/4 image hive-a2a:$tag in $registry"
 confirm "Build and push the image to $registry?"
 az acr build --registry "${registry%%.*}" --image "hive-a2a:$tag" \
   --file "$azure/Dockerfile" "$src"
 
-echo "== 3/3 app"
+echo "== 4/4 app and weekly evaluation job"
 outputs=$(deploy "$registry/hive-a2a:$tag")
 echo "Agent Card: $(output "$outputs" agentCard)"
 

@@ -395,6 +395,32 @@ class ServerTest(unittest.TestCase):
         self.assertFalse((self.root / "ledger.jsonl.pending").exists())
         self.assertAlmostEqual(Ledger(path, 25.0).spent(), 0.4, msg="recorded once, not on every start")
 
+    def test_a_shared_ledger_counts_toward_the_ceiling_read_afresh(self):
+        from hive_a2a.ledger import Ledger, LedgerError
+        mine, theirs = self.root / "ledger.jsonl", self.root / "ledger-eval.jsonl"
+        now = datetime.datetime.now(datetime.timezone.utc)
+        stamp = now.strftime("%Y-%m-%dT%H:%M:%SZ")
+        last_month = (now.replace(day=1) - datetime.timedelta(days=1)).strftime("%Y-%m-%dT%H:%M:%SZ")
+        ledger = Ledger(mine, 1.0, shared=[theirs])
+
+        async def reserve():
+            refusal = await ledger.reserve(0.1)
+            if refusal is None:
+                await ledger.settle(0.1)
+            return refusal
+
+        self.assertIsNone(asyncio.run(reserve()), "a shared ledger not yet written counts nothing")
+        theirs.write_text(json.dumps({"at": last_month, "usd": 5.0}) + "\n"
+                          + json.dumps({"at": stamp, "usd": 0.6}) + "\n")
+        self.assertIsNone(asyncio.run(reserve()), "only this month's spending counts")
+        theirs.with_name(theirs.name + ".pending").write_text(json.dumps({"job-1": {"usd": 0.4}}))
+        refusal = asyncio.run(reserve())
+        self.assertIsNotNone(refusal, "written after this ledger was opened, with its calls in flight")
+        self.assertAlmostEqual(refusal.spent_usd, 1.0)
+        theirs.write_text("not json\n")
+        with self.assertRaises(LedgerError):
+            asyncio.run(reserve())
+
     # --- configuration and providers -------------------------------------
 
     def test_config_refuses_unsafe_settings(self):

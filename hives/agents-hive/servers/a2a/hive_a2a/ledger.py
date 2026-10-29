@@ -13,7 +13,11 @@ reservation; calls in flight are kept in `<ledger>.pending` so a crash can't los
 most the month can end over the ceiling is then one review's reservation, when the last
 one runs from just below it, unless a reply runs past its estimate.
 
-The total is kept in this process, so one server instance must own the ledger.
+The total is kept in this process, so one server instance must own the ledger. Another
+process that spends against the same ceiling, such as the weekly trust evaluation, keeps
+its own ledger beside it, and each names the other as shared: at every reservation a
+shared ledger is read afresh, with the calls it has in flight, and counted toward the
+ceiling.
 """
 import asyncio
 import datetime
@@ -59,11 +63,48 @@ def next_month(at):
             else first.replace(month=first.month + 1)).isoformat()
 
 
+def read_totals(path):
+    """A ledger file's spending by month ("YYYY-MM"). Fails loud on an entry it can't sum:
+    a ledger that can't be summed can't enforce the ceiling."""
+    totals = {}
+    for n, line in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):
+        try:
+            entry = json.loads(line)
+            at = datetime.datetime.fromisoformat(entry["at"].replace("Z", "+00:00"))
+            if at.tzinfo is None:
+                raise ValueError("at must carry a time zone (UTC)")
+            usd = entry.get("usd", 0)
+            if isinstance(usd, bool) or not isinstance(usd, (int, float)) or not math.isfinite(usd) or usd < 0:
+                raise ValueError("usd must be a non-negative number")
+        except (ValueError, KeyError, TypeError, AttributeError) as e:
+            raise LedgerError(f"{path}:{n}: can't read this entry ({e})")
+        key = month_of(at.astimezone(datetime.timezone.utc))
+        totals[key] = totals.get(key, 0.0) + usd
+    return totals
+
+
+def in_flight(path):
+    """What a ledger's calls in flight could cost: the usd of each entry in its .pending."""
+    pending = path.with_name(path.name + ".pending")
+    try:
+        leftover = json.loads(pending.read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        return 0.0
+    except ValueError as e:
+        raise LedgerError(f"{pending}: can't read the in-flight calls ({e})")
+    if not isinstance(leftover, dict) or not all(isinstance(e, dict) for e in leftover.values()):
+        raise LedgerError(f"{pending}: can't read the in-flight calls (expected an object of entries)")
+    return sum(e.get("usd", 0) for e in leftover.values())
+
+
 class Ledger:
-    def __init__(self, path, ceiling_usd, clock=now):
+    def __init__(self, path, ceiling_usd, clock=now, shared=()):
         self.path = Path(path)
         self.ceiling = ceiling_usd
         self.clock = clock
+        # Other processes' ledgers that spend against the same ceiling, read at each
+        # reservation.
+        self.shared = [Path(p) for p in shared]
         self.reserved = 0.0
         self.totals = {}
         self.lock = asyncio.Lock()
@@ -107,29 +148,25 @@ class Ledger:
         self.totals[key] = self.totals.get(key, 0.0) + entry.get("usd", 0)
 
     def _load(self):
-        for n, line in enumerate(self.path.read_text(encoding="utf-8").splitlines(), start=1):
-            try:
-                entry = json.loads(line)
-                at = datetime.datetime.fromisoformat(entry["at"].replace("Z", "+00:00"))
-                if at.tzinfo is None:
-                    raise ValueError("at must carry a time zone (UTC)")
-                usd = entry.get("usd", 0)
-                if isinstance(usd, bool) or not isinstance(usd, (int, float)) or not math.isfinite(usd) or usd < 0:
-                    raise ValueError("usd must be a non-negative number")
-            except (ValueError, KeyError, TypeError, AttributeError) as e:
-                # Fail loud: a ledger that can't be summed can't enforce the ceiling.
-                raise LedgerError(f"{self.path}:{n}: can't read this entry ({e})")
-            key = month_of(at.astimezone(datetime.timezone.utc))
-            self.totals[key] = self.totals.get(key, 0.0) + usd
+        self.totals = read_totals(self.path)
 
     def spent(self, at=None):
         return self.totals.get(month_of(at or self.clock()), 0.0)
+
+    def shared_spent(self, at):
+        """What the shared ledgers have spent in at's month, or have in flight."""
+        total = 0.0
+        for path in self.shared:
+            if path.exists():
+                total += read_totals(path).get(month_of(at), 0.0)
+            total += in_flight(path)
+        return total
 
     async def reserve(self, usd):
         """Hold usd against the ceiling. Returns a Refusal instead when the ceiling is reached."""
         async with self.lock:
             at = self.clock()
-            committed = self.spent(at) + self.reserved
+            committed = self.spent(at) + self.reserved + self.shared_spent(at)
             if committed >= self.ceiling:
                 return Refusal(month_of(at), committed, self.ceiling, next_month(at))
             self.reserved += usd

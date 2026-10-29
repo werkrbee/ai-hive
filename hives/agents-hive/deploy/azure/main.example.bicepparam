@@ -23,3 +23,8 @@ param monthlyCeilingUsd = '25'
 param budgetUsd = 25
 param budgetContactEmails = ['<you@example.com>']
 param budgetStartDate = '2026-11-01'
+
+// Patricia's weekly trust evaluation, as cron in UTC (default Mondays 06:00), and who may
+// read the audit log's immutable copy: your object id, from az ad signed-in-user show --query id.
+// param evalSchedule = '0 6 * * 1'
+// param auditReaders = ['<your-object-id>']

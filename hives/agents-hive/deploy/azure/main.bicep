@@ -47,10 +47,17 @@ param budgetContactEmails array
 @description('First day of the budget, the first of a month, e.g. 2026-11-01.')
 param budgetStartDate string
 
+@description('When Patricia\'s weekly trust evaluation runs, as a cron expression in UTC. Mondays at 06:00 by default.')
+param evalSchedule string = '0 6 * * 1'
+
+@description('Object ids of the people who may read the immutable copy of the audit log (audit_blob.py check), e.g. from az ad signed-in-user show --query id. The job writes it; nobody else needs to.')
+param auditReaders array = []
+
 var suffix = uniqueString(resourceGroup().id)
 var appName = '${prefix}-a2a'
 var aiName = '${prefix}-ai-${suffix}'
 var shareName = 'hive-a2a-data'
+var auditContainer = 'audit'
 
 // The formats served only through the Messages API. The catalog doesn't say which API a
 // model needs, so this list is the rule; add a publisher here if it needs Messages too.
@@ -63,6 +70,8 @@ var modelApi = contains(messagesFormats, chosen[0].format) ? 'messages' : 'chat-
 var acrPull = '7f951dda-4ed3-4680-a7ca-43fe172d538d'
 var cognitiveServicesUser = 'a97b65f3-24c7-4388-baec-2e87135dc908'
 var cognitiveServicesOpenAiUser = '5e0bd9bd-7b93-4f28-af87-19fc36ad61bd'
+var storageBlobDataContributor = 'ba92f5b4-2d11-453d-a403-e96b0029c9fe'
+var storageBlobDataReader = '2a2b9908-6ea1-4ae2-8e65-a410df84e7d1'
 
 resource identity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
   name: '${prefix}-a2a-id'
@@ -159,6 +168,59 @@ resource share 'Microsoft.Storage/storageAccounts/fileServices/shares@2023-05-01
   properties: { shareQuota: 1 }
 }
 
+// The audit log's immutable copy, in a storage account of its own: once its retention policy
+// is locked, the account can't be deleted until the period ends, and nothing else should be
+// held with it. Only Entra identities reach it, no account key. deploy.sh sets the policy
+// (365 days, protected append writes allowed) after this step, and locks it only when asked.
+resource auditStorage 'Microsoft.Storage/storageAccounts@2023-05-01' = {
+  name: take('${prefix}log${suffix}', 24)
+  location: location
+  kind: 'StorageV2'
+  sku: { name: 'Standard_LRS' }
+  properties: {
+    minimumTlsVersion: 'TLS1_2'
+    allowBlobPublicAccess: false
+    allowSharedKeyAccess: false
+    defaultToOAuthAuthentication: true
+    supportsHttpsTrafficOnly: true
+  }
+}
+
+resource auditBlobs 'Microsoft.Storage/storageAccounts/blobServices@2023-05-01' = {
+  parent: auditStorage
+  name: 'default'
+}
+
+resource audit 'Microsoft.Storage/storageAccounts/blobServices/containers@2023-05-01' = {
+  parent: auditBlobs
+  name: auditContainer
+  properties: { publicAccess: 'None' }
+}
+
+// The job appends to the copy. Under the retention policy, a contributor can add blocks
+// but can't change or delete them.
+resource auditWrite 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  name: guid(audit.id, identity.id, storageBlobDataContributor)
+  scope: audit
+  properties: {
+    principalId: identity.properties.principalId
+    principalType: 'ServicePrincipal'
+    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', storageBlobDataContributor)
+  }
+}
+
+resource auditRead 'Microsoft.Authorization/roleAssignments@2022-04-01' = [for reader in auditReaders: {
+  name: guid(audit.id, reader, storageBlobDataReader)
+  scope: audit
+  properties: {
+    principalId: reader
+    principalType: 'User'
+    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', storageBlobDataReader)
+  }
+}]
+
+var auditBlobUrl = '${auditStorage.properties.primaryEndpoints.blob}${auditContainer}/patricia.jsonl'
+
 resource logs 'Microsoft.OperationalInsights/workspaces@2023-09-01' = {
   name: '${prefix}-logs-${suffix}'
   location: location
@@ -203,6 +265,32 @@ var baseUrl = modelApi == 'messages'
   ? 'https://${aiName}.services.ai.azure.com/anthropic'
   : 'https://${aiName}.openai.azure.com/openai/v1'
 
+// What the app and the weekly job both start from (render_config.py).
+var serverEnv = [
+  { name: 'PUBLIC_URL', value: publicUrl }
+  { name: 'AZURE_TENANT_ID', value: tenantId }
+  { name: 'AZURE_CLIENT_ID', value: identity.properties.clientId } // DefaultAzureCredential picks this identity
+  { name: 'API_APP_ID', value: apiAppId }
+  { name: 'ALLOWED_CLIENTS', value: join(allowedClients, ',') }
+  { name: 'MODEL_API', value: modelApi }
+  { name: 'MODEL_PUBLISHER', value: chosen[0].format } // for the ledger
+  { name: 'MODEL_NAME', value: chosen[0].deployment }
+  { name: 'MODEL_BASE_URL', value: baseUrl }
+  { name: 'MODEL_INPUT_USD_PER_MTOK', value: inputUsdPerMtok }
+  { name: 'MODEL_OUTPUT_USD_PER_MTOK', value: outputUsdPerMtok }
+  { name: 'MONTHLY_CEILING_USD', value: monthlyCeilingUsd }
+  { name: 'DATA_DIR', value: '/data' }
+]
+var dataVolume = {
+  name: 'data'
+  storageType: 'AzureFile'
+  storageName: environmentShare.name
+  // SQLite needs byte-range locks SMB doesn't give it; nobrl is safe only with one
+  // writer. See the README on the overlap while a new revision starts. The job writes
+  // only its own files: its ledger and assurance/.
+  mountOptions: 'nobrl,uid=1000,gid=1000,file_mode=0600,dir_mode=0700'
+}
+
 resource app 'Microsoft.App/containerApps@2024-03-01' = if (!empty(image)) {
   name: appName
   location: location
@@ -227,38 +315,60 @@ resource app 'Microsoft.App/containerApps@2024-03-01' = if (!empty(image)) {
         name: 'hive-a2a'
         image: image
         resources: { cpu: json('0.5'), memory: '1Gi' }
-        env: [
-          { name: 'PUBLIC_URL', value: publicUrl }
-          { name: 'AZURE_TENANT_ID', value: tenantId }
-          { name: 'AZURE_CLIENT_ID', value: identity.properties.clientId } // DefaultAzureCredential picks this identity
-          { name: 'API_APP_ID', value: apiAppId }
-          { name: 'ALLOWED_CLIENTS', value: join(allowedClients, ',') }
-          { name: 'MODEL_API', value: modelApi }
-          { name: 'MODEL_PUBLISHER', value: chosen[0].format } // for the ledger
-          { name: 'MODEL_NAME', value: chosen[0].deployment }
-          { name: 'MODEL_BASE_URL', value: baseUrl }
-          { name: 'MODEL_INPUT_USD_PER_MTOK', value: inputUsdPerMtok }
-          { name: 'MODEL_OUTPUT_USD_PER_MTOK', value: outputUsdPerMtok }
-          { name: 'MONTHLY_CEILING_USD', value: monthlyCeilingUsd }
-          { name: 'DATA_DIR', value: '/data' }
-        ]
+        // The weekly job's spending counts toward the server's ceiling.
+        env: concat(serverEnv, [{ name: 'SHARED_LEDGERS', value: '/data/ledger-eval.jsonl' }])
         volumeMounts: [{ volumeName: 'data', mountPath: '/data' }]
         probes: [{
           type: 'Readiness'
           httpGet: { path: '/.well-known/agent-card.json', port: 8080 }
         }]
       }]
-      volumes: [{
-        name: 'data'
-        storageType: 'AzureFile'
-        storageName: environmentShare.name
-        // SQLite needs byte-range locks SMB doesn't give it; nobrl is safe only with one
-        // writer. See the README on the overlap while a new revision starts.
-        mountOptions: 'nobrl,uid=1000,gid=1000,file_mode=0600,dir_mode=0700'
-      }]
+      volumes: [dataVolume]
       // Scale to zero when idle. Never more than one replica: the ledger's running total
       // and the SQLite task store each belong to a single process.
       scale: { minReplicas: 0, maxReplicas: 1 }
+    }
+  }
+}
+
+// Patricia's weekly trust evaluation (eval/weekly.sh), from the image the app runs, under
+// her identity, in the same environment, so no credential goes into CI. It keeps its own
+// ledger on the share and counts the server's toward the same ceiling, and pushes its audit
+// log to the immutable copy. One replica, never retried: a failed run is a finding, not
+// something to repeat.
+resource evalJob 'Microsoft.App/jobs@2024-03-01' = if (!empty(image)) {
+  name: '${prefix}-eval'
+  location: location
+  identity: {
+    type: 'UserAssigned'
+    userAssignedIdentities: { '${identity.id}': {} }
+  }
+  dependsOn: [registryPull, aiOpenAiUser, aiUser, deployments, auditWrite]
+  properties: {
+    environmentId: environment.id
+    configuration: {
+      triggerType: 'Schedule'
+      scheduleTriggerConfig: { cronExpression: evalSchedule, parallelism: 1, replicaCompletionCount: 1 }
+      replicaTimeout: 1800
+      replicaRetryLimit: 0
+      registries: [{ server: registry.properties.loginServer, identity: identity.id }]
+    }
+    template: {
+      containers: [{
+        name: 'hive-eval'
+        image: image
+        command: ['sh', '/app/hives/agents-hive/deploy/azure/eval/weekly.sh']
+        resources: { cpu: json('0.5'), memory: '1Gi' }
+        env: concat(serverEnv, [
+          { name: 'LEDGER', value: '/data/ledger-eval.jsonl' }
+          { name: 'SHARED_LEDGERS', value: '/data/ledger.jsonl' }
+          { name: 'ASSURANCE_DIR', value: '/data/assurance' }
+          { name: 'AUDIT_BLOB_URL', value: auditBlobUrl }
+          { name: 'HIVE_COMMIT', value: last(split(image, ':')) } // the image's tag is its commit
+        ])
+        volumeMounts: [{ volumeName: 'data', mountPath: '/data' }]
+      }]
+      volumes: [dataVolume]
     }
   }
 }
@@ -300,3 +410,7 @@ output registry string = registry.properties.loginServer
 output publicUrl string = publicUrl
 output agentCard string = '${publicUrl}.well-known/agent-card.json'
 output foundryEndpoint string = ai.properties.endpoint
+output dataAccount string = storage.name
+output auditAccount string = auditStorage.name
+output auditContainer string = auditContainer
+output auditBlobUrl string = auditBlobUrl

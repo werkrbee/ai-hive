@@ -16,16 +16,20 @@ One resource group holds the whole deployment, so one budget covers it.
 |----------|-----|
 | Container App (scale 0 to 1) | Runs the server. It scales to zero when idle and never runs more than one replica, because the ledger's running total and the SQLite task store each belong to one process. Ingress is HTTPS only. |
 | Container Apps environment and Log Analytics | Hosting and logs, kept 30 days and capped at 0.1 GB a day. Past the cap, logging stops until the next day. |
-| Azure Files share | `/data`: the task database and the usage ledger, so both survive restarts and scale-to-zero. It is mounted with `nobrl`, which is safe only with one writer. |
+| Azure Files share | `/data`: the task database and the usage ledger, so both survive restarts and scale-to-zero, and the weekly evaluation's ledger and its results, queue and audit log under `assurance/`. It is mounted with `nobrl`, which is safe only with one writer to each file: the app and the job never write the same one. |
+| Container Apps job (weekly) | Patricia's weekly trust evaluation, from the app's image, under the same identity and in the same environment, so no credential goes into CI (see "Weekly evaluation"). |
+| Audit log storage account | The audit log's immutable copy, an append blob in a container under a time-based retention policy, in an account of its own so that locking the policy holds nothing else. Only Entra identities reach it: account keys are off. The identity may append (Storage Blob Data Contributor, on the container), and the people in `auditReaders` may read it. |
 | Microsoft Foundry (AI Services) | The models. Key auth is disabled, so the server reaches them only with its managed identity, and there is no API key to store. |
 | User-assigned managed identity | Pulls the image (AcrPull) and calls Foundry with the narrowest built-in role the model's API allows. For Chat Completions that's Cognitive Services OpenAI User, which can call the OpenAI v1 endpoint but can't list keys or use Foundry's other services; verified with the managed identity on 2026-10-14. For Messages (Anthropic models) it's Cognitive Services User, the role Microsoft names for Entra calls to Claude's `/anthropic` endpoint, which isn't under the OpenAI role. A deploy adds roles but doesn't remove them, so after switching from an Anthropic model to any other, remove the identity's Cognitive Services User assignment by hand. |
 | Container registry (Basic) | Holds the image, built from a commit by `az acr build`. |
 | Budget | Alerts at 80% and 100% of actual spend, and at 100% of forecast spend. $25 a month by default. |
 
 **Two limits on spend.** The server refuses new reviews once its own ledger reaches
-`monthlyCeilingUsd`. That ledger counts only model calls, at list price. The Azure budget
-watches the bill for everything in the group: the model, plus the registry (about $5 a
-month for Basic), storage and logs. The budget only alerts; it doesn't stop anything.
+`monthlyCeilingUsd`. The weekly evaluation keeps its own ledger beside it, and each counts
+the other's spending, and the calls it has in flight, toward the same ceiling. The ledgers
+count only model calls, at list price. The Azure budget watches the bill for everything in
+the group: the model, plus the registry (about $5 a month for Basic), storage, logs and
+the job. The budget only alerts; it doesn't stop anything.
 
 **Deploying a new image.** While a new revision starts, Container Apps can run it
 alongside the old one for a short time, and both open the same files. Deploy when no
@@ -59,19 +63,26 @@ clients need it to learn how to authenticate.
 3. **Choose the model.** See below. Until then, `modelDeployment` is either candidate.
 4. **Deploy.** Run `./deploy.sh <resource-group> <location> main.bicepparam` from a clean
    checkout. It first checks that Patricia's passport may be promoted (see trust
-   evaluation, below), and stops before anything else if not. It then looks up every
-   built-in role id `main.bicep` assigns, and stops before any change if one doesn't
-   exist, because what-if doesn't check them. It also
-   checks every model against the region's Foundry catalog and stops if one isn't there,
-   isn't generally available, doesn't do chat completions or isn't offered with its sku.
-   Then it deploys in three steps, each confirmed after a what-if:
-   - the infrastructure, without the app;
+   evaluation, below), and stops before anything else if not. Once a template with the
+   weekly evaluation is deployed, it then reads what that evaluation recorded on the share
+   and stops if drift there holds her. It looks up every built-in role id `main.bicep`
+   assigns, and stops before any change if one doesn't exist, because what-if doesn't
+   check them. It checks every model against the region's Foundry catalog and stops if
+   one isn't there, isn't generally available, doesn't do chat completions or isn't
+   offered with its sku, and if `modelDeployment` isn't the model her passport pins, by
+   name and version. Then it deploys in four steps, each confirmed:
+   - the infrastructure, without the app, after a what-if;
+   - the audit log's retention policy, when it isn't set (see "The audit log's immutable
+     copy");
    - the image, built into the new registry and tagged with the commit;
-   - the app.
+   - the app and the weekly evaluation job, after a what-if.
 
    If a what-if fails, it stops there without asking, since there is no plan to approve.
 
-   It prints the Agent Card URL at the end.
+   It prints the Agent Card URL at the end. The app and the job start only on the prompt
+   files her passport pins: each must match its pinned digest, or the container exits
+   before it serves anything (`render_config.py`). The policy she is pinned to isn't read
+   by the server; the promotion check holds it to its pin.
 
 A product calls the server with a token from the client-credentials flow: `POST` to
 `https://login.microsoftonline.com/<tenant>/oauth2/v2.0/token` with its client id, its
@@ -176,6 +187,68 @@ her on it. When cases are added to her suite or taken out, the baseline no longe
 it: the runner still evaluates her, but the run must meet the whole suite to become the
 new baseline.
 
+## Weekly evaluation
+
+A Container Apps job runs `eval/weekly.sh` on `evalSchedule`, Mondays at 06:00 UTC by
+default, to catch drift nobody caused, such as a provider changing what a model version
+serves. It runs from the image the app runs, under the same identity, so it evaluates
+what is deployed, with the same pins check: the config it starts from takes the prompt
+files from her passport. Each call is metered into its own ledger,
+`/data/ledger-eval.jsonl`, which the server counts toward the ceiling, as the job counts
+the server's. A run takes about four minutes at 12 seconds between calls and costs about
+$0.19 on Claude Sonnet 5.5 (`eval/results.jsonl`, 2026-10-29), about $0.80 a month.
+
+It records on the share, under `assurance/`: the evaluation in `results.jsonl`, with ids
+`<date>-patricia-weekly-eval` so none matches one in the repo, its findings in `queue/`,
+and its audit entries in `audit.jsonl`, which it pushes to the immutable copy before and
+after each run. A run that drifts or can't run fails, so it shows in the job's execution
+history:
+
+```bash
+az containerapp job execution list --name <prefix>-eval --resource-group <rg> -o table
+```
+
+What it finds holds promotion: `deploy.sh` downloads `assurance/`, read-only, with the
+account key in its environment, and runs the promotion check on it. Answer an item with
+`assurance.sh`, at your terminal, under your actor id:
+
+```bash
+./assurance.sh list <rg>
+./assurance.sh approve <rg> <item-id> --by usr_7f3a
+./assurance.sh deny <rg> <item-id> --reason "the provider changed the model" --by usr_7f3a
+```
+
+It downloads `assurance/`, answers with workflows-hive's `review_queue.py`, which refuses
+without an interactive terminal, and uploads the item and the audit log, unless the
+share's log changed while you answered, in which case nothing is uploaded and you answer
+again. The job pushes your answer's audit entry to the immutable copy when it next runs.
+
+## The audit log's immutable copy
+
+The audit log on the share is a hash chain, which shows tampering but can't prevent it:
+anyone who can write the share can rewrite the log whole. Its copy, the append blob
+`audit/patricia.jsonl` in the audit log's storage account, is held by a time-based
+retention policy that allows protected append writes. The storage service lets blocks be
+appended and refuses to change or delete them, even for the subscription's owner, until
+the period ends. `audit_blob.py push` appends only while the log still starts with what
+the copy holds, so a rewritten log stops the job rather than going unnoticed. Check the
+copy, and the log against it, with:
+
+```bash
+./assurance.sh check <rg>
+```
+
+That needs read access to the container: put your object id in `auditReaders`.
+
+`deploy.sh` sets the policy after the infrastructure step, as its own confirmed step: 365
+days, protected append writes allowed. An unlocked policy is enforced, but an owner can
+remove it. Locking it is a separate decision, taken only when you deploy with
+`--lock-audit-retention` and type the account's name: once locked, for 365 days from each
+blob's creation, nobody can shorten or remove the policy, change or delete what the
+container holds, or delete the account or the resource group. Lock it once the first
+weekly run has pushed to the copy and `assurance.sh check` passes. A deploy leaves a
+locked policy as it is.
+
 ## Rolling back
 
 To roll Patricia back to an earlier passport version, deploy it again with `--rollback`.
@@ -209,7 +282,11 @@ fixed.
 Some things a rollback doesn't restore. The role assignments a later deploy added stay,
 since a deploy adds roles but doesn't remove them. The ledger and the audit log keep
 everything since, and so does her results file: a run is corrected by a newer result, not
-by going back.
+by going back. A rollback doesn't read the weekly evaluation's findings, since answering
+drift is what it is for. And a rollback to a version from before the weekly job leaves
+the job in place, still evaluating the newer image. Delete it with
+`az containerapp job delete --name <prefix>-eval --resource-group <rg>`, a change to
+approve like any other; deploying a version with the job creates it again.
 
 ## What's verified so far
 
@@ -289,6 +366,19 @@ That deploy found a fault in `deploy.sh`: the app step's what-if failed (the Bic
 crashed while compiling), and the script still asked to apply. It now stops when a
 what-if fails (`tests/deploy_test.sh`). The re-run's what-ifs matched the approved plan.
 
+The weekly evaluation and the audit log's copy aren't deployed yet (#133). So far:
+- The image's file list was exercised by copying exactly what the Dockerfile copies,
+  through `.dockerignore`, and running the weekly evaluation from that copy with the stub
+  model: it rendered its config from the passport's pins, ran the suite, recorded its
+  result under a weekly id, queued the drift the stub's verdicts make, and wrote a whole
+  audit chain and its own ledger. The promotion check refused the passport on that queue
+  and passed it on the local one. That check also found that `.dockerignore` had kept out
+  the passports since they were added to the image (#134), so the image's passport COPY
+  would have failed; it lets them through now.
+- `audit_blob.py` is tested against a fake Blob service that only grows
+  (`tests/test_audit_blob.py`), `deploy.sh`'s new steps against a stubbed `az`, and
+  `assurance.sh` against a stubbed `az` whose share is a directory.
+
 Record anything that differs in this README.
 
 ## Files
@@ -298,17 +388,23 @@ deploy/azure/
 ├── main.bicep                 # everything above, in one resource group
 ├── main.example.bicepparam    # copy to main.bicepparam and fill in
 ├── entra.sh                   # the API app and one client app per product
-├── deploy.sh                  # what-if, confirm, deploy, in three steps; or roll back
+├── deploy.sh                  # check, what-if, confirm, deploy, in four steps; or roll back
+├── assurance.sh               # answer the weekly evaluation's queue; check the audit log's copy
+├── audit_blob.py              # push the audit log to its immutable append blob, or check it
 ├── prices.sh                  # the models' list prices, from the Retail Prices API
-├── Dockerfile                 # the server image, built from the repo root
-├── render_config.py           # the app's environment to the server's config, at start
+├── Dockerfile                 # the image for the app and the weekly job, built from the repo root
+├── render_config.py           # the environment to the server's config, with the pinned prompts
 ├── tests/
 │   ├── entra_test.sh          # entra.sh's plan and refusals, against a stubbed az
-│   ├── deploy_test.sh         # deploy.sh's checks and rollback, against a stubbed az
+│   ├── deploy_test.sh         # deploy.sh's checks, steps and rollback, against a stubbed az
+│   ├── assurance_test.sh      # assurance.sh's answers, against a stubbed az and share
+│   ├── test_audit_blob.py     # audit_blob.py, against a fake Blob service
+│   ├── test_render_config.py  # the config's pinned prompts and ledgers
 │   └── prices_test.sh         # prices.sh's lookup, against a stubbed curl
 └── eval/
     ├── cases.json             # governance-review cases, their acceptable verdicts, which are critical
     ├── run.py                 # Patricia's trust evaluation, or compare models on the cases
+    ├── weekly.sh              # the weekly job: evaluate, record on the share, push the audit log
     ├── results.jsonl          # each trust evaluation, and the baseline her passport names
     └── RESULTS.md             # each comparison's verdicts, cost and choice
 ```
