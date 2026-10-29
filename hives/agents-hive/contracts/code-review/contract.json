@@ -1,0 +1,39 @@
+{
+  "capability": "code-review",
+  "version": 1,
+  "description": "Review a change for correctness, edge cases and regressions, and return ranked findings with a verdict. Reads only; never edits or commits.",
+  "inputs": {
+    "type": "object",
+    "required": ["change"],
+    "properties": {
+      "change": { "type": "string", "description": "The diff or changeset to review." },
+      "context": {
+        "type": "string",
+        "description": "What the change is for, and anything the reviewer should know."
+      }
+    }
+  },
+  "output": {
+    "type": "object",
+    "required": ["findings", "verdict"],
+    "properties": {
+      "findings": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "required": ["severity", "location", "finding"],
+          "properties": {
+            "severity": { "enum": ["blocker", "should-fix", "nit"] },
+            "location": { "type": "string", "description": "file:line" },
+            "finding": { "type": "string" },
+            "fix": { "type": "string" }
+          }
+        }
+      },
+      "verdict": { "enum": ["ship", "fix-first"] }
+    }
+  },
+  "budget": { "usd": 0.5, "tokens": 200000, "seconds": 600 },
+  "permissions": { "granted": ["fs.read"], "approval": [] },
+  "fulfilledBy": [{ "kind": "agent", "path": "hives/agents-hive/agents/code-review" }]
+}

@@ -1,0 +1,39 @@
+{
+  "capability": "security-review",
+  "version": 1,
+  "description": "Review a change or codebase for ways it could be abused, and return ranked findings with a verdict. Reads only; never edits, exploits or commits.",
+  "inputs": {
+    "type": "object",
+    "required": ["change"],
+    "properties": {
+      "change": { "type": "string", "description": "The diff or changeset to review." },
+      "context": {
+        "type": "string",
+        "description": "What the change is for, and anything the reviewer should know."
+      }
+    }
+  },
+  "output": {
+    "type": "object",
+    "required": ["findings", "verdict"],
+    "properties": {
+      "findings": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "required": ["vulnerability", "impact", "fix"],
+          "properties": {
+            "vulnerability": { "type": "string" },
+            "impact": { "type": "string" },
+            "fix": { "type": "string" },
+            "location": { "type": "string", "description": "file:line" }
+          }
+        }
+      },
+      "verdict": { "enum": ["safe", "issues-found"] }
+    }
+  },
+  "budget": { "usd": 0.5, "tokens": 200000, "seconds": 600 },
+  "permissions": { "granted": ["fs.read"], "approval": [] },
+  "fulfilledBy": [{ "kind": "agent", "path": "hives/agents-hive/agents/security-review" }]
+}

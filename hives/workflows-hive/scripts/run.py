@@ -31,6 +31,8 @@ who did it and the record's digest.
 The engine is also a library (Engine, below). There a run can be open: it starts with no
 steps, grows a step at a time, and keeps model turns in its record beside the steps, so
 an agent loop resumed after a crash repeats neither a completed step nor a completed turn.
+An open run under a passport can delegate to another agent (delegate), whose own open run
+is held to the stricter of the two passports and to a budget carved out of this one's.
 
 Usage:
   python3 scripts/run.py start word-count --input path=README.md
@@ -131,6 +133,7 @@ WORKERS = {"read-text": read_text, "count-words": count_words, "wait": wait}
 
 
 READS = ("fs.read",)  # actions with no effect outside the system
+DELEGATE = "delegate"  # the worker of a delegation step, which only Engine.delegate adds
 
 
 def has_effect(step):
@@ -236,6 +239,31 @@ def under_passport(policy, passport):
     return dict(policy, prohibitions=never + policy["prohibitions"])
 
 
+def narrow(outer, inner):
+    """The grant a delegate runs under: its delegator's grant (outer) intersected with its
+    own passport's permissions (inner). Each action takes the stricter of the two
+    treatments, in the order never, then approval, then granted, and an action either
+    leaves out is in no list, so it is denied."""
+    never = set(outer["never"]) | set(inner["never"])
+    both = (set(outer["granted"]) | set(outer["approval"])) & (set(inner["granted"]) | set(inner["approval"]))
+    both -= never
+    approval = both & (set(outer["approval"]) | set(inner["approval"]))
+    return {"granted": sorted(both - approval), "approval": sorted(approval), "never": sorted(never)}
+
+
+def under_grant(policy, grant, name):
+    """The policy for a run under a delegated grant: each action the grant puts under never
+    or leaves out is prohibited, ahead of the policy's own, and one under approval needs a
+    person even where the policy would let it run on its own (see verdict)."""
+    allowed = set(grant["granted"]) | set(grant["approval"])
+    why = f"the grant {name} was delegated, narrowed from its delegator's,"
+    rules = [{"id": f"grant.{name}.never.{a}", "action": a, "reason": f"{why} puts it under never"}
+             for a in grant["never"]]
+    rules += [{"id": f"grant.{name}.omits.{a}", "action": a, "reason": f"{why} leaves it out"}
+              for a in sorted(policy["vocabulary"] - allowed - set(grant["never"]))]
+    return dict(policy, prohibitions=rules + policy["prohibitions"], grant=dict(grant, rule=f"grant.{name}.approval"))
+
+
 def check_actions(step, policy):
     """Refuse a step's actions unless each is a request the policy can decide."""
     actions = step.get("actions")
@@ -256,12 +284,15 @@ def check_actions(step, policy):
             raise EngineError(f"step '{sid}': action '{req['action']}' isn't in {policy['name']}'s vocabulary")
 
 
-def check_step(step, workers, contracts_dir, policy):
+def check_step(step, workers, contracts_dir, policy, delegation=False):
     """Refuse a step the engine couldn't run: a bad approval flag, an unknown worker, a
-    budget or actions that don't check, or a compensate step that doesn't."""
+    budget or actions that don't check, or a compensate step that doesn't. Only a
+    delegation (Engine.delegate) has the delegate worker."""
     if not isinstance(step.get("approval", False), bool):
         raise EngineError(f"step '{step['id']}': approval must be true or false")
-    if step["worker"] not in workers:
+    if (step["worker"] == DELEGATE) != delegation:
+        raise EngineError(f"step '{step['id']}': only Engine.delegate adds a step that starts a delegate")
+    if step["worker"] not in workers and not delegation:
         raise EngineError(f"step '{step['id']}': unknown worker '{step['worker']}'")
     check_budget(step, contracts_dir)
     check_actions(step, policy)
@@ -363,7 +394,13 @@ def verdict(policy, step, run):
             if key in req and not isinstance(req[key], kind):
                 raise BadAction(f"{key} of action {req['action']} resolved to a "
                                 f"{type(req[key]).__name__}, not a {kind.__name__}")
+        if req["action"] == "agent.delegate":  # whether the delegate is listed is the passport's to say
+            listed = req.get("scope", {}).get("passport") in policy.get("delegates", ())
+            req = dict(req, facts={**req.get("facts", {}), "delegate.listed": listed})
         decision, rule, show = check_policy.decide(policy, req)
+        grant = policy.get("grant")
+        if grant and decision == "auto" and req["action"] in grant["approval"]:
+            decision, rule, show = "human", grant["rule"], []
         decided.append((req, decision, rule, show))
         if decision == "deny":
             break
@@ -547,7 +584,9 @@ class Engine:
         policy = load_policy(run.get("policy", CHARTER_POLICY))
         passport = self.passport_of(run)
         if passport:
-            policy = under_passport(policy, passport)
+            policy = dict(under_passport(policy, passport), delegates=passport["delegates"])
+        if run.get("grant"):
+            policy = under_grant(policy, run["grant"], passport["passport"])
         if run.get("open"):
             return run["plan"], policy
         return load_plan(run["workflow"], self.workflows_dir, self.workers, self.contracts_dir, policy), policy
@@ -701,7 +740,10 @@ class Engine:
         cap = step.get("budget", {})
         try:
             with marked(run["runId"]):
-                output, cost = call_worker(self.workers[step["worker"]], inp, state["idempotencyKey"], cap)
+                if step["worker"] == DELEGATE:
+                    output, cost = self.start_delegate(run, step, inp, state["idempotencyKey"])
+                else:
+                    output, cost = call_worker(self.workers[step["worker"]], inp, state["idempotencyKey"], cap)
         except Exception as e:  # a failed step fails the run, with the reason recorded
             message = str(e) if isinstance(e, OverBudget) else f"{type(e).__name__}: {e}"
             state.update(status="failed", endedAt=now())
@@ -719,6 +761,11 @@ class Engine:
         add_cost(run["cost"], cost)
         run["next"] = after
         self.audit(run, "step.ran", step=sid)
+        over = self.over_delegated_budget(run)
+        if over:  # the step's work is done, but a delegate stops at the budget it was given
+            self.audit(run, "budget.refused", step=sid)
+            self.log(f"fail  {sid} ({over})")
+            return self.end(run, "failed", error={"step": sid, "message": over})
         self.save(run)
         if crash_after == sid:
             sys.stdout.flush()
@@ -845,7 +892,7 @@ class Engine:
         if run["status"] != "working":
             raise EngineError(f"run {run['runId']} is {run['status']}; it can {verb} only while working")
 
-    def append(self, run, step):
+    def append(self, run, step, delegation=False):
         """Add a step to an open run. It runs on the next execute, decided, budgeted and
         checkpointed like a planned step."""
         self.working_open_run(run, "grow")
@@ -855,7 +902,7 @@ class Engine:
         step = copy.deepcopy(step)  # the run keeps the step as it was checked
         if step["id"] in run["steps"]:
             raise EngineError(f"step '{step['id']}': run {run['runId']} already has a step with that id")
-        check_step(step, self.workers, self.contracts_dir, load_policy(run["policy"]))
+        check_step(step, self.workers, self.contracts_dir, load_policy(run["policy"]), delegation)
         run["plan"]["steps"].append(step)
         run["steps"][step["id"]] = new_step_state(run["runId"], step["id"])
         run["next"] = run["next"] or step["id"]
@@ -895,6 +942,12 @@ class Engine:
         state.update(status="completed", output=output, cost=cost, endedAt=now())
         add_cost(run["cost"], cost)
         self.audit(run, "turn.completed", turn=turn_id)
+        over = self.over_delegated_budget(run)
+        if over:
+            self.audit(run, "budget.refused", turn=turn_id)
+            self.end(run, "failed", error={"step": None, "turn": turn_id, "message": over})
+            self.log(f"fail  turn {turn_id} ({over})")
+            raise Stopped(run, over)
         self.save(run)
         return output
 
@@ -935,6 +988,116 @@ class Engine:
         self.pause(run, {"id": pid, "kind": "escalation", "ask": ask_id, "question": question, "values": values})
         self.log(f"ask   {ask_id} (review_queue.py show {pid})")
         return None
+
+    # Delegation
+
+    def delegate(self, run, step_id, passport, context, whole_context=False):
+        """Hand work to the agent whose passport is named passport, as step step_id of the
+        open run. The approval policy decides agent.delegate with that passport as its
+        scope, and the step waits for a person or fails the run as any step's would. context
+        is the list of items passed, never the whole conversation: whole_context says
+        whether it is, and the policy refuses it if so.
+
+        Returns the delegate's run: an open run under the delegate's passport, narrowed by
+        this run's grant, with a budget carved out of what this run has left. Returns None
+        while the delegation waits for a person, and the run once it is completed when
+        called again with the same step_id. Raises Stopped when the run has failed or been
+        cancelled, a denied delegation among them."""
+        if step_id not in run["steps"]:
+            self.working_open_run(run, "delegate")
+            parent = self.passport_of(run)
+            if parent is None:
+                raise EngineError(f"run {run['runId']} runs under no passport, so there is nothing to narrow "
+                                  "a delegate's grant from")
+            if passport == parent["passport"]:
+                raise EngineError(f"{passport} is run {run['runId']}'s own passport: a clone runs as its parent, "
+                                  "inside this run, so take its steps and turns here")
+            if not isinstance(passport, str) or not isinstance(context, list) or not isinstance(whole_context, bool):
+                raise EngineError("a delegation names a passport, passes its context as a list of items and says "
+                                  "whether that is the whole context")
+            self.append(run, {"id": step_id, "worker": DELEGATE, "input": {"passport": passport, "context": context},
+                              "actions": [{"action": "agent.delegate", "scope": {"passport": passport},
+                                           "facts": {"context.whole": whole_context}}]}, delegation=True)
+        elif not any(s["id"] == step_id and s["worker"] == DELEGATE for s in (run.get("plan") or {}).get("steps", [])):
+            raise EngineError(f"step '{step_id}' of run {run['runId']} isn't a delegation")
+        if run["steps"][step_id]["status"] != "completed" and run["status"] == "working":
+            run = self.execute(run)
+        state = run["steps"][step_id]
+        if state["status"] == "completed":
+            return self.load(state["output"]["runId"])
+        if run["status"] in ("failed", "cancelled"):
+            raise Stopped(run, (run.get("error") or {}).get("message") or f"run {run['runId']} is {run['status']}")
+        return None
+
+    def start_delegate(self, run, step, inp, key):
+        """The work of a delegation step: start the delegate's run, once, and log the
+        delegation. Returns (output, cost) as a worker does."""
+        child_id = "run_" + check_audit.digest(key)[7:23]  # the same run, should the step run again
+        if self.record_path(child_id).is_file():
+            child = self.load(child_id)
+        else:
+            parent = self.passport_of(run)
+            passport, _ = load_passport(inp["passport"], self.passports_dir)
+            grant = narrow(run.get("grant") or parent["permissions"], passport["permissions"])
+            budget = self.carve(run, passport)
+            child = self.new_run({"name": passport["passport"], "version": 1, "steps": []}, run["policy"],
+                                 {"context": inp["context"]}, passport["passport"])
+            child.update(runId=child_id, open=True, plan={"name": passport["passport"], "version": 1, "steps": []},
+                         turns={}, grant=grant, budget=budget, parent={"runId": run["runId"], "step": step["id"]})
+            self.audit(run, "delegation", step=step["id"], delegate=child["agent"], grant=check_audit.digest(grant),
+                       context=[check_audit.digest(item) for item in inp["context"]])
+            self.audit(child, "run.started")
+            self.save(child)
+            self.log(f"start {child_id} ({passport['passport']}, delegated by {run['runId']})")
+        if child_id not in run.setdefault("delegations", []):
+            run["delegations"].append(child_id)
+        output = {"runId": child_id, "passport": child["agent"]["passport"], "version": child["agent"]["version"],
+                  "grant": check_audit.digest(child["grant"]), "budget": child["budget"]}
+        return output, {"usd": 0.0, "tokens": 0}
+
+    def budget_of(self, run):
+        """What run may spend: the budget it was delegated, else its passport's, else None."""
+        if run.get("budget"):
+            return run["budget"]
+        passport = self.passport_of(run)
+        return passport["budget"] if passport else None
+
+    def spent(self, run):
+        """What run has spent, counting each delegate it started: what an open one holds in
+        reserve, and what an ended one spent."""
+        total = {"usd": run["cost"]["usd"], "tokens": run["cost"]["tokens"]}
+        for child_id in run.get("delegations", []):
+            child = self.load(child_id)
+            part = self.spent(child) if child["status"] in TERMINAL else child["budget"]
+            for k in total:
+                total[k] += part.get(k, 0)
+        total["usd"] = round(total["usd"], 6)
+        return total
+
+    def carve(self, run, passport):
+        """The budget for a delegate under passport: each figure of its passport's, cut to
+        what run has left of its own. Time isn't spent from a pool, so seconds is the lower
+        of the two. Raises OverBudget when nothing is left."""
+        limit = self.budget_of(run) or {}
+        spent = self.spent(run)
+        left = {k: limit[k] - spent[k] for k in ("usd", "tokens") if k in limit}
+        empty = [k for k, v in left.items() if v <= 0]
+        if empty:
+            raise OverBudget(f"nothing is left of run {run['runId']}'s {' or '.join(empty)} to delegate")
+        budget = {}
+        for k in ("usd", "tokens", "seconds"):
+            figures = [x for x in (passport["budget"].get(k), limit.get(k) if k == "seconds" else left.get(k))
+                       if x is not None]
+            if figures:
+                budget[k] = round(min(figures), 6) if k == "usd" else min(figures)
+        return budget
+
+    def over_delegated_budget(self, run):
+        """Why a delegate's run is over the budget it was delegated, or None."""
+        if not run.get("budget"):
+            return None
+        over = over_cost(self.spent(run), run["budget"])
+        return f"{over} (the budget it was delegated)" if over else None
 
     # The review queue
 

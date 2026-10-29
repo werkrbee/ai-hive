@@ -1,0 +1,26 @@
+{
+  "$schema": "../../schema/passport.schema.json",
+  "passport": "code-review",
+  "version": 1,
+  "owner": "@werkrbee",
+  "contract": { "capability": "code-review", "version": 1 },
+  "policy": { "ruleset": "hives/rules-hive/rules/queen-charter/policy.json", "version": 4 },
+  "permissions": {
+    "granted": ["fs.read"],
+    "approval": [],
+    "never": [
+      "fs.write", "shell.exec", "net.fetch", "agent.delegate",
+      "vcs.commit", "vcs.push", "vcs.merge", "vcs.release", "vcs.delete-ref",
+      "fs.delete", "infra.change", "deploy", "message.send", "spend"
+    ]
+  },
+  "budget": { "usd": 0.5, "tokens": 200000, "seconds": 600 },
+  "delegates": [],
+  "pins": {
+    "prompt": [
+      { "path": "hives/rules-hive/rules/queen-charter/AGENTS.md", "sha256": "388c6cea931b3ddb06f5a231bcdc6386359cbe965a505904a6b09860828c04fd" },
+      { "path": "hives/agents-hive/agents/code-review/agent.md", "sha256": "5dc5ec8b098d1e26a6b01d25801ae0a38944c091b725206360b4f6268ba18d81" }
+    ],
+    "policy": { "sha256": "25f0579ee39e2e1f480abbd6352a7955adb2fe3ac6c5f1299d51e2c45497c09e" }
+  }
+}

@@ -49,14 +49,14 @@ KINDS = {
     "step.decided": ("runId", "step", "decision"),
     "step.ran": ("runId", "step"),
     "step.failed": ("runId", "step"),
-    "budget.refused": ("runId", "step"),
+    "budget.refused": ("runId",),
     "approval.answered": ("runId", "step", "decision", "by"),
     "escalation.raised": ("runId", "item"),
     "escalation.answered": ("runId", "item", "by", "via"),
     "drift.answered": ("item", "decision", "by", "via"),
     "turn.completed": ("runId", "turn"),
     "turn.failed": ("runId", "turn"),
-    "delegation": (),
+    "delegation": ("runId", "step", "agent", "delegate", "grant", "context"),
     "rollback": ("by", "via", "record"),
     "drift": ("agent", "item"),
     "eval.ran": ("agent", "result"),
@@ -65,7 +65,8 @@ KINDS = {
 DECISIONS = {"step.decided": {"allowed", "paused", "denied"}, "approval.answered": {"approved", "denied"},
              "drift.answered": {"approved", "denied"}}
 FIELDS = {"seq", "at", "prev", "hash", "kind", "agent", "runId", "step", "turn", "action",
-          "decision", "rules", "call", "by", "item", "via", "result", "record"}
+          "decision", "rules", "call", "by", "item", "via", "result", "record", "delegate", "grant",
+          "context"}
 VIA = ("cli", "mcp", "a2a")  # how a human's answer came
 
 
@@ -118,7 +119,7 @@ def entry_problems(e):
         bad("seq must be an integer of at least 1")
     if "at" in e and not utc(e["at"]):
         bad("at must be an ISO 8601 date-time in UTC")
-    for key in ("prev", "hash", "call", "item", "record"):
+    for key in ("prev", "hash", "call", "item", "record", "grant"):
         if key in e and not (isinstance(e[key], str) and DIGEST.fullmatch(e[key])):
             bad(f"{key} must be sha256: followed by 64 lowercase hex digits")
     for key in ("runId", "step", "turn", "action", "result"):
@@ -131,18 +132,27 @@ def entry_problems(e):
         bad("rules must be a list of rule ids")
     if "via" in e and e["via"] not in VIA:
         bad(f"via must be one of {', '.join(VIA)}")
+    if kind == "budget.refused" and "step" not in e and "turn" not in e:
+        bad("a budget.refused names the step or the turn that ran past the budget")
     if kind == "rollback" and "runId" not in e and "agent" not in e:
         bad("a rollback names the run it rolled back (runId) or the agent (agent)")
     if "by" in e and not opaque(e["by"]):
         bad("by must be an opaque identifier, never a name or an email address")
-    if "agent" in e:
-        a = e["agent"]
-        if (not isinstance(a, dict) or set(a) != {"passport", "version", "sha256"}
-                or not isinstance(a["passport"], str) or not KEBAB.fullmatch(a["passport"])
-                or not isinstance(a["version"], int) or isinstance(a["version"], bool) or a["version"] < 1
-                or not isinstance(a["sha256"], str) or not re.fullmatch(r"[0-9a-f]{64}", a["sha256"])):
-            bad("agent must be {passport, version, sha256}: a passport's name, version and digest")
+    for key in ("agent", "delegate"):
+        if key in e and not passport_ref(e[key]):
+            bad(f"{key} must be {{passport, version, sha256}}: a passport's name, version and digest")
+    if "context" in e and (not isinstance(e["context"], list)
+                           or not all(isinstance(c, str) and DIGEST.fullmatch(c) for c in e["context"])):
+        bad("context must be a list of digests, one for each item passed to the delegate")
     return problems
+
+
+def passport_ref(a):
+    """Whether a names a passport version: {passport, version, sha256}."""
+    return (isinstance(a, dict) and set(a) == {"passport", "version", "sha256"}
+            and isinstance(a["passport"], str) and bool(KEBAB.fullmatch(a["passport"]))
+            and isinstance(a["version"], int) and not isinstance(a["version"], bool) and a["version"] >= 1
+            and isinstance(a["sha256"], str) and bool(re.fullmatch(r"[0-9a-f]{64}", a["sha256"])))
 
 
 def lines(text, name, err):

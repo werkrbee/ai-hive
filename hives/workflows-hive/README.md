@@ -252,12 +252,12 @@ Every run appends to an audit log in knowledge-hive's [`audit.jsonl`
 format](../knowledge-hive/DESIGN.md#audit-log-auditjsonl), by default `audit.jsonl` beside
 the state directory (change it with `--audit`). The engine writes an entry for each step
 decision (one per action, with the rules that decided it), each step that runs, fails or
-is stopped by its budget, each answer, escalation, cancel, expiry, rollback and model
-turn, and each run's start and end. Each entry names the run's passport and the digest of
-the exact call, not the call's arguments, which stay in the run record. Entries are
-hash-chained, and the engine writes each one before the run record that follows it; the
-record keeps the seq and hash of its run's last entry under `audit`. If the log can't be
-written, the run doesn't go on.
+is stopped by its budget, each answer, escalation, cancel, expiry, rollback, delegation
+and model turn, and each run's start and end. Each entry names the run's passport and the
+digest of the exact call, not the call's arguments, which stay in the run record. Entries
+are hash-chained, and the engine writes each one before the run record that follows it;
+the record keeps the seq and hash of its run's last entry under `audit`. If the log can't
+be written, the run doesn't go on.
 
 ```bash
 python3 ../knowledge-hive/scripts/check_audit.py ~/.local/state/workflows-hive/audit.jsonl \
@@ -303,6 +303,50 @@ in `input_required` with an escalation in the review queue, and `escalate` retur
 Once a person has answered, the same call returns their answer, so a resumed loop asks
 each question once. `drift(agent, result, present, finding)` puts what a trust evaluation
 found in the queue: `drift`, or one of the flags `unconfirmed-miss`, `cost` and `not-run`.
+
+## Delegate to another agent
+
+An open run under a passport hands work to another agent with `delegate`, which keeps the
+delegate inside the bounds the Charter sets for sub-agents and clones.
+
+```python
+child = engine.delegate(r, "map", "explore", ["Find where approvals are answered."])
+engine.turn(child, "t1", call_model)                     # the delegate's own loop
+engine.finish(child, notes)
+```
+
+The delegation is a step of the delegator's run, taking the action `agent.delegate` with
+the delegate's passport as its scope, so the policy decides it like any step's action. The
+Charter's policy denies it when the delegator's passport doesn't list the delegate in
+`delegates`, a fact the engine reads from the passport, never from the request. It also
+denies it when `whole_context=True`: the context is the list of items passed, never the
+whole conversation. A clone that inherits the whole context isn't delegated at all; it is
+the delegator, so it takes its steps and turns in the delegator's run, and `delegate`
+refuses the run's own passport. A denial fails the run and raises `Stopped`, and a
+delegation the policy gates waits for approval in the queue, returning `None` until it is
+approved.
+
+Once allowed, the step starts the delegate's own open run. Its grant is the delegator's
+narrowed by the delegate's passport: each action takes the stricter treatment, in the
+order never, then approval, then granted, and an action either leaves out is prohibited.
+An action under approval in the grant waits for a person even where the Charter would let
+it run. Its budget is the delegate's passport's, cut to what the delegator has left, which
+is the delegator's budget less what it has spent, what each open delegate holds in reserve
+and what each ended one spent. A delegate that spends past its `usd` or `tokens` fails,
+and a delegation with nothing left to carve fails its delegator's run. The audit log's
+`delegation` entry names both passports, the digest of the grant and the digest of each
+item passed, not the items, which stay in the run records. Calling `delegate` again with
+the same step returns the same run.
+
+A delegate's run is the delegator's to drive, and cancelling the delegator doesn't cancel
+it. A delegation counts as an effect for a rollback, so a run can't be rolled back past
+one. A delegate's `seconds` isn't drawn from a pool the delegator shares: it is the lower
+of the two passports' limits, and it is recorded in the delegate's budget but not yet
+enforced, so only each step's own `seconds` stops a slow delegate. The grant binds only a
+delegate: a run started under a passport is held to that passport's `never` and nothing
+more, so an action outside its `granted` and `approval` is still decided by the policy
+alone. And `context.whole` is the caller's word: the engine can't tell when a list of
+items amounts to the whole conversation.
 
 ## License
 

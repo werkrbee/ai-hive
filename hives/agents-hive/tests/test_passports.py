@@ -50,9 +50,21 @@ class Checked(unittest.TestCase):
 
 class RepoPassports(Checked):
     def test_every_passport_in_the_repo_is_valid(self):
-        for persona in ("barry", "patricia"):
+        for path in sorted((HIVE / "passports").glob("*/passport.json")):
+            with self.subTest(persona=path.parent.name):
+                self.assertEqual(self.errors(passport(path.parent.name)), [])
+
+    def test_each_fleet_persona_has_a_passport_on_its_agent_definition_and_barry_lists_it(self):
+        for persona in ("explore", "code-review", "security-review", "charter-review"):
             with self.subTest(persona=persona):
-                self.assertEqual(self.errors(passport(persona)), [])
+                p = passport(persona)
+                self.assertNotIn("model", p["pins"])  # run inside a harness, which picks the model
+                self.assertIn(f"hives/agents-hive/agents/{persona}/agent.md", [f["path"] for f in p["pins"]["prompt"]])
+                self.assertIn(persona, passport("barry")["delegates"])
+
+    def test_a_persona_with_neither_a_card_nor_an_agent_definition_is_refused(self):
+        p = dict(passport("explore"), passport="shell")
+        self.assertRefused(p, "no Agent Card at cards/shell/card.json, or agent definition at agents/shell/agent.md")
 
     def test_every_card_has_a_passport(self):
         for card in (HIVE / "cards").glob("*/card.json"):
@@ -212,8 +224,8 @@ class Shape(Checked):
 
     def test_a_delegate_without_a_passport_is_refused(self):
         p = passport("barry")
-        p["delegates"].append("explore")
-        self.assertRefused(p, "delegate 'explore' has no passport")
+        p["delegates"].append("shell")
+        self.assertRefused(p, "delegate 'shell' has no passport")
 
 
 class CardLink(unittest.TestCase):

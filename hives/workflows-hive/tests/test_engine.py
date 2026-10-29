@@ -455,6 +455,147 @@ class Passports(Base):
         self.assertEqual(calls(self.log), [])
 
 
+class Delegation(Base):
+    def passports(self, **barry):
+        """An engine whose passports are copies, with Barry's fields changed by barry."""
+        passports = self.tmp / "passports"
+        shutil.copytree(engine.PASSPORTS_DIR, passports)
+        path = passports / "barry" / "passport.json"
+        path.write_text(json.dumps(dict(json.loads(path.read_text()), **barry)))
+        return engine.Engine(self.tmp / "runs", workers=self.workers, log=lambda *a: None, passports_dir=passports)
+
+    def test_a_delegate_runs_under_the_stricter_of_both_passports(self):
+        e = self.engine
+        run = e.open("loop", passport="barry")
+        child = e.delegate(run, "map", "explore", ["Find where approvals are answered."])
+        self.assertEqual((child["status"], child["agent"]["passport"]), ("working", "explore"))
+        self.assertEqual(child["parent"], {"runId": run["runId"], "step": "map"})
+        self.assertEqual(child["inputs"], {"context": ["Find where approvals are answered."]})
+        self.assertEqual(child["grant"]["granted"], ["fs.read"])
+        self.assertIn("fs.write", child["grant"]["never"])  # Barry may write; explore may not
+        e.append(child, {"id": "read", "worker": "echo", "input": {}, "actions": [{"action": "fs.read"}]})
+        e.append(child, {"id": "edit", "worker": "echo", "input": {}, "actions": [{"action": "fs.write"}]})
+        child = e.execute(child)
+        self.assertEqual(child["steps"]["read"]["status"], "completed")
+        self.assertEqual(child["status"], "failed")
+        self.assertIn("fs.write is prohibited by grant.explore.never.fs.write", child["error"]["message"])
+
+    def test_each_action_takes_the_stricter_treatment_and_one_either_leaves_out_is_denied(self):
+        outer = {"granted": ["fs.read", "fs.write", "shell.exec"], "approval": ["vcs.push", "message.send"],
+                 "never": ["infra.change"]}
+        inner = {"granted": ["fs.read", "fs.write", "vcs.push", "net.fetch"], "approval": ["shell.exec"],
+                 "never": ["message.send"]}
+        grant = engine.narrow(outer, inner)
+        self.assertEqual(grant, {"granted": ["fs.read", "fs.write"], "approval": ["shell.exec", "vcs.push"],
+                                 "never": ["infra.change", "message.send"]})
+        policy = engine.under_grant(engine.load_policy(engine.CHARTER_POLICY), grant, "helper")
+        run = {"inputs": {}, "steps": {}}
+        for action, decision, rule in (("fs.write", "auto", "auto.fs.write"),
+                                       ("shell.exec", "human", "grant.helper.approval"),  # the Charter auto-allows it
+                                       ("net.fetch", "deny", "grant.helper.omits.net.fetch"),
+                                       ("message.send", "deny", "grant.helper.never.message.send")):
+            with self.subTest(action):
+                [(_, got, by, _)] = engine.verdict(policy, {"id": "s", "actions": [{"action": action}]}, run)
+                self.assertEqual((got, by), (decision, rule))
+
+    def test_a_delegation_the_grant_gates_waits_for_a_person_then_starts_its_delegate(self):
+        e = self.engine
+        run = e.open("loop", passport="barry")
+        run["grant"] = {"granted": ["fs.read"], "approval": ["agent.delegate"], "never": []}  # as a delegate's would be
+        e.save(run)
+        self.assertIsNone(e.delegate(run, "map", "explore", ["Find it."]))
+        run = e.load(run["runId"])
+        self.assertEqual((run["status"], run["pending"]["rules"]), ("input_required", ["grant.barry.approval"]))
+        self.assertFalse(any(x["kind"] == "delegation" for x in entries(self)))
+        run = e.approve(run["runId"], by="ci")
+        child = e.delegate(run, "map", "explore", ["Find it."])
+        self.assertEqual(child["agent"]["passport"], "explore")
+        self.assertEqual(child["grant"], {"granted": ["fs.read"], "approval": [], "never": sorted(
+            engine.load_passport("explore")[0]["permissions"]["never"])})
+
+    def test_a_delegate_the_passport_doesnt_list_is_refused(self):
+        e = self.passports(delegates=["patricia"])
+        run = e.open("loop", passport="barry")
+        with self.assertRaisesRegex(engine.Stopped, "prohibited by delegate.unlisted"):
+            e.delegate(run, "map", "explore", [])
+        decided = [x for x in entries(self) if x["kind"] == "step.decided"]
+        self.assertEqual((decided[-1]["decision"], decided[-1]["rules"]), ("denied", ["delegate.unlisted"]))
+        self.assertFalse(any(x["kind"] == "delegation" for x in entries(self)))
+        self.assertEqual(len(list((self.tmp / "runs").glob("*.json"))), 1)  # no delegate's run
+
+    def test_a_step_cant_claim_its_delegate_is_listed_or_start_one(self):
+        e = self.passports(delegates=["patricia"])
+        run = e.open("loop", passport="barry")
+        with self.assertRaisesRegex(engine.EngineError, "only Engine.delegate"):
+            e.append(run, {"id": "d", "worker": "delegate", "input": {"passport": "explore", "context": []}})
+        e.append(run, {"id": "d", "worker": "echo", "input": {}, "actions": [{
+            "action": "agent.delegate", "scope": {"passport": "explore"},
+            "facts": {"delegate.listed": True, "context.whole": False}}]})
+        run = e.execute(run)
+        self.assertEqual(run["status"], "failed")
+        self.assertIn("prohibited by delegate.unlisted", run["error"]["message"])
+
+    def test_the_whole_context_is_never_passed_and_a_clone_stays_in_its_run(self):
+        e = self.engine
+        run = e.open("loop", passport="barry")
+        with self.assertRaisesRegex(engine.EngineError, "a clone runs as its parent, inside this run"):
+            e.delegate(run, "fork", "barry", [], whole_context=True)
+        with self.assertRaisesRegex(engine.Stopped, "prohibited by delegate.whole-context"):
+            e.delegate(run, "map", "explore", [], whole_context=True)
+
+    def test_only_a_run_under_a_passport_its_own_may_delegate(self):
+        with self.assertRaisesRegex(engine.EngineError, "runs under no passport"):
+            self.engine.delegate(self.engine.open("loop"), "map", "explore", [])
+        run = self.engine.open("review", passport="patricia")  # her passport puts agent.delegate under never
+        with self.assertRaisesRegex(engine.Stopped, "prohibited by passport.patricia.never.agent.delegate"):
+            self.engine.delegate(run, "map", "explore", [])
+
+    def test_a_delegation_is_logged_with_both_passports_the_grant_and_each_item_passed(self):
+        e = self.engine
+        run = e.open("loop", passport="barry")
+        context = ["Find where approvals are answered.", {"path": "hives/workflows-hive"}]
+        child = e.delegate(run, "map", "explore", context)
+        [entry] = [x for x in entries(self) if x["kind"] == "delegation"]
+        self.assertEqual((entry["runId"], entry["step"], entry["agent"]), (run["runId"], "map", run["agent"]))
+        self.assertEqual(entry["delegate"], child["agent"])
+        self.assertEqual(entry["grant"], engine.check_audit.digest(child["grant"]))
+        self.assertEqual(entry["context"], [engine.check_audit.digest(c) for c in context])
+        self.assertNotIn("approvals are answered", (self.tmp / "audit.jsonl").read_text())
+        self.assertEqual(engine.check_audit.check(self.tmp / "audit.jsonl"), [])
+        again = e.delegate(e.load(run["runId"]), "map", "explore", context)  # asked again: the same delegate
+        self.assertEqual(again["runId"], child["runId"])
+        self.assertEqual(len([x for x in entries(self) if x["kind"] == "delegation"]), 1)
+
+    def test_a_delegates_budget_is_carved_out_of_what_its_delegator_has_left(self):
+        e = self.passports(budget={"usd": 0.6, "tokens": 300000, "seconds": 3600})
+        run = e.open("loop", passport="barry")
+        e.turn(run, "plan", self.model("plan", usd=0.2))
+        first = e.delegate(run, "map", "explore", [])
+        self.assertEqual(first["budget"], {"usd": 0.4, "tokens": 200000, "seconds": 600})
+        with self.assertRaisesRegex(engine.Stopped, "nothing is left of run .*'s usd to delegate"):
+            e.delegate(run, "review", "code-review", [])  # the first holds the rest in reserve
+        self.assertEqual(e.load(run["runId"])["steps"]["review"]["status"], "failed")
+
+    def test_an_ended_delegate_counts_what_it_spent_and_frees_the_rest(self):
+        e = self.passports(budget={"usd": 0.6, "tokens": 300000, "seconds": 3600})
+        run = e.open("loop", passport="barry")
+        e.turn(run, "plan", self.model("plan", usd=0.2))
+        first = e.delegate(run, "map", "explore", [])
+        e.turn(first, "look", self.model("found it", usd=0.1))
+        e.finish(first, "found it")
+        second = e.delegate(e.load(run["runId"]), "review", "code-review", [])
+        self.assertEqual(second["budget"]["usd"], 0.3)
+
+    def test_a_delegate_stops_at_the_budget_it_was_delegated(self):
+        e = self.engine
+        child = e.delegate(e.open("loop", passport="barry"), "map", "explore", [])
+        with self.assertRaisesRegex(engine.Stopped, r"over its budget of 0.5 \(the budget it was delegated\)"):
+            e.turn(child, "look", self.model("found it", usd=0.6))
+        refused = [x for x in entries(self) if x["kind"] == "budget.refused"]
+        self.assertEqual((refused[-1]["runId"], refused[-1]["turn"]), (child["runId"], "look"))
+        self.assertEqual(e.load(child["runId"])["status"], "failed")
+
+
 class Actors(Base):
     def paused(self):
         e = self.engine

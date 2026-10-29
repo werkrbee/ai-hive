@@ -4,7 +4,8 @@
 Standard library only, so it runs anywhere the hives do. A passport may only narrow its
 execution contract, so beyond the schema's shape this checks that:
 
-  - the passport names its own directory, and the persona has an Agent Card
+  - the passport names its own directory, and the persona has an Agent Card or, for an
+    agent run inside a harness, an agent definition (agents/<persona>/agent.md)
   - its contract and policy exist at the versions it names
   - every action it grants or puts under approval is one the contract grants or puts
     under approval, nothing the contract puts under approval is granted, and no action
@@ -130,8 +131,8 @@ def check(path):
         err("passport must be kebab-case")
     elif name != path.parent.name:
         err(f"passport '{name}' doesn't match its directory '{path.parent.name}'")
-    elif not (HIVE / "cards" / name / "card.json").is_file():
-        err(f"no Agent Card at cards/{name}/card.json")
+    elif not (HIVE / "cards" / name / "card.json").is_file() and not (HIVE / "agents" / name / "agent.md").is_file():
+        err(f"no Agent Card at cards/{name}/card.json, or agent definition at agents/{name}/agent.md")
     if not is_int(p.get("version"), 1):
         err("version must be an integer of at least 1")
     if not isinstance(p.get("owner"), str) or not OWNER.match(p["owner"]):

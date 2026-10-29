@@ -1,0 +1,31 @@
+{
+  "capability": "code-discovery",
+  "version": 1,
+  "description": "Find the files, symbols and patterns that answer a question about a codebase, and return them with a short architecture note. Reads only; never changes anything.",
+  "inputs": {
+    "type": "object",
+    "required": ["target"],
+    "properties": {
+      "target": { "type": "string", "description": "What to find, such as where X is handled." },
+      "breadth": { "enum": ["quick", "medium", "thorough"], "description": "How far to search." }
+    }
+  },
+  "output": {
+    "type": "object",
+    "required": ["paths", "summary"],
+    "properties": {
+      "paths": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "required": ["path", "note"],
+          "properties": { "path": { "type": "string" }, "note": { "type": "string" } }
+        }
+      },
+      "summary": { "type": "string", "description": "The architecture, in two to four sentences." }
+    }
+  },
+  "budget": { "usd": 0.5, "tokens": 200000, "seconds": 600 },
+  "permissions": { "granted": ["fs.read"], "approval": [] },
+  "fulfilledBy": [{ "kind": "agent", "path": "hives/agents-hive/agents/explore" }]
+}
