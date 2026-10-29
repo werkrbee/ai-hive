@@ -302,6 +302,21 @@ class Promotion(Recorded):
         self.record([run()])
         self.assertEqual(self.unanswered(), [])
 
+    def test_a_hosted_schedules_results_count_toward_promotion_under_their_own_ids(self):
+        hosted = self.tmp / "hosted" / "results.jsonl"
+        hosted.parent.mkdir()
+        for _ in range(te.NOT_RUN_LIMIT):
+            out = [dict(o, errored=o["id"] == "local-typo") for o in outcomes()]
+            entry = te.result(PATRICIA, SUITE, [te.run_record(SUITE, out)], AT, "review-a", None, None, hosted,
+                              "weekly-eval")
+            te.record(self.engine, PATRICIA, entry, hosted)
+        self.assertEqual(entry["id"], f"2030-01-15-patricia-weekly-eval-{te.NOT_RUN_LIMIT}")
+        self.assertEqual(te.promotion("patricia", self.engine), [])  # the repo's results alone
+        problems = te.promotion("patricia", self.engine, [hosted])
+        self.assertEqual(len(problems), 1)
+        self.assertIn(f"were not run, through {entry['id']}", problems[0])
+        self.assertEqual(te.promotion("patricia", self.engine, [self.tmp / "none.jsonl"]), [])
+
     def test_a_person_approving_each_not_run_item_releases_promotion(self):
         items = [self.not_run()[1][0] for _ in range(te.NOT_RUN_LIMIT)]
         for item in items[:-1]:

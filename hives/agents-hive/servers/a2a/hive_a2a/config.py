@@ -54,6 +54,7 @@ class Config:
     database: Path
     ledger: Path
     monthly_ceiling_usd: float
+    shared_ledgers: tuple[Path, ...]
     prompt_files: tuple[Path, ...]
     auth: Auth
     model: Model
@@ -179,6 +180,7 @@ def load(path):
         database=_path(base, _get(s, "database", str, "server")),
         ledger=_path(base, _get(s, "ledger", str, "server")),
         monthly_ceiling_usd=float(ceiling),
+        shared_ledgers=tuple(_path(base, p) for p in _strings(s, "shared_ledgers", "server")),
         prompt_files=prompts,
         auth=auth,
         model=model,

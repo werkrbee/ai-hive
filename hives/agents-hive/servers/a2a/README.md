@@ -59,9 +59,15 @@ been billed but reported no usage is recorded at its whole reservation. That cov
 timeout, a cancel, a provider error after the request was sent, and a review cut off when
 the process dies: calls in flight are kept in `<ledger>.pending`, and any left there are
 recorded when the server next starts. So the most a month can
-end over the ceiling is one review's reservation, at most $0.50. The exception is a reply
-that runs past its token estimate, which the server logs. The running total is kept in
-the server process, so one instance must own the ledger: run a single replica.
+end over the ceiling is one review's reservation, at most $0.50, when the server spends
+alone. The exception is a reply that runs past its token estimate, which the server logs. The running total is kept in
+the server process, so one instance must own the ledger: run a single replica. Another
+process that spends against the same ceiling, such as Patricia's weekly evaluation, keeps
+a ledger of its own, and each names the other in `server.shared_ledgers`: at every
+reservation, a shared ledger's spending this month and its calls in flight are read
+afresh and counted toward the ceiling. Each process reserves under its own lock, so both
+can reserve from just below the ceiling at the same moment, and the bound becomes one
+reservation from each: one review's for the server and one call's for the job.
 
 The ledger's `usd` is computed from the prices in the config, so its `basis` is
 `estimated`. Each entry names the model three ways: `provider` is its publisher,

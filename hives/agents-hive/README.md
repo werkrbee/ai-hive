@@ -147,13 +147,18 @@ baseline wasn't recorded against its exact pins, or that drift holds. `deploy.sh
 [`scripts/rollback.py`](scripts/rollback.py) finding its commit and recording who rolled
 it back and why (`deploy/azure/README.md`, "Rolling back").
 
-Patricia's baseline is her fifth 2026-10-27 run, 17 of 17 with the adversarial cases, on
-`review-a`, the deployment pinned to Claude Sonnet 5.5, recorded after her suite was
-pinned (#149). Her first, the 2026-10-21 run, was recorded on the pins before the Charter
-changed, the next on the first twelve cases, and the fourth 2026-10-27 run on the pins
-before her suite was one of them.
-The weekly scheduled run, as a Container Apps job under her identity, is deployed with the
-rest of her controls (#133).
+Patricia's baseline is her 2026-10-29 run, 17 of 17 with the adversarial cases, on
+`review-a`, the deployment pinned to Claude Sonnet 5.5, recorded after the Charter gained
+its rules for sub-agents and clones (#130). Her first, the 2026-10-21 run, was recorded on
+the pins before the Charter changed, the next on the first twelve cases, and two
+2026-10-27 runs on the pins before her suite was one of them and before #130.
+
+Hosted, she is also evaluated every week by a Container Apps job under her identity, from
+the image the server runs, so it evaluates what is deployed. It records on the
+deployment's file share, under its own result ids, and `deploy.sh` reads what it found
+before it promotes a change: drift it recorded holds her as local drift does.
+`deploy/azure/assurance.sh` answers its queue (`deploy/azure/README.md`, "Weekly
+evaluation").
 
 ## Agent Cards (A2A)
 

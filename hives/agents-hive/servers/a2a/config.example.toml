@@ -9,6 +9,8 @@ public_url = "https://patricia.example.org/"   # where callers reach the JSON-RP
 database = "data/tasks.db"           # SQLite; tasks survive restarts
 ledger = "data/ledger.jsonl"         # knowledge-hive ledger format
 monthly_ceiling_usd = 25.0
+# Other processes' ledgers that spend against the same ceiling, such as a scheduled eval's.
+# shared_ledgers = ["data/ledger-eval.jsonl"]
 prompt_files = [
   "hives/rules-hive/rules/queen-charter/AGENTS.md",
   "hives/skills-hive/skills/patricia/SKILL.md",

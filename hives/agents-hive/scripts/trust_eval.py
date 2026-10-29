@@ -22,7 +22,7 @@ docs/assurance-loop.md.
 Standard library only.
 
 Usage:
-  python3 scripts/trust_eval.py promotion PERSONA [--queue-dir DIR]
+  python3 scripts/trust_eval.py promotion PERSONA [--queue-dir DIR] [--results PATH ...]
   python3 scripts/trust_eval.py pins PERSONA      # print the digest of a passport's pins
 """
 import argparse
@@ -182,10 +182,12 @@ def outcome(found):
     return "failed" if {"drift", "not-run"} & set(found) else "partial" if found else "passed"
 
 
-def next_id(path, at, persona):
-    """A new result id: the date, the persona and eval, with -2, -3 and on when taken."""
+def next_id(path, at, persona, label="eval"):
+    """A new result id: the date, the persona and the label, with -2, -3 and on when taken.
+    A runner that records somewhere other than the repo, such as a scheduled one, gives its
+    own label, so its ids never match one recorded in the repo."""
     taken = vp.read_results(path) if path.is_file() else {}
-    base = f"{at}-{persona}-eval"
+    base = f"{at}-{persona}-{label}"
     rid, n = base, 1
     while rid in taken:
         n += 1
@@ -205,7 +207,7 @@ def describe(p, runs, found, refused=None):
     return text + (f" Found: {', '.join(found)}." if found else " Within its baseline.")
 
 
-def result(p, suite, runs, at, deployment, commit=None, refused=None, path=None):
+def result(p, suite, runs, at, deployment, commit=None, refused=None, path=None, label="eval"):
     """The results.jsonl entry for an evaluation's runs, to be appended to path (default:
     the file the passport's baseline is in). at is a UTC datetime; deployment is what the
     runner called, since the model it serves isn't checked here."""
@@ -215,7 +217,7 @@ def result(p, suite, runs, at, deployment, commit=None, refused=None, path=None)
     record = {"passport": p["passport"], "version": p["version"], "pins": pins_digest(p),
               "suite": p["eval"]["suite"], **({"commit": commit} if commit else {}), "deployment": deployment,
               "baseline": base_entry["id"] if base_entry else None, "runs": runs, "findings": found}
-    return {"id": next_id(path, at.strftime("%Y-%m-%d"), p["passport"]), "at": at.strftime("%Y-%m-%dT%H:%M:%SZ"),
+    return {"id": next_id(path, at.strftime("%Y-%m-%d"), p["passport"], label), "at": at.strftime("%Y-%m-%dT%H:%M:%SZ"),
             "kind": "eval", "subject": f"{p['passport']} {p['contract']['capability']} trust evaluation",
             "outcome": outcome(found), "summary": describe(p, runs, found, refused),
             "evidence": [{"kind": "file", "path": p["eval"]["suite"]}], "eval": record}
@@ -236,16 +238,20 @@ def record(e, p, entry, path=None):
     return [e.drift(who, entry["id"], present, finding) for finding in entry["eval"]["findings"]]
 
 
-def promotion(persona, e):
+def promotion(persona, e, results=()):
     """Why the persona's passport can't be promoted, or [] when it can: it must be valid,
     its baseline recorded against its exact pins, and no drift may hold it in the queue of
-    the engine e."""
+    the engine e. results are more results.jsonl files whose evaluations count after the
+    repo's, such as a hosted schedule's."""
     try:
         p = passport(persona)
     except EvalError as err:
         return [str(err)]
     items = e.items(None)
-    history = vp.read_results(results_file(p)).values()
+    history = list(vp.read_results(results_file(p)).values())
+    for path in results:
+        if Path(path).is_file():
+            history += vp.read_results(Path(path)).values()
     return holds(p, baseline(p), items) + unanswered(p, critical(cases(p)), history, items)
 
 
@@ -313,6 +319,8 @@ def main():
     pr.add_argument("persona")
     pr.add_argument("--state-dir", default=str(engine.DEFAULT_STATE_DIR), help="Where run records live")
     pr.add_argument("--queue-dir", help="The review queue (default: queue/ beside --state-dir)")
+    pr.add_argument("--results", action="append", default=[], metavar="PATH",
+                    help="Another results.jsonl whose evaluations count after the repo's, e.g. a hosted schedule's")
     sub.add_parser("pins", help="Print the digest of a passport's pins").add_argument("persona")
     args = ap.parse_args()
     if args.command == "pins":
@@ -322,7 +330,7 @@ def main():
             sys.exit(str(err))
         return 0
     e = engine.Engine(args.state_dir, queue=args.queue_dir, log=lambda *a: None)
-    problems = promotion(args.persona, e)
+    problems = promotion(args.persona, e, args.results)
     for problem in problems:
         print(f"refused: {problem}", file=sys.stderr)
     if not problems:

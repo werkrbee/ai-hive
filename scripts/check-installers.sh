@@ -123,10 +123,21 @@ run "projects-hive init.py --dry-run" \
 run "agents-hive entra.sh plan and refusals (stubbed az)" \
   bash hives/agents-hive/deploy/azure/tests/entra_test.sh
 
-# agents-hive: deploy.sh checks the passport, role ids and models before its first what-if,
-# and rolls back to an earlier passport version, against a stubbed az.
-run "agents-hive deploy.sh promotion, role id and model checks, and rollback (stubbed az)" \
+# agents-hive: deploy.sh checks the passport, here and in Azure, role ids and models before
+# its first what-if, sets the audit log's retention, and rolls back to an earlier passport
+# version, against a stubbed az.
+run "agents-hive deploy.sh promotion, role id, model and retention checks, and rollback (stubbed az)" \
   bash hives/agents-hive/deploy/azure/tests/deploy_test.sh
+
+# agents-hive: assurance.sh answers the hosted review queue only at a terminal, and only
+# while the share's audit log is unchanged, against a stubbed az.
+run "agents-hive assurance.sh hosted queue answers (stubbed az)" \
+  bash hives/agents-hive/deploy/azure/tests/assurance_test.sh
+
+# agents-hive: audit_blob.py copies the audit log to an append blob only while the log
+# still starts with the copy, and render_config.py takes the prompt files the passport pins.
+run "agents-hive audit blob and config rendering (fake Blob service)" \
+  python3 -B -m unittest discover -s hives/agents-hive/deploy/azure/tests -p 'test_*.py'
 
 # agents-hive: prices.sh reads the Retail Prices API's pages, against a stubbed curl.
 run "agents-hive prices.sh lookup (stubbed curl)" \

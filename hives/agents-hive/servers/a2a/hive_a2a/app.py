@@ -84,7 +84,8 @@ def create_app(config, provider=None, authenticator=None, ledger_clock=None):
     config.database.parent.mkdir(parents=True, exist_ok=True)
     engine = create_async_engine(f"sqlite+aiosqlite:///{config.database}")
     store = DatabaseTaskStore(engine)
-    ledger = Ledger(config.ledger, config.monthly_ceiling_usd, **({"clock": ledger_clock} if ledger_clock else {}))
+    ledger = Ledger(config.ledger, config.monthly_ceiling_usd, shared=config.shared_ledgers,
+                    **({"clock": ledger_clock} if ledger_clock else {}))
     provider = provider or providers.create(config.model)
     reviewer = Reviewer(config, ledger, provider)
     agent_card = ParseDict(card(config), AgentCard())
