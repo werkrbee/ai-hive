@@ -143,10 +143,14 @@ Python's `json` writes them. `prev` is the previous entry's `hash`, and the firs
 removed, inserted or reordered. A chain can't show that its last entries were cut off, so
 two things anchor its end. Each run record keeps the `seq` and `hash` of the last entry
 written for it, so the verifier, given the run records, catches a log that ends before a
-run's last entry. And a hosted deployment also writes each entry to an Azure Storage
-append blob in a container with a locked, time-based immutability policy that allows
-protected append writes (`allowProtectedAppendWrites`), which the storage service enforces
-even against the subscription's owner until the retention period ends. That is generally
+run's last entry. And a hosted deployment also copies the log to an Azure Storage append
+blob, in a container with a time-based immutability policy that allows protected append
+writes (`allowProtectedAppendWrites`). Hosted Patricia's weekly job pushes the log there
+before and after each run, so a person's answer reaches the copy at the next run, not as
+it is written. The storage service enforces the policy from the start, but until it is
+locked the owner can remove it. Locking is a separate, gated choice (`deploy.sh
+--lock-audit-retention`), and only once it is locked does the service hold the copy even
+against the subscription's owner until the retention period ends. That is generally
 available. The format and the verifier don't depend on it, so a product on another host
 anchors the log however its host allows.
 
@@ -167,7 +171,8 @@ by anyone who didn't rewrite it whole; it isn't a lock. The approval policy can'
 that gap today: its scopes match exact values, not path prefixes, and an agent with
 `shell.exec` can write files without asking for `fs.write`. So the local log is evidence,
 not a guarantee, and the hosted case, where the agent has no file system or shell and the
-blob is immutable, is the strong one.
+blob's retention policy is locked, is the strong one. Until it is locked, and between
+pushes, the hosted copy is evidence of the same kind as the local log.
 
 ## Trust evaluation and drift
 

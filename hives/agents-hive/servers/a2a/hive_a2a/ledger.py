@@ -17,7 +17,9 @@ The total is kept in this process, so one server instance must own the ledger. A
 process that spends against the same ceiling, such as the weekly trust evaluation, keeps
 its own ledger beside it, and each names the other as shared: at every reservation a
 shared ledger is read afresh, with the calls it has in flight, and counted toward the
-ceiling.
+ceiling. Each process reserves under its own lock, though, so with shared ledgers the
+bound is one reservation from each process, when they reserve from just below the
+ceiling at the same moment.
 """
 import asyncio
 import datetime
