@@ -25,7 +25,7 @@ sys.path.insert(0, str(HERE.parent))
 from hive_a2a import providers  # noqa: E402
 from hive_a2a.app import create_app  # noqa: E402
 from hive_a2a.config import REPO_ROOT, ConfigError, load  # noqa: E402
-from hive_a2a.providers import Completion  # noqa: E402
+from hive_a2a.providers import Completion, Result, Tool, ToolCall, User  # noqa: E402
 
 sys.path.insert(0, str(REPO_ROOT / "hives/knowledge-hive/scripts"))
 sys.dont_write_bytecode = True  # don't leave __pycache__ in another hive
@@ -542,6 +542,146 @@ class ServerTest(unittest.TestCase):
         self.assertEqual((error.status, error.retry_after, cut.cut_off), (429, 7.0, True))
         error, cut = asyncio.run(run("chat-completions"))
         self.assertEqual((error.status, error.retry_after, cut.cut_off), (503, None, True))
+
+
+    def test_a_turn_sends_its_tools_and_conversation_and_a_review_sends_neither(self):
+        seen = []
+
+        def handle(request):
+            seen.append(json.loads(request.content))
+            if request.url.path.endswith("/v1/messages"):
+                return httpx.Response(200, json={"content": [{"type": "text", "text": "done"}],
+                                                 "usage": {"input_tokens": 11, "output_tokens": 7}})
+            return sse({"choices": [{"delta": {"content": "done"}}]},
+                       {"choices": [], "usage": {"prompt_tokens": 13, "completion_tokens": 5}})
+
+        lookup = Tool("lookup", "Look a player up.", {"type": "object", "properties": {"q": {"type": "string"}}})
+        history = [User("find Sam"),
+                   Completion("Looking.", 5, 3, tool_calls=(ToolCall("call_1", "lookup", {"q": "Sam"}),
+                                                            ToolCall("call_2", "lookup", {"q": "Sammy"}))),
+                   [Result("call_1", "Sam, catcher"), Result("call_2", "no such player", error=True)]]
+
+        async def run(name):
+            config = write_config(self.root, api=name)
+            p = providers.create(config.model, transport=httpx.MockTransport(handle))
+            try:
+                await p.converse("sys", history, [lookup], 100)
+                await p.complete("sys", "user", 100)
+            finally:
+                await p.aclose()
+
+        self.enterContext(unittest.mock.patch.dict("os.environ", {"HIVE_TEST_KEY": "test-key"}))
+        asyncio.run(run("messages"))
+        asyncio.run(run("chat-completions"))
+        m_turn, m_review, c_turn, c_review = seen
+
+        self.assertEqual(m_turn["tools"], [{"name": "lookup", "description": "Look a player up.",
+                                            "input_schema": lookup.parameters}])
+        self.assertEqual(m_turn["messages"], [
+            {"role": "user", "content": "find Sam"},
+            {"role": "assistant", "content": [
+                {"type": "text", "text": "Looking."},
+                {"type": "tool_use", "id": "call_1", "name": "lookup", "input": {"q": "Sam"}},
+                {"type": "tool_use", "id": "call_2", "name": "lookup", "input": {"q": "Sammy"}}]},
+            {"role": "user", "content": [
+                {"type": "tool_result", "tool_use_id": "call_1", "content": "Sam, catcher"},
+                {"type": "tool_result", "tool_use_id": "call_2", "content": "no such player", "is_error": True}]}])
+        self.assertEqual(c_turn["tools"], [{"type": "function", "function": {
+            "name": "lookup", "description": "Look a player up.", "parameters": lookup.parameters}}])
+        self.assertEqual(c_turn["messages"], [
+            {"role": "system", "content": "sys"},
+            {"role": "user", "content": "find Sam"},
+            {"role": "assistant", "content": "Looking.", "tool_calls": [
+                {"id": "call_1", "type": "function", "function": {"name": "lookup", "arguments": '{"q": "Sam"}'}},
+                {"id": "call_2", "type": "function", "function": {"name": "lookup", "arguments": '{"q": "Sammy"}'}}]},
+            {"role": "tool", "tool_call_id": "call_1", "content": "Sam, catcher"},
+            {"role": "tool", "tool_call_id": "call_2", "content": "error: no such player"}])
+        self.assertNotIn("response_format", c_turn)
+
+        # A review is sent as it always was: one prompt, no tools, and JSON mode for chat.
+        self.assertEqual(m_review, {"model": m_review["model"], "max_tokens": 100, "system": "sys",
+                                    "messages": [{"role": "user", "content": "user"}]})
+        self.assertEqual(list(c_review), ["model", "max_completion_tokens", "response_format", "stream",
+                                          "stream_options", "messages"])
+        self.assertEqual(c_review["response_format"], {"type": "json_object"})
+
+    def test_tool_calls_come_back_in_one_shape_and_need_usage(self):
+        # Each case: the Messages reply and the Chat Completions stream for the same turn, then
+        # what both must return, or the error both must raise. Chat streams each call's
+        # arguments in fragments, as Foundry does.
+        m_usage = {"input_tokens": 11, "output_tokens": 7}
+        c_usage = {"choices": [], "usage": {"prompt_tokens": 11, "completion_tokens": 7}}
+        two = (ToolCall("call_1", "lookup", {"q": "Sam"}), ToolCall("call_2", "notify", {}))
+
+        def chat_calls(*deltas):
+            return [{"choices": [{"delta": {"tool_calls": [d]}}]} for d in deltas]
+
+        fragments = chat_calls({"index": 0, "id": "call_1", "type": "function", "function": {"name": "lookup", "arguments": ""}},
+                               {"index": 0, "function": {"arguments": '{"q": '}},
+                               {"index": 0, "function": {"arguments": '"Sam"}'}},
+                               {"index": 1, "id": "call_2", "type": "function", "function": {"name": "notify", "arguments": ""}})
+        m_blocks = [{"type": "tool_use", "id": "call_1", "name": "lookup", "input": {"q": "Sam"}},
+                    {"type": "tool_use", "id": "call_2", "name": "notify", "input": {}}]
+        cases = {
+            "tool calls only": (
+                httpx.Response(200, json={"content": m_blocks, "stop_reason": "tool_use", "usage": m_usage}),
+                sse(*fragments, {"choices": [{"delta": {}, "finish_reason": "tool_calls"}]}, c_usage),
+                ("", two)),
+            "text and tool calls": (
+                httpx.Response(200, json={"content": [{"type": "text", "text": "Checking."}] + m_blocks,
+                                          "usage": m_usage}),
+                sse({"choices": [{"delta": {"content": "Checking."}}]}, *fragments, c_usage),
+                ("Checking.", two)),
+            "text only": (
+                httpx.Response(200, json={"content": [{"type": "text", "text": "Done."}], "usage": m_usage}),
+                sse({"choices": [{"delta": {"content": "Done."}}]}, c_usage),
+                ("Done.", ())),
+            "tool calls without usage": (
+                httpx.Response(200, json={"content": m_blocks}),
+                sse(*fragments),
+                "has no token usage"),
+            "a tool call without an id": (
+                httpx.Response(200, json={"content": [{"type": "tool_use", "name": "lookup", "input": {}}],
+                                          "usage": m_usage}),
+                sse(*chat_calls({"index": 0, "function": {"name": "lookup", "arguments": "{}"}}), c_usage),
+                "tool call without an id"),
+            "arguments that aren't an object": (
+                httpx.Response(200, json={"content": [{"type": "tool_use", "id": "call_1", "name": "lookup",
+                                                       "input": "Sam"}], "usage": m_usage}),
+                sse(*chat_calls({"index": 0, "id": "call_1", "function": {"name": "lookup", "arguments": '{"q": "Sa'}}),
+                    c_usage),
+                "object arguments"),
+        }
+
+        async def call(name, response):
+            config = write_config(self.root, api=name)
+            p = providers.create(config.model, transport=httpx.MockTransport(lambda request: response))
+            try:
+                c = await p.converse("sys", [User("find Sam")], [Tool("lookup", "", {"type": "object"})], 100)
+                return (c.text, c.tool_calls), (c.input_tokens, c.output_tokens)
+            except providers.ProviderError as e:
+                # A reply refused after it was metered still carries what it cost.
+                billed = (e.completion.input_tokens, e.completion.output_tokens) if e.completion else None
+                return str(e), billed
+            finally:
+                await p.aclose()
+
+        self.enterContext(unittest.mock.patch.dict("os.environ", {"HIVE_TEST_KEY": "test-key"}))
+        for case, (m_reply, c_reply, expected) in cases.items():
+            for name, reply in (("messages", m_reply), ("chat-completions", c_reply)):
+                with self.subTest(case=case, api=name):
+                    got, tokens = asyncio.run(call(name, reply))
+                    if isinstance(expected, tuple):
+                        self.assertEqual((got, tokens), (expected, (11, 7)))
+                    else:
+                        self.assertIn(expected, got)
+                        self.assertEqual(tokens, None if "usage" in expected else (11, 7))
+
+    def test_the_stub_converses_without_calling_a_tool(self):
+        config = write_config(self.root)
+        p = providers.create(config.model)
+        c = asyncio.run(p.converse("sys", [User("find Sam")], [Tool("lookup", "", {"type": "object"})], 100))
+        self.assertEqual((c.tool_calls, json.loads(c.text)["verdict"]), ((), "allow-with-conditions"))
 
 
 def sse(*chunks):
