@@ -15,7 +15,7 @@ HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE.parent))
 
 from hive_a2a.config import REPO_ROOT  # noqa: E402
-from hive_a2a.providers import Completion, ToolCall  # noqa: E402
+from hive_a2a.providers import Completion, ProviderError, ToolCall  # noqa: E402
 
 sys.dont_write_bytecode = True  # don't leave __pycache__ in another hive
 spec = importlib.util.spec_from_file_location("orchestration_eval",
@@ -49,6 +49,16 @@ class Scripted:
 
     async def aclose(self):
         pass
+
+
+class Limited(Scripted):
+    """A script whose replies can be errors the provider raises, such as a rate limit."""
+
+    async def converse(self, system, history, tools, max_tokens):
+        reply = await super().converse(system, history, tools, max_tokens)
+        if isinstance(reply, Exception):
+            raise reply
+        return reply
 
 
 class OrchestrationEvalTest(unittest.TestCase):
@@ -160,6 +170,42 @@ class OrchestrationEvalTest(unittest.TestCase):
         r = self.run_goal("no-such-tool")
         self.assertEqual(r["state"], "failed")
         self.assertIn("its final reply never met the contract's output", r["problems"])
+
+    def test_the_stub_tools_publish_their_arguments(self):
+        stubs = ev.Stubs({})
+        reply = stubs(ev.httpx.Request("POST", ev.LINEUP, json={"jsonrpc": "2.0", "id": 1, "method": "tools/list"}))
+        event = json.loads(reply.text.split("data: ", 1)[1])
+        schemas = {t["name"]: t["inputSchema"] for t in event["result"]["tools"]}
+        self.assertEqual(schemas["cancel_event"]["required"], ["event"])
+        self.assertEqual(set(schemas["send_message"]["properties"]), {"channel", "audience", "recipients", "text"})
+
+    def test_a_rate_limited_goal_is_run_again_and_its_spend_counts(self):
+        scripts = [[Completion("", 100, 20, tool_calls=(ToolCall("c1", "lineup__send_message", BULLPEN),)),
+                    ProviderError("scripted returned HTTP 429", status=429)],
+                   [call("lineup__send_message", BULLPEN), final("bullpen", "sent")]]
+        waits = []
+        rs = ev.evaluate([GOALS["bullpen-call"]], MODEL, provider=lambda: Limited(*scripts.pop(0)), timeout=60,
+                         sleep=waits.append)
+        [r] = rs
+        self.assertEqual((r["problems"], r["attempts"], waits), ([], 2, [ev.BACKOFF]))
+        self.assertAlmostEqual(r["usd"], 0.0018, msg="the first attempt's turn and the second's two, at $0.0006 each")
+
+    def test_a_goal_the_limit_keeps_stopping_is_not_run_not_failed(self):
+        waits = []
+        rs = ev.evaluate([GOALS["bullpen-call"], GOALS["unknown-fact"]], MODEL,
+                         provider=lambda: Limited(ProviderError("scripted returned HTTP 429", status=429)),
+                         timeout=60, spacing=5, sleep=waits.append)
+        self.assertTrue(all(r["errored"] for r in rs))
+        self.assertEqual(waits[:ev.RETRIES], [ev.BACKOFF * 2 ** i for i in range(ev.RETRIES)])
+        self.assertIn(5, waits, "goals are spaced")
+        passed, acted, line = ev.summary([GOALS["bullpen-call"], GOALS["unknown-fact"]], rs)
+        self.assertEqual((passed, acted), (0, []))
+        self.assertIn("not run: bullpen-call, unknown-fact", line)
+
+    def test_an_attack_acted_on_before_the_limit_keeps_its_result(self):
+        rs = ev.evaluate([GOALS["injection-in-context"]], MODEL, timeout=60, sleep=lambda s: self.fail("no retry"),
+                         provider=lambda: Limited(call("lineup__delete_group", {"group": "g1"})))
+        self.assertTrue(rs[0]["attacked"])
 
     def test_the_summary_flags_a_model_that_acted_on_an_attack(self):
         goals = [GOALS["bullpen-call"], GOALS["injection-in-context"]]
