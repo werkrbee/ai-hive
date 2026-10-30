@@ -1,5 +1,6 @@
 """Assemble the A2A server: the Agent Card, the JSON-RPC endpoint, auth, a durable task
-store and the reviewer."""
+store and the executor its contract calls for: the reviewer (review.py), or for
+orchestration, hosted Barry's loop (orchestrate.py)."""
 import contextlib
 import importlib.util
 import logging
@@ -14,11 +15,10 @@ from a2a.server.routes import create_agent_card_routes, create_jsonrpc_routes
 from a2a.server.tasks import DatabaseTaskStore
 from a2a.types import AgentCard, Role, TaskState
 
-from . import providers
+from . import orchestrate, providers, review
 from .auth import Authenticator, AuthMiddleware
 from .config import REPO_ROOT
 from .ledger import Ledger
-from .review import Executor, Handler, Reviewer
 
 log = logging.getLogger("hive_a2a")
 
@@ -54,8 +54,10 @@ def card(config):
     return rendered
 
 
-async def fail_interrupted(store):
+async def fail_interrupted(store, resumes=lambda task_id: False,
+                           text="The server restarted during this review. Send it again."):
     """Tasks a restart cut off can't resume, so mark them failed rather than leave them working.
+    resumes(task_id) names the ones that can, which are left as they are.
 
     Their spending isn't recorded here: the ledger records calls a dead process left in
     flight when it starts (see ledger.py).
@@ -68,35 +70,50 @@ async def fail_interrupted(store):
         rows = (await session.execute(select(store.task_model))).scalars().all()
         for row in rows:
             task = store._from_orm(row)
-            if task.status.state not in UNFINISHED:
+            if task.status.state not in UNFINISHED or resumes(task.id):
                 continue
             task.status.state = TaskState.TASK_STATE_FAILED
             task.status.message.Clear()
             task.status.message.role = Role.ROLE_AGENT
             task.status.message.message_id = f"{task.id}-restart"
-            task.status.message.parts.add().text = "The server restarted during this review. Send it again."
+            task.status.message.parts.add().text = text
             task.status.timestamp.GetCurrentTime()
             await session.merge(store._to_orm(task, row.owner))
             log.warning("marked task %s failed after a restart", task.id)
 
 
-def create_app(config, provider=None, authenticator=None, ledger_clock=None):
+def create_app(config, provider=None, authenticator=None, ledger_clock=None, network=None, clock=None):
+    """network (orchestrate.Network) and clock (the run engine's, for expiry) are for tests."""
     config.database.parent.mkdir(parents=True, exist_ok=True)
     engine = create_async_engine(f"sqlite+aiosqlite:///{config.database}")
     store = DatabaseTaskStore(engine)
     ledger = Ledger(config.ledger, config.monthly_ceiling_usd, shared=config.shared_ledgers,
                     **({"clock": ledger_clock} if ledger_clock else {}))
     provider = provider or providers.create(config.model)
-    reviewer = Reviewer(config, ledger, provider)
     agent_card = ParseDict(card(config), AgentCard())
-    handler = Handler(reviewer, agent_executor=Executor(reviewer), task_store=store, agent_card=agent_card)
+    orchestrator = None
+    if config.orchestration:
+        orchestrator = orchestrate.Orchestrator(config, ledger, provider, store, network, clock)
+        handler = orchestrate.Handler(orchestrator, agent_executor=orchestrate.Executor(orchestrator),
+                                      task_store=store, agent_card=agent_card)
+    else:
+        reviewer = review.Reviewer(config, ledger, provider)
+        handler = review.Handler(reviewer, agent_executor=review.Executor(reviewer), task_store=store,
+                                 agent_card=agent_card)
 
     @contextlib.asynccontextmanager
     async def lifespan(app):
-        await fail_interrupted(store)
+        if orchestrator:
+            await fail_interrupted(store, orchestrator.has_run, "The server restarted before this run started. "
+                                                                "Send it again.")
+            await orchestrator.start()
+        else:
+            await fail_interrupted(store)
         try:
             yield
         finally:
+            if orchestrator:
+                await orchestrator.close()
             await handler.aclose()
             await provider.aclose()
             await engine.dispose()
@@ -108,4 +125,5 @@ def create_app(config, provider=None, authenticator=None, ledger_clock=None):
         lifespan=lifespan,
     )
     app.add_middleware(AuthMiddleware, authenticator=authenticator or Authenticator(config.auth))
+    app.state.orchestrator = orchestrator
     return app

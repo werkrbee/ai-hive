@@ -5,13 +5,21 @@ object per line. The month's total is summed when the server starts and kept up 
 as entries are appended, so the ledger is read once.
 
 Before a review runs, its worst-case cost (the contract budget's share it could use) is
-reserved. A review is refused once the month's spending plus what is reserved reaches
-the ceiling, so concurrent reviews can't jointly run past it. A call that reports its
-usage is recorded at its metered tokens; one that doesn't (a timeout, a cancel, a provider
-error after the request was sent, or the process dying mid-call) is recorded at its whole
-reservation; calls in flight are kept in `<ledger>.pending` so a crash can't lose them. The
-most the month can end over the ceiling is then one review's reservation, when the last
-one runs from just below it, unless a reply runs past its estimate.
+reserved. A reservation is refused when it would take the month's spending plus what is
+reserved past the ceiling, so concurrent reviews can't jointly run past it. A call that
+reports its usage is recorded at its metered tokens; one that doesn't (a timeout, a
+cancel, a provider error after the request was sent, or the process dying mid-call) is
+recorded at its whole reservation; calls in flight are kept in `<ledger>.pending` so a
+crash can't lose them. The month then ends at or under the ceiling, unless a reply runs
+past its estimate.
+
+An orchestration run holds its whole budget instead, under its run ID, from when it starts
+until it ends, is cancelled or expires. Each turn it pays for is charged to that hold, so
+what it has spent and what it may still spend are never counted twice, and release drops
+what is left. Holds live in this process: a server that restarts holds each unfinished
+run's remainder again (hold), without asking, since the run was already admitted. What a
+run has spent is what the ledger has charged to its runId (run_spent), a turn a restart
+cut off included, so a restart never counts the same money as both spent and held.
 
 The total is kept in this process, so one server instance must own the ledger. Another
 process that spends against the same ceiling, such as the weekly trust evaluation, keeps
@@ -39,16 +47,18 @@ class Refusal:
     spent_usd: float
     ceiling_usd: float
     resumes_on: str
+    needed_usd: float = 0.0
 
-    def text(self):
-        return (f"Refused: the monthly spending ceiling of ${self.ceiling_usd:.2f} has been "
-                f"reached (${self.spent_usd:.2f} spent or reserved in {self.month}). New reviews "
-                f"are accepted again on {self.resumes_on}.")
+    def text(self, what="reviews"):
+        return (f"Refused: the monthly spending ceiling of ${self.ceiling_usd:.2f} would be passed "
+                f"(${self.spent_usd:.2f} spent or reserved in {self.month}, and this needs up to "
+                f"${self.needed_usd:.2f}). New {what} are accepted again on {self.resumes_on}, or sooner "
+                "if what is reserved is released.")
 
     def data(self):
         return {"error": "monthly-ceiling-reached", "month": self.month,
                 "spentUsd": round(self.spent_usd, 6), "ceilingUsd": self.ceiling_usd,
-                "resumesOn": self.resumes_on}
+                "neededUsd": round(self.needed_usd, 6), "resumesOn": self.resumes_on}
 
 
 def now():
@@ -108,7 +118,9 @@ class Ledger:
         # reservation.
         self.shared = [Path(p) for p in shared]
         self.reserved = 0.0
+        self.holds = {}  # an orchestration run's budget, by run ID, less what it has spent
         self.totals = {}
+        self.by_run = {}  # what each run ID has been charged, in every month
         self.lock = asyncio.Lock()
         # Calls in flight, by task id: the entry to record if the process dies before the
         # call settles. Kept on disk so a crash or kill can't erase possibly billed calls.
@@ -148,9 +160,19 @@ class Ledger:
             f.write(json.dumps(entry, separators=(", ", ": ")) + "\n")
         key = month_of(at)
         self.totals[key] = self.totals.get(key, 0.0) + entry.get("usd", 0)
+        if isinstance(entry.get("runId"), str):
+            self.by_run[entry["runId"]] = self.by_run.get(entry["runId"], 0.0) + entry.get("usd", 0)
 
     def _load(self):
-        self.totals = read_totals(self.path)
+        self.totals = read_totals(self.path)  # checks every entry, so the sums below can't fail
+        for line in self.path.read_text(encoding="utf-8").splitlines():
+            entry = json.loads(line)
+            if isinstance(entry.get("runId"), str):
+                self.by_run[entry["runId"]] = self.by_run.get(entry["runId"], 0.0) + entry.get("usd", 0)
+
+    def run_spent(self, run_id):
+        """What the ledger has charged to run_id: its turns, and any a restart cut off."""
+        return self.by_run.get(run_id, 0.0)
 
     def spent(self, at=None):
         return self.totals.get(month_of(at or self.clock()), 0.0)
@@ -164,15 +186,43 @@ class Ledger:
             total += in_flight(path)
         return total
 
-    async def reserve(self, usd):
-        """Hold usd against the ceiling. Returns a Refusal instead when the ceiling is reached."""
+    def committed(self, at):
+        return self.spent(at) + self.reserved + sum(self.holds.values()) + self.shared_spent(at)
+
+    async def reserve(self, usd, key=None):
+        """Hold usd against the ceiling, under key for a run's hold. Returns a Refusal instead
+        when it would take what is spent and reserved past the ceiling."""
         async with self.lock:
             at = self.clock()
-            committed = self.spent(at) + self.reserved + self.shared_spent(at)
-            if committed >= self.ceiling:
-                return Refusal(month_of(at), committed, self.ceiling, next_month(at))
-            self.reserved += usd
+            committed = self.committed(at)
+            if committed + usd > self.ceiling:
+                return Refusal(month_of(at), committed, self.ceiling, next_month(at), usd)
+            if key is None:
+                self.reserved += usd
+            else:
+                self.holds[key] = self.holds.get(key, 0.0) + usd
             return None
+
+    async def hold(self, key, usd):
+        """Hold what a run admitted before a restart may still spend, without a check."""
+        async with self.lock:
+            self.holds[key] = max(0.0, usd)
+
+    async def charge(self, key, entry, pending=None):
+        """Record what a run's call cost, drawn from the run's hold, and clear the call's
+        pending entry."""
+        async with self.lock:
+            self._append(entry)
+            if key in self.holds:
+                self.holds[key] = max(0.0, self.holds[key] - entry.get("usd", 0))
+            if pending in self.pending:
+                del self.pending[pending]
+                self._write_pending()
+
+    async def release(self, key):
+        """Drop what is left of a run's hold, once the run has ended."""
+        async with self.lock:
+            self.holds.pop(key, None)
 
     async def start(self, key, entry):
         """A call is about to go out: if this process dies before it settles, record entry."""

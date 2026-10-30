@@ -2,7 +2,12 @@
 
 No secret is ever read from the file: a model API key is named by the environment
 variable that holds it.
+
+A server whose capability is orchestration (hosted Barry) also needs an [orchestration]
+section: where its runs are kept, the passport they run under, the A2A agents it may
+delegate to, and each caller's registration.
 """
+import importlib.util
 import json
 import os
 import tomllib
@@ -13,6 +18,7 @@ from pathlib import Path
 REPO_ROOT = Path(os.environ.get("HIVE_REPO_ROOT") or Path(__file__).resolve().parents[5])
 
 APIS = ("stub", "messages", "chat-completions")
+ORCHESTRATION = "orchestration"
 MODEL_AUTH = ("api-key", "entra")
 
 
@@ -47,6 +53,26 @@ class Model:
 
 
 @dataclass(frozen=True)
+class Delegate:
+    """An A2A agent a run may delegate to: name is a passport the run's passport lists in
+    its delegates, and capability the contract its server runs."""
+    name: str
+    url: str
+    capability: str
+    token_scope: str
+    contract: dict
+
+
+@dataclass(frozen=True)
+class Orchestration:
+    passport: str
+    state_dir: Path
+    delegates: tuple[Delegate, ...]
+    registrations: dict  # caller client ID -> its checked registration
+    sweep_seconds: int
+
+
+@dataclass(frozen=True)
 class Config:
     persona: str
     capability: str
@@ -59,6 +85,7 @@ class Config:
     auth: Auth
     model: Model
     contract: dict
+    orchestration: Orchestration | None = None
 
     def price(self, input_tokens, output_tokens):
         m = self.model
@@ -90,6 +117,73 @@ def _strings(table, key, where, required=False):
 def _path(base, value):
     p = Path(value)
     return p if p.is_absolute() else base / p
+
+
+def _registrations():
+    path = REPO_ROOT / "hives/agents-hive/scripts/registrations.py"
+    spec = importlib.util.spec_from_file_location("registrations", path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def _orchestration(raw, base, auth):
+    o = raw.get("orchestration")
+    if not isinstance(o, dict):
+        raise ConfigError("an orchestration server needs an [orchestration] section")
+    delegates = []
+    for n, d in enumerate(o.get("delegates", [])):
+        where = f"orchestration.delegates[{n}]"
+        if not isinstance(d, dict):
+            raise ConfigError(f"{where} must be a table")
+        url = _get(d, "url", str, where)
+        if not (url.startswith("https://") or url.startswith("http://localhost")):
+            raise ConfigError(f"{where}.url must be https (plain http only for localhost)")
+        capability = _get(d, "capability", str, where)
+        try:
+            contract = json.loads((REPO_ROOT / "hives/agents-hive/contracts" / capability / "contract.json")
+                                  .read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            raise ConfigError(f"{where}: no readable contract for '{capability}'")
+        delegates.append(Delegate(_get(d, "name", str, where), url, capability,
+                                  _get(d, "token_scope", str, where), contract))
+    if len({d.name for d in delegates}) != len(delegates):
+        raise ConfigError("orchestration.delegates names an agent twice")
+    registrations, module = {}, _registrations()
+    for n, c in enumerate(o.get("callers", [])):
+        where = f"orchestration.callers[{n}]"
+        if not isinstance(c, dict):
+            raise ConfigError(f"{where} must be a table")
+        client, name = _get(c, "client", str, where), _get(c, "registration", str, where)
+        if client not in auth.allowed_clients:
+            raise ConfigError(f"{where}.client {client} isn't on auth.allowed_clients")
+        if client in registrations:
+            raise ConfigError(f"{where}.client {client} has a registration already")
+        path = REPO_ROOT / "hives/agents-hive/registrations" / name / "registration.json"
+        if not path.is_file():
+            raise ConfigError(f"{where}: no registration '{name}' at {path}")
+        try:
+            problems, _ = module.check(path)
+        except module.RegistrationError as e:
+            problems = [str(e)]
+        if problems:
+            raise ConfigError(f"{where}: registration {name} is invalid: {problems[0]}")
+        registration = json.loads(path.read_text(encoding="utf-8"))
+        if any(srv["mcp"]["name"] == "delegate" for srv in registration["servers"]):
+            # The model sees delegation as delegate__<agent> and a tool as <server>__<tool>.
+            raise ConfigError(f"{where}: registration {name} names a server 'delegate', which would "
+                              "collide with the delegation tools")
+        registrations[client] = registration
+    sweep = _get(o, "sweep_seconds", int, "orchestration", 3600)
+    if sweep < 1:
+        raise ConfigError("orchestration.sweep_seconds must be at least 1")
+    return Orchestration(
+        passport=_get(o, "passport", str, "orchestration"),
+        state_dir=_path(base, _get(o, "state_dir", str, "orchestration")),
+        delegates=tuple(delegates),
+        registrations=registrations,
+        sweep_seconds=sweep,
+    )
 
 
 def load(path):
@@ -185,4 +279,5 @@ def load(path):
         auth=auth,
         model=model,
         contract=contract,
+        orchestration=_orchestration(raw, base, auth) if capability == ORCHESTRATION else None,
     )

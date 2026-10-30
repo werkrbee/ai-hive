@@ -239,7 +239,12 @@ An agent loop doesn't know its steps in advance, so the engine also keeps an ope
 It starts with no steps and grows: each tool call the loop makes is appended as a step
 and decided, budgeted, checkpointed and resumed by the same rules as a planned step. The
 record carries `open: true` and its own `plan`, the steps appended so far, since no
-workflow file holds them. Steps run in the order they were appended.
+workflow file holds them. Steps run in the order they were appended. A server can name an
+open run when it opens it, so a task ID and its run ID are the same.
+
+A step a model chose can carry `"literal": true`. Its input and actions are then taken as
+they are, with no `${…}` references, so an argument that happens to look like one, such as
+a message that says `${inputs.goal}`, is sent as written and can't read the run's record.
 
 The loop's model turns are kept in the record beside the steps, under `turns`, keyed by
 turn ID:

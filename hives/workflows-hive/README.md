@@ -276,7 +276,9 @@ held to its budget and checkpointed like a planned step. Each model turn goes th
 `turn`, which records the reply and its cost, and returns the recorded reply instead of
 calling again once the turn has completed. So a loop restarted after a crash replays its
 turns and steps from the record and repeats neither. `finish` completes the run with its
-result.
+result. `open` takes a `run_id`, for a server whose task IDs are its run IDs, and a step
+with `"literal": true` keeps its input and actions as written, without `${…}` references,
+for the arguments a model chose.
 
 ```python
 import sys

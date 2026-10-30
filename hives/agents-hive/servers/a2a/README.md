@@ -3,7 +3,9 @@
 `hive_a2a` serves one execution contract of one House persona over
 [A2A](https://a2a-protocol.org) v1.0. It is configured for Patricia's
 `governance-review`: another agent sends a proposal and gets back a verdict
-(`allow`, `allow-with-conditions` or `block`) in the contract's output shape.
+(`allow`, `allow-with-conditions` or `block`) in the contract's output shape. The same
+server, configured for Barry's `orchestration`, runs a goal as an agent loop on the
+workflows-hive engine ([Orchestration](#orchestration), below).
 
 It is built on the official [A2A Python SDK](https://github.com/a2aproject/a2a-python)
 and needs Python 3.13 and the packages in `requirements.txt`. This directory is the
@@ -47,27 +49,28 @@ artifact as a JSON data part.
 **Monthly ceiling.** `server.monthly_ceiling_usd` defaults to $25. Every model call
 appends an entry to `server.ledger` in [knowledge-hive's ledger
 format](../../../knowledge-hive/DESIGN.md#usage-ledger-ledgerjsonl). Before a review runs,
-its worst-case cost is reserved against the ceiling. Once the month's spending plus
-reservations reaches the ceiling, new reviews are refused. A refused review becomes a
-task in the A2A `rejected` state, without calling the model. Its status message says the
-ceiling was reached, how much was spent, and the date reviews resume (the first of next
-month, UTC). It also carries a JSON part
-`{"error": "monthly-ceiling-reached", "month", "spentUsd", "ceilingUsd", "resumesOn"}`.
+its worst-case cost is reserved against the ceiling. A review whose reservation would
+take the month's spending plus reservations past the ceiling is refused. A refused review
+becomes a task in the A2A `rejected` state, without calling the model. Its status message
+says the ceiling would be passed, how much is spent or reserved, what the review needed,
+and the date reviews resume (the first of next month, UTC, or sooner if a reservation is
+released). It also carries a JSON part
+`{"error": "monthly-ceiling-reached", "month", "spentUsd", "ceilingUsd", "neededUsd", "resumesOn"}`.
 
 A call that reports its usage is recorded at its metered tokens. A call that may have
 been billed but reported no usage is recorded at its whole reservation. That covers a
 timeout, a cancel, a provider error after the request was sent, and a review cut off when
 the process dies: calls in flight are kept in `<ledger>.pending`, and any left there are
-recorded when the server next starts. So the most a month can
-end over the ceiling is one review's reservation, at most $0.50, when the server spends
-alone. The exception is a reply that runs past its token estimate, which the server logs. The running total is kept in
+recorded when the server next starts. So a month ends at or under the ceiling when the
+server spends alone. The exception is a reply that runs past its token estimate, which the
+server logs. The running total is kept in
 the server process, so one instance must own the ledger: run a single replica. Another
 process that spends against the same ceiling, such as Patricia's weekly evaluation, keeps
 a ledger of its own, and each names the other in `server.shared_ledgers`: at every
 reservation, a shared ledger's spending this month and its calls in flight are read
 afresh and counted toward the ceiling. Each process reserves under its own lock, so both
-can reserve from just below the ceiling at the same moment, and the bound becomes one
-reservation from each: one review's for the server and one call's for the job.
+can reserve at the same moment, each without seeing the other's, and the month can end
+past the ceiling by what the other process reserved: one call's for the job.
 
 The ledger's `usd` is computed from the prices in the config, so its `basis` is
 `estimated`. Each entry names the model three ways: `provider` is its publisher,
@@ -123,6 +126,57 @@ another's call. A test checks it across two callers and a follow-up message.
 review that was running when the server stopped can't resume, so at startup it is marked
 failed, with a message asking the caller to send it again.
 
+## Orchestration
+
+With `server.capability = "orchestration"` and an `[orchestration]` section, the server is
+hosted Barry ([`design/hosted-barry.md`](../../design/hosted-barry.md)). `orchestrate.py`
+replaces the reviewer; the card, auth, task store, ledger and model clients are the same.
+
+**The loop.** A request carries the contract input, `{"goal": ...}` with an optional
+`scope` and `constraints`, and its message metadata may carry the caller's `trigger` and
+`facts`, such as `{"actor.role": "organizer"}`. Each task is an open engine run with the
+task's ID, kept in `orchestration.state_dir`, under Barry's passport and the caller's
+policy. Each model turn is a turn in the run record. Each tool call becomes a step whose
+action the engine decides with the policy before it runs: an allowed call runs, a gated
+one pauses the task in `input-required`, and a denied one fails it. When the model replies
+without a tool call, the reply must match the contract's output, once sent back if it
+doesn't, and becomes the task's artifact.
+
+**Tools.** Delegation to the A2A agents in `orchestration.delegates`, each a passport
+Barry's lists in its delegates, starting with Patricia, and the tools the caller's
+registration maps (`registrations/<caller>/`, checked at startup and in CI). Only tools
+the registration maps to an action are offered; its fact sources are called by the server
+for lookups, never by the model. A lookup runs when the call is turned into a step,
+before the policy decides it, so it runs even for a call that is then denied. There is no
+shell, file system or fetch. The model's
+arguments go into a step as written, never read as `${…}` references, and never as facts:
+a fact comes from the caller's request or a lookup. Each MCP call carries its step's
+idempotency key in the request's `_meta`, as `io.werkrbee/idempotency-key`, so a call run
+again after a restart can be acted on once. Barry calls MCP servers and A2A agents with
+tokens for his own identity, for each one's `token_scope`. An MCP server's endpoint comes
+from its Server Card, and a card that requires other headers can't be used.
+
+**Spend.** A run's whole budget, the contract's $5, is held against the ceiling when it
+starts, and a run the ceiling can't hold is a `rejected` task, as a review is. Each turn
+is metered into the ledger with the run's `runId` and charged to the hold, and what is
+left is released when the run ends, is cancelled or expires. Before each turn, its worst
+case, the estimated input and the most output it may write, is checked against what the
+run has left of its usd, tokens and working seconds, and the run fails when it wouldn't
+fit. Working seconds count the time turns and steps ran, not time spent waiting for a
+person. Tool calls report no cost yet, so only model turns count.
+
+**Lifecycle.** `SendMessage` returns as soon as the task is working; a caller polls
+`GetTask`. A run that was working when the server stopped resumes from its record at
+startup, repeating neither a completed turn nor a completed step. A turn cut off by the
+restart is taken again, and the ledger records it at its whole worst case. What a run has
+spent is what the ledger charged to its run ID, that turn included, so the run's budget
+and the hold it gets after the restart both count it. A paused run
+keeps its hold across a restart and expires after seven days, which fails the task; the
+server checks every `orchestration.sweep_seconds` (an hour by default). `CancelTask`
+cancels a paused task at once and a working one before its next turn or step. Answering an
+approval over A2A, and Patricia's review in it, aren't served yet, so a paused task waits
+until it is cancelled or expires, and a message on an existing task is refused.
+
 ## Run it
 
 ```bash
@@ -156,10 +210,13 @@ cover:
 - auth refusals
 - contract input and output checks
 - the time budget
-- the ceiling, including a ledger already on disk and the monthly reset
+- the ceiling, including a ledger already on disk, the monthly reset and a run's hold
 - per-caller isolation and cancel
 - restarts
 - the HTTP providers' request shapes
+- orchestration (`tests/test_orchestrate.py`, against a scripted model and mock MCP and
+  A2A servers): the loop, delegation, allowed, gated and denied calls, budget stops, the
+  ceiling, resume, expiry and cancel
 
 CI runs them.
 
@@ -176,10 +233,11 @@ servers/a2a/
 │   ├── auth.py         # OAuth2 bearer tokens and the client allowlist
 │   ├── config.py       # the TOML config
 │   ├── contract.py     # check values against a contract's schemas
-│   ├── ledger.py       # the usage ledger and the monthly ceiling
+│   ├── ledger.py       # the usage ledger, the monthly ceiling and runs' holds
+│   ├── orchestrate.py  # hosted Barry: the loop on the engine, MCP and A2A tools
 │   ├── providers.py    # stub, Messages and Chat Completions
 │   └── review.py       # the executor: input, budget, ceiling, model, verdict
-├── tests/test_server.py
+├── tests/              # test_server.py, test_orchestrate.py, test_eval.py
 ├── conformance/        # the TCK runner and the recorded run
 ├── config.example.toml
 └── requirements.txt
