@@ -26,7 +26,8 @@ count the time turns and steps ran, not the time a task waited for a person. A t
 off by a restart is recorded in the ledger at its whole worst case and taken again. What a
 run has spent is what the ledger charged to its run ID, that turn included, so the run's
 budget and its hold after the restart both count it, and the month stays within the
-ceiling.
+ceiling unless a reply runs past its estimate. Its tokens and seconds aren't counted, so
+those limits can run over by one turn for each restart.
 
 Task states:
   rejected        the ceiling can't hold the run's budget; nothing runs
