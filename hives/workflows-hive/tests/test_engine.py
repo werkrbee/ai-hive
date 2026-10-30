@@ -648,6 +648,51 @@ class Actors(Base):
         run = e.approve(run["runId"])
         self.assertEqual(run["steps"]["gate"]["approval"]["by"], "usr_7f3a")
 
+    def test_a_run_on_another_thread_doesnt_stop_an_answer_here(self):
+        import os
+        import threading
+        run = self.paused()
+        inside, done, refused = threading.Event(), threading.Event(), []
+
+        def other_run():
+            with engine.marked("run_other"):
+                inside.set()
+                try:
+                    engine.outside_runs()
+                except engine.EngineError as e:
+                    refused.append(str(e))
+                done.wait(5)
+
+        t = threading.Thread(target=other_run)
+        t.start()
+        inside.wait(5)
+        try:
+            self.assertEqual(os.environ.get(engine.RUN_ENV), "run_other", "a process it starts is still marked")
+            self.assertEqual(self.engine.approve(run["runId"], by="ci")["status"], "working")
+        finally:
+            done.set()
+            t.join()
+        self.assertIn("inside run run_other", refused[0], "the thread inside the run is refused")
+        self.assertNotIn(engine.RUN_ENV, os.environ)
+
+    def test_an_amended_step_voids_its_approval_and_waits_again(self):
+        e = self.engine
+        run = e.execute(e.append(e.open("loop"), {"id": "push", "worker": "echo", "literal": True,
+                                                  "input": {"ref": "main"}, "actions": [{"action": "vcs.push"}]}))
+        first = run["pending"]["id"]
+        e.amend(run, "push", {"ref": "release"}, [{"action": "vcs.push"}])
+        run = e.approve(run["runId"], by="ci", item_id=first)
+        self.assertEqual(run["status"], "input_required", "the approval was of what the step did before")
+        self.assertNotEqual(run["pending"]["id"], first)
+        self.assertEqual(calls(self.log), [])
+        run = e.approve(run["runId"], by="ci", item_id=run["pending"]["id"])
+        self.assertEqual(run["steps"]["push"]["output"], {"ref": "release"})
+        with self.assertRaisesRegex(engine.EngineError, "no step 'push' waiting to run"):
+            e.amend(run, "push", {}, [{"action": "vcs.push"}])
+        with self.assertRaisesRegex(engine.EngineError, "isn't in"):
+            e.amend(e.append(run, {"id": "next", "worker": "echo", "input": {}}), "next", {},
+                    [{"action": "lineup.event.cancel"}])
+
 
 class Rollback(Base):
     """A plan whose read takes no effect, whose write and publish do, each with a compensate

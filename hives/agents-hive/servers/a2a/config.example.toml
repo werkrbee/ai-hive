@@ -46,6 +46,9 @@ max_output_tokens = 4000
 # passport = "barry"                 # passports/<passport>, the runs' bounds
 # state_dir = "data/runs"            # engine run records; audit.jsonl and queue/ go beside it
 # sweep_seconds = 3600               # how often paused runs are checked for expiry
+# reviewer = "patricia"              # a delegate that reviews each gated action before it pauses
+# request_roles = ["Orchestration.Request"]   # to start or cancel a task (the defaults)
+# approve_roles = ["Orchestration.Approve"]   # to answer an approval
 #
 # [[orchestration.delegates]]        # an A2A agent the passport lists in its delegates
 # name = "patricia"

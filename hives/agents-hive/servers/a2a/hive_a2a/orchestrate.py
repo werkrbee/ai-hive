@@ -29,6 +29,24 @@ budget and its hold after the restart both count it, and the month stays within 
 ceiling unless a reply runs past its estimate. Its tokens and seconds aren't counted, so
 those limits can run over by one turn for each restart.
 
+Approvals. A gated step pauses the task, and before it does the executor, not the model,
+asks the configured reviewer (Patricia) to review the action. The paused task's status
+message carries one JSON data part, the approval request:
+
+  {"approval": {"id", "step", "tool", "action", "rules", "present", "review", "expiresAt"}}
+
+id digests the run, the step, the exact call, its action, the mandates that gate it and
+the values shown, so it answers nothing else. review is the reviewer's verdict, or
+"unreviewed" when it couldn't be asked; a block still goes to the person, flagged. The
+caller that started the task answers it with a message on the same task carrying one data
+part, {"approval": {"id", "decision": "approve" or "deny", "by", "reason"}}, where by is
+an opaque ID for the person and a denial needs a reason. An answer whose id isn't the
+pending one is refused. Before an approved call runs, its facts and presented values are
+looked up again and the policy decides it again; if anything the id covers changed, the
+approval is void and the task pauses again with a new request. A denial fails the run.
+Starting or cancelling a task needs the Orchestration.Request app role, and answering one
+Orchestration.Approve (orchestration.request_roles and approve_roles).
+
 Task states:
   rejected        the ceiling can't hold the run's budget; nothing runs
   working         the loop is running
@@ -61,7 +79,7 @@ from a2a.server.context import ServerCallContext
 from a2a.server.request_handlers import DefaultRequestHandler
 from a2a.server.tasks import TaskUpdater
 from a2a.types import Artifact, Message, Role, Task, TaskState
-from a2a.utils.errors import InvalidParamsError, UnsupportedOperationError
+from a2a.utils.errors import InvalidParamsError, InvalidRequestError, TaskNotFoundError
 from a2a.utils.input_mode_validator import validate_input_modes
 
 from . import contract
@@ -389,9 +407,11 @@ class Orchestrator:
             [f"<!-- {p.name} -->\n{p.read_text(encoding='utf-8')}" for p in config.prompt_files] + [HOSTED])
         self.loop = None
         self.drives = {}
+        self.claimed = set()  # runs an answer has been accepted for and not yet applied
         self.closing = False
         self.sweeper = None
         self.publishing = asyncio.Lock()
+        self.reviewing = {}  # approval ID -> lock, so two publishes ask the reviewer once
 
     # Requests
 
@@ -432,18 +452,22 @@ class Orchestrator:
 
     # Driving runs
 
-    def spawn(self, run_id, new=False):
-        self.drives[run_id] = asyncio.create_task(self.drive(run_id, new))
+    def spawn(self, run_id, new=False, answer=None):
+        self.drives[run_id] = asyncio.create_task(self.drive(run_id, new or answer is not None, answer))
 
-    async def drive(self, run_id, new):
+    async def drive(self, run_id, handed, answer=None):
+        """Run the loop for run_id on a thread, after applying answer if there is one. handed
+        means a request handler is storing the task as working, and a write here before it
+        has could be overwritten, so this waits for it first."""
         try:
-            if new:  # until the handler has stored the task as working, a write here could be overwritten
+            if handed:
                 for _ in range(100):
                     task = await self.store.get(run_id, self.context(await self.owner(run_id)))
-                    if task is not None and task.status.state != TaskState.TASK_STATE_SUBMITTED:
+                    if task is not None and (task.status.state == TaskState.TASK_STATE_WORKING
+                                             or task.status.state in ENDED):
                         break
                     await asyncio.sleep(0.05)
-            await asyncio.to_thread(self.advance, run_id)
+            await asyncio.to_thread(self.advance, run_id, answer)
         except (Shutdown, asyncio.CancelledError):
             return
         except Exception as e:  # nothing the loop raises should leave a run working
@@ -451,6 +475,7 @@ class Orchestrator:
             await asyncio.to_thread(self._fail, run_id, f"The server failed: {type(e).__name__}: {e}")
         finally:
             self.drives.pop(run_id, None)
+            self.claimed.discard(run_id)
         if not self.closing:
             await self.settle(run_id)
 
@@ -472,10 +497,12 @@ class Orchestrator:
         except (concurrent.futures.CancelledError, asyncio.CancelledError):
             raise Shutdown() from None
 
-    def advance(self, run_id):
-        """The loop, from the run's record: replay what it recorded, then take turns and run
-        the steps they ask for until the run ends or waits."""
+    def advance(self, run_id, answer=None):
+        """The loop, from the run's record: apply answer, if there is one, replay what it
+        recorded, then take turns and run the steps they ask for until the run ends or waits."""
         e = self.engine
+        if answer:
+            self.apply(run_id, answer)
         run = e.load(run_id)
         if run["status"] != "working":
             return
@@ -655,6 +682,38 @@ class Orchestrator:
                           "present": present},
                 "actions": [req]}
 
+    def apply(self, run_id, answer):
+        """Record a person's answer to the approval run_id waits on. An approval runs the
+        recorded call, once its facts and presented values are looked up again."""
+        e = self.engine
+        run = e.load(run_id)
+        pending = run.get("pending") or {}
+        if run["status"] != "input_required" or pending.get("id") != answer["id"]:
+            log.warning("run %s no longer waits on %s; the answer is dropped", run_id, answer["id"])
+            return
+        try:
+            if answer["decision"] == "approve":
+                self.refresh(run, pending["step"])
+                e.approve(run_id, answer["by"], answer["id"], via="a2a")
+            else:
+                e.deny(run_id, answer["reason"], answer["by"], answer["id"], via="a2a")
+        except engine.EngineError as x:  # it ended or was answered meanwhile; the record says how
+            log.warning("run %s: the answer couldn't be applied: %s", run_id, x)
+
+    def refresh(self, run, sid):
+        """Look a waiting MCP step's facts and presented values up again, and amend the step if
+        they changed, which voids an approval of what it was."""
+        step = next(st for st in run["plan"]["steps"] if st["id"] == sid)
+        if step["worker"] != "mcp":
+            return
+        inp = step["input"]
+        reg = self.by_name[inp["registration"]]
+        req, present = registrations.resolve(reg, inp["tool"], inp["arguments"], run["inputs"]["request"],
+                                             lambda tool, given: self.lookup(reg, tool, given))
+        if [req] != step["actions"] or present != inp["present"]:
+            log.info("step %s of run %s changed while it waited; its approval is void", sid, run["runId"])
+            self.engine.amend(run, sid, dict(inp, present=present), [req])
+
     def server(self, reg, full):
         name, _, tool = full.partition("/")
         return next(s for s in reg["servers"] if s["mcp"]["name"] == name), tool
@@ -686,40 +745,108 @@ class Orchestrator:
     async def owner(self, run_id):
         return (await asyncio.to_thread(self.engine.load, run_id))["inputs"]["owner"]
 
-    def describe(self, run):
-        """The task state, status text and artifact for a run."""
+    def approval(self, run, review):
+        """The approval request for what a paused run waits on."""
+        p = run["pending"]
+        step = next(s for s in run["plan"]["steps"] if s["id"] == p["step"])
+        shown = step["input"].get("present", {})
+        return {"id": p["id"], "step": p["step"],
+                "tool": step["input"].get("tool") or f"delegate__{step['input'].get('agent')}",
+                "action": ", ".join(a["action"] for a in p.get("actions", [])) or None, "rules": p["rules"],
+                "present": {name: shown.get(name, p["values"].get(name)) for name in p.get("present", [])},
+                "review": review, "expiresAt": p["expiresAt"]}
+
+    def describe(self, run, review=None):
+        """The status text, the artifact and the status message's data part for a run."""
         status = run["status"]
         if status == "working":
-            return "Working on the goal.", None
+            return "Working on the goal.", None, None
         if status == "input_required":
-            p = run["pending"]
-            step = next(s for s in run["plan"]["steps"] if s["id"] == p["step"])
-            tool = step["input"].get("tool") or f"delegate__{step['input'].get('agent')}"
-            actions = ", ".join(a["action"] for a in p.get("actions", []))
-            rules = f" under {', '.join(p['rules'])}" if p.get("rules") else ""
-            return (f"Waiting for a person to approve {tool} ({actions}{rules}). It expires unanswered at "
-                    f"{p['expiresAt']}."), None
+            a = self.approval(run, review)
+            rules = f" under {', '.join(a['rules'])}" if a["rules"] else ""
+            who = self.o.reviewer or "the reviewer"
+            said = (f" {who} hasn't reviewed it: {review['reason']}" if review["verdict"] == "unreviewed"
+                    else f" {who} flagged it: {review['reason']}" if review["verdict"] == "block"
+                    else f" {who}'s review: {review['verdict']}.")
+            return (f"Waiting for a person to approve {a['tool']} ({a['action']}{rules}).{said} It expires "
+                    f"unanswered at {a['expiresAt']}."), None, {"approval": a}
         if status == "completed":
-            return "Done.", run["result"]
+            return "Done.", run["result"], None
         if status == "cancelled":
-            return "Cancelled.", None
-        return (run.get("error") or {}).get("message") or "The run failed.", None
+            return "Cancelled.", None, None
+        return (run.get("error") or {}).get("message") or "The run failed.", None, None
+
+    def review_path(self, approval_id):
+        return self.o.state_dir / "reviews" / f"{approval_id.split(':', 1)[1]}.json"
+
+    def proposal(self, run):
+        a = self.approval(run, None)
+        step = next(s for s in run["plan"]["steps"] if s["id"] == a["step"])
+        proposal = (f"Barry, hosted, will call {a['tool']} for a caller, taking the action {a['action']}, with "
+                    f"these arguments: {json.dumps(step['input'].get('arguments', step['input'].get('input')))}. "
+                    f"The caller's policy gates it{' under ' + ', '.join(a['rules']) if a['rules'] else ''}, "
+                    "so a person must approve it first. The person will be shown: "
+                    f"{json.dumps(a['present'])}.")
+        request = run["inputs"]["request"]
+        context = (f"The run's goal: {json.dumps(run['inputs']['input'])}. The caller's request: "
+                   f"{json.dumps(request) if request else 'no trigger or facts'}. Your verdict goes to the "
+                   "person beside the request; it informs them and doesn't replace them.")
+        return proposal, context
+
+    async def review(self, run):
+        """The reviewer's verdict on what a paused run asks a person to approve, asked once
+        for each approval and kept beside the run records, or unreviewed when it can't be had."""
+        p = run["pending"]
+        try:
+            async with self.reviewing.setdefault(p["id"], asyncio.Lock()):
+                return await self._review(run, p)
+        finally:
+            # A publish still waiting holds the old lock and finds the review written.
+            self.reviewing.pop(p["id"], None)
+
+    async def _review(self, run, p):
+        path = self.review_path(p["id"])
+        if path.is_file():
+            return json.loads(path.read_text())
+        if not self.o.reviewer:
+            review = {"verdict": "unreviewed", "reason": "no reviewer is configured."}
+        else:
+            d = self.delegates[self.o.reviewer]
+            proposal, context = self.proposal(run)
+            try:
+                content, error = await self.network.delegate(
+                    d, {"proposal": proposal, "context": context}, f"{run['runId']}:review:{p['id'][7:23]}")
+                verdict = None if error else json.loads(content)
+            except (McpError, ValueError) as e:
+                content, verdict = str(e), None
+            except Exception as e:  # a token failure, say: unreviewed, never stuck, and no internals in the text
+                log.warning("reviewing %s failed: %r", run["runId"], e)
+                content, verdict = f"the reviewer couldn't be reached ({type(e).__name__}).", None
+            if isinstance(verdict, dict) and isinstance(verdict.get("verdict"), str):
+                review = {k: verdict[k] for k in ("verdict", "reason", "conditions") if k in verdict}
+            else:
+                review = {"verdict": "unreviewed", "reason": content}
+        path.parent.mkdir(parents=True, exist_ok=True)
+        self.engine.write(path, review)
+        return review
 
     async def publish(self, run_id):
         """Write the run's state to its task, unless the task has already ended."""
         run = await asyncio.to_thread(self.engine.load, run_id)
         context = self.context(run["inputs"]["owner"])
+        review = await self.review(run) if run["status"] == "input_required" else None
         async with self.publishing:
             task = await self.store.get(run_id, context)
             if task is None:
                 task = Task(id=run_id, context_id=run["inputs"]["contextId"])
             elif task.status.state in ENDED:
                 return
-            text, result = self.describe(run)
+            text, result, data = self.describe(run, review)
+            parts = [new_text_part(text)] + ([new_data_part(data, "application/json")] if data else [])
             task.status.state = STATES[run["status"]]
             task.status.message.CopyFrom(Message(
                 message_id=str(uuid.uuid4()), role=Role.ROLE_AGENT, task_id=run_id,
-                context_id=task.context_id, parts=[new_text_part(text)]))
+                context_id=task.context_id, parts=parts))
             task.status.timestamp.GetCurrentTime()
             if result is not None:
                 task.artifacts.append(Artifact(artifact_id=str(uuid.uuid4()), name="result",
@@ -769,6 +896,8 @@ class Orchestrator:
             if run["status"] == "working":
                 log.info("resuming run %s", run["runId"])
                 self.spawn(run["runId"])
+            else:  # a paused run's request, with its review, in case the server stopped first
+                await self.publish(run["runId"])
         await self.sweep()
         self.sweeper = asyncio.create_task(self._sweep_forever())
 
@@ -786,6 +915,47 @@ class Orchestrator:
             if run.get("open") and run["status"] == "input_required" \
                     and await asyncio.to_thread(self.engine.expire_if_due, run):
                 await self.settle(run["runId"])
+
+    @staticmethod
+    def read_answer(message):
+        """The approval answer a message carries, or raise InvalidParamsError."""
+        parts = list(message.parts)
+        if len(parts) != 1 or not parts[0].HasField("data"):
+            raise InvalidParamsError(message='an answer is one JSON data part, {"approval": {...}}')
+        value = MessageToDict(parts[0].data)
+        answer = value.get("approval") if set(value) == {"approval"} else None
+        if not isinstance(answer, dict) or not isinstance(answer.get("id"), str) \
+                or answer.get("decision") not in ("approve", "deny") or not isinstance(answer.get("by"), str):
+            raise InvalidParamsError(message='an answer is {"approval": {"id", "decision": "approve" or "deny", '
+                                             '"by", "reason"}}')
+        if answer["decision"] == "deny" and not (isinstance(answer.get("reason"), str) and answer["reason"].strip()):
+            raise InvalidParamsError(message="a denial needs a reason")
+        extra = sorted(set(answer) - {"id", "decision", "by", "reason"})
+        if extra:
+            raise InvalidParamsError(message=f"an answer has no field {extra[0]}")
+        return answer
+
+    async def check_answer(self, run_id, owner, answer):
+        """Refuse an answer that doesn't answer what run_id waits on, then claim the run for it."""
+        run = await asyncio.to_thread(self.engine.load, run_id) if self.has_run(run_id) else None
+        if run is None or run["inputs"]["owner"] != owner:
+            raise TaskNotFoundError()
+        if await asyncio.to_thread(self.engine.expire_if_due, run):
+            await self.settle(run_id)
+            raise InvalidParamsError(message=f"too late: {run['error']['message']}")
+        pending = run.get("pending") or {}
+        if run["status"] != "input_required" or not pending:
+            raise InvalidParamsError(message=f"task {run_id} isn't waiting for an approval")
+        if answer["id"] != pending["id"]:
+            raise InvalidParamsError(message=f"{answer['id']} isn't what task {run_id} waits on: an answer answers "
+                                             "only the approval it was shown", data={"pending": pending["id"]})
+        try:
+            engine.actor_id(answer["by"])
+        except engine.EngineError as e:
+            raise InvalidParamsError(message=str(e))
+        if run_id in self.claimed or run_id in self.drives:
+            raise InvalidParamsError(message=f"an answer to task {run_id} is already being applied")
+        self.claimed.add(run_id)
 
     async def cancel(self, run_id, by):
         """Cancel the run: a paused one now, a working one before its next turn or step."""
@@ -825,8 +995,13 @@ class Executor(AgentExecutor):
             return
         o = self.o
         updater = TaskUpdater(event_queue, context.task_id, context.context_id)
-        if context.current_task is None:
-            await event_queue.enqueue_event(new_task_from_user_message(context.message))
+        if context.current_task is not None:  # an answer, which the handler checked and claimed the run for
+            answer = o.read_answer(context.message)
+            said = "Approved" if answer["decision"] == "approve" else "Denied"
+            await updater.start_work(_message(updater, f"{said} by {answer['by']}."))
+            o.spawn(context.task_id, answer=answer)
+            return
+        await event_queue.enqueue_event(new_task_from_user_message(context.message))
         try:
             value, request = o.check(context.message)
         except InvalidParamsError as e:  # the handler checks first; this is a backstop
@@ -855,16 +1030,36 @@ class Executor(AgentExecutor):
 
 
 class Handler(DefaultRequestHandler):
-    """Refuses media types the card doesn't declare, a message on an existing task, and
-    input that doesn't meet the contract, before any task is created."""
+    """Refuses media types the card doesn't declare, a token without the role a method needs,
+    input that doesn't meet the contract, and an answer that doesn't answer what its task
+    waits on, before anything runs."""
 
     def __init__(self, orchestrator, **kwargs):
         super().__init__(**kwargs)
         self.orchestrator = orchestrator
 
+    @staticmethod
+    def require(context, roles, what):
+        held = set((context.state.get("auth") or {}).get("roles", ()))
+        if not held & set(roles):
+            raise InvalidRequestError(message=f"the token needs the {' or '.join(roles)} role to {what}")
+
     async def on_message_send(self, params, context):
         validate_input_modes(params.message, self._agent_card)
-        if params.message.task_id:
-            raise UnsupportedOperationError(message="this server takes no message on an existing task yet")
-        self.orchestrator.check(params.message)
-        return await super().on_message_send(params, context)
+        o = self.orchestrator
+        if not params.message.task_id:
+            self.require(context, o.o.request_roles, "start a task")
+            o.check(params.message)
+            return await super().on_message_send(params, context)
+        self.require(context, o.o.approve_roles, "answer an approval")
+        answer = o.read_answer(params.message)
+        await o.check_answer(params.message.task_id, context.user.user_name, answer)
+        try:
+            return await super().on_message_send(params, context)
+        except BaseException:
+            o.claimed.discard(params.message.task_id)
+            raise
+
+    async def on_cancel_task(self, params, context):
+        self.require(context, self.orchestrator.o.request_roles, "cancel a task")
+        return await super().on_cancel_task(params, context)

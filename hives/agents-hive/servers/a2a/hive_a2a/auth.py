@@ -5,7 +5,10 @@ A caller sends `Authorization: Bearer <access token>`, a JWT its identity provid
 must be signed by a key in the configured JWKS, name the configured issuer and audience,
 be unexpired, and come from a client on the allowlist, identified by the first claim in
 auth.client_claims that is present (Entra v2 tokens carry `azp`, v1 tokens `appid`).
-When auth.required_roles is set, the token's `roles` must include one of them.
+When auth.required_roles is set, the token's `roles` must include one of them. The roles
+also go to the handler, in the request's auth state, so an executor can require a role for
+one method (orchestrate.py: Orchestration.Request to start or cancel a task,
+Orchestration.Approve to answer one).
 
 Only the Agent Card is served without a token, because a client has to read it to learn
 how to authenticate. It holds no secrets.
@@ -60,7 +63,8 @@ class Authenticator:
         self.keys = keys or Keys(auth)
 
     async def caller(self, header):
-        """The authenticated client id, or (status, reason) when the request is refused."""
+        """((client id, its roles), None), or (None, (status, reason)) when the request is
+        refused."""
         scheme, _, token = (header or "").partition(" ")
         if scheme.lower() != "bearer" or not token.strip():
             return None, (401, "a bearer token is required")
@@ -81,7 +85,7 @@ class Authenticator:
         roles = claims.get("roles") if isinstance(claims.get("roles"), list) else []
         if self.auth.required_roles and not set(roles) & set(self.auth.required_roles):
             return None, (403, "the token lacks a required role")
-        return client, None
+        return (client, tuple(r for r in roles if isinstance(r, str))), None
 
 
 class AuthMiddleware:
@@ -98,11 +102,12 @@ class AuthMiddleware:
         if scope["type"] != "http":
             raise RuntimeError(f"unsupported ASGI scope '{scope['type']}'")
         header = dict(scope["headers"]).get(b"authorization", b"").decode("latin-1")
-        client, refusal = await self.authenticator.caller(header)
+        who, refusal = await self.authenticator.caller(header)
         if refusal:
             status, reason = refusal
             headers = {"www-authenticate": 'Bearer error="invalid_token"'} if status == 401 else {}
             return await JSONResponse({"error": reason}, status_code=status, headers=headers)(scope, receive, send)
+        client, roles = who
         scope["user"] = Caller(client)
-        scope["auth"] = {"client": client}
+        scope["auth"] = {"client": client, "roles": roles}
         return await self.app(scope, receive, send)
