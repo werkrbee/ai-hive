@@ -4,7 +4,8 @@
 # for a top-level heading, every agents-hive execution contract against its schema,
 # every agents-hive passport against its schema, contract and pins, every agents-hive
 # A2A Agent Card against the A2A spec, every rules-hive approval policy against its
-# schema and its cases, and knowledge-hive's template and examples.
+# schema and its cases, every agents-hive caller registration against its policy and its
+# cases, and knowledge-hive's template and examples.
 # Fails if no SKILL.md is found at all (e.g. hives not checked out).
 # Exit non-zero on any failure (the hook tolerates failures; CI does not).
 set -uo pipefail
@@ -65,6 +66,11 @@ if ! policies_out=$(python3 hives/rules-hive/scripts/check_policy.py); then
   printf '%s\n' "$policies_out"; fail=1
 fi
 
+# Caller registrations: tool-to-action maps, fact sources and the decisions in each cases.json.
+if ! registrations_out=$(python3 hives/agents-hive/scripts/registrations.py); then
+  printf '%s\n' "$registrations_out"; fail=1
+fi
+
 # knowledge-hive: the template and worked examples against the format in DESIGN.md.
 if ! knowledge_out=$(python3 hives/knowledge-hive/scripts/check_knowledge.py); then
   printf '%s\n' "$knowledge_out"; fail=1
@@ -75,6 +81,6 @@ if [ "$skills" -eq 0 ]; then
 fi
 
 if [ "$fail" -eq 0 ]; then
-  echo "OK  ${skills} SKILL.md and ${agents} AGENTS.md artifacts valid; ${contracts_out#OK  }; ${passports_out#OK  }; ${cards_out#OK  }; ${policies_out#OK  }; ${knowledge_out#OK  }"
+  echo "OK  ${skills} SKILL.md and ${agents} AGENTS.md artifacts valid; ${contracts_out#OK  }; ${passports_out#OK  }; ${cards_out#OK  }; ${policies_out#OK  }; ${registrations_out#OK  }; ${knowledge_out#OK  }"
 fi
 exit "$fail"

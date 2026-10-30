@@ -1,0 +1,143 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/werkrbee/ai-hive/blob/main/hives/agents-hive/schema/registration.schema.json",
+  "title": "Caller registration",
+  "description": "What a caller registers for hosted Barry: its approval policy, its MCP servers and, for each of their tools, the action it takes and where each scope value, fact and present item comes from. Server config, set when the caller is onboarded and never sent with a request. The model chooses a call's arguments but can't vouch for a fact: facts come from the caller's request or from lookups the server makes. scripts/registrations.py checks it beyond this schema. Design: design/hosted-barry.md, \"Actions, facts and trust\".",
+  "type": "object",
+  "required": ["registration", "version", "description", "policy", "servers", "tools"],
+  "additionalProperties": false,
+  "properties": {
+    "$schema": { "type": "string" },
+    "registration": {
+      "description": "The caller's name, the same as its directory.",
+      "type": "string",
+      "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$"
+    },
+    "version": { "type": "integer", "minimum": 1 },
+    "description": { "type": "string", "minLength": 1 },
+    "policy": {
+      "description": "The caller's approval policy, as a path from the repo root. It must be the Queen Bee's Charter or extend it.",
+      "type": "string",
+      "pattern": "^hives/.+/policy\\.json$"
+    },
+    "servers": {
+      "description": "The caller's MCP servers. Hosted Barry has no local processes, so each is a remote server.",
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["mcp", "token_scope"],
+        "additionalProperties": false,
+        "properties": {
+          "mcp": {
+            "description": "The server in mcp-hive's format (hives/mcp-hive/README.md), with a discovery block for its Server Card.",
+            "type": "object",
+            "required": ["name", "description", "transport", "discovery"],
+            "properties": {
+              "name": { "type": "string", "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$" },
+              "description": { "type": "string", "minLength": 1 },
+              "transport": { "const": "streamable-http" },
+              "discovery": { "type": "object" },
+              "variables": { "type": "object" }
+            }
+          },
+          "token_scope": {
+            "description": "The scope Barry asks his managed identity's token for when he calls this server, e.g. api://<app-id>/.default.",
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    },
+    "tools": {
+      "description": "Every tool Barry may use, keyed <server>/<tool>. A tool takes an action, or is a fact source the server calls itself. A tool not listed is never offered and a call to it is denied.",
+      "type": "object",
+      "minProperties": 1,
+      "propertyNames": { "pattern": "^[a-z0-9]+(-[a-z0-9]+)*/[A-Za-z0-9_.-]+$" },
+      "additionalProperties": {
+        "oneOf": [
+          {
+            "type": "object",
+            "required": ["fact_source"],
+            "additionalProperties": false,
+            "properties": {
+              "fact_source": { "const": true },
+              "description": { "type": "string" }
+            }
+          },
+          {
+            "type": "object",
+            "required": ["action"],
+            "additionalProperties": false,
+            "properties": {
+              "action": { "description": "An action in the policy's vocabulary.", "type": "string" },
+              "subjects": {
+                "description": "The call's subjects, such as a message's recipients: a list in its arguments. A fact looked up per subject holds only when it holds for each.",
+                "$ref": "#/$defs/argument"
+              },
+              "scope": {
+                "description": "Each scope dimension, from the call's arguments or a fixed value.",
+                "type": "object",
+                "additionalProperties": { "oneOf": [{ "$ref": "#/$defs/argument" }, { "$ref": "#/$defs/value" }] }
+              },
+              "facts": {
+                "description": "Each condition fact: an actor.* fact from the caller's request, any other from a lookup. Never from the call's arguments.",
+                "type": "object",
+                "additionalProperties": { "oneOf": [{ "$ref": "#/$defs/request" }, { "$ref": "#/$defs/lookup" }] }
+              },
+              "present": {
+                "description": "Where each present item the policy names for this action comes from. An item with no source is shown as missing.",
+                "type": "object",
+                "additionalProperties": {
+                  "oneOf": [{ "$ref": "#/$defs/argument" }, { "$ref": "#/$defs/value" },
+                            { "$ref": "#/$defs/count" }, { "$ref": "#/$defs/lookup" }]
+                }
+              }
+            }
+          }
+        ]
+      }
+    }
+  },
+  "$defs": {
+    "path": { "type": "string", "pattern": "^[A-Za-z0-9_-]+(\\.[A-Za-z0-9_-]+)*$" },
+    "argument": {
+      "type": "object", "required": ["from", "path"], "additionalProperties": false,
+      "properties": { "from": { "const": "argument" }, "path": { "$ref": "#/$defs/path" } }
+    },
+    "value": {
+      "type": "object", "required": ["from", "value"], "additionalProperties": false,
+      "properties": { "from": { "const": "value" }, "value": { "type": ["string", "number", "boolean"] } }
+    },
+    "request": {
+      "description": "A fact the caller set in the request that started the task, in its metadata's facts.",
+      "type": "object", "required": ["from", "field"], "additionalProperties": false,
+      "properties": { "from": { "const": "request" }, "field": { "$ref": "#/$defs/path" } }
+    },
+    "subject": {
+      "description": "In a lookup's input: one of the call's subjects; the lookup is made once for each.",
+      "type": "object", "required": ["from"], "additionalProperties": false,
+      "properties": { "from": { "const": "subject" } }
+    },
+    "count": {
+      "description": "How many subjects the call has.",
+      "type": "object", "required": ["from"], "additionalProperties": false,
+      "properties": { "from": { "const": "count" } }
+    },
+    "lookup": {
+      "description": "A call to one of the caller's fact-source tools, made by the server, whose result's path is the value. Its input comes only from the call that will run, its subjects or the caller's request.",
+      "type": "object", "required": ["from", "tool", "input", "path"], "additionalProperties": false,
+      "properties": {
+        "from": { "const": "lookup" },
+        "tool": { "type": "string" },
+        "input": {
+          "type": "object",
+          "additionalProperties": {
+            "oneOf": [{ "$ref": "#/$defs/argument" }, { "$ref": "#/$defs/request" }, { "$ref": "#/$defs/subject" }]
+          }
+        },
+        "path": { "$ref": "#/$defs/path" }
+      }
+    }
+  }
+}
