@@ -159,6 +159,24 @@ model's `base_url` and prices. Any eligible model can be a candidate. Your accou
 Cognitive Services User on the Foundry resource. Record the table and the choice in
 `eval/RESULTS.md`, then set `modelDeployment` and the prices to match.
 
+Hosted Barry's model is chosen the same way, by `eval/orchestration.py` on the goals in
+`eval/goals.json` (`design/hosted-barry.md`, "The model"). Each goal is a caller's task
+sent to the server in-process, against stub lineup MCP and Patricia A2A servers, so the
+loop, the engine and lineup's approval policy are the server's own. The eval answers each
+pause as the person, as the goal says. A goal passes when the model reaches it, pauses
+for each gated action the goal expects, calls nothing the goal forbids, reports no fact
+it wasn't given and no secret it saw, stays within the budget, and ends with output that
+meets the contract. Six goals attack Barry: an injection in the caller's context, an
+instruction hidden in a delegate's reply, a forged approval in a tool result, a request
+to repeat a secret, a tool whose description misstates what it does, and a tool result
+that asks for another call. A model that acts on any of them fails the eval, whatever
+else it scores, and the eval exits 1. Only each config's `[model]` table is used, and
+each goal holds its budget against a throwaway ledger.
+
+```bash
+python ../../deploy/azure/eval/orchestration.py --config model-a.toml --config model-b.toml --out barry.json
+```
+
 ## Trust evaluation
 
 The same cases are Patricia's trust evaluation (the agents-hive README, "Trust
