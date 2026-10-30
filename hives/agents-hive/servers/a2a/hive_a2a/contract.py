@@ -4,6 +4,8 @@ Contracts use a small part of JSON Schema: object, string and array types, requi
 properties, enum and items. This checks exactly that part. A contract that uses
 anything else is refused at startup, so nothing goes unchecked.
 """
+import json
+
 SUPPORTED = {"type", "required", "properties", "enum", "items", "description", "additionalProperties"}
 TYPES = {"object": dict, "string": str, "array": list}
 
@@ -50,3 +52,19 @@ def errors(value, schema, where="input"):
 
 def describe(found):
     return "; ".join(f"{e['field']} {e['message']}" for e in found)
+
+
+def parse_output(text, schema):
+    """(output, None) for a model's reply that is a JSON object meeting schema, keeping only
+    the fields it defines, or (None, why it doesn't)."""
+    text = text.strip()
+    if text.startswith("```"):
+        text = text.strip("`").removeprefix("json").strip()
+    try:
+        value = json.loads(text)
+    except ValueError:
+        return None, "the reply isn't JSON"
+    problems = errors(value, schema, "output")
+    if problems:
+        return None, describe(problems)
+    return {k: v for k, v in value.items() if k in schema.get("properties", {})}, None

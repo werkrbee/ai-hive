@@ -4,6 +4,7 @@ Run from servers/a2a with the requirements installed:
   python -m unittest discover -s tests -v
 """
 import asyncio
+import dataclasses
 import datetime
 import json
 import sys
@@ -22,7 +23,7 @@ from starlette.testclient import TestClient
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE.parent))
 
-from hive_a2a import providers  # noqa: E402
+from hive_a2a import providers, review  # noqa: E402
 from hive_a2a.app import create_app  # noqa: E402
 from hive_a2a.config import REPO_ROOT, ConfigError, load  # noqa: E402
 from hive_a2a.providers import Completion, Result, Tool, ToolCall, User  # noqa: E402
@@ -270,23 +271,35 @@ class ServerTest(unittest.TestCase):
         with self.client(config, provider=Gate()) as c:
             states = [self.send(c)["result"]["task"]["status"]["state"] for _ in range(6)]
         self.assertIn("TASK_STATE_REJECTED", states)
-        self.assertLessEqual(sum(e["usd"] for e in self.ledger()), 0.05 + 0.5)
+        self.assertLessEqual(sum(e["usd"] for e in self.ledger()), 0.05, "no reservation passes the ceiling")
 
     # --- the ceiling -----------------------------------------------------
 
-    def test_ceiling_refuses_new_reviews_with_a_clear_reason(self):
-        # A stub call costs about $0.004 at these prices, so the first one reaches the ceiling.
-        with self.client(write_config(self.root, ceiling=0.001, in_price=3.0, out_price=15.0)) as c:
+    def test_ceiling_refuses_a_review_that_would_pass_it(self):
+        # The ceiling holds one review's worst case and a little more. A stub call costs about
+        # $0.004 at these prices, so once the first is spent the second's would pass it.
+        config = write_config(self.root, in_price=3.0, out_price=15.0)
+        reserve = review.Reviewer(config, None, providers.create(config.model)).plan(PROPOSAL[0]["data"]).max_usd
+        config = dataclasses.replace(config, monthly_ceiling_usd=round(reserve + 0.001, 6))
+        with self.client(config) as c:
             first = self.send(c)["result"]["task"]
             second = self.send(c)["result"]["task"]
         self.assertEqual(first["status"]["state"], "TASK_STATE_COMPLETED")
         self.assertEqual(second["status"]["state"], "TASK_STATE_REJECTED")
         text, data = (p for p in second["status"]["message"]["parts"])
         self.assertIn("monthly spending ceiling", text["text"])
+        self.assertIn("would be passed", text["text"])
         self.assertIn("accepted again on", text["text"])
         self.assertEqual(data["data"]["error"], "monthly-ceiling-reached")
-        self.assertEqual(data["data"]["ceilingUsd"], 0.001)
+        self.assertEqual(data["data"]["ceilingUsd"], config.monthly_ceiling_usd)
+        self.assertAlmostEqual(data["data"]["neededUsd"], reserve)
         self.assertEqual(len(self.ledger()), 1, "a refused review costs nothing")
+
+    def test_ceiling_refuses_a_review_whose_worst_case_alone_would_pass_it(self):
+        with self.client(write_config(self.root, ceiling=0.001)) as c:
+            task = self.send(c)["result"]["task"]
+        self.assertEqual(task["status"]["state"], "TASK_STATE_REJECTED")
+        self.assertEqual(self.ledger(), [])
 
     def test_ceiling_counts_the_ledger_already_on_disk(self):
         config = write_config(self.root, ceiling=1.0)
@@ -394,6 +407,27 @@ class ServerTest(unittest.TestCase):
         self.assertAlmostEqual(ledger.spent(), 0.4)
         self.assertFalse((self.root / "ledger.jsonl.pending").exists())
         self.assertAlmostEqual(Ledger(path, 25.0).spent(), 0.4, msg="recorded once, not on every start")
+
+    def test_a_run_s_hold_counts_until_released_and_is_never_counted_twice(self):
+        from hive_a2a.ledger import Ledger
+        ledger = Ledger(self.root / "ledger.jsonl", 10.0)
+
+        async def scenario():
+            self.assertIsNone(await ledger.reserve(5, key="run-1"))
+            self.assertIsNotNone(await ledger.reserve(5.5), "5 held and 5.5 more would pass 10")
+            await ledger.start("run-1:turn:t1", {"usd": 1.0, "basis": "estimated"})
+            await ledger.charge("run-1", {"usd": 2.0, "basis": "estimated"}, pending="run-1:turn:t1")
+            self.assertAlmostEqual(ledger.committed(ledger.clock()), 5.0, msg="spent 2, and 3 still held")
+            self.assertFalse((self.root / "ledger.jsonl.pending").exists())
+            self.assertIsNone(await ledger.reserve(5, key="run-2"))
+            self.assertIsNotNone(await ledger.reserve(0.01))
+            await ledger.release("run-1")
+            self.assertAlmostEqual(ledger.committed(ledger.clock()), 7.0)
+            await ledger.hold("run-3", 4.0)  # a run admitted before a restart, held without a check
+            self.assertAlmostEqual(ledger.committed(ledger.clock()), 11.0)
+
+        asyncio.run(scenario())
+        self.assertAlmostEqual(Ledger(self.root / "ledger.jsonl", 10.0).spent(), 2.0, msg="holds aren't spending")
 
     def test_a_shared_ledger_counts_toward_the_ceiling_read_afresh(self):
         from hive_a2a.ledger import Ledger, LedgerError

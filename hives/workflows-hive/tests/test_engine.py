@@ -161,6 +161,34 @@ class OpenRuns(Base):
         with self.assertRaisesRegex(engine.EngineError, "haven't completed: a"):
             e.finish(run, None)
 
+    def test_an_open_run_can_be_named_once(self):
+        e = self.engine
+        run = e.open("loop", run_id="9f1c2d3e-task")
+        self.assertEqual(run["runId"], "9f1c2d3e-task")
+        self.assertEqual(e.load("9f1c2d3e-task")["status"], "working")
+        e.append(run, {"id": "a", "worker": "echo", "input": {}})
+        self.assertEqual(e.load("9f1c2d3e-task")["steps"]["a"]["idempotencyKey"], "9f1c2d3e-task:a")
+        with self.assertRaisesRegex(engine.EngineError, "already exists"):
+            e.open("loop", run_id="9f1c2d3e-task")
+        for bad in ("../escape", "", "a b", 7):
+            with self.subTest(bad), self.assertRaisesRegex(engine.EngineError, "a run ID is"):
+                e.open("loop", run_id=bad)
+
+    def test_a_literal_step_takes_its_input_and_actions_as_they_are(self):
+        e = self.engine
+        run = e.open("loop", {"secret": "from the inputs"})
+        # As references, these would read the run's inputs, or fail on a step that doesn't exist.
+        text = "${inputs.secret} and ${steps.missing.output}"
+        e.append(run, {"id": "a", "worker": "echo", "literal": True, "input": {"text": text},
+                       "actions": [{"action": "fs.read", "scope": {"path": "${steps.missing.output}"}}]})
+        run = e.execute(run)
+        self.assertEqual(run["status"], "working")
+        self.assertEqual(run["steps"]["a"]["output"], {"text": text})
+        e.append(run, {"id": "b", "worker": "echo", "input": {"text": text}})
+        self.assertEqual(e.execute(run)["status"], "failed", "without literal, the references resolve")
+        with self.assertRaisesRegex(engine.EngineError, "literal must be true or false"):
+            e.append(e.open("loop"), {"id": "b", "worker": "echo", "input": {}, "literal": "yes"})
+
 
 class Turns(Base):
     def test_a_completed_turn_is_never_called_again(self):

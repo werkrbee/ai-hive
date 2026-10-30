@@ -148,18 +148,7 @@ class Reviewer:
 
     def verdict(self, text):
         """(output, None), or (None, why the model's reply doesn't meet the contract)."""
-        text = text.strip()
-        if text.startswith("```"):
-            text = text.strip("`").removeprefix("json").strip()
-        try:
-            value = json.loads(text)
-        except ValueError:
-            return None, "the reply isn't JSON"
-        schema = self.config.contract["output"]
-        problems = contract.errors(value, schema, "output")
-        if problems:
-            return None, contract.describe(problems)
-        return {k: v for k, v in value.items() if k in schema.get("properties", {})}, None
+        return contract.parse_output(text, self.config.contract["output"])
 
 
 def _message(updater, text, data=None):

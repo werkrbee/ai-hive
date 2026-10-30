@@ -82,6 +82,7 @@ EXPIRY = timedelta(days=7)  # how long an approval or escalation waits for a hum
 RUN_ENV = "WORKFLOWS_HIVE_RUN"  # set in a step's or turn's environment while it runs
 FINDINGS = ("drift", "unconfirmed-miss", "cost", "not-run")  # what a trust evaluation sends the queue
 REF = re.compile(r"\$\{([^}]+)\}")
+RUN_ID = re.compile(r"[A-Za-z0-9_-]{1,128}")
 
 
 def load_script(hive, name):
@@ -290,6 +291,8 @@ def check_step(step, workers, contracts_dir, policy, delegation=False):
     delegation (Engine.delegate) has the delegate worker."""
     if not isinstance(step.get("approval", False), bool):
         raise EngineError(f"step '{step['id']}': approval must be true or false")
+    if not isinstance(step.get("literal", False), bool):
+        raise EngineError(f"step '{step['id']}': literal must be true or false")
     if (step["worker"] == DELEGATE) != delegation:
         raise EngineError(f"step '{step['id']}': only Engine.delegate adds a step that starts a delegate")
     if step["worker"] not in workers and not delegation:
@@ -389,7 +392,8 @@ def verdict(policy, step, run):
     """Decide a step's actions with the policy, in order, up to the first one denied: a list
     of (request, decision, deciding rule or None, what a human's approval must present)."""
     decided = []
-    for req in resolve(step.get("actions", []), run):
+    actions = step.get("actions", [])
+    for req in (actions if step.get("literal") else resolve(actions, run)):
         for key, kind in REQUEST_KEYS.items():  # a reference can resolve to the wrong type
             if key in req and not isinstance(req[key], kind):
                 raise BadAction(f"{key} of action {req['action']} resolved to a "
@@ -707,7 +711,7 @@ class Engine:
         state = run["steps"][sid]
         run["next"] = sid
         try:
-            inp = resolve(step["input"], run)
+            inp = step["input"] if step.get("literal") else resolve(step["input"], run)
         except Exception as e:  # an input that can't be resolved fails the step, as a worker would
             message = f"{type(e).__name__}: {e}"
             state.update(status="failed", endedAt=now())
@@ -871,14 +875,22 @@ class Engine:
 
     # Open runs
 
-    def open(self, name, inputs=None, policy=CHARTER_POLICY, passport=None):
+    def open(self, name, inputs=None, policy=CHARTER_POLICY, passport=None, run_id=None):
         """Start an open run, under passport if one is named: no steps yet, grown with append
-        and turn, ended with finish."""
+        and turn, ended with finish. run_id names the run, as a server's task ID does, when it
+        is given; it must be new."""
         load_policy(policy)
         if not isinstance(name, str) or not name:
             raise EngineError("an open run needs a name")
+        if run_id is not None:
+            if not isinstance(run_id, str) or not RUN_ID.fullmatch(run_id):
+                raise EngineError(f"a run ID is letters, digits, _ and -, not {run_id!r}")
+            if self.record_path(run_id).exists():
+                raise EngineError(f"run {run_id} already exists")
         plan = {"name": name, "version": 1, "steps": []}
         run = self.new_run(plan, policy, dict(inputs or {}), passport)
+        if run_id is not None:
+            run.update(runId=run_id, steps={})
         run.update(open=True, plan=plan, turns={})
         self.audit(run, "run.started")
         self.save(run)
@@ -894,7 +906,8 @@ class Engine:
 
     def append(self, run, step, delegation=False):
         """Add a step to an open run. It runs on the next execute, decided, budgeted and
-        checkpointed like a planned step."""
+        checkpointed like a planned step. A step with "literal": true has its input and
+        actions taken as they are, with no ${...} references, for values a model chose."""
         self.working_open_run(run, "grow")
         if not isinstance(step, dict) or not isinstance(step.get("id"), str) or not step["id"] \
                 or not isinstance(step.get("worker"), str) or not isinstance(step.get("input"), dict):

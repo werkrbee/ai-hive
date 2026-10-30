@@ -39,3 +39,20 @@ name = "stub"                        # on Foundry, the deployment name
 input_usd_per_mtok = 0.0             # the model's list price, for the ledger and the ceiling
 output_usd_per_mtok = 0.0
 max_output_tokens = 4000
+
+# Hosted Barry only: with server.capability = "orchestration" (and persona = "barry",
+# prompt_files his Charter and skill), the loop's runs, delegates and callers.
+# [orchestration]
+# passport = "barry"                 # passports/<passport>, the runs' bounds
+# state_dir = "data/runs"            # engine run records; audit.jsonl and queue/ go beside it
+# sweep_seconds = 3600               # how often paused runs are checked for expiry
+#
+# [[orchestration.delegates]]        # an A2A agent the passport lists in its delegates
+# name = "patricia"
+# url = "https://patricia.example.org/"
+# capability = "governance-review"
+# token_scope = "api://<patricia-api-app-id>/.default"
+#
+# [[orchestration.callers]]          # a client on auth.allowed_clients, and its registration
+# client = "<caller-app-id>"
+# registration = "lineup"            # registrations/<registration>/registration.json
