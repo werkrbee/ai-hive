@@ -99,6 +99,14 @@ each response and asks for usage in its last chunk (`stream_options.include_usag
 because some publishers' models on Foundry, DeepSeek among them, report usage only that
 way.
 
+Both clients also take tool calls, for an agent loop such as hosted Barry's
+(`design/hosted-barry.md`). A review is one prompt and one reply, `complete()`, and is
+sent exactly as before. A turn, `converse()`, sends the conversation so far and the tools
+the model may call, and returns the reply's text and tool calls in one shape whichever API
+is configured; a tool call's reply must report its usage too. Chat Completions has no
+flag for a failed tool call, so its result says `error:` in its content. Tool calls are
+tested against mocks of both APIs only, until the orchestration eval runs them live.
+
 With `model.auth = "entra"`, the server authenticates to the model with the managed
 identity it runs as. With `"api-key"`, it reads the key from the environment variable
 named by `model.api_key_env`. The system prompt is built from the files in

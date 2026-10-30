@@ -7,6 +7,13 @@ wire API it speaks, not for a vendor, since one API serves models from many publ
   chat-completions  the Chat Completions API, e.g. Microsoft Foundry's OpenAI v1 endpoint,
                     which serves OpenAI's models and the catalog's other publishers'
 
+complete() is one prompt and one reply, as a review is. converse() is a turn of an agent
+loop: it sends the conversation so far and the tools the model may call, and returns the
+reply's text and tool calls in the same shape whichever API is configured. The
+conversation is a list of turns: a User prompt, a Completion the model returned, or a
+list of the Results of the tool calls that Completion made. Every reply must report its usage, a tool call's as well, or
+it is refused, so the ledger can meter each turn.
+
 Which one, which model and where it is served are configuration. With model.auth =
 "entra" the provider authenticates with a Microsoft Entra token from the environment's
 managed identity; otherwise with an API key read from the named environment variable.
@@ -42,11 +49,46 @@ def _http_error(name, r):
 
 
 @dataclass(frozen=True)
+class Tool:
+    """A tool the model may call: parameters is a JSON Schema object for its arguments."""
+    name: str
+    description: str
+    parameters: dict
+
+
+@dataclass(frozen=True)
+class ToolCall:
+    id: str  # the provider's id for the call, which its result must name
+    name: str
+    arguments: dict
+
+
+@dataclass(frozen=True)
 class Completion:
     text: str
     input_tokens: int
     output_tokens: int
     cut_off: bool = False  # the reply stopped at its output-token limit
+    tool_calls: tuple = ()  # ToolCalls, in the order the model made them
+
+
+@dataclass(frozen=True)
+class User:
+    """A prompt in a conversation."""
+    text: str
+
+
+@dataclass(frozen=True)
+class Result:
+    """What a tool call returned, or the error it failed with."""
+    call_id: str
+    content: str
+    error: bool = False
+
+
+def _calls_error(name, completion):
+    return ProviderError(f"{name} response has a tool call without an id, a name or object arguments",
+                         completion)
 
 
 class Stub:
@@ -62,6 +104,12 @@ class Stub:
             "conditions": ["Configure a real model provider before relying on this verdict."],
         })
         return Completion(text, (len(system) + len(user)) // 4 + 1, len(text) // 4 + 1)
+
+    async def converse(self, system, history, tools, max_tokens):
+        """Never calls a tool: the same fixed reply, counted over the whole conversation."""
+        user = "".join(t.text if isinstance(t, (User, Completion)) else "".join(r.content for r in t)
+                       for t in history)
+        return await self.complete(system, user, max_tokens)
 
     async def aclose(self):
         pass
@@ -109,26 +157,54 @@ def _count(value):
     return value if isinstance(value, int) and not isinstance(value, bool) and value >= 0 else None
 
 
+def _messages_turn(turn):
+    """A conversation's turn as the Messages API takes it."""
+    if isinstance(turn, User):
+        return {"role": "user", "content": turn.text}
+    if isinstance(turn, Completion):
+        content = [{"type": "text", "text": turn.text}] if turn.text else []
+        content += [{"type": "tool_use", "id": c.id, "name": c.name, "input": c.arguments} for c in turn.tool_calls]
+        return {"role": "assistant", "content": content}
+    return {"role": "user", "content": [
+        {"type": "tool_result", "tool_use_id": r.call_id, "content": r.content, **({"is_error": True} if r.error else {})}
+        for r in turn]}
+
+
 class Messages(_HTTP):
     name = "messages"
 
     async def complete(self, system, user, max_tokens):
+        return await self.converse(system, [User(user)], (), max_tokens)
+
+    async def converse(self, system, history, tools, max_tokens):
         token = await self._token()
         headers = {"anthropic-version": "2023-06-01"}
         if self.auth == "entra":
             headers["authorization"] = f"Bearer {token}"
         else:
             headers["x-api-key"] = token
-        data = await self._post("/v1/messages", headers, {
-            "model": self.model, "max_tokens": max_tokens, "system": system,
-            "messages": [{"role": "user", "content": user}],
-        })
+        body = {"model": self.model, "max_tokens": max_tokens, "system": system,
+                "messages": [_messages_turn(t) for t in history]}
+        if tools:
+            body["tools"] = [{"name": t.name, "description": t.description, "input_schema": t.parameters}
+                             for t in tools]
+        data = await self._post("/v1/messages", headers, body)
         usage = data.get("usage") or {}
         i, o = _count(usage.get("input_tokens")), _count(usage.get("output_tokens"))
         if i is None or o is None:
             raise ProviderError("messages response has no token usage")
-        text = "".join(b.get("text", "") for b in data.get("content") or [] if isinstance(b, dict) and b.get("type") == "text")
-        return Completion(text, i, o, cut_off=data.get("stop_reason") == "max_tokens")
+        blocks = [b for b in data.get("content") or [] if isinstance(b, dict)]
+        text = "".join(b.get("text", "") for b in blocks if b.get("type") == "text")
+        reply = Completion(text, i, o, cut_off=data.get("stop_reason") == "max_tokens")
+        calls = []
+        for b in blocks:
+            if b.get("type") != "tool_use":
+                continue
+            if not (isinstance(b.get("id"), str) and b["id"] and isinstance(b.get("name"), str) and b["name"]
+                    and isinstance(b.get("input"), dict)):
+                raise _calls_error(self.name, reply)
+            calls.append(ToolCall(b["id"], b["name"], b["input"]))
+        return Completion(text, i, o, cut_off=reply.cut_off, tool_calls=tuple(calls))
 
 
 class ChatCompletions(_HTTP):
@@ -140,24 +216,45 @@ class ChatCompletions(_HTTP):
     name = "chat-completions"
 
     async def complete(self, system, user, max_tokens):
+        """A review's reply is one JSON object, so it asks for JSON mode; a turn doesn't."""
+        return await self._converse(system, [User(user)], (), max_tokens, {"type": "json_object"})
+
+    async def converse(self, system, history, tools, max_tokens):
+        return await self._converse(system, history, tools, max_tokens, None)
+
+    async def _converse(self, system, history, tools, max_tokens, response_format):
         token = await self._token()
-        text, usage, finish = await self._stream("/chat/completions", {"authorization": f"Bearer {token}"}, {
-            "model": self.model, "max_completion_tokens": max_tokens,
-            "response_format": {"type": "json_object"},
-            "stream": True, "stream_options": {"include_usage": True},
-            "messages": [{"role": "system", "content": system}, {"role": "user", "content": user}],
-        })
+        body = {"model": self.model, "max_completion_tokens": max_tokens}
+        if response_format:
+            body["response_format"] = response_format
+        body |= {"stream": True, "stream_options": {"include_usage": True},
+                 "messages": [{"role": "system", "content": system}] + [m for t in history for m in _chat_turn(t)]}
+        if tools:
+            body["tools"] = [{"type": "function", "function": {"name": t.name, "description": t.description,
+                                                               "parameters": t.parameters}} for t in tools]
+        text, usage, finish, pending = await self._stream("/chat/completions", {"authorization": f"Bearer {token}"}, body)
         i, o = _count(usage.get("prompt_tokens")), _count(usage.get("completion_tokens"))
         if i is None or o is None:
             raise ProviderError("chat-completions response has no token usage")
-        if not text:
-            raise ProviderError("chat-completions response has no message", Completion("", i, o))
-        return Completion(text, i, o, cut_off=finish == "length")
+        reply = Completion(text, i, o, cut_off=finish == "length")
+        calls = []
+        for _, c in sorted(pending.items()):
+            try:
+                arguments = json.loads(c["arguments"] or "{}")
+            except ValueError:
+                arguments = None
+            if not (c["id"] and c["name"] and isinstance(arguments, dict)):
+                raise _calls_error(self.name, reply)
+            calls.append(ToolCall(c["id"], c["name"], arguments))
+        if not text and not calls:
+            raise ProviderError("chat-completions response has no message", reply)
+        return Completion(text, i, o, cut_off=reply.cut_off, tool_calls=tuple(calls))
 
     async def _stream(self, path, headers, body):
         """Reads the server-sent events: the text of each chunk's first choice, in order, the
-        last usage any chunk carried, and the first choice's finish reason."""
-        parts, usage, finish = [], {}, None
+        last usage any chunk carried, the first choice's finish reason, and its tool calls,
+        each assembled from its fragments by index."""
+        parts, usage, finish, calls = [], {}, None, {}
         try:
             async with self.client.stream("POST", self.base_url + path, headers=headers, json=body) as r:
                 if r.status_code != 200:
@@ -181,11 +278,35 @@ class ChatCompletions(_HTTP):
                     delta = first.get("delta") if isinstance(first, dict) else None
                     if isinstance(delta, dict) and isinstance(delta.get("content"), str):
                         parts.append(delta["content"])
+                    for d in (delta.get("tool_calls") if isinstance(delta, dict) else None) or []:
+                        if not isinstance(d, dict) or not isinstance(d.get("index"), int):
+                            raise ProviderError(f"{self.name} streamed a tool call without an index")
+                        c = calls.setdefault(d["index"], {"id": "", "name": "", "arguments": ""})
+                        f = d.get("function") if isinstance(d.get("function"), dict) else {}
+                        c["id"] = c["id"] or (d.get("id") if isinstance(d.get("id"), str) else "")
+                        c["name"] += f.get("name") if isinstance(f.get("name"), str) else ""
+                        c["arguments"] += f.get("arguments") if isinstance(f.get("arguments"), str) else ""
                     if isinstance(first, dict) and isinstance(first.get("finish_reason"), str):
                         finish = first["finish_reason"]
         except httpx.HTTPError as e:
             raise ProviderError(f"{self.name} request failed: {type(e).__name__}")
-        return "".join(parts), usage, finish
+        return "".join(parts), usage, finish, calls
+
+
+def _chat_turn(turn):
+    """A conversation's turn as Chat Completions messages. A tool message has no error flag,
+    so a failed call's result says so in its content."""
+    if isinstance(turn, User):
+        return [{"role": "user", "content": turn.text}]
+    if isinstance(turn, Completion):
+        m = {"role": "assistant", "content": turn.text or None}
+        if turn.tool_calls:
+            m["tool_calls"] = [{"id": c.id, "type": "function",
+                                "function": {"name": c.name, "arguments": json.dumps(c.arguments)}}
+                               for c in turn.tool_calls]
+        return [m]
+    return [{"role": "tool", "tool_call_id": r.call_id, "content": f"error: {r.content}" if r.error else r.content}
+            for r in turn]
 
 
 def create(model, transport=None):
