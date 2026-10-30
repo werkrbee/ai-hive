@@ -168,7 +168,12 @@ def _orchestration(raw, base, auth):
             problems = [str(e)]
         if problems:
             raise ConfigError(f"{where}: registration {name} is invalid: {problems[0]}")
-        registrations[client] = json.loads(path.read_text(encoding="utf-8"))
+        registration = json.loads(path.read_text(encoding="utf-8"))
+        if any(srv["mcp"]["name"] == "delegate" for srv in registration["servers"]):
+            # The model sees delegation as delegate__<agent> and a tool as <server>__<tool>.
+            raise ConfigError(f"{where}: registration {name} names a server 'delegate', which would "
+                              "collide with the delegation tools")
+        registrations[client] = registration
     sweep = _get(o, "sweep_seconds", int, "orchestration", 3600)
     if sweep < 1:
         raise ConfigError("orchestration.sweep_seconds must be at least 1")

@@ -23,8 +23,10 @@ cancelled or expires. Before each turn, the worst case of that turn, its estimat
 and the most output it may write, is checked against what the run has left of its usd,
 tokens and working seconds; the run fails when the turn wouldn't fit. Working seconds
 count the time turns and steps ran, not the time a task waited for a person. A turn cut
-off by a restart is recorded in the ledger at its whole worst case and taken again, but
-the run's own budget counts only the turns it finished.
+off by a restart is recorded in the ledger at its whole worst case and taken again. What a
+run has spent is what the ledger charged to its run ID, that turn included, so the run's
+budget and its hold after the restart both count it, and the month stays within the
+ceiling.
 
 Task states:
   rejected        the ceiling can't hold the run's budget; nothing runs
@@ -555,7 +557,8 @@ class Orchestrator:
         max_out = m.max_output_tokens
         if "tokens" in b:
             max_out = min(max_out, b["tokens"] - spent["tokens"] - est_in)
-        left_usd = b["usd"] - spent["usd"]
+        # The ledger also holds a turn a restart cut off, which the run's own cost never saw.
+        left_usd = b["usd"] - max(spent["usd"], self.ledger.run_spent(run["runId"]))
         if m.output_usd_per_mtok > 0:
             max_out = min(max_out, math.floor((left_usd * 1e6 - est_in * m.input_usd_per_mtok) / m.output_usd_per_mtok))
         elif self.config.price(est_in, 0) > left_usd:
@@ -760,7 +763,8 @@ class Orchestrator:
             if run["status"] in engine.TERMINAL:
                 await self.publish(run["runId"])  # in case the server stopped before it did
                 continue
-            await self.ledger.hold(run["runId"], self.budget["usd"] - run["cost"]["usd"])
+            spent = max(run["cost"]["usd"], self.ledger.run_spent(run["runId"]))
+            await self.ledger.hold(run["runId"], self.budget["usd"] - spent)
             if run["status"] == "working":
                 log.info("resuming run %s", run["runId"])
                 self.spawn(run["runId"])

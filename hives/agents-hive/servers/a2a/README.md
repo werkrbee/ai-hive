@@ -146,7 +146,9 @@ doesn't, and becomes the task's artifact.
 Barry's lists in its delegates, starting with Patricia, and the tools the caller's
 registration maps (`registrations/<caller>/`, checked at startup and in CI). Only tools
 the registration maps to an action are offered; its fact sources are called by the server
-for lookups, never by the model. There is no shell, file system or fetch. The model's
+for lookups, never by the model. A lookup runs when the call is turned into a step,
+before the policy decides it, so it runs even for a call that is then denied. There is no
+shell, file system or fetch. The model's
 arguments go into a step as written, never read as `${…}` references, and never as facts:
 a fact comes from the caller's request or a lookup. Each MCP call carries its step's
 idempotency key in the request's `_meta`, as `io.werkrbee/idempotency-key`, so a call run
@@ -166,7 +168,9 @@ person. Tool calls report no cost yet, so only model turns count.
 **Lifecycle.** `SendMessage` returns as soon as the task is working; a caller polls
 `GetTask`. A run that was working when the server stopped resumes from its record at
 startup, repeating neither a completed turn nor a completed step. A turn cut off by the
-restart is taken again, and the ledger records it at its whole worst case. A paused run
+restart is taken again, and the ledger records it at its whole worst case. What a run has
+spent is what the ledger charged to its run ID, that turn included, so the run's budget
+and the hold it gets after the restart both count it. A paused run
 keeps its hold across a restart and expires after seven days, which fails the task; the
 server checks every `orchestration.sweep_seconds` (an hour by default). `CancelTask`
 cancels a paused task at once and a working one before its next turn or step. Answering an

@@ -17,7 +17,9 @@ An orchestration run holds its whole budget instead, under its run ID, from when
 until it ends, is cancelled or expires. Each turn it pays for is charged to that hold, so
 what it has spent and what it may still spend are never counted twice, and release drops
 what is left. Holds live in this process: a server that restarts holds each unfinished
-run's remainder again (hold), without asking, since the run was already admitted.
+run's remainder again (hold), without asking, since the run was already admitted. What a
+run has spent is what the ledger has charged to its runId (run_spent), a turn a restart
+cut off included, so a restart never counts the same money as both spent and held.
 
 The total is kept in this process, so one server instance must own the ledger. Another
 process that spends against the same ceiling, such as the weekly trust evaluation, keeps
@@ -118,6 +120,7 @@ class Ledger:
         self.reserved = 0.0
         self.holds = {}  # an orchestration run's budget, by run ID, less what it has spent
         self.totals = {}
+        self.by_run = {}  # what each run ID has been charged, in every month
         self.lock = asyncio.Lock()
         # Calls in flight, by task id: the entry to record if the process dies before the
         # call settles. Kept on disk so a crash or kill can't erase possibly billed calls.
@@ -157,9 +160,19 @@ class Ledger:
             f.write(json.dumps(entry, separators=(", ", ": ")) + "\n")
         key = month_of(at)
         self.totals[key] = self.totals.get(key, 0.0) + entry.get("usd", 0)
+        if isinstance(entry.get("runId"), str):
+            self.by_run[entry["runId"]] = self.by_run.get(entry["runId"], 0.0) + entry.get("usd", 0)
 
     def _load(self):
-        self.totals = read_totals(self.path)
+        self.totals = read_totals(self.path)  # checks every entry, so the sums below can't fail
+        for line in self.path.read_text(encoding="utf-8").splitlines():
+            entry = json.loads(line)
+            if isinstance(entry.get("runId"), str):
+                self.by_run[entry["runId"]] = self.by_run.get(entry["runId"], 0.0) + entry.get("usd", 0)
+
+    def run_spent(self, run_id):
+        """What the ledger has charged to run_id: its turns, and any a restart cut off."""
+        return self.by_run.get(run_id, 0.0)
 
     def spent(self, at=None):
         return self.totals.get(month_of(at or self.clock()), 0.0)

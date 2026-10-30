@@ -9,6 +9,7 @@ import asyncio
 import dataclasses
 import datetime
 import json
+import shutil
 import sys
 import tempfile
 import time
@@ -25,7 +26,7 @@ sys.path.insert(0, str(HERE.parent))
 sys.path.insert(0, str(HERE))  # the shared token and key helpers in test_server
 
 from hive_a2a.app import create_app  # noqa: E402
-from hive_a2a.config import ConfigError, load  # noqa: E402
+from hive_a2a.config import REPO_ROOT, ConfigError, load  # noqa: E402
 from hive_a2a.orchestrate import IDEMPOTENCY_META, Network  # noqa: E402
 from hive_a2a.providers import Completion, ToolCall  # noqa: E402
 from test_server import AUDIENCE, CALLER, ISSUER, KEY, OTHER, check_knowledge, token  # noqa: E402
@@ -361,8 +362,20 @@ class OrchestrateTest(unittest.TestCase):
         record = self.record(task_id)
         self.assertEqual((record["turns"]["t1"]["status"], record["turns"]["t2"]["status"]), ("completed", "working"))
         self.assertEqual(record["steps"]["t1-1"]["status"], "completed")
-        second = Scripted(final())
+        second = Scripted(GATE, final())
         with self.client(config, second) as c:
+            for _ in range(200):
+                if second.waiting:
+                    break
+                time.sleep(0.02)
+            [first_turn, cut_off] = self.ledger()
+            self.assertEqual(cut_off["runId"], task_id)
+            self.assertNotIn("tokens", cut_off, "the cut-off turn is recorded at its worst case")
+            # Held again is the budget less both turns: the cut-off one is spending, not held twice.
+            self.assertAlmostEqual(self.holds()[task_id], 5 - first_turn["usd"] - cut_off["usd"], places=6)
+            orchestrator = self.app.state.orchestrator
+            self.assertAlmostEqual(orchestrator.ledger.run_spent(task_id), first_turn["usd"] + cut_off["usd"])
+            c.portal.call(second.gate.set)
             task = self.wait(c, task_id)
         self.assertEqual(task["status"]["state"], "TASK_STATE_COMPLETED", self.text(task))
         self.assertEqual(len(second.seen), 1, "only the cut-off turn is taken again")
@@ -424,6 +437,17 @@ class OrchestrateTest(unittest.TestCase):
             write_config(self.root, callers=(("stranger-app", "lineup"),))
         with self.assertRaisesRegex(ConfigError, "no registration 'nowhere'"):
             write_config(self.root, callers=((CALLER, "nowhere"),))
+        # A registration whose server is named delegate, kept beside lineup's while the test runs.
+        name = f"collision-{uuid.uuid4().hex[:8]}"
+        lineup = REPO_ROOT / "hives/agents-hive/registrations/lineup"
+        here = lineup.parent / name
+        here.mkdir()
+        self.addCleanup(shutil.rmtree, here)
+        for f in ("registration.json", "cases.json"):
+            text = (lineup / f).read_text().replace('"lineup/', '"delegate/').replace('"name": "lineup"', '"name": "delegate"')
+            (here / f).write_text(text.replace('"registration": "lineup"', f'"registration": "{name}"'))
+        with self.assertRaisesRegex(ConfigError, "collide with the delegation tools"):
+            write_config(self.root, callers=((CALLER, name),))
         config = write_config(self.root, delegates=(("security-review", PATRICIA), ("lineup-bot", PATRICIA)))
         with self.assertRaisesRegex(ValueError, "doesn't list lineup-bot"):
             create_app(config, provider=Scripted())
