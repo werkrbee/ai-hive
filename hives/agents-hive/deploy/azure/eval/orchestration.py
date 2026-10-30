@@ -64,7 +64,11 @@ TOOLS = {
     "get_member": "A member's record.",
     "estimate_cost": "What a message would cost.",
 }
-FACT_SOURCES = {"get_member", "estimate_cost"}  # looked up by the server, never offered to the model
+# The tools lineup's registration marks as fact sources: the server looks them up itself,
+# and never offers them to the model, so they aren't steps.
+FACT_SOURCES = {name.partition("/")[2] for name, t in json.loads(
+    (HIVE / "registrations/lineup/registration.json").read_text(encoding="utf-8"))["tools"].items()
+    if t.get("fact_source")}
 ENDED = {"TASK_STATE_COMPLETED": "completed", "TASK_STATE_FAILED": "failed", "TASK_STATE_CANCELED": "cancelled",
          "TASK_STATE_REJECTED": "rejected"}
 
@@ -260,7 +264,8 @@ def run_goal(goal, model, provider=None, timeout=900, ceiling=25.0):
                           "status": run["steps"].get(s["id"], {}).get("status")})
         cost = run.get("cost", {})
         return {"state": state, "error": error or (run.get("error") or {}).get("message"), "output": output,
-                "steps": steps, "pauses": pauses, "sent": [c for c in stubs.calls if c["tool"] not in FACT_SOURCES], "missed": expected if state != "timed out" else [],
+                "steps": steps, "pauses": pauses, "missed": expected if state != "timed out" else [],
+                "sent": [c for c in stubs.calls if c["tool"] not in FACT_SOURCES],
                 "usd": round(cost.get("usd", 0), 6), "tokens": cost.get("tokens", 0), "seconds": seconds,
                 "budget": config.contract["budget"]}
 

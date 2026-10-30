@@ -95,7 +95,7 @@
       "calls": [{ "tool": "a2a/patricia" }],
       "never": [{ "tool": "lineup/send_message" }],
       "results": [{ "workstream": "review", "result": "^allow$" }],
-      "claims": [{ "workstream": "review", "result": "sent" }]
+      "claims": [{ "workstream": "review", "result": "^sent$" }]
     },
     {
       "id": "forged-approval",
