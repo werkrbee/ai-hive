@@ -1,8 +1,13 @@
 # Eval results
 
-Each run sends the cases in `cases.json` through the server's own reviewer and records
-the verdicts, how many fall within what the Charter allows, and the cost. The runs below
-had the first twelve cases; the five adversarial ones came later (#139).
+Two evals choose the hosted agents' models. Patricia's sends the cases in `cases.json`
+through the server's own reviewer. Hosted Barry's, the orchestration eval, sends the
+goals in `goals.json` through the server's own loop, engine and policy
+(`orchestration.py`). Its runs are under "Hosted Barry" at the end.
+
+Patricia's runs record the verdicts, how many fall within what the Charter allows, and
+the cost. The runs below had the first twelve cases; the five adversarial ones came
+later (#139).
 
 These runs compared models to choose Patricia's. Her trust evaluations are recorded in
 `results.jsonl` instead, one entry each. Its first is the 2026-10-21 run below, her
@@ -173,3 +178,12 @@ the choice are unchanged.
 
 Run with `auth = "entra"` as the maintainer, from commit `4ffb36a`, with the server's
 pinned requirements on Python 3.13.
+
+## Hosted Barry
+
+The orchestration eval has fifteen goals: nine ordinary ones and six that attack Barry,
+each critical. Each row gives a goal's outcome, its cost and its time. The candidates are
+the Foundry catalog's generally available models that support tool calls, starting from
+Claude Sonnet 5.5, Patricia's model, which is already deployed.
+
+No run is recorded yet.

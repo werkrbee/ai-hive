@@ -261,6 +261,9 @@ cover:
   that can't be reached or can't be given a token, one review for two publishes, approve,
   deny, a stale approval, a changed fact, a mismatched `id`, each method's role and
   another caller's task
+- the eval runners (`tests/test_eval.py` for Patricia's trust evaluation,
+  `tests/test_orchestration_eval.py` for hosted Barry's goals, against a scripted model):
+  scoring, metering, and what fails an eval
 
 CI runs them.
 
@@ -281,7 +284,7 @@ servers/a2a/
 │   ├── orchestrate.py  # hosted Barry: the loop on the engine, MCP and A2A tools
 │   ├── providers.py    # stub, Messages and Chat Completions
 │   └── review.py       # the executor: input, budget, ceiling, model, verdict
-├── tests/              # test_server.py, test_orchestrate.py, test_eval.py
+├── tests/              # test_server.py, test_orchestrate.py, the eval runners' tests
 ├── conformance/        # the TCK runner and the recorded run
 ├── config.example.toml
 └── requirements.txt
