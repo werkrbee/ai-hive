@@ -176,8 +176,8 @@ class OrchestrateTest(unittest.TestCase):
         self.servers = Servers()
         self.now = [datetime.datetime.now(datetime.timezone.utc)]
 
-    def client(self, config, provider):
-        network = Network(transport=httpx.MockTransport(self.servers), token=fake_token, endpoint=lambda mcp: LINEUP)
+    def client(self, config, provider, token=fake_token):
+        network = Network(transport=httpx.MockTransport(self.servers), token=token, endpoint=lambda mcp: LINEUP)
         self.app = create_app(config, provider=provider, network=network, clock=lambda: self.now[0])
         return TestClient(self.app)
 
@@ -489,6 +489,44 @@ class OrchestrateTest(unittest.TestCase):
                 self.assertEqual(review["verdict"], name if name == "block" else "unreviewed")
                 self.assertIn(said, self.text(task))
                 self.assertEqual(self.servers.sent("send_message"), [], "either way, it waits for the person")
+
+    def test_a_reviewer_token_that_cant_be_had_leaves_it_unreviewed_and_answerable(self):
+        async def no_patricia(scope):
+            if "patricia" in scope:
+                raise RuntimeError("secret detail from the credential chain")
+            return await fake_token(scope)
+
+        model = Scripted(call("lineup__send_message", self.BLAST), final())
+        with self.client(write_config(self.root, reviewer="patricia"), model, token=no_patricia) as c:
+            task = self.paused(c)
+            request = self.request(task)
+            self.assertEqual(request["review"]["verdict"], "unreviewed")
+            self.assertIn("RuntimeError", request["review"]["reason"])
+            self.assertNotIn("secret detail", json.dumps(task), "the caller sees the error's type, not its text")
+            self.assertIn("hasn't reviewed it", self.text(task))
+            self.answer(c, task, id=request["id"], decision="approve", by="usr_7f3a")
+            done = self.wait(c, task["id"], until=("TASK_STATE_COMPLETED", "TASK_STATE_FAILED"))
+        self.assertEqual(done["status"]["state"], "TASK_STATE_COMPLETED", self.text(done))
+        self.assertEqual(len(self.servers.sent("send_message")), 1)
+
+    def test_concurrent_publishes_ask_the_reviewer_once(self):
+        async def slow(scope):  # so the second publish arrives while the first is still asking
+            await asyncio.sleep(0.05)
+            return await fake_token(scope)
+
+        model = Scripted(call("lineup__send_message", self.BLAST))
+        with self.client(write_config(self.root, reviewer="patricia"), model, token=slow) as c:
+            task = self.paused(c)
+            o = self.app.state.orchestrator
+            review = o.review_path(self.request(task)["id"])
+            review.unlink()
+
+            async def twice():
+                await asyncio.gather(o.publish(task["id"]), o.publish(task["id"]))
+
+            c.portal.call(twice)
+        self.assertEqual(len(self.servers.reviews), 2, "one for the first publish, one for both of these")
+        self.assertEqual(o.reviewing, {})
 
     def test_approve_runs_the_recorded_call_and_the_loop_goes_on(self):
         model = Scripted(call("lineup__send_message", self.BLAST), final())

@@ -189,7 +189,11 @@ task's status message then carries one JSON data part, the approval request:
 `id` digests the run, the step, the exact call, its action, the mandates that gate it and
 the values shown. The review informs the person and doesn't replace them: a `block` still
 goes to them, flagged in the status text, and a reviewer that can't be reached leaves the
-request `unreviewed`, with why. The client that started the task answers it with a
+request `unreviewed`, with why. The reviewer is sent the tool, the action, the call's
+full arguments, what the person will be shown, the run's goal and the caller's request,
+so it should be a delegate trusted with all of that. It is asked once for each approval,
+and its review is paid for by the reviewer, against its own ceiling, not by the run's
+budget. The client that started the task answers it with a
 message on the same task carrying one data part:
 
 ```json
@@ -253,7 +257,8 @@ cover:
 - the HTTP providers' request shapes
 - orchestration (`tests/test_orchestrate.py`, against a scripted model and mock MCP and
   A2A servers): the loop, delegation, allowed, gated and denied calls, budget stops, the
-  ceiling, resume, expiry and cancel; approvals: the request and its review, approve,
+  ceiling, resume, expiry and cancel; approvals: the request and its review, a reviewer
+  that can't be reached or can't be given a token, one review for two publishes, approve,
   deny, a stale approval, a changed fact, a mismatched `id`, each method's role and
   another caller's task
 

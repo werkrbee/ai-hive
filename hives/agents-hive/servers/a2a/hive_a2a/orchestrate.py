@@ -411,6 +411,7 @@ class Orchestrator:
         self.closing = False
         self.sweeper = None
         self.publishing = asyncio.Lock()
+        self.reviewing = {}  # approval ID -> lock, so two publishes ask the reviewer once
 
     # Requests
 
@@ -796,6 +797,14 @@ class Orchestrator:
         """The reviewer's verdict on what a paused run asks a person to approve, asked once
         for each approval and kept beside the run records, or unreviewed when it can't be had."""
         p = run["pending"]
+        try:
+            async with self.reviewing.setdefault(p["id"], asyncio.Lock()):
+                return await self._review(run, p)
+        finally:
+            # A publish still waiting holds the old lock and finds the review written.
+            self.reviewing.pop(p["id"], None)
+
+    async def _review(self, run, p):
         path = self.review_path(p["id"])
         if path.is_file():
             return json.loads(path.read_text())
@@ -810,6 +819,9 @@ class Orchestrator:
                 verdict = None if error else json.loads(content)
             except (McpError, ValueError) as e:
                 content, verdict = str(e), None
+            except Exception as e:  # a token failure, say: unreviewed, never stuck, and no internals in the text
+                log.warning("reviewing %s failed: %r", run["runId"], e)
+                content, verdict = f"the reviewer couldn't be reached ({type(e).__name__}).", None
             if isinstance(verdict, dict) and isinstance(verdict.get("verdict"), str):
                 review = {k: verdict[k] for k in ("verdict", "reason", "conditions") if k in verdict}
             else:
