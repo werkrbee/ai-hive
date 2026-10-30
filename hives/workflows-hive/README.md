@@ -278,7 +278,11 @@ calling again once the turn has completed. So a loop restarted after a crash rep
 turns and steps from the record and repeats neither. `finish` completes the run with its
 result. `open` takes a `run_id`, for a server whose task IDs are its run IDs, and a step
 with `"literal": true` keeps its input and actions as written, without `${…}` references,
-for the arguments a model chose.
+for the arguments a model chose. `amend` replaces what a step that hasn't run will do,
+such as facts looked up again before an approved call, and the step is decided afresh, so
+an approval of what it was before no longer matches and the run waits again. A step or
+turn marks its own thread as inside its run, so a server running runs on threads can take
+a person's answer on another, while a process a step starts is still refused.
 
 ```python
 import sys

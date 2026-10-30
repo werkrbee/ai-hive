@@ -173,9 +173,46 @@ spent is what the ledger charged to its run ID, that turn included, so the run's
 and the hold it gets after the restart both count it. A paused run
 keeps its hold across a restart and expires after seven days, which fails the task; the
 server checks every `orchestration.sweep_seconds` (an hour by default). `CancelTask`
-cancels a paused task at once and a working one before its next turn or step. Answering an
-approval over A2A, and Patricia's review in it, aren't served yet, so a paused task waits
-until it is cancelled or expires, and a message on an existing task is refused.
+cancels a paused task at once and a working one before its next turn or step.
+
+**Approvals.** Before a gated step pauses its task, the executor, not the model, asks the
+delegate named in `orchestration.reviewer` (Patricia) to review the action. The paused
+task's status message then carries one JSON data part, the approval request:
+
+```json
+{"approval": {"id": "sha256:…", "step": "t1-1", "tool": "lineup/send_message",
+  "action": "message.send", "rules": ["organizer.blast"],
+  "present": {"message": "Game moved to 7pm.", "recipient count": 14, "estimated cost": "$0.11"},
+  "review": {"verdict": "allow", "reason": "…"}, "expiresAt": "2026-11-06T14:02:12Z"}}
+```
+
+`id` digests the run, the step, the exact call, its action, the mandates that gate it and
+the values shown. The review informs the person and doesn't replace them: a `block` still
+goes to them, flagged in the status text, and a reviewer that can't be reached leaves the
+request `unreviewed`, with why. The client that started the task answers it with a
+message on the same task carrying one data part:
+
+```json
+{"approval": {"id": "sha256:…", "decision": "approve", "by": "usr_7f3a"}}
+```
+
+`by` is an opaque ID for the person who decided, never a name or an email. A denial
+carries `"decision": "deny"` and a `reason`, and fails the run. An answer whose `id` isn't
+the pending one is refused (`InvalidParamsError`, with the pending `id` in its details),
+as is one from another caller ("task not found"). An approval runs the recorded call,
+without asking the model again, once its facts and presented values are looked up again
+and the policy has decided it again. If anything the `id` covers changed while the task
+waited, the approval is void and the task pauses again with a new request. The engine
+records `by`, the time and `a2a` on the step. The product is responsible for asking the
+person through its own sign-in, and its client-credentials token is its attestation that
+they did.
+
+**Roles.** Starting or cancelling a task needs a token with the `Orchestration.Request` app
+role, and answering an approval needs `Orchestration.Approve`
+(`orchestration.request_roles` and `approve_roles`). Reading a task needs neither, only to
+be the client that started it. A token without the role gets `InvalidRequestError`
+(-32600), since A2A has no authorization error of its own. Leave `auth.required_roles`
+empty, or list both, so a client holding only one can still use what it holds.
 
 ## Run it
 
@@ -216,7 +253,9 @@ cover:
 - the HTTP providers' request shapes
 - orchestration (`tests/test_orchestrate.py`, against a scripted model and mock MCP and
   A2A servers): the loop, delegation, allowed, gated and denied calls, budget stops, the
-  ceiling, resume, expiry and cancel
+  ceiling, resume, expiry and cancel; approvals: the request and its review, approve,
+  deny, a stale approval, a changed fact, a mismatched `id`, each method's role and
+  another caller's task
 
 CI runs them.
 

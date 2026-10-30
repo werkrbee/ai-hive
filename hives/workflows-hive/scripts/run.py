@@ -64,6 +64,7 @@ import multiprocessing
 import os
 import re
 import sys
+import threading
 import time
 import uuid
 from datetime import datetime, timedelta, timezone
@@ -444,25 +445,47 @@ def approval_id(run, step, inp, reqs, rules, values):
                                "actions": reqs, "rules": rules, "present": values})
 
 
+_inside = threading.local()  # the run this thread is inside, if any
+_marks = {"count": 0, "before": None}  # how many threads are inside a run, and what the environment held
+_marks_lock = threading.Lock()
+
+
 @contextlib.contextmanager
 def marked(run_id):
-    """Mark the environment as inside run_id, for a step's worker or a model turn and any
-    process it starts, so an answer to the queue from there is refused."""
-    before = os.environ.get(RUN_ENV)
-    os.environ[RUN_ENV] = run_id
+    """Mark the thread, and the environment any process it starts inherits, as inside run_id,
+    for a step's worker or a model turn, so an answer to the queue from there is refused.
+
+    The thread is marked on its own, so a server running several runs on threads can still
+    take a person's answer on another thread. The environment is shared by every thread, so
+    it holds a run ID while any thread is inside one, and goes back to what it held before
+    once none is."""
+    with _marks_lock:
+        if _marks["count"] == 0:
+            _marks["before"] = os.environ.get(RUN_ENV)
+        _marks["count"] += 1
+        os.environ[RUN_ENV] = run_id
+    outer, _inside.run = getattr(_inside, "run", None), run_id
     try:
         yield
     finally:
-        if before is None:
-            os.environ.pop(RUN_ENV, None)
-        else:
-            os.environ[RUN_ENV] = before
+        _inside.run = outer
+        with _marks_lock:
+            _marks["count"] -= 1
+            if _marks["count"] == 0:
+                if _marks["before"] is None:
+                    os.environ.pop(RUN_ENV, None)
+                else:
+                    os.environ[RUN_ENV] = _marks["before"]
 
 
 def outside_runs():
-    """Refuse a person's answer from inside an engine run, where only an agent could be."""
-    if os.environ.get(RUN_ENV):
-        raise EngineError(f"refusing to answer from inside run {os.environ[RUN_ENV]}: an agent never "
+    """Refuse a person's answer from inside an engine run, where only an agent could be: on a
+    thread inside one, or in a process an engine run started."""
+    with _marks_lock:
+        inherited = _marks["before"] if _marks["count"] else os.environ.get(RUN_ENV)
+    inside = getattr(_inside, "run", None) or inherited
+    if inside:
+        raise EngineError(f"refusing to answer from inside run {inside}: an agent never "
                           "answers its own queue")
 
 
@@ -920,6 +943,26 @@ class Engine:
         run["steps"][step["id"]] = new_step_state(run["runId"], step["id"])
         run["next"] = run["next"] or step["id"]
         self.save(run)  # the step is durable before it can run
+        return run
+
+    def amend(self, run, step_id, inp, actions):
+        """Replace the input and actions of an open run's step that hasn't run yet, such as
+        facts and presented values looked up again before an approved call runs. The step is
+        checked as an appended one is, and decided afresh when it runs, so an approval of what
+        it was before no longer matches and the run waits again."""
+        if not run.get("open"):
+            raise EngineError(f"run {run['runId']} follows the {run['workflow']} plan; only an open run's "
+                              "steps can be amended")
+        if run["status"] not in ("working", "input_required"):
+            raise EngineError(f"run {run['runId']} is {run['status']}; its steps can't be amended")
+        steps = run["plan"]["steps"]
+        i = next((n for n, st in enumerate(steps) if st["id"] == step_id), None)
+        if i is None or run["steps"][step_id]["status"] != "not_started" or steps[i]["worker"] == DELEGATE:
+            raise EngineError(f"run {run['runId']} has no step '{step_id}' waiting to run that can be amended")
+        step = copy.deepcopy(dict(steps[i], input=inp, actions=actions))
+        check_step(step, self.workers, self.contracts_dir, load_policy(run["policy"]))
+        steps[i] = step
+        self.save(run)
         return run
 
     def turn(self, run, turn_id, call):

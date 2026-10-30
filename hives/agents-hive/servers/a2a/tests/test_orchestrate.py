@@ -38,7 +38,8 @@ WAITS = ("TASK_STATE_COMPLETED", "TASK_STATE_FAILED", "TASK_STATE_CANCELED", "TA
          "TASK_STATE_INPUT_REQUIRED")
 
 
-def write_config(root, ceiling=25.0, callers=((CALLER, "lineup"),), delegates=(("patricia", PATRICIA),)):
+def write_config(root, ceiling=25.0, callers=((CALLER, "lineup"),), delegates=(("patricia", PATRICIA),),
+                 reviewer=None):
     jwk = json.loads(jwt.algorithms.RSAAlgorithm.to_jwk(KEY.public_key()))
     (root / "jwks.json").write_text(json.dumps({"keys": [{**jwk, "kid": "k1", "use": "sig", "alg": "RS256"}]}))
     tables = "".join(f'\n[[orchestration.delegates]]\nname = "{n}"\nurl = "{u}"\ncapability = "governance-review"\n'
@@ -73,6 +74,7 @@ max_output_tokens = 2000
 [orchestration]
 passport = "barry"
 state_dir = "data/runs"
+{f'reviewer = "{reviewer}"' if reviewer else ""}
 {tables}""")
     return load(root / "config.toml")
 
@@ -85,6 +87,7 @@ def final(value=FINAL, **usage):
     return Completion(json.dumps(value), usage.get("i", 100), usage.get("o", 20))
 
 
+BOTH = ("Orchestration.Request", "Orchestration.Approve")
 GATE = object()  # in a script: wait until the test opens the gate
 
 
@@ -122,13 +125,19 @@ class Servers:
 
     def __init__(self):
         self.calls, self.reviews = [], []
+        self.members = dict(self.MEMBERS)
+        self.estimate = "$0.02"
+        self.verdict = {"verdict": "allow", "reason": "Fine."}
+        self.patricia_up = True
 
     def __call__(self, request):
         body = json.loads(request.content)
         if request.url.host == "patricia.test":
             self.reviews.append({"auth": request.headers["authorization"], "body": body})
+            if not self.patricia_up:
+                return httpx.Response(503)
             task = {"id": "p1", "contextId": "pc", "status": {"state": "TASK_STATE_COMPLETED"},
-                    "artifacts": [{"artifactId": "a", "parts": [{"data": {"verdict": "allow", "reason": "Fine."}}]}]}
+                    "artifacts": [{"artifactId": "a", "parts": [{"data": self.verdict}]}]}
             return httpx.Response(200, json={"jsonrpc": "2.0", "id": body["id"], "result": {"task": task}})
         assert request.headers["authorization"] == "Bearer token-for-api://<lineup-api-app-id>/.default"
         if "id" not in body:
@@ -143,9 +152,9 @@ class Servers:
             return httpx.Response(200, json={"jsonrpc": "2.0", "id": body["id"], "result": {"tools": tools}})
         self.calls.append({"tool": params["name"], "arguments": params["arguments"], "meta": params.get("_meta")})
         if params["name"] == "get_member":
-            result = {"structuredContent": {"notifyOptIn": self.MEMBERS.get(params["arguments"]["member"])}}
+            result = {"structuredContent": {"notifyOptIn": self.members.get(params["arguments"]["member"])}}
         elif params["name"] == "estimate_cost":
-            result = {"content": [{"type": "text", "text": json.dumps({"estimate": "$0.02"})}]}
+            result = {"content": [{"type": "text", "text": json.dumps({"estimate": self.estimate})}]}
         else:
             result = {"content": [{"type": "text", "text": f"{params['name']} done"}]}
         event = json.dumps({"jsonrpc": "2.0", "id": body["id"], "result": result})
@@ -172,8 +181,8 @@ class OrchestrateTest(unittest.TestCase):
         self.app = create_app(config, provider=provider, network=network, clock=lambda: self.now[0])
         return TestClient(self.app)
 
-    def rpc(self, client, method, params, who=CALLER):
-        headers = {"A2A-Version": "1.0", "Authorization": f"Bearer {token(who)}"}
+    def rpc(self, client, method, params, who=CALLER, roles=BOTH):
+        headers = {"A2A-Version": "1.0", "Authorization": f"Bearer {token(who, roles=list(roles))}"}
         r = client.post("/", json={"jsonrpc": "2.0", "id": 1, "method": method, "params": params}, headers=headers)
         self.assertEqual(r.status_code, 200, r.text)
         return r.json()
@@ -186,6 +195,16 @@ class OrchestrateTest(unittest.TestCase):
         reply = self.rpc(client, "SendMessage", {"message": message}, who)
         self.assertIn("result", reply, reply)
         return reply["result"]["task"]
+
+    def answer(self, client, task, who=CALLER, roles=BOTH, **approval):
+        message = {"messageId": str(uuid.uuid4()), "role": "ROLE_USER", "taskId": task["id"],
+                   "contextId": task["contextId"], "parts": [{"data": {"approval": approval}}]}
+        return self.rpc(client, "SendMessage", {"message": message}, who, roles)
+
+    def request(self, task):
+        """The approval request a paused task's status message carries."""
+        [data] = [p["data"] for p in task["status"]["message"]["parts"] if "data" in p]
+        return data["approval"]
 
     def wait(self, client, task_id, until=WAITS, who=CALLER):
         for _ in range(200):
@@ -429,6 +448,160 @@ class OrchestrateTest(unittest.TestCase):
             self.assertNotIn(working, self.holds())
             self.assertEqual(self.wait(c, working)["status"]["state"], "TASK_STATE_CANCELED")
         self.assertEqual(self.servers.calls, [], "neither run's call ran")
+
+    # --- approvals over A2A ----------------------------------------------
+
+    BLAST = {"channel": "sms", "audience": "group", "recipients": ["m1", "m2"], "text": "Game moved to 7pm."}
+    ORGANIZER = {"actor.role": "organizer"}
+
+    def paused(self, c):
+        task = self.wait(c, self.start(c, facts=self.ORGANIZER)["id"])
+        self.assertEqual(task["status"]["state"], "TASK_STATE_INPUT_REQUIRED", self.text(task))
+        return task
+
+    def test_a_paused_task_carries_the_approval_request_and_patricias_review(self):
+        model = Scripted(call("lineup__send_message", self.BLAST))
+        with self.client(write_config(self.root, reviewer="patricia"), model) as c:
+            task = self.paused(c)
+        request = self.request(task)
+        self.assertTrue(request["id"].startswith("sha256:"))
+        self.assertEqual((request["step"], request["tool"], request["action"], request["rules"]),
+                         ("t1-1", "lineup/send_message", "message.send", ["organizer.blast"]))
+        self.assertEqual(request["present"], {"message": "Game moved to 7pm.", "recipient count": 2,
+                                              "estimated cost": "$0.02"})
+        self.assertEqual(request["review"], {"verdict": "allow", "reason": "Fine."})
+        self.assertEqual(request["id"], self.record(task["id"])["pending"]["id"])
+        [review] = self.servers.reviews
+        proposal = review["body"]["params"]["message"]["parts"][0]["data"]["proposal"]
+        self.assertIn("lineup/send_message", proposal)
+        self.assertIn("Game moved to 7pm.", proposal)
+        self.assertEqual(len(model.seen), 1, "the executor asks for the review, not the model")
+
+    def test_a_block_is_flagged_and_an_unreachable_reviewer_leaves_it_unreviewed(self):
+        for name, verdict, up, said in (("block", {"verdict": "block", "reason": "Too broad."}, True, "flagged it"),
+                                        ("down", None, False, "hasn't reviewed it")):
+            with self.subTest(name):
+                self.servers.verdict, self.servers.patricia_up = verdict, up
+                model = Scripted(call("lineup__send_message", self.BLAST))
+                with self.client(write_config(self.root, reviewer="patricia"), model) as c:
+                    task = self.paused(c)
+                review = self.request(task)["review"]
+                self.assertEqual(review["verdict"], name if name == "block" else "unreviewed")
+                self.assertIn(said, self.text(task))
+                self.assertEqual(self.servers.sent("send_message"), [], "either way, it waits for the person")
+
+    def test_approve_runs_the_recorded_call_and_the_loop_goes_on(self):
+        model = Scripted(call("lineup__send_message", self.BLAST), final())
+        with self.client(write_config(self.root, reviewer="patricia"), model) as c:
+            task = self.paused(c)
+            request = self.request(task)
+            r = self.answer(c, task, id=request["id"], decision="approve", by="usr_7f3a")
+            self.assertEqual(r["result"]["task"]["status"]["state"], "TASK_STATE_WORKING", r)
+            done = self.wait(c, task["id"], until=("TASK_STATE_COMPLETED", "TASK_STATE_FAILED"))
+            holds = self.holds()
+        self.assertEqual(done["status"]["state"], "TASK_STATE_COMPLETED", self.text(done))
+        [sent] = self.servers.sent("send_message")
+        self.assertEqual(sent["arguments"], self.BLAST, "the recorded call, exactly")
+        self.assertEqual(sent["meta"], {IDEMPOTENCY_META: f"{task['id']}:t1-1"})
+        self.assertEqual(len(self.servers.sent("estimate_cost")), 2, "looked up again before it ran")
+        approval = self.record(task["id"])["steps"]["t1-1"]["approval"]
+        self.assertEqual((approval["decision"], approval["by"], approval["via"], approval["id"]),
+                         ("approved", "usr_7f3a", "a2a", request["id"]))
+        self.assertEqual(len(model.seen), 2, "approval runs the call without asking the model again")
+        self.assertEqual(holds, {})
+
+    def test_deny_fails_the_run(self):
+        with self.client(write_config(self.root), Scripted(call("lineup__send_message", self.BLAST))) as c:
+            task = self.paused(c)
+            self.answer(c, task, id=self.request(task)["id"], decision="deny", by="usr_7f3a", reason="Not tonight.")
+            done = self.wait(c, task["id"], until=("TASK_STATE_FAILED",))
+            self.assertEqual(self.holds(), {})
+        self.assertIn("approval denied by usr_7f3a: Not tonight.", self.text(done))
+        self.assertEqual(self.servers.sent("send_message"), [])
+
+    def test_a_stale_approval_is_void_and_the_task_asks_again(self):
+        model = Scripted(call("lineup__send_message", self.BLAST), final())
+        with self.client(write_config(self.root), model) as c:
+            task = self.paused(c)
+            first = self.request(task)
+            self.servers.estimate = "$0.05"  # what the person was shown has changed
+            self.answer(c, task, id=first["id"], decision="approve", by="usr_7f3a")
+            for _ in range(200):
+                again = self.rpc(c, "GetTask", {"id": task["id"]})["result"]
+                if again["status"]["state"] == "TASK_STATE_INPUT_REQUIRED" and self.request(again)["id"] != first["id"]:
+                    break
+                time.sleep(0.02)
+            second = self.request(again)
+            self.assertNotEqual(second["id"], first["id"])
+            self.assertEqual(second["present"]["estimated cost"], "$0.05")
+            self.assertEqual(self.servers.sent("send_message"), [], "the stale approval ran nothing")
+            refused = self.answer(c, again, id=first["id"], decision="approve", by="usr_7f3a")
+            self.assertEqual(refused["error"]["code"], -32602)
+            self.answer(c, again, id=second["id"], decision="approve", by="usr_7f3a")
+            done = self.wait(c, task["id"], until=("TASK_STATE_COMPLETED", "TASK_STATE_FAILED"))
+        self.assertEqual(done["status"]["state"], "TASK_STATE_COMPLETED", self.text(done))
+        self.assertEqual(len(self.servers.sent("send_message")), 1)
+
+    def test_a_fact_that_changed_while_it_waited_can_deny_the_approved_call(self):
+        with self.client(write_config(self.root), Scripted(call("lineup__send_message", self.BLAST))) as c:
+            task = self.paused(c)
+            self.servers.members["m2"] = False  # m2 opted out while the task waited
+            self.answer(c, task, id=self.request(task)["id"], decision="approve", by="usr_7f3a")
+            done = self.wait(c, task["id"], until=("TASK_STATE_FAILED",))
+        self.assertIn("prohibited by messages.opt-in-only", self.text(done))
+        self.assertEqual(self.servers.sent("send_message"), [])
+
+    def test_an_answer_that_doesnt_answer_what_is_pending_is_refused(self):
+        with self.client(write_config(self.root), Scripted(call("lineup__send_message", self.BLAST), final())) as c:
+            task = self.paused(c)
+            pid = self.request(task)["id"]
+            cases = {
+                "another id": dict(id="sha256:" + "0" * 64, decision="approve", by="usr_7f3a"),
+                "a denial without a reason": dict(id=pid, decision="deny", by="usr_7f3a"),
+                "a name, not an actor ID": dict(id=pid, decision="approve", by="Jane Doe"),
+                "an unknown decision": dict(id=pid, decision="maybe", by="usr_7f3a"),
+            }
+            for name, approval in cases.items():
+                with self.subTest(name):
+                    self.assertEqual(self.answer(c, task, **approval)["error"]["code"], -32602)
+            mismatch = self.answer(c, task, **cases["another id"])["error"]
+            # A2A carries an error's data as google.rpc.ErrorInfo metadata.
+            self.assertEqual(mismatch["data"][0]["metadata"]["pending"], pid)
+            self.assertEqual(self.rpc(c, "GetTask", {"id": task["id"]})["result"]["status"]["state"],
+                             "TASK_STATE_INPUT_REQUIRED")
+            self.answer(c, task, id=pid, decision="approve", by="usr_7f3a")
+            self.wait(c, task["id"], until=("TASK_STATE_COMPLETED",))
+            late = self.answer(c, task, id=pid, decision="approve", by="usr_7f3a")
+            self.assertIn("error", late, "a task that ended takes no answer")
+        self.assertEqual(len(self.servers.sent("send_message")), 1)
+
+    def test_each_method_needs_its_role(self):
+        with self.client(write_config(self.root), Scripted(call("lineup__send_message", self.BLAST))) as c:
+            message = {"messageId": "m", "role": "ROLE_USER", "parts": [{"data": {"goal": "g"}}]}
+            started = self.rpc(c, "SendMessage", {"message": message}, roles=("Orchestration.Approve",))
+            self.assertEqual(started["error"]["code"], -32600)
+            self.assertIn("Orchestration.Request", started["error"]["message"])
+            task = self.paused(c)
+            pid = self.request(task)["id"]
+            answered = self.answer(c, task, roles=("Orchestration.Request",), id=pid, decision="approve", by="usr_7f3a")
+            self.assertEqual(answered["error"]["code"], -32600)
+            self.assertIn("Orchestration.Approve", answered["error"]["message"])
+            cancelled = self.rpc(c, "CancelTask", {"id": task["id"]}, roles=("Orchestration.Approve",))
+            self.assertEqual(cancelled["error"]["code"], -32600)
+            self.assertEqual(self.rpc(c, "GetTask", {"id": task["id"]}, roles=())["result"]["status"]["state"],
+                             "TASK_STATE_INPUT_REQUIRED", "reading your own task needs no role")
+        self.assertEqual(self.servers.sent("send_message"), [])
+
+    def test_another_caller_can_neither_see_nor_answer_a_task(self):
+        with self.client(write_config(self.root), Scripted(call("lineup__send_message", self.BLAST))) as c:
+            task = self.paused(c)
+            pid = self.request(task)["id"]
+            self.assertEqual(self.rpc(c, "GetTask", {"id": task["id"]}, who=OTHER)["error"]["code"], -32001)
+            theirs = self.answer(c, task, who=OTHER, id=pid, decision="approve", by="usr_7f3a")
+            self.assertEqual(theirs["error"]["code"], -32001)
+            self.assertEqual(self.rpc(c, "GetTask", {"id": task["id"]})["result"]["status"]["state"],
+                             "TASK_STATE_INPUT_REQUIRED")
+        self.assertEqual(self.servers.sent("send_message"), [])
 
     # --- config ----------------------------------------------------------
 
