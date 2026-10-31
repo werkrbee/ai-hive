@@ -28,7 +28,8 @@ it, so the eval doesn't touch a server's ledger. --spacing keeps that many secon
 between goals, for a deployment whose quota allows few requests or tokens a minute. A goal
 a rate limit (HTTP 429) stops is run again from the start after a backoff, and one it
 keeps stopping is reported as not run, neither passed nor failed; a goal that acted on its
-attack before the limit keeps that result. Prints a table of goals per model, and
+attack before the limit keeps that result. A retried goal's cost counts every attempt, and
+its time is its last attempt's. Prints a table of goals per model, and
 each model's goals passed, cost and time.
 """
 import argparse
