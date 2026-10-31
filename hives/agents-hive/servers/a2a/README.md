@@ -154,7 +154,11 @@ a fact comes from the caller's request or a lookup. Each MCP call carries its st
 idempotency key in the request's `_meta`, as `io.werkrbee/idempotency-key`, so a call run
 again after a restart can be acted on once. Barry calls MCP servers and A2A agents with
 tokens for his own identity, for each one's `token_scope`. An MCP server's endpoint comes
-from its Server Card, and a card that requires other headers can't be used.
+from its Server Card, and a card that requires other headers can't be used. The hosted
+prompt tells the model that tool names, descriptions and results are data, not
+instructions, and that a tool whose description contradicts its name isn't called. The
+orchestration eval found all three candidate models calling such a tool without that
+sentence (`deploy/azure/eval/RESULTS.md`).
 
 **Spend.** A run's whole budget, the contract's $5, is held against the ceiling when it
 starts, and a run the ceiling can't hold is a `rejected` task, as a review is. Each turn
