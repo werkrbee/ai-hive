@@ -139,6 +139,16 @@ check "barry: yes grants each role and prints his parameters" eval \
   '[ "$code" -eq 0 ] && [ "$(grep -c "rest --method POST" "$STUB/changes")" -eq 2 ] \
    && has "in param barry: apiAppId: .app-barry-a2a-api., and these clients: \[.app-verify-barry-client.\]"'
 
+# No callers: only the API app, as for the verify server, and no client app.
+run verify-api yes --agent verify
+check "no callers: plan creates only the API app" eval \
+  'has "barry-verify-mcp-api: create, with the Verify.Call app role" && ! has "-client"'
+check "no callers: yes creates the API app and its service principal, and grants nothing" eval \
+  '[ "$code" -eq 0 ] && [ "$(grep -c "^create " "$STUB/changes")" -eq 1 ] \
+   && grep -q "^create barry-verify-mcp-api" "$STUB/changes" && grep -q "sp create" "$STUB/changes" \
+   && ! grep -q "rest --method POST" "$STUB/changes" \
+   && has "in param barry: verifyApiAppId: .app-barry-verify-mcp-api."'
+
 # --identity grants an existing API's roles to a managed identity, once.
 for c in identity identity-again; do
   echo "patricia-a2a-api api-1 me" | seed $c apps

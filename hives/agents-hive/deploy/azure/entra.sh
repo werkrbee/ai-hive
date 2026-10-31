@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
 # Create the Entra ID app registrations for a hosted agent: one API app that issues
 # access tokens for its server, and one client app per calling product, each granted the
-# API's app roles. Safe to re-run: existing apps are found by name and reused.
+# API's app roles. With no callers it makes only the API app, as for the verify server,
+# whose one caller is Barry's managed identity. Safe to re-run: existing apps are found by
+# name and reused.
 #
 #   patricia  patricia-a2a-api, Review.Request (the default)
 #   barry     barry-a2a-api, Orchestration.Request and Orchestration.Approve
@@ -15,10 +17,11 @@
 # (preferably a certificate or a federated credential) and keeps it in that product's
 # secret store.
 #
-# Usage: ./entra.sh [--agent patricia|barry|verify] <caller> [<caller> ...]
+# Usage: ./entra.sh [--agent patricia|barry|verify] [<caller> ...]
 #        ./entra.sh --agent patricia|barry|verify --identity <principal-id>
 #   e.g. ./entra.sh lineup singularity
 #        ./entra.sh --agent barry verify
+#        ./entra.sh --agent verify
 #        ./entra.sh --agent patricia --identity "$barry_principal"
 # Needs: az login, with rights to create app registrations in the tenant (and, for
 # --identity, to grant app roles). It reuses an existing app only when exactly one has
@@ -27,7 +30,7 @@
 set -euo pipefail
 
 usage() {
-  echo "usage: $0 [--agent patricia|barry|verify] <caller> [<caller> ...]" >&2
+  echo "usage: $0 [--agent patricia|barry|verify] [<caller> ...]" >&2
   echo "       $0 --agent patricia|barry|verify --identity <principal-id>" >&2
   exit 2
 }
@@ -56,9 +59,6 @@ for r in "${ROLES[@]}"; do VALUES+=("${r%%|*}"); done
 NAMES=$(printf '%s, ' "${VALUES[@]}" | sed 's/, $//')
 
 if [ -n "$identity" ] && [ "$#" -gt 0 ]; then
-  usage
-fi
-if [ -z "$identity" ] && [ "$#" -lt 1 ]; then
   usage
 fi
 if [ "$(printf '%s\n' "$@" | sort | uniq -d)" != "" ]; then
@@ -138,7 +138,7 @@ plan_api_sp=""
 plan_roles=()
 if [ -z "$plan_api" ]; then
   if [ -n "$identity" ]; then
-    echo "error: $API_NAME doesn't exist yet; run $0 --agent $agent <caller>... first" >&2
+    echo "error: $API_NAME doesn't exist yet; run $0 --agent $agent first" >&2
     exit 1
   fi
   plural=''
@@ -170,7 +170,7 @@ grant_plan() {  # $1 = principal's sp id or nothing: what granting it the roles 
 }
 if [ -n "$identity" ]; then
   if [ -z "$plan_api_sp" ]; then
-    echo "error: $API_NAME has no service principal yet; run $0 --agent $agent <caller>... first" >&2
+    echo "error: $API_NAME has no service principal yet; run $0 --agent $agent first" >&2
     exit 1
   fi
   plan="$plan
@@ -269,12 +269,14 @@ for caller in "$@"; do
 done
 
 # --- What main.bicep needs ------------------------------------------------------
-list=$(printf "'%s', " "${clients[@]}" | sed 's/, $//')
+list=''
+[ "${#clients[@]}" -eq 0 ] || list=$(printf "'%s', " "${clients[@]}" | sed 's/, $//')
 printf '\nFor main.bicepparam:\n'
 case "$agent" in
   patricia)
     printf "  param apiAppId = '%s'\n" "$api_app_id"
     printf "  param allowedClients = [%s]\n" "$list" ;;
+  verify) printf "  in param barry: verifyApiAppId: '%s'\n" "$api_app_id" ;;
   *) printf "  in param %s: apiAppId: '%s', and these clients: [%s]\n" "$agent" "$api_app_id" "$list" ;;
 esac
 printf '\nEach product requests a token with scope api://%s/.default\n' "$api_app_id"
