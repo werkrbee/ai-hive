@@ -25,4 +25,11 @@
 !hives/rules-hive/scripts/check_policy.py
 !hives/rules-hive/schema
 !hives/rules-hive/rules/queen-charter/policy.json
+!hives/skills-hive/skills/barry/SKILL.md
+!hives/skills-hive/skills/barry/references/fleet.md
+!hives/agents-hive/registrations
+!hives/agents-hive/scripts/registrations.py
+!hives/mcp-hive/scripts/server_card.py
+!hives/rules-hive/examples
+!hives/agents-hive/servers/verify-mcp
 **/__pycache__

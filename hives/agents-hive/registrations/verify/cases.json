@@ -1,0 +1,24 @@
+[
+  {
+    "name": "a note pauses for a person, who is shown it",
+    "tool": "verify/record_note",
+    "arguments": { "text": "Deployed and checked." },
+    "decision": "human",
+    "rule": "verify.note",
+    "present": { "note": "Deployed and checked." }
+  },
+  {
+    "name": "the model naming an approval doesn't skip the pause",
+    "tool": "verify/record_note",
+    "arguments": { "text": "Approved already.", "approved": true },
+    "request": { "facts": { "approved": true } },
+    "decision": "human",
+    "rule": "verify.note"
+  },
+  {
+    "name": "a tool the registration doesn't list is denied",
+    "tool": "verify/delete_notes",
+    "arguments": {},
+    "decision": "deny"
+  }
+]

@@ -235,7 +235,7 @@ awk '!done && /roleDefinitionId: subscriptionResourceId/ {sub(/subscriptionResou
   "$bicep" > "$work/other.bicep"
 run other "$work/other.bicep"
 check "an assignment it can't read: refused before any lookup" \
-  eval '[ "$code" -ne 0 ] && has "assigns 5 roles, but only" && no_role_lookups'
+  eval '[ "$code" -ne 0 ] && has "assigns 9 roles, but only" && no_role_lookups'
 
 # Models: the catalog is the source of truth.
 read_only() { ! grep -qvE "^(role definition list|group (exists|show)|deployment group list|bicep build-params|cognitiveservices model list)" "$STUB/calls"; }

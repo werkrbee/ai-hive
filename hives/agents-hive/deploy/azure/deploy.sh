@@ -14,7 +14,14 @@
 #   2. the audit log's retention policy: 365 days, protected append writes allowed; it is
 #      locked, which can't be undone, only with --lock-audit-retention
 #   3. the image, built in the new registry from this commit
-#   4. the app and the weekly evaluation job, running that image
+#   4. the app and the weekly evaluation job, running that image, and, when the parameters
+#      set barry, hosted Barry's app and the verify MCP server beside them
+#
+# Barry runs the model Patricia's passport pins and is deployed with her, through the same
+# gated steps. His passport pins no model yet, so no trust evaluation gates him. After the
+# first deploy with him, his identity is granted Patricia's and the verify server's app
+# roles with entra.sh --identity, and verify_barry.sh checks him end to end; this prints
+# both commands.
 #
 # --rollback VERSION rolls Patricia back to an earlier passport version instead: it
 # deploys the newest commit at which her passport was VERSION, from a temporary worktree,
@@ -436,9 +443,18 @@ confirm "Build and push the image to $registry?"
 az acr build --registry "${registry%%.*}" --image "hive-a2a:$tag" \
   --file "$azure/Dockerfile" "$src"
 
-echo "== 4/4 app and weekly evaluation job"
+echo "== 4/4 app and weekly evaluation job, and hosted Barry when set"
 outputs=$(deploy "$registry/hive-a2a:$tag")
 echo "Agent Card: $(output "$outputs" agentCard)"
+barry_principal=$(output "$outputs" barryPrincipalId)
+if [ -n "$barry_principal" ]; then
+  echo "Barry's Agent Card: $(output "$outputs" barryAgentCard)"
+  echo "The verify MCP server: $(output "$outputs" verifyUrl)"
+  echo "If his identity doesn't have them yet, grant it Patricia's and the verify server's roles:"
+  echo "  $azure/entra.sh --agent patricia --identity $barry_principal"
+  echo "  $azure/entra.sh --agent verify --identity $barry_principal"
+  echo "Then check him end to end: $azure/verify_barry.sh --by <your-actor-id> $rg"
+fi
 
 # The app is deployed by now, so a rollback that can't be recorded says so, and how to
 # record it, rather than leaving the deploy unrecorded without a word.

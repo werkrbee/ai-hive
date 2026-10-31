@@ -14,7 +14,8 @@ trap 'rm -rf "$work"' EXIT
 fail=0
 
 # The stub. Tenant state lives in $STUB: apps ("name appId owner"), sps ("appId spId"),
-# roles ("appId roleId"), grants ("clientSp apiSp roleId"). Mutations are appended to
+# roles ("appId roleId [value]", a role with no value being any one asked for), grants
+# ("clientSp apiSp roleId"). Mutations are appended to
 # $STUB/changes. STUB_FAIL, when set, is a pattern; a call whose arguments match it fails.
 mkdir -p "$work/bin"
 cat > "$work/bin/az" <<'STUB'
@@ -34,7 +35,8 @@ case "$args" in
   "ad sp list"*) awk -v a="$(quoted 'appId eq')" '$1==a{print $2}' "$STUB/sps" ;;
   "ad app show"*)
     id=$(printf '%s' "$args" | sed -n 's/.*--id \([^ ]*\).*/\1/p')
-    awk -v i="$id" '$1==i{print $2}' "$STUB/roles" ;;
+    v=$(printf '%s' "$args" | sed -n "s/.*value=='\([^']*\)'.*/\1/p")
+    awk -v i="$id" -v v="$v" '$1==i && (NF<3 || $3==v){print $2; exit}' "$STUB/roles" ;;
   "rest --method GET"*)
     sp=$(printf '%s' "$args" | sed -n 's#.*servicePrincipals/\([^/]*\)/appRoleAssignments.*#\1#p')
     api=$(printf '%s' "$args" | sed -n "s/.*resourceId=='\([^']*\)'.*/\1/p")
@@ -44,7 +46,11 @@ case "$args" in
     name=$(printf '%s' "$args" | sed -n 's/.*--display-name \([^ ]*\).*/\1/p')
     id="app-$name"
     echo "$name $id -" >> "$STUB/apps"
-    case "$args" in *--app-roles*) echo "$id role-1" >> "$STUB/roles" ;; esac
+    case "$args" in *--app-roles*)
+      file=$(printf '%s' "$args" | sed -n 's/.*--app-roles @\([^ ]*\).*/\1/p')
+      python3 -c 'import json, sys; [print(sys.argv[2], "role-" + r["value"], r["value"]) for r in json.load(open(sys.argv[1]))]' \
+        "$file" "$id" >> "$STUB/roles" ;;
+    esac
     echo "create $name" >> "$STUB/changes"; echo "$id" ;;
   "ad app owner add"*)  # like Graph: the creator isn't an owner until this runs
     id=$(printf '%s' "$args" | sed -n 's/.*--id \([^ ]*\).*/\1/p')
@@ -122,6 +128,39 @@ run reuse-yes yes
 check "reuse: yes grants only the missing role and creates no app" eval \
   '[ "$code" -eq 0 ] && [ "$(grep -c "rest --method POST" "$STUB/changes")" -eq 1 ] \
    && grep -q "sp-2" "$STUB/changes" && ! grep -q "^create \|^sp create" "$STUB/changes"'
+
+# Barry: his own API app with both of his roles, and his callers' clients granted both.
+run barry yes --agent barry verify
+check "barry: plan creates his API app with both roles" \
+  has "barry-a2a-api: create, with the Orchestration.Request, Orchestration.Approve app roles"
+check "barry: his caller's client is named for him and granted both" \
+  has "verify-barry-client: create; grant Orchestration.Request, Orchestration.Approve"
+check "barry: yes grants each role and prints his parameters" eval \
+  '[ "$code" -eq 0 ] && [ "$(grep -c "rest --method POST" "$STUB/changes")" -eq 2 ] \
+   && has "in param barry: apiAppId: .app-barry-a2a-api., and these clients: \[.app-verify-barry-client.\]"'
+
+# --identity grants an existing API's roles to a managed identity, once.
+for c in identity identity-again; do
+  echo "patricia-a2a-api api-1 me" | seed $c apps
+  echo "api-1 sp-api" | seed $c sps
+  echo "api-1 role-1 Review.Request" | seed $c roles
+done
+echo "mi-1 sp-api role-1" | seed identity-again grants
+run identity yes --agent patricia --identity mi-1
+check "identity: plan grants the managed identity Patricia's role" \
+  has "managed identity mi-1: grant Review.Request"
+check "identity: yes assigns it, to that principal" eval \
+  '[ "$code" -eq 0 ] && grep -q "rest --method POST.*principalId.: .mi-1" "$STUB/changes"'
+run identity-again yes --agent patricia --identity mi-1
+check "identity: one already granted isn't granted again" eval \
+  'has "managed identity mi-1: already has Review.Request" && ! grep -q "rest --method POST" "$STUB/changes"'
+run identity-noapi yes --agent verify --identity mi-1
+check "identity: an API that doesn't exist yet is refused before the prompt" eval \
+  '[ "$code" -ne 0 ] && has "barry-verify-mcp-api doesn.t exist yet" && ! has "Plan:" && unchanged'
+run usage yes --agent verify --identity mi-1 lineup
+check "identity with callers: usage" eval '[ "$code" -eq 2 ] && unchanged'
+run unknown yes --agent nobody lineup
+check "unknown agent: usage" eval '[ "$code" -eq 2 ] && unchanged'
 
 # A caller named twice is refused before anything else.
 run twice yes lineup lineup

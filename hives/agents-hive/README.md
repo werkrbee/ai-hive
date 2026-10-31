@@ -219,9 +219,14 @@ product, a $25 budget alert, and an eval for choosing Patricia's model. The main
 runs the deploy. It is live on Claude Sonnet 5.5, which the eval chose
 ([`deploy/azure/eval/RESULTS.md`](deploy/azure/eval/RESULTS.md)).
 
-Hosting Barry the same way is designed in
-[`design/hosted-barry.md`](design/hosted-barry.md): an agent loop on the workflows-hive
-engine, with gated actions pausing the task for a human's approval over A2A.
+Hosted Barry is the same server with the `orchestration` contract
+([`design/hosted-barry.md`](design/hosted-barry.md)): an agent loop on the workflows-hive
+engine, whose tools are delegation to Patricia and the tools a caller registers, with
+gated actions pausing the task for a person's approval over A2A. `deploy/azure/` deploys
+him beside Patricia, with his own identity and a $15 ceiling, and lowers hers to $5. Until
+a werkrbee product's MCP server takes his Entra token, the one caller is
+[`servers/verify-mcp`](servers/verify-mcp), a one-tool MCP server he is checked against
+after each deploy ([`deploy/azure/README.md`](deploy/azure/README.md), "Hosted Barry").
 
 ## Caller registrations
 
@@ -292,11 +297,13 @@ agents-hive/
 ├── design/
 │   └── hosted-barry.md           # design note: hosting Barry over A2A
 ├── registrations/                # WHAT a caller's tools do — tool-to-action maps for hosted Barry
-│   └── lineup/registration.json  # the worked example, with its cases.json
+│   ├── lineup/registration.json  # the worked example, with its cases.json
+│   └── verify/registration.json  # the verify server, hosted Barry's one caller for now
 ├── servers/
-│   └── a2a/                      # a reference A2A server (Patricia's governance-review)
+│   ├── a2a/                      # a reference A2A server (Patricia's review, Barry's orchestration)
+│   └── verify-mcp/               # the one-tool MCP server hosted Barry is checked against
 ├── deploy/
-│   └── azure/                    # werkrbee's deployment of it
+│   └── azure/                    # werkrbee's deployment of them
 ├── schema/
 │   ├── execution-contract.schema.json
 │   ├── passport.schema.json

@@ -1,0 +1,19 @@
+[
+  {
+    "name": "recording a note always needs a person",
+    "request": { "action": "verify.note.record" },
+    "decision": "human",
+    "rule": "verify.note"
+  },
+  {
+    "name": "a fact a caller supplies doesn't let a note through on its own",
+    "request": { "action": "verify.note.record", "facts": { "actor.role": "organizer" } },
+    "decision": "human",
+    "rule": "verify.note"
+  },
+  {
+    "name": "an action the policy doesn't name is still the Charter's to decide",
+    "request": { "action": "vcs.push" },
+    "decision": "human"
+  }
+]

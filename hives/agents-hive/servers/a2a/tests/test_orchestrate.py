@@ -8,6 +8,7 @@ Run from servers/a2a with the requirements installed:
 import asyncio
 import dataclasses
 import datetime
+import importlib.util
 import json
 import shutil
 import sys
@@ -692,6 +693,24 @@ class OrchestrateTest(unittest.TestCase):
         self.assertEqual(self.servers.sent("send_message"), [])
 
     # --- config ----------------------------------------------------------
+
+    def test_the_deployed_config_render_config_writes_for_barry_loads(self):
+        spec = importlib.util.spec_from_file_location("render_config",
+                                                      REPO_ROOT / "hives/agents-hive/deploy/azure/render_config.py")
+        rc = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(rc)
+        env = {"PERSONA": "barry", "PUBLIC_URL": "https://barry-a2a.example/", "AZURE_TENANT_ID": "t",
+               "API_APP_ID": "barry-api", "ALLOWED_CLIENTS": "verify-client", "MODEL_API": "messages",
+               "MODEL_PUBLISHER": "Anthropic", "MODEL_NAME": "review-a", "MODEL_BASE_URL": "https://ai.example/anthropic",
+               "MODEL_INPUT_USD_PER_MTOK": "2", "MODEL_OUTPUT_USD_PER_MTOK": "10", "MONTHLY_CEILING_USD": "15",
+               "DATA_DIR": str(self.root), "PATRICIA_URL": "https://patricia-a2a.example/",
+               "PATRICIA_API_APP_ID": "patricia-api", "CALLERS": "verify-client=verify"}
+        (self.root / "config.toml").write_text(rc.render(env, REPO_ROOT))
+        config = load(self.root / "config.toml")
+        self.assertEqual((config.capability, config.monthly_ceiling_usd), ("orchestration", 15.0))
+        self.assertEqual([d.name for d in config.orchestration.delegates], ["patricia"])
+        self.assertEqual(config.orchestration.reviewer, "patricia")
+        self.assertEqual(config.orchestration.registrations["verify-client"]["registration"], "verify")
 
     def test_config_refuses_a_caller_or_delegate_it_cant_trust(self):
         with self.assertRaisesRegex(ConfigError, "isn't on auth.allowed_clients"):

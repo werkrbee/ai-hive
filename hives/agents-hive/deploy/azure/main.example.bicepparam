@@ -19,7 +19,7 @@ param modelDeployment = 'review-a'   // its format sets the API the server speak
 param inputUsdPerMtok = '<list price, USD per million input tokens>'   // prices.sh looks it up
 param outputUsdPerMtok = '<list price, USD per million output tokens>'
 
-param monthlyCeilingUsd = '25'
+param monthlyCeilingUsd = '25'   // '5' with hosted Barry beside her (README.md, "Hosted Barry")
 param budgetUsd = 25
 param budgetContactEmails = ['<you@example.com>']
 param budgetStartDate = '2026-11-01'
@@ -28,3 +28,13 @@ param budgetStartDate = '2026-11-01'
 // read the audit log's immutable copy: your object id, from az ad signed-in-user show --query id.
 // param evalSchedule = '0 6 * * 1'
 // param auditReaders = ['<your-object-id>']
+
+// Hosted Barry beside Patricia (README.md, "Hosted Barry"); leave it out to deploy her alone.
+// From entra.sh --agent barry <caller>... and entra.sh --agent verify.
+// param barry = {
+//   apiAppId: '<barry-api-app-id>'
+//   allowedClients: ['<verify-barry-client-app-id>']
+//   callers: [{ client: '<verify-barry-client-app-id>', registration: 'verify' }]
+//   verifyApiAppId: '<verify-api-app-id>'
+//   monthlyCeilingUsd: '15'
+// }

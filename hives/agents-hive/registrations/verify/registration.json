@@ -1,0 +1,26 @@
+{
+  "$schema": "../../schema/registration.schema.json",
+  "registration": "verify",
+  "version": 1,
+  "description": "The verify MCP server (servers/verify-mcp), werkrbee's stand-in for a product's tools until one accepts Barry's Entra token: one gated tool that records a note in memory, used to check after each deploy that a gated call pauses for a person and runs once approved. Its card URL is the server's in werkrbee's Container Apps environment, and its token scope is its API app's, from entra.sh --agent verify.",
+  "policy": "hives/rules-hive/examples/verify/policy.json",
+  "servers": [
+    {
+      "mcp": {
+        "name": "verify",
+        "description": "One gated tool that records a note in memory, for checking hosted Barry.",
+        "transport": "streamable-http",
+        "discovery": { "card": "https://barry-verify.kindpebble-873b1da9.eastus2.azurecontainerapps.io/.well-known/mcp/server-card.json" }
+      },
+      "token_scope": "api://<verify-api-app-id>/.default"
+    }
+  ],
+  "tools": {
+    "verify/record_note": {
+      "action": "verify.note.record",
+      "present": {
+        "note": { "from": "argument", "path": "text" }
+      }
+    }
+  }
+}
