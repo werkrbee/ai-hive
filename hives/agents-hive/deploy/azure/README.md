@@ -119,19 +119,23 @@ the image, and accepts only Barry's identity with `Verify.Call`, on its own API 
 `./entra.sh --agent verify`. Its registration names its card at
 `https://barry-verify.<environment domain>/.well-known/mcp/server-card.json` and the scope
 `api://<verify-api-app-id>/.default`, which are filled in for werkrbee's environment and
-API app before the deploy.
+API app before the deploy; `deploy.sh` refuses, before any change, while a registration
+his callers map to still holds a `<...>` placeholder.
 
 **Ceilings.** Barry's ceiling is `barry.monthlyCeilingUsd`, $15 by default, on his own
-ledger. Patricia's `monthlyCeilingUsd` is $5 alongside him, which covers hundreds of her
-reviews, and the Azure budget stays at $25 for the whole group. Each Barry run holds its
-whole $5 budget against his ceiling while it runs, so at most three run at once.
+ledger. Patricia's `monthlyCeilingUsd` must be $5 or less alongside him, which covers
+hundreds of her reviews, and `deploy.sh` refuses, before any change, when it isn't; the
+Azure budget stays at $25 for the whole group. Each Barry run holds its whole $5 budget
+against his ceiling while it runs, so at most three run at once.
 
 **Checking him.** `./verify_barry.sh --by <actor-id> <resource-group>` checks that his
 card is served, that a call without a token is refused, and that a goal with a gated
-action pauses with Patricia's review, runs once approved as `--by`, and completes. It
-sends the goal as the verify caller, so it adds a client secret to `verify-barry-client`
-that expires within the hour, uses it for one token, and deletes it, after you type yes.
-Neither the secret nor the token is printed or written to disk. A check costs a few cents.
+action pauses with Patricia's review and completes once you approve it. It sends the
+goal as the verify caller, so it adds a client secret to `verify-barry-client` that
+expires within the hour, uses it for one token, and deletes it, after you type yes. When
+the task pauses, it shows the tool, the action, the note and Patricia's verdict, and
+approves as `--by` only when you type yes again; any other answer denies it. Neither the
+secret nor the token is printed or written to disk. A check costs a few cents.
 
 **Not yet.** His passport pins no model, so no trust evaluation gates his promotion, as
 one gates Patricia's; the orchestration eval (`eval/orchestration.py`) chose his model but

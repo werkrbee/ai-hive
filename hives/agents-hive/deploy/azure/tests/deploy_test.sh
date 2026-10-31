@@ -122,9 +122,20 @@ run() {
     "2a2b9908-6ea1-4ae2-8e65-a410df84e7d1 Storage Blob Data Reader" > "$STUB/roles"
   : > "$STUB/calls"
   cp "$work/catalog.json" "$STUB/catalog.json"
-  python3 -c 'import json, sys; models = json.loads(sys.argv[1]); print(json.dumps({"parametersJson": json.dumps(
-    {"parameters": {"models": {"value": models}, "modelDeployment": {"value": sys.argv[2] or models[0]["deployment"]}}})}))' \
-    "${MODELS:-[$gpt, $deepseek]}" "${CHOSEN:-}" > "$STUB/params.json"
+  python3 -c 'import json, sys; models = json.loads(sys.argv[1]); p = {"models": {"value": models},
+    "modelDeployment": {"value": sys.argv[2] or models[0]["deployment"]}}
+if sys.argv[3]: p["barry"] = {"value": json.loads(sys.argv[3])}
+if sys.argv[4]: p["monthlyCeilingUsd"] = {"value": sys.argv[4]}
+print(json.dumps({"parametersJson": json.dumps({"parameters": p})}))' \
+    "${MODELS:-[$gpt, $deepseek]}" "${CHOSEN:-}" "${BARRY:-}" "${CEILING:-}" > "$STUB/params.json"
+  # Two registrations for hosted Barry's callers: one filled in, one still a placeholder.
+  for name in filled todo; do
+    mkdir -p "$repo/hives/agents-hive/registrations/$name"
+    scope="api://11111111-2222-3333-4444-555555555555/.default"
+    [ "$name" = filled ] || scope="api://<verify-api-app-id>/.default"
+    printf '{"servers": [{"mcp": {"discovery": {"card": "https://v.example/.well-known/mcp/server-card.json"}}, "token_scope": "%s"}]}\n' \
+      "$scope" > "$repo/hives/agents-hive/registrations/$name/registration.json"
+  done
   cp "$here/../deploy.sh" "$dir/"
   cp "$2" "$dir/main.bicep"
   # The promotion check, stubbed: it passes unless $PROMOTION is "refused", or $HOSTED is
@@ -329,6 +340,34 @@ CHOSEN=review-c run unpinned "$bicep"
 check "a modelDeployment that isn't the pinned model: refused before any what-if" \
   eval '[ "$code" -ne 0 ] && has "modelDeployment .review-c. is DeepSeek-V3.2 1, but Patricia.s passport pins gpt-5.4 2026-03-05" \
    && ! has "== 1/4" && read_only'
+
+# Hosted Barry: with him set, Patricia's ceiling must be $5 or less and his callers'
+# registrations filled in, checked before any change.
+run nobarry "$bicep"
+check "no Barry: said so, and deploy.sh goes on" \
+  eval 'has "hosted Barry isn.t set; Patricia deploys alone" && has "== 1/4"'
+
+BARRY='{"callers": [{"client": "c1", "registration": "filled"}]}' CEILING=5 run barryok "$bicep"
+check "Barry with Patricia at \$5 and a filled registration: goes on" \
+  eval 'has "hosted Barry: Patricia.s ceiling is \$5, and each caller.s registration is filled in" && has "== 1/4"'
+
+BARRY='{"callers": [{"client": "c1", "registration": "filled"}]}' run barryceiling "$bicep"
+check "Barry with Patricia's default ceiling: refused before any what-if" \
+  eval '[ "$code" -ne 0 ] && has "Patricia.s monthlyCeilingUsd must be .5. or less, not .25." \
+   && ! has "== 1/4" && read_only'
+
+BARRY='{"callers": [{"client": "c1", "registration": "filled"}]}' CEILING=lots run barrynotnumber "$bicep"
+check "Barry with a ceiling that isn't a number: refused before any what-if" \
+  eval '[ "$code" -ne 0 ] && has "must be .5. or less, not .lots." && ! has "== 1/4" && read_only'
+
+BARRY='{"callers": [{"client": "c1", "registration": "todo"}]}' CEILING=5 run barryplaceholder "$bicep"
+check "Barry with a placeholder token scope: refused before any what-if, naming it" \
+  eval '[ "$code" -ne 0 ] && has "registration todo.s token scope is still a placeholder: api://<verify-api-app-id>/.default" \
+   && ! has "== 1/4" && read_only'
+
+BARRY='{"callers": [{"client": "c1", "registration": "nowhere"}]}' CEILING=5 run barrynoreg "$bicep"
+check "Barry with a caller mapped to no registration: refused before any what-if" \
+  eval '[ "$code" -ne 0 ] && has "maps c1 to .nowhere., which isn.t a registration" && ! has "== 1/4" && read_only'
 
 # Hosted evaluations. Nothing deployed yet: nothing to read, and it goes on.
 run nohosted "$bicep"

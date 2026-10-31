@@ -7,7 +7,8 @@
 # that evaluation has recorded within eight days), that
 # every built-in role id main.bicep assigns exists, since what-if doesn't, and that every
 # model is generally available in the region, by the Foundry model catalog, and that the
-# one the server calls is the model her passport pins.
+# one the server calls is the model her passport pins. With hosted Barry set, it also
+# checks that Patricia's ceiling is $5 or less and his callers' registrations are filled in.
 #
 #   1. the infrastructure, without the app (registry, identity, Foundry, storage, the
 #      audit log's storage, budget)
@@ -259,6 +260,60 @@ PY
   rm -rf "$tmp"
 }
 
+# With hosted Barry set, the two agents share the budget, so Patricia's own ceiling must be
+# $5 or less (README.md, "Hosted Barry"), and every registration his callers map to must
+# exist with its card URL and token scope filled in, not a <...> placeholder, which would
+# otherwise only fail once he calls it.
+check_barry() {
+  local tmp
+  tmp=$(mktemp -d)
+  if ! az bicep build-params --file "$params" --stdout > "$tmp/params.json"; then
+    echo "error: couldn't read the barry parameter in $params" >&2
+    rm -rf "$tmp"; exit 1
+  fi
+  if ! python3 - "$tmp/params.json" "$src/hives/agents-hive/registrations" <<'PY'
+import json, os, re, sys
+
+params = json.loads(json.load(open(sys.argv[1]))["parametersJson"])["parameters"]
+barry = (params.get("barry") or {}).get("value") or {}
+if not barry:
+    print("hosted Barry isn't set; Patricia deploys alone")
+    sys.exit(0)
+bad = False
+ceiling = (params.get("monthlyCeilingUsd") or {}).get("value", "25")
+try:
+    over = float(ceiling) > 5
+except ValueError:
+    over = True
+if over:
+    print(f"error: hosted Barry is set, so Patricia's monthlyCeilingUsd must be '5' or less, not {ceiling!r}",
+          file=sys.stderr)
+    bad = True
+placeholder = re.compile(r"<[^<>]+>")
+for caller in barry.get("callers") or []:
+    name = caller.get("registration")
+    path = os.path.join(sys.argv[2], str(name), "registration.json")
+    if not name or not os.path.isfile(path):
+        print(f"error: barry.callers maps {caller.get('client')} to {name!r}, which isn't a registration", file=sys.stderr)
+        bad = True
+        continue
+    for server in json.load(open(path)).get("servers", []):
+        values = {"card URL": ((server.get("mcp") or {}).get("discovery") or {}).get("card", ""),
+                  "token scope": server.get("token_scope", "")}
+        for what, value in values.items():
+            if placeholder.search(value):
+                print(f"error: registration {name}'s {what} is still a placeholder: {value}", file=sys.stderr)
+                bad = True
+if not bad:
+    print(f"hosted Barry: Patricia's ceiling is ${ceiling}, and each caller's registration is filled in")
+sys.exit(1 if bad else 0)
+PY
+  then
+    rm -rf "$tmp"; exit 1
+  fi
+  rm -rf "$tmp"
+}
+
 # A change to Patricia is promoted only once her trust evaluation has passed on its exact
 # pins, and while no drift waits for a person (hives/agents-hive/scripts/trust_eval.py).
 # A rollback checks the earlier passport with the check as it was at that commit, against
@@ -426,6 +481,8 @@ echo "== role ids"
 check_roles
 echo "== models"
 check_models
+echo "== hosted Barry"
+check_barry
 
 echo "== 1/4 infrastructure"
 if [ "$(az group exists --name "$rg")" != "true" ]; then

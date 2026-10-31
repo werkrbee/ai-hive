@@ -8,8 +8,11 @@
 # credential for one token. So, once you type yes, this adds a client secret to
 # verify-barry-client that expires within the hour, uses it for one token, and deletes it
 # on the way out, whatever happens. The secret and the token stay in this process's
-# environment; neither is printed or written to disk. You approve the gated call as --by
-# (or WORKFLOWS_HIVE_ACTOR), an opaque actor id, never a name or email.
+# environment; neither is printed or written to disk. When the task pauses, this shows you
+# the approval request, the tool, the action, what it presents and Patricia's verdict, and
+# approves it as --by (or WORKFLOWS_HIVE_ACTOR), an opaque actor id, never a name or email,
+# only when you type yes again; any other answer denies it. The approval is a person's,
+# never this script's.
 #
 # It costs one short run of Barry's model and one of Patricia's reviews, a few cents.
 #
@@ -122,6 +125,7 @@ def rpc(method, params):
 
 def wait(task_id, states, minutes=10):
     deadline = time.monotonic() + minutes * 60
+    task = {"status": {"state": "unknown"}}
     while time.monotonic() < deadline:
         task = rpc("GetTask", {"id": task_id})
         if task["status"]["state"] in states:
@@ -145,14 +149,37 @@ task = wait(task["id"], ended + ("TASK_STATE_INPUT_REQUIRED",))
 if task["status"]["state"] != "TASK_STATE_INPUT_REQUIRED":
     sys.exit(f"error: the task ended {task['status']['state']} without pausing: {text(task)}")
 [request] = [p["data"]["approval"] for p in task["status"]["message"]["parts"] if "approval" in p.get("data", {})]
-print(f"paused for {request['tool']} ({request['action']}), showing {json.dumps(request['present'])}; "
-      f"Patricia: {request.get('review', {}).get('verdict')}")
+
+
+def decide(decision, reason=None):
+    approval = {"id": request["id"], "decision": decision, "by": by}
+    if reason:
+        approval["reason"] = reason
+    rpc("SendMessage", {"message": {"messageId": f"verify-{time.time_ns()}", "role": "ROLE_USER",
+                                    "taskId": task["id"], "contextId": task["contextId"],
+                                    "parts": [{"data": {"approval": approval}}]}})
+
+
+print(f"paused for approval {request['id']}:")
+print(f"  tool:     {request['tool']}")
+print(f"  action:   {request['action']}")
+print(f"  presents: {json.dumps(request['present'])}")
+review = request.get("review") or {}
+print(f"  Patricia: {review.get('verdict')}" + (f", {review['reason']}" if review.get("reason") else ""))
 if request["tool"] != "verify/record_note" or request["present"].get("note") != note:
-    sys.exit("error: the approval isn't for the note the goal asked for; not approving it")
-answer = {"messageId": f"verify-{time.time_ns()}", "role": "ROLE_USER", "taskId": task["id"],
-          "contextId": task["contextId"],
-          "parts": [{"data": {"approval": {"id": request["id"], "decision": "approve", "by": by}}}]}
-rpc("SendMessage", {"message": answer})
+    decide("deny", "not the note the check asked for")
+    sys.exit("error: the approval isn't for the note the goal asked for; denied it")
+# This script's own source is on standard input, so the answer is read from the terminal.
+try:
+    with open("/dev/tty") as tty:
+        print(f"Approve this call as {by}? Type yes to approve, anything else denies it: ", end="", flush=True)
+        answer = tty.readline().strip()
+except OSError:
+    answer = ""
+if answer != "yes":
+    decide("deny", "not approved at the check")
+    sys.exit("stopped; denied the call, so nothing was recorded")
+decide("approve")
 task = wait(task["id"], ended)
 if task["status"]["state"] != "TASK_STATE_COMPLETED":
     sys.exit(f"error: the approved task ended {task['status']['state']}: {text(task)}")

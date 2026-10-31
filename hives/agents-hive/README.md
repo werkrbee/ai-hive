@@ -223,8 +223,9 @@ Hosted Barry is the same server with the `orchestration` contract
 ([`design/hosted-barry.md`](design/hosted-barry.md)): an agent loop on the workflows-hive
 engine, whose tools are delegation to Patricia and the tools a caller registers, with
 gated actions pausing the task for a person's approval over A2A. `deploy/azure/` deploys
-him beside Patricia, with his own identity and a $15 ceiling, and lowers hers to $5. Until
-a werkrbee product's MCP server takes his Entra token, the one caller is
+him beside Patricia, with his own identity and a $15 ceiling, and refuses to unless her
+ceiling is set to $5 or less. Until a werkrbee product's MCP server takes his Entra token,
+the one caller is
 [`servers/verify-mcp`](servers/verify-mcp), a one-tool MCP server he is checked against
 after each deploy ([`deploy/azure/README.md`](deploy/azure/README.md), "Hosted Barry").
 
