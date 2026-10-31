@@ -116,7 +116,7 @@ with one tool, `record_note`, that keeps a note in memory. Its registration maps
 to the action `verify.note.record`, which its policy gates, so every call pauses for a
 person. It runs as a third, scale-to-zero Container App with an identity that only pulls
 the image, and accepts only Barry's identity with `Verify.Call`, on its own API app from
-`./entra.sh --agent verify`. Its registration names its card at
+`./entra.sh --agent verify`, which makes no client app. Its registration names its card at
 `https://barry-verify.<environment domain>/.well-known/mcp/server-card.json` and the scope
 `api://<verify-api-app-id>/.default`, which are filled in for werkrbee's environment and
 API app before the deploy; `deploy.sh` refuses, before any change, while a registration
@@ -144,8 +144,9 @@ on his share, but his audit log isn't copied to the immutable blob as hers is.
 
 The order, once:
 
-1. `./entra.sh --agent barry verify` and `./entra.sh --agent verify`, for the two API
-   apps and the verify caller's client app.
+1. `./entra.sh --agent barry verify`, for Barry's API app and the verify caller's client
+   app, and `./entra.sh --agent verify`, with no callers, for the verify server's API app
+   alone; its one caller is Barry's identity, granted in step 4.
 2. Fill in the verify registration's API app id, commit, and set `barry` in
    `main.bicepparam` (see `main.example.bicepparam`), with Patricia's `monthlyCeilingUsd`
    at `'5'`.

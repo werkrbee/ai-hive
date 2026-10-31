@@ -30,7 +30,7 @@ param budgetStartDate = '2026-11-01'
 // param auditReaders = ['<your-object-id>']
 
 // Hosted Barry beside Patricia (README.md, "Hosted Barry"); leave it out to deploy her alone.
-// From entra.sh --agent barry <caller>... and entra.sh --agent verify.
+// From entra.sh --agent barry <caller>... and entra.sh --agent verify (no callers).
 // param barry = {
 //   apiAppId: '<barry-api-app-id>'
 //   allowedClients: ['<verify-barry-client-app-id>']
