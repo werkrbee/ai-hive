@@ -1,5 +1,25 @@
 # Changelog
 
+## [0.9.0](https://github.com/werkrbee/ai-hive/compare/v0.8.0...v0.9.0) (2026-10-31)
+
+
+### Features
+
+* **agents-hive:** add hosted Barry's orchestration eval ([#173](https://github.com/werkrbee/ai-hive/issues/173)) ([a5c6e37](https://github.com/werkrbee/ai-hive/commit/a5c6e3782133bdf69320f08039143dbac2917282)), closes [#119](https://github.com/werkrbee/ai-hive/issues/119)
+* **agents-hive:** add the orchestration executor ([#171](https://github.com/werkrbee/ai-hive/issues/171)) ([08edb52](https://github.com/werkrbee/ai-hive/commit/08edb526a44889ec7dd18d0dca70ded8b73f1d96))
+* **agents-hive:** carry approvals over A2A ([#172](https://github.com/werkrbee/ai-hive/issues/172)) ([a90c202](https://github.com/werkrbee/ai-hive/commit/a90c2020828cb9af8ed9ba721df3d57adbdfc654))
+* **agents-hive:** map a caller's tools to approval-policy actions ([#168](https://github.com/werkrbee/ai-hive/issues/168)) ([ee82a26](https://github.com/werkrbee/ai-hive/commit/ee82a26c31bd77fb13521abfb3eaa7ab9bcccb44)), closes [#116](https://github.com/werkrbee/ai-hive/issues/116)
+* **agents-hive:** run the orchestration eval and choose Claude Sonnet 5.5 for Barry ([#178](https://github.com/werkrbee/ai-hive/issues/178)) ([64c2b46](https://github.com/werkrbee/ai-hive/commit/64c2b46ea10a3784b5d3e162e8535c0892387824))
+* **agents-hive:** support tool calls in the model clients ([#167](https://github.com/werkrbee/ai-hive/issues/167)) ([f389239](https://github.com/werkrbee/ai-hive/commit/f389239288a6c98aa1dd42d61c9891f3fda879ef)), closes [#115](https://github.com/werkrbee/ai-hive/issues/115)
+
+
+### Bug fixes
+
+* **agents-hive:** anchor the eval's attack claim and read its fact sources ([#175](https://github.com/werkrbee/ai-hive/issues/175)) ([2b7de5d](https://github.com/werkrbee/ai-hive/commit/2b7de5d316a88d5345a89926d9e62529131a8125)), closes [#119](https://github.com/werkrbee/ai-hive/issues/119)
+* **agents-hive:** quote the attack's report and finish the eval README's rewrap ([#176](https://github.com/werkrbee/ai-hive/issues/176)) ([3b0c4b1](https://github.com/werkrbee/ai-hive/commit/3b0c4b15bf37132b55a7f09475d53feb58bc2251)), closes [#119](https://github.com/werkrbee/ai-hive/issues/119)
+* **agents-hive:** retry a model turn the provider rate-limits instead of failing the run ([#180](https://github.com/werkrbee/ai-hive/issues/180)) ([8396204](https://github.com/werkrbee/ai-hive/commit/8396204ab49b09537a6ef97ffd1461b94d0205a0)), closes [#177](https://github.com/werkrbee/ai-hive/issues/177)
+* **agents-hive:** tighten the orchestration eval's scoring ([#174](https://github.com/werkrbee/ai-hive/issues/174)) ([28827ff](https://github.com/werkrbee/ai-hive/commit/28827ff3287226394fec56b22cd855aea47ec695)), closes [#119](https://github.com/werkrbee/ai-hive/issues/119)
+
 ## [0.8.0](https://github.com/werkrbee/ai-hive/compare/v0.7.0...v0.8.0) (2026-10-29)
 
 
