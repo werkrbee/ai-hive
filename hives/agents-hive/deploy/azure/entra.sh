@@ -1,25 +1,65 @@
 #!/usr/bin/env bash
-# Create the Entra ID app registrations for hosted Patricia: one API app that issues
-# access tokens for the server, and one client app per calling product, each granted the
-# API's Review.Request app role. Safe to re-run: existing apps are found by name and reused.
+# Create the Entra ID app registrations for a hosted agent: one API app that issues
+# access tokens for its server, and one client app per calling product, each granted the
+# API's app roles. Safe to re-run: existing apps are found by name and reused.
+#
+#   patricia  patricia-a2a-api, Review.Request (the default)
+#   barry     barry-a2a-api, Orchestration.Request and Orchestration.Approve
+#   verify    barry-verify-mcp-api, Verify.Call: the MCP server hosted Barry is checked
+#             against (servers/verify-mcp)
+#
+# With --identity it instead grants the API's roles to a managed identity, by its
+# principal (object) id: Barry's, for Patricia's API and the verify server's.
 #
 # It creates no secrets. Each product's owner adds a credential to their own app
 # (preferably a certificate or a federated credential) and keeps it in that product's
 # secret store.
 #
-# Usage: ./entra.sh lineup singularity
-# Needs: az login, with rights to create app registrations in the tenant. It reuses an
-# existing app only when exactly one has that display name and you own it. It looks
-# everything up first, prints what it will create, reuse and grant, and changes nothing
-# until you type yes.
+# Usage: ./entra.sh [--agent patricia|barry|verify] <caller> [<caller> ...]
+#        ./entra.sh --agent patricia|barry|verify --identity <principal-id>
+#   e.g. ./entra.sh lineup singularity
+#        ./entra.sh --agent barry verify
+#        ./entra.sh --agent patricia --identity "$barry_principal"
+# Needs: az login, with rights to create app registrations in the tenant (and, for
+# --identity, to grant app roles). It reuses an existing app only when exactly one has
+# that display name and you own it. It looks everything up first, prints what it will
+# create, reuse and grant, and changes nothing until you type yes.
 set -euo pipefail
 
-API_NAME="patricia-a2a-api"
-ROLE_VALUE="Review.Request"
-
-if [ "$#" -lt 1 ]; then
-  echo "usage: $0 <caller> [<caller> ...]   e.g. $0 lineup singularity" >&2
+usage() {
+  echo "usage: $0 [--agent patricia|barry|verify] <caller> [<caller> ...]" >&2
+  echo "       $0 --agent patricia|barry|verify --identity <principal-id>" >&2
   exit 2
+}
+agent=patricia identity=''
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    --agent) [ "$#" -ge 2 ] || usage; agent=$2; shift 2 ;;
+    --identity) [ "$#" -ge 2 ] || usage; identity=$2; shift 2 ;;
+    -*) usage ;;
+    *) break ;;
+  esac
+done
+# Each role: its value, display name and description, separated by |.
+case "$agent" in
+  patricia) API_NAME="patricia-a2a-api"
+    ROLES=("Review.Request|Request reviews|Request governance reviews from Patricia.") ;;
+  barry) API_NAME="barry-a2a-api"
+    ROLES=("Orchestration.Request|Request orchestration|Start and cancel tasks with hosted Barry."
+           "Orchestration.Approve|Answer approvals|Approve or deny the gated actions hosted Barry asks about.") ;;
+  verify) API_NAME="barry-verify-mcp-api"
+    ROLES=("Verify.Call|Call the verify server|Call the MCP server hosted Barry is checked against.") ;;
+  *) usage ;;
+esac
+VALUES=()
+for r in "${ROLES[@]}"; do VALUES+=("${r%%|*}"); done
+NAMES=$(printf '%s, ' "${VALUES[@]}" | sed 's/, $//')
+
+if [ -n "$identity" ] && [ "$#" -gt 0 ]; then
+  usage
+fi
+if [ -z "$identity" ] && [ "$#" -lt 1 ]; then
+  usage
 fi
 if [ "$(printf '%s\n' "$@" | sort | uniq -d)" != "" ]; then
   echo "error: a caller is named more than once: $*" >&2
@@ -73,46 +113,79 @@ add_owner() {  # make you an owner of a new app; Graph can take a moment to find
   exit 1
 }
 
-role_id_for() {  # the id of the API app's Review.Request role, or nothing
+role_id_for() {  # $1 = API appId, $2 = role value: the role's id, or nothing
   local id
-  id=$(az ad app show --id "$1" --query "appRoles[?value=='$ROLE_VALUE'].id | [0]" -o tsv) || exit 1
+  id=$(az ad app show --id "$1" --query "appRoles[?value=='$2'].id | [0]" -o tsv) || exit 1
   echo "$id"
+}
+
+missing_roles() {  # $1 = principal's sp id, $2 = API sp id, then role ids: the values not yet granted
+  local sp=$1 api=$2 i=0 granted missing=()
+  shift 2
+  for role in "$@"; do
+    granted=$(az rest --method GET \
+      --url "https://graph.microsoft.com/v1.0/servicePrincipals/$sp/appRoleAssignments" \
+      --query "value[?resourceId=='$api' && appRoleId=='$role'] | length(@)" -o tsv) || exit 1
+    [ "$granted" != "0" ] || missing+=("${VALUES[$i]}")
+    i=$((i + 1))
+  done
+  printf '%s, ' "${missing[@]+"${missing[@]}"}" | sed 's/, $//'
 }
 
 # --- Plan: look everything up and change nothing --------------------------------
 plan_api=$(app_id_for "$API_NAME")
 plan_api_sp=""
-plan_role=""
+plan_roles=()
 if [ -z "$plan_api" ]; then
-  plan="  $API_NAME: create, with the $ROLE_VALUE app role"
-else
-  plan_role=$(role_id_for "$plan_api")
-  if [ -z "$plan_role" ]; then
-    echo "error: $API_NAME ($plan_api) has no $ROLE_VALUE app role" >&2
+  if [ -n "$identity" ]; then
+    echo "error: $API_NAME doesn't exist yet; run $0 --agent $agent <caller>... first" >&2
     exit 1
   fi
+  plural=''
+  [ "${#VALUES[@]}" -eq 1 ] || plural=s
+  plan="  $API_NAME: create, with the $NAMES app role$plural"
+else
+  for value in "${VALUES[@]}"; do
+    role=$(role_id_for "$plan_api" "$value")
+    if [ -z "$role" ]; then
+      echo "error: $API_NAME ($plan_api) has no $value app role" >&2
+      exit 1
+    fi
+    plan_roles+=("$role")
+  done
   plan_api_sp=$(sp_lookup "$plan_api")
   plan="  $API_NAME: reuse $plan_api"
 fi
 plan="$plan
     set api://<appId>, v2 tokens and assignment required"
 [ -n "$plan_api_sp" ] || plan="$plan; create its service principal"
+grant_plan() {  # $1 = principal's sp id or nothing: what granting it the roles would do
+  local missing
+  if [ -z "$1" ] || [ -z "$plan_api_sp" ]; then
+    echo "grant $NAMES"
+    return
+  fi
+  missing=$(missing_roles "$1" "$plan_api_sp" "${plan_roles[@]}") || exit 1
+  if [ -z "$missing" ]; then echo "already has $NAMES"; else echo "grant $missing"; fi
+}
+if [ -n "$identity" ]; then
+  if [ -z "$plan_api_sp" ]; then
+    echo "error: $API_NAME has no service principal yet; run $0 --agent $agent <caller>... first" >&2
+    exit 1
+  fi
+  plan="$plan
+  managed identity $identity: $(grant_plan "$identity")"
+fi
 for caller in "$@"; do
-  name="$caller-patricia-client"
+  name="$caller-$agent-client"
   id=$(app_id_for "$name")
-  grant="grant $ROLE_VALUE"
   if [ -z "$id" ]; then
     plan="$plan
-  $name: create; $grant"
+  $name: create; grant $NAMES"
     continue
   fi
   sp=$(sp_lookup "$id")
-  if [ -n "$sp" ] && [ -n "$plan_api_sp" ]; then
-    granted=$(az rest --method GET \
-      --url "https://graph.microsoft.com/v1.0/servicePrincipals/$sp/appRoleAssignments" \
-      --query "value[?resourceId=='$plan_api_sp' && appRoleId=='$plan_role'] | length(@)" -o tsv) || exit 1
-    [ "$granted" = "0" ] || grant="already has $ROLE_VALUE"
-  fi
+  grant=$(grant_plan "$sp") || exit 1
   [ -n "$sp" ] || grant="create its service principal; $grant"
   plan="$plan
   $name: reuse $id; $grant"
@@ -126,13 +199,14 @@ read -r answer || answer=""
 # --- The API app ---------------------------------------------------------------
 api_app_id=$(app_id_for "$API_NAME")
 if [ -z "$api_app_id" ]; then
-  role_id=$(python3 -c 'import uuid; print(uuid.uuid4())')
   roles=$(mktemp)
   trap 'rm -f "$roles"' EXIT
-  cat > "$roles" <<JSON
-[{"allowedMemberTypes": ["Application"], "description": "Request governance reviews from Patricia.",
-  "displayName": "Request reviews", "isEnabled": true, "value": "$ROLE_VALUE", "id": "$role_id"}]
-JSON
+  python3 - "${ROLES[@]}" > "$roles" <<'PY'
+import json, sys, uuid
+print(json.dumps([{"allowedMemberTypes": ["Application"], "description": d, "displayName": n,
+                   "isEnabled": True, "value": v, "id": str(uuid.uuid4())}
+                  for v, n, d in (r.split("|", 2) for r in sys.argv[1:])]))
+PY
   api_app_id=$(az ad app create --display-name "$API_NAME" --sign-in-audience AzureADMyOrg \
     --app-roles "@$roles" --query appId -o tsv)
   # az ad app create doesn't make you an owner, and a re-run reuses only apps you own.
@@ -148,16 +222,41 @@ az rest --method PATCH --url "https://graph.microsoft.com/v1.0/applications(appI
 api_sp=$(sp_id_for "$api_app_id")
 # Only apps assigned a role can get a token for the API at all, before the server's own checks.
 az ad sp update --id "$api_sp" --set appRoleAssignmentRequired=true
-role_id=$(role_id_for "$api_app_id")
-if [ -z "$role_id" ]; then
-  echo "error: $API_NAME has no $ROLE_VALUE app role" >&2
-  exit 1
+role_ids=()
+for value in "${VALUES[@]}"; do
+  role_id=$(role_id_for "$api_app_id" "$value")
+  if [ -z "$role_id" ]; then
+    echo "error: $API_NAME has no $value app role" >&2
+    exit 1
+  fi
+  role_ids+=("$role_id")
+done
+
+grant() {  # $1 = principal's sp id, $2 = its name: assign it each role it doesn't have
+  local i=0 granted
+  for role_id in "${role_ids[@]}"; do
+    granted=$(az rest --method GET \
+      --url "https://graph.microsoft.com/v1.0/servicePrincipals/$1/appRoleAssignments" \
+      --query "value[?resourceId=='$api_sp' && appRoleId=='$role_id'] | length(@)" -o tsv)
+    if [ "$granted" = "0" ]; then
+      az rest --method POST \
+        --url "https://graph.microsoft.com/v1.0/servicePrincipals/$api_sp/appRoleAssignedTo" \
+        --body "{\"principalId\": \"$1\", \"resourceId\": \"$api_sp\", \"appRoleId\": \"$role_id\"}" >/dev/null
+      echo "granted ${VALUES[$i]} to $2" >&2
+    fi
+    i=$((i + 1))
+  done
+}
+
+if [ -n "$identity" ]; then
+  grant "$identity" "managed identity $identity"
+  exit 0
 fi
 
 # --- One client app per caller --------------------------------------------------
 clients=()
 for caller in "$@"; do
-  name="$caller-patricia-client"
+  name="$caller-$agent-client"
   client_app_id=$(app_id_for "$name")
   if [ -z "$client_app_id" ]; then
     client_app_id=$(az ad app create --display-name "$name" --sign-in-audience AzureADMyOrg --query appId -o tsv)
@@ -165,20 +264,17 @@ for caller in "$@"; do
     echo "created $name ($client_app_id)" >&2
   fi
   client_sp=$(sp_id_for "$client_app_id")
-  granted=$(az rest --method GET \
-    --url "https://graph.microsoft.com/v1.0/servicePrincipals/$client_sp/appRoleAssignments" \
-    --query "value[?resourceId=='$api_sp' && appRoleId=='$role_id'] | length(@)" -o tsv)
-  if [ "$granted" = "0" ]; then
-    az rest --method POST \
-      --url "https://graph.microsoft.com/v1.0/servicePrincipals/$api_sp/appRoleAssignedTo" \
-      --body "{\"principalId\": \"$client_sp\", \"resourceId\": \"$api_sp\", \"appRoleId\": \"$role_id\"}" >/dev/null
-    echo "granted $ROLE_VALUE to $name" >&2
-  fi
+  grant "$client_sp" "$name"
   clients+=("$client_app_id")
 done
 
 # --- What main.bicep needs ------------------------------------------------------
+list=$(printf "'%s', " "${clients[@]}" | sed 's/, $//')
 printf '\nFor main.bicepparam:\n'
-printf "  param apiAppId = '%s'\n" "$api_app_id"
-printf "  param allowedClients = [%s]\n" "$(printf "'%s', " "${clients[@]}" | sed 's/, $//')"
+case "$agent" in
+  patricia)
+    printf "  param apiAppId = '%s'\n" "$api_app_id"
+    printf "  param allowedClients = [%s]\n" "$list" ;;
+  *) printf "  in param %s: apiAppId: '%s', and these clients: [%s]\n" "$agent" "$api_app_id" "$list" ;;
+esac
 printf '\nEach product requests a token with scope api://%s/.default\n' "$api_app_id"

@@ -1,0 +1,22 @@
+{
+  "$schema": "../../schema/approval-policy.schema.json",
+  "policy": "verify",
+  "version": 1,
+  "description": "The verify server's one rule, for checking hosted Barry after a deploy: recording a note is a gated action, so every call pauses for a person, who is shown the note. Nothing else is allowed.",
+  "extends": "hives/rules-hive/rules/queen-charter/policy.json",
+  "actions": [
+    {
+      "id": "verify.note.record",
+      "description": "Record a note on the verify server, in its memory only.",
+      "gated": true
+    }
+  ],
+  "mandates": [
+    {
+      "id": "verify.note",
+      "type": "mandate.action.1",
+      "action": "verify.note.record",
+      "present": ["note"]
+    }
+  ]
+}

@@ -1,8 +1,9 @@
-# Hosted Patricia on Azure
+# Hosted Patricia and Barry on Azure
 
 werkrbee's deployment of the reference A2A server ([`servers/a2a`](../../servers/a2a)) for
-Patricia's `governance-review`. Only werkrbee's own products may call it: each has an Entra
-ID app registration, and the server accepts tokens only from those apps.
+Patricia's `governance-review` and, beside her, hosted Barry's `orchestration` (see
+"Hosted Barry" below). Only werkrbee's own products may call either: each has an Entra ID
+app registration, and the servers accept tokens only from those apps.
 
 Deploying is an infrastructure change, which the Queen Bee's Charter gates. Everything
 here prepares the deploy, and the maintainer runs it. `deploy.sh` shows Azure's what-if
@@ -23,6 +24,7 @@ One resource group holds the whole deployment, so one budget covers it.
 | User-assigned managed identity | Pulls the image (AcrPull) and calls Foundry with the narrowest built-in role the model's API allows. For Chat Completions that's Cognitive Services OpenAI User, which can call the OpenAI v1 endpoint but can't list keys or use Foundry's other services; verified with the managed identity on 2026-10-14. For Messages (Anthropic models) it's Cognitive Services User, the role Microsoft names for Entra calls to Claude's `/anthropic` endpoint, which isn't under the OpenAI role. A deploy adds roles but doesn't remove them, so after switching from an Anthropic model to any other, remove the identity's Cognitive Services User assignment by hand. |
 | Container registry (Basic) | Holds the image, built from a commit by `az acr build`. |
 | Budget | Alerts at 80% and 100% of actual spend, and at 100% of forecast spend. $25 a month by default. |
+| Hosted Barry, when `barry` is set | His Container App, from the same image and model, with his own managed identity, his own share for tasks, ledger and run records, and his own ceiling; and the verify MCP server he is checked against. See "Hosted Barry". |
 
 **Two limits on spend.** The server refuses new reviews once its own ledger reaches
 `monthlyCeilingUsd`. The weekly evaluation keeps its own ledger beside it, and each counts
@@ -87,6 +89,68 @@ clients need it to learn how to authenticate.
 A product calls the server with a token from the client-credentials flow: `POST` to
 `https://login.microsoftonline.com/<tenant>/oauth2/v2.0/token` with its client id, its
 credential and `scope=api://<apiAppId>/.default`.
+
+## Hosted Barry
+
+Barry ([`design/hosted-barry.md`](../../design/hosted-barry.md)) runs as a second Container
+App beside Patricia, in the same resource group and environment, from the same image, on
+the same model deployment. Setting `barry` in the parameters deploys him with her, through
+the same gated steps. Without it, the deploy is Patricia's alone.
+
+**Identity.** He has his own managed identity, separate from Patricia's, holding only what
+he uses: AcrPull on the registry, the same narrowest Foundry role as hers for the model's
+API, and app roles for the two APIs he calls, Patricia's `Review.Request` and the verify
+server's `Verify.Call`. App roles are Entra grants, not Azure roles, so `entra.sh
+--identity` makes them, once, after the first deploy with him prints his principal id.
+Patricia's server adds his identity's client id to her allowed clients itself.
+
+**Callers.** `./entra.sh --agent barry <caller>...` makes his API app, with the
+`Orchestration.Request` and `Orchestration.Approve` app roles, v2 tokens and assignment
+required, and one client app per caller, `<caller>-barry-client`, granted both. In
+`barry`, `callers` maps each client to its registration (`registrations/<name>`). No
+werkrbee product's MCP server takes his Entra token yet, so the only caller to start with
+is `verify`.
+
+**The verify server.** [`servers/verify-mcp`](../../servers/verify-mcp) is an MCP server
+with one tool, `record_note`, that keeps a note in memory. Its registration maps the tool
+to the action `verify.note.record`, which its policy gates, so every call pauses for a
+person. It runs as a third, scale-to-zero Container App with an identity that only pulls
+the image, and accepts only Barry's identity with `Verify.Call`, on its own API app from
+`./entra.sh --agent verify`. Its registration names its card at
+`https://barry-verify.<environment domain>/.well-known/mcp/server-card.json` and the scope
+`api://<verify-api-app-id>/.default`, which are filled in for werkrbee's environment and
+API app before the deploy; `deploy.sh` refuses, before any change, while a registration
+his callers map to still holds a `<...>` placeholder.
+
+**Ceilings.** Barry's ceiling is `barry.monthlyCeilingUsd`, $15 by default, on his own
+ledger. Patricia's `monthlyCeilingUsd` must be $5 or less alongside him, which covers
+hundreds of her reviews, and `deploy.sh` refuses, before any change, when it isn't; the
+Azure budget stays at $25 for the whole group. Each Barry run holds its whole $5 budget
+against his ceiling while it runs, so at most three run at once.
+
+**Checking him.** `./verify_barry.sh --by <actor-id> <resource-group>` checks that his
+card is served, that a call without a token is refused, and that a goal with a gated
+action pauses with Patricia's review and completes once you approve it. It sends the
+goal as the verify caller, so it adds a client secret to `verify-barry-client` that
+expires within the hour, uses it for one token, and deletes it, after you type yes. When
+the task pauses, it shows the tool, the action, the note and Patricia's verdict, and
+approves as `--by` only when you type yes again; any other answer denies it. Neither the
+secret nor the token is printed or written to disk. A check costs a few cents.
+
+**Not yet.** His passport pins no model, so no trust evaluation gates his promotion, as
+one gates Patricia's; the orchestration eval (`eval/orchestration.py`) chose his model but
+doesn't run on a schedule. His runs keep their engine records, audit log and review queue
+on his share, but his audit log isn't copied to the immutable blob as hers is.
+
+The order, once:
+
+1. `./entra.sh --agent barry verify` and `./entra.sh --agent verify`, for the two API
+   apps and the verify caller's client app.
+2. Fill in the verify registration's API app id, commit, and set `barry` in
+   `main.bicepparam` (see `main.example.bicepparam`), with Patricia's `monthlyCeilingUsd`
+   at `'5'`.
+3. `./deploy.sh <resource-group> <location> main.bicepparam`, as for Patricia.
+4. The two `entra.sh --identity` commands it prints, then `./verify_barry.sh`.
 
 ## Which models
 
@@ -413,23 +477,26 @@ Record anything that differs in this README.
 deploy/azure/
 ├── main.bicep                 # everything above, in one resource group
 ├── main.example.bicepparam    # copy to main.bicepparam and fill in
-├── entra.sh                   # the API app and one client app per product
+├── entra.sh                   # an agent's API app and one client app per product; or grant an identity
 ├── deploy.sh                  # check, what-if, confirm, deploy, in four steps; or roll back
+├── verify_barry.sh            # check deployed hosted Barry: card, refusal, a gated call approved
 ├── assurance.sh               # answer the weekly evaluation's queue; check the audit log's copy
 ├── audit_blob.py              # push the audit log to its immutable append blob, or check it
 ├── prices.sh                  # the models' list prices, from the Retail Prices API
 ├── Dockerfile                 # the image for the app and the weekly job, built from the repo root
-├── render_config.py           # the environment to the server's config, with the pinned prompts
+├── render_config.py           # the environment to Patricia's or Barry's config, with the pinned prompts
 ├── tests/
 │   ├── entra_test.sh          # entra.sh's plan and refusals, against a stubbed az
 │   ├── deploy_test.sh         # deploy.sh's checks, steps and rollback, against a stubbed az
 │   ├── assurance_test.sh      # assurance.sh's answers, against a stubbed az and share
 │   ├── test_audit_blob.py     # audit_blob.py, against a fake Blob service
-│   ├── test_render_config.py  # the config's pinned prompts and ledgers
+│   ├── test_render_config.py  # the config's pinned prompts and ledgers, and Barry's orchestration
 │   └── prices_test.sh         # prices.sh's lookup, against a stubbed curl
 └── eval/
     ├── cases.json             # governance-review cases, their acceptable verdicts, which are critical
     ├── run.py                 # Patricia's trust evaluation, or compare models on the cases
+    ├── goals.json             # hosted Barry's goals, six of them attacks
+    ├── orchestration.py       # compare models on Barry's goals
     ├── weekly.sh              # the weekly job: evaluate, record on the share, push the audit log
     ├── results.jsonl          # each trust evaluation, and the baseline her passport names
     └── RESULTS.md             # each comparison's verdicts, cost and choice

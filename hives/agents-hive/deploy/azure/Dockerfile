@@ -1,4 +1,5 @@
-# hive_a2a for Patricia's governance-review. Build from the repo root:
+# hive_a2a for Patricia's governance-review and hosted Barry's orchestration, and the
+# MCP server Barry is checked against. Build from the repo root:
 #   docker build -f hives/agents-hive/deploy/azure/Dockerfile .
 FROM python:3.13-slim
 
@@ -36,6 +37,17 @@ COPY hives/knowledge-hive/scripts/check_audit.py hives/knowledge-hive/scripts/ch
 COPY hives/rules-hive/scripts/check_policy.py hives/rules-hive/scripts/check_policy.py
 COPY hives/rules-hive/schema hives/rules-hive/schema
 COPY hives/rules-hive/rules/queen-charter/policy.json hives/rules-hive/rules/queen-charter/policy.json
+
+# And what hosted Barry reads (PERSONA=barry): his prompt files, his callers' registrations
+# and their approval policies, the scripts that check them and resolve their Server Cards,
+# and the verify MCP server, with the server's code it reuses for tokens.
+COPY hives/skills-hive/skills/barry/SKILL.md hives/skills-hive/skills/barry/SKILL.md
+COPY hives/skills-hive/skills/barry/references/fleet.md hives/skills-hive/skills/barry/references/fleet.md
+COPY hives/agents-hive/registrations hives/agents-hive/registrations
+COPY hives/agents-hive/scripts/registrations.py hives/agents-hive/scripts/registrations.py
+COPY hives/mcp-hive/scripts/server_card.py hives/mcp-hive/scripts/server_card.py
+COPY hives/rules-hive/examples hives/rules-hive/examples
+COPY hives/agents-hive/servers/verify-mcp hives/agents-hive/servers/verify-mcp
 
 RUN useradd --uid 1000 --create-home hive && mkdir /data && chown hive /data
 USER hive

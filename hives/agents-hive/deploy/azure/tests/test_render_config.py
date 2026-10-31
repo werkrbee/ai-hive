@@ -26,6 +26,9 @@ ENV = {"PUBLIC_URL": "https://patricia-a2a.example/", "AZURE_TENANT_ID": "t", "A
        "MODEL_NAME": "review-a", "MODEL_BASE_URL": "https://ai.example/anthropic",
        "MODEL_INPUT_USD_PER_MTOK": "2", "MODEL_OUTPUT_USD_PER_MTOK": "10"}
 PASSPORT = "hives/agents-hive/passports/patricia/passport.json"
+BARRY = "hives/agents-hive/passports/barry/passport.json"
+BARRY_ENV = {"PERSONA": "barry", "PATRICIA_URL": "https://patricia-a2a.example/", "PATRICIA_API_APP_ID": "p",
+             "CALLERS": "v1=verify, l1 = lineup"}
 
 
 @unittest.skipIf(tomllib is None, "needs Python 3.11 or later to read the TOML")
@@ -33,7 +36,7 @@ class Render(unittest.TestCase):
     def setUp(self):
         self.root = Path(tempfile.mkdtemp())
         self.addCleanup(shutil.rmtree, self.root, ignore_errors=True)
-        for rel in [PASSPORT] + [p for p in rc.pinned_prompts(REPO)]:
+        for rel in [PASSPORT, BARRY] + rc.pinned_prompts(REPO) + rc.pinned_prompts(REPO, "barry"):
             (self.root / rel).parent.mkdir(parents=True, exist_ok=True)
             shutil.copy(REPO / rel, self.root / rel)
 
@@ -62,6 +65,32 @@ class Render(unittest.TestCase):
         job = self.config(LEDGER="/data/ledger-eval.jsonl", SHARED_LEDGERS="/data/ledger.jsonl")["server"]
         self.assertEqual((job["ledger"], job["shared_ledgers"]), ("/data/ledger-eval.jsonl", ["/data/ledger.jsonl"]))
         self.assertEqual(self.config()["server"]["shared_ledgers"], [])
+
+    def test_barrys_config_runs_orchestration_with_patricia_and_his_callers(self):
+        c = self.config(**BARRY_ENV)
+        self.assertEqual((c["server"]["persona"], c["server"]["capability"]), ("barry", "orchestration"))
+        self.assertEqual(c["server"]["prompt_files"], rc.pinned_prompts(REPO, "barry"))
+        self.assertNotIn("required_roles", c["auth"], "his roles are checked per method")
+        o = c["orchestration"]
+        self.assertEqual((o["passport"], o["state_dir"], o["reviewer"]), ("barry", "/data/runs", "patricia"))
+        self.assertEqual(o["delegates"], [{"name": "patricia", "url": "https://patricia-a2a.example/",
+                                           "capability": "governance-review", "token_scope": "api://p/.default"}])
+        self.assertEqual(o["callers"], [{"client": "v1", "registration": "verify"},
+                                        {"client": "l1", "registration": "lineup"}])
+
+    def test_patricias_config_has_no_orchestration_and_keeps_her_role(self):
+        c = self.config()
+        self.assertNotIn("orchestration", c)
+        self.assertEqual(c["auth"]["required_roles"], ["Review.Request"])
+
+    def test_barry_needs_patricia_and_well_formed_callers(self):
+        with self.assertRaisesRegex(SystemExit, "missing environment: PATRICIA_URL, PATRICIA_API_APP_ID"):
+            self.config(PERSONA="barry")
+        with self.assertRaisesRegex(SystemExit, "client=registration pairs"):
+            self.config(**{**BARRY_ENV, "CALLERS": "v1"})
+        with self.assertRaisesRegex(SystemExit, "PERSONA must be one of"):
+            self.config(PERSONA="queen")
+        self.assertNotIn("callers", self.config(**{**BARRY_ENV, "CALLERS": ""})["orchestration"])
 
 
 if __name__ == "__main__":

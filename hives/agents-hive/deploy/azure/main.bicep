@@ -1,6 +1,7 @@
 // werkrbee's deployment of the reference A2A server (hives/agents-hive/servers/a2a) for
-// Patricia's governance-review. One resource group holds everything, so its budget covers
-// the whole deployment. See README.md for the order to run things in.
+// Patricia's governance-review and, when barry is set, hosted Barry's orchestration beside
+// her, with the MCP server he is checked against. One resource group holds everything, so
+// its budget covers the whole deployment. See README.md for the order to run things in.
 
 targetScope = 'resourceGroup'
 
@@ -53,6 +54,9 @@ param evalSchedule string = '0 6 * * 1'
 @description('Object ids of the people who may read the immutable copy of the audit log (audit_blob.py check), e.g. from az ad signed-in-user show --query id. The job writes it; nobody else needs to.')
 param auditReaders array = []
 
+@description('Hosted Barry, beside Patricia, from the same image and model. Empty deploys Patricia alone. apiAppId and allowedClients come from entra.sh --agent barry; callers maps each allowed client to its registration (registrations/<name>), as [{ client, registration }]; verifyApiAppId is the verify MCP server\'s API app, from entra.sh --agent verify; monthlyCeilingUsd is his own ceiling (a string, default 15).')
+param barry object = {}
+
 var suffix = uniqueString(resourceGroup().id)
 var appName = '${prefix}-a2a'
 var aiName = '${prefix}-ai-${suffix}'
@@ -65,6 +69,11 @@ var auditContainer = 'audit'
 var messagesFormats = ['Anthropic']
 var chosen = filter(models, m => m.deployment == modelDeployment)
 var modelApi = contains(messagesFormats, chosen[0].format) ? 'messages' : 'chat-completions'
+
+var barryOn = !empty(barry)
+var barryName = 'barry-a2a'
+var verifyName = 'barry-verify'
+var barryShareName = 'hive-barry-data'
 
 // Built-in role ids.
 var acrPull = '7f951dda-4ed3-4680-a7ca-43fe172d538d'
@@ -90,6 +99,40 @@ resource registryPull 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
   scope: registry
   properties: {
     principalId: identity.properties.principalId
+    principalType: 'ServicePrincipal'
+    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', acrPull)
+  }
+}
+
+// Barry's identity, separate from Patricia's, holds only what he uses: AcrPull here and
+// Foundry access below. Tokens for Patricia's API and the verify server's are app roles
+// granted to it in Entra (entra.sh --identity), not Azure roles. The verify server's
+// identity only pulls the image.
+resource barryIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = if (barryOn) {
+  name: '${barryName}-id'
+  location: location
+}
+
+resource barryPull 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (barryOn) {
+  name: guid(registry.id, '${barryName}-id', acrPull)
+  scope: registry
+  properties: {
+    principalId: barryIdentity!.properties.principalId
+    principalType: 'ServicePrincipal'
+    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', acrPull)
+  }
+}
+
+resource verifyIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = if (barryOn) {
+  name: '${verifyName}-id'
+  location: location
+}
+
+resource verifyPull 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (barryOn) {
+  name: guid(registry.id, '${verifyName}-id', acrPull)
+  scope: registry
+  properties: {
+    principalId: verifyIdentity!.properties.principalId
     principalType: 'ServicePrincipal'
     roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', acrPull)
   }
@@ -143,6 +186,27 @@ resource aiUser 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (model
   }
 }
 
+// Barry calls the same model deployment, with the same narrowest role for its route.
+resource barryAiOpenAiUser 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (barryOn && modelApi == 'chat-completions') {
+  name: guid(ai.id, '${barryName}-id', cognitiveServicesOpenAiUser)
+  scope: ai
+  properties: {
+    principalId: barryIdentity!.properties.principalId
+    principalType: 'ServicePrincipal'
+    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', cognitiveServicesOpenAiUser)
+  }
+}
+
+resource barryAiUser 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (barryOn && modelApi == 'messages') {
+  name: guid(ai.id, '${barryName}-id', cognitiveServicesUser)
+  scope: ai
+  properties: {
+    principalId: barryIdentity!.properties.principalId
+    principalType: 'ServicePrincipal'
+    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', cognitiveServicesUser)
+  }
+}
+
 // Tasks (SQLite) and the usage ledger live on an Azure Files share, so they survive
 // restarts and scale-to-zero.
 resource storage 'Microsoft.Storage/storageAccounts@2023-05-01' = {
@@ -165,6 +229,14 @@ resource files 'Microsoft.Storage/storageAccounts/fileServices@2023-05-01' = {
 resource share 'Microsoft.Storage/storageAccounts/fileServices/shares@2023-05-01' = {
   parent: files
   name: shareName
+  properties: { shareQuota: 1 }
+}
+
+// Barry's tasks, ledger and run records, on a share of his own: a ledger and a task store
+// each belong to one server process.
+resource barryShare 'Microsoft.Storage/storageAccounts/fileServices/shares@2023-05-01' = if (barryOn) {
+  parent: files
+  name: barryShareName
   properties: { shareQuota: 1 }
 }
 
@@ -260,7 +332,23 @@ resource environmentShare 'Microsoft.App/managedEnvironments/storages@2024-03-01
   }
 }
 
+resource barryEnvironmentShare 'Microsoft.App/managedEnvironments/storages@2024-03-01' = if (barryOn) {
+  parent: environment
+  name: barryShareName
+  properties: {
+    azureFile: {
+      accountName: storage.name
+      accountKey: storage.listKeys().keys[0].value
+      shareName: barryShareName
+      accessMode: 'ReadWrite'
+    }
+  }
+}
+
 var publicUrl = 'https://${appName}.${environment.properties.defaultDomain}/'
+var barryUrl = 'https://${barryName}.${environment.properties.defaultDomain}/'
+var verifyUrl = 'https://${verifyName}.${environment.properties.defaultDomain}/'
+var barryClient = barryOn ? barryIdentity!.properties.clientId : ''
 var baseUrl = modelApi == 'messages'
   ? 'https://${aiName}.services.ai.azure.com/anthropic'
   : 'https://${aiName}.openai.azure.com/openai/v1'
@@ -271,7 +359,8 @@ var serverEnv = [
   { name: 'AZURE_TENANT_ID', value: tenantId }
   { name: 'AZURE_CLIENT_ID', value: identity.properties.clientId } // DefaultAzureCredential picks this identity
   { name: 'API_APP_ID', value: apiAppId }
-  { name: 'ALLOWED_CLIENTS', value: join(allowedClients, ',') }
+  // Barry calls Patricia as a client in his own right, with his identity's token.
+  { name: 'ALLOWED_CLIENTS', value: join(concat(allowedClients, barryOn ? [barryClient] : []), ',') }
   { name: 'MODEL_API', value: modelApi }
   { name: 'MODEL_PUBLISHER', value: chosen[0].format } // for the ledger
   { name: 'MODEL_NAME', value: chosen[0].deployment }
@@ -373,6 +462,103 @@ resource evalJob 'Microsoft.App/jobs@2024-03-01' = if (!empty(image)) {
   }
 }
 
+// Hosted Barry: the same image and model as Patricia, his own identity, share and ceiling.
+var barryEnv = [
+  { name: 'PERSONA', value: 'barry' }
+  { name: 'PUBLIC_URL', value: barryUrl }
+  { name: 'AZURE_TENANT_ID', value: tenantId }
+  { name: 'AZURE_CLIENT_ID', value: barryClient }
+  { name: 'API_APP_ID', value: barry.?apiAppId ?? '' }
+  { name: 'ALLOWED_CLIENTS', value: join(barry.?allowedClients ?? [], ',') }
+  { name: 'MODEL_API', value: modelApi }
+  { name: 'MODEL_PUBLISHER', value: chosen[0].format }
+  { name: 'MODEL_NAME', value: chosen[0].deployment }
+  { name: 'MODEL_BASE_URL', value: baseUrl }
+  { name: 'MODEL_INPUT_USD_PER_MTOK', value: inputUsdPerMtok }
+  { name: 'MODEL_OUTPUT_USD_PER_MTOK', value: outputUsdPerMtok }
+  { name: 'MONTHLY_CEILING_USD', value: barry.?monthlyCeilingUsd ?? '15' }
+  { name: 'DATA_DIR', value: '/data' }
+  { name: 'PATRICIA_URL', value: publicUrl }
+  { name: 'PATRICIA_API_APP_ID', value: apiAppId }
+  { name: 'CALLERS', value: join(map(barry.?callers ?? [], c => '${c.client}=${c.registration}'), ',') }
+]
+
+resource barryApp 'Microsoft.App/containerApps@2024-03-01' = if (barryOn && !empty(image)) {
+  name: barryName
+  location: location
+  identity: {
+    type: 'UserAssigned'
+    userAssignedIdentities: { '${barryIdentity.id}': {} }
+  }
+  dependsOn: [barryPull, barryAiOpenAiUser, barryAiUser, deployments]
+  properties: {
+    environmentId: environment.id
+    configuration: {
+      ingress: { external: true, targetPort: 8080, transport: 'http', allowInsecure: false }
+      registries: [{ server: registry.properties.loginServer, identity: barryIdentity.id }]
+    }
+    template: {
+      containers: [{
+        name: 'hive-a2a'
+        image: image
+        resources: { cpu: json('0.5'), memory: '1Gi' }
+        env: barryEnv
+        volumeMounts: [{ volumeName: 'data', mountPath: '/data' }]
+        probes: [{
+          type: 'Readiness'
+          httpGet: { path: '/.well-known/agent-card.json', port: 8080 }
+        }]
+      }]
+      volumes: [{
+        name: 'data'
+        storageType: 'AzureFile'
+        storageName: barryEnvironmentShare.name
+        mountOptions: 'nobrl,uid=1000,gid=1000,file_mode=0600,dir_mode=0700'
+      }]
+      // One replica, for the same reason as Patricia's: one ledger, one task store.
+      scale: { minReplicas: 0, maxReplicas: 1 }
+    }
+  }
+}
+
+// The MCP server Barry is checked against (servers/verify-mcp): one gated tool that keeps a
+// note in memory. It accepts only Barry's identity, with the Verify.Call role.
+resource verifyApp 'Microsoft.App/containerApps@2024-03-01' = if (barryOn && !empty(image)) {
+  name: verifyName
+  location: location
+  identity: {
+    type: 'UserAssigned'
+    userAssignedIdentities: { '${verifyIdentity.id}': {} }
+  }
+  dependsOn: [verifyPull]
+  properties: {
+    environmentId: environment.id
+    configuration: {
+      ingress: { external: true, targetPort: 8080, transport: 'http', allowInsecure: false }
+      registries: [{ server: registry.properties.loginServer, identity: verifyIdentity.id }]
+    }
+    template: {
+      containers: [{
+        name: 'verify-mcp'
+        image: image
+        command: ['python', '/app/hives/agents-hive/servers/verify-mcp/verify_mcp.py', '--host', '0.0.0.0', '--port', '8080']
+        resources: { cpu: json('0.25'), memory: '0.5Gi' }
+        env: [
+          { name: 'PUBLIC_URL', value: verifyUrl }
+          { name: 'AZURE_TENANT_ID', value: tenantId }
+          { name: 'API_APP_ID', value: barry.?verifyApiAppId ?? '' }
+          { name: 'ALLOWED_CLIENTS', value: barryClient }
+        ]
+        probes: [{
+          type: 'Readiness'
+          httpGet: { path: '/.well-known/mcp/server-card.json', port: 8080 }
+        }]
+      }]
+      scale: { minReplicas: 0, maxReplicas: 1 }
+    }
+  }
+}
+
 resource budget 'Microsoft.Consumption/budgets@2023-11-01' = {
   name: '${prefix}-a2a-monthly'
   properties: {
@@ -414,3 +600,7 @@ output dataAccount string = storage.name
 output auditAccount string = auditStorage.name
 output auditContainer string = auditContainer
 output auditBlobUrl string = auditBlobUrl
+output barryUrl string = barryOn ? barryUrl : ''
+output barryAgentCard string = barryOn ? '${barryUrl}.well-known/agent-card.json' : ''
+output barryPrincipalId string = barryOn ? barryIdentity!.properties.principalId : ''
+output verifyUrl string = barryOn ? verifyUrl : ''

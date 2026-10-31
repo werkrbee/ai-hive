@@ -7,14 +7,22 @@
 # that evaluation has recorded within eight days), that
 # every built-in role id main.bicep assigns exists, since what-if doesn't, and that every
 # model is generally available in the region, by the Foundry model catalog, and that the
-# one the server calls is the model her passport pins.
+# one the server calls is the model her passport pins. With hosted Barry set, it also
+# checks that Patricia's ceiling is $5 or less and his callers' registrations are filled in.
 #
 #   1. the infrastructure, without the app (registry, identity, Foundry, storage, the
 #      audit log's storage, budget)
 #   2. the audit log's retention policy: 365 days, protected append writes allowed; it is
 #      locked, which can't be undone, only with --lock-audit-retention
 #   3. the image, built in the new registry from this commit
-#   4. the app and the weekly evaluation job, running that image
+#   4. the app and the weekly evaluation job, running that image, and, when the parameters
+#      set barry, hosted Barry's app and the verify MCP server beside them
+#
+# Barry runs the model Patricia's passport pins and is deployed with her, through the same
+# gated steps. His passport pins no model yet, so no trust evaluation gates him. After the
+# first deploy with him, his identity is granted Patricia's and the verify server's app
+# roles with entra.sh --identity, and verify_barry.sh checks him end to end; this prints
+# both commands.
 #
 # --rollback VERSION rolls Patricia back to an earlier passport version instead: it
 # deploys the newest commit at which her passport was VERSION, from a temporary worktree,
@@ -252,6 +260,60 @@ PY
   rm -rf "$tmp"
 }
 
+# With hosted Barry set, the two agents share the budget, so Patricia's own ceiling must be
+# $5 or less (README.md, "Hosted Barry"), and every registration his callers map to must
+# exist with its card URL and token scope filled in, not a <...> placeholder, which would
+# otherwise only fail once he calls it.
+check_barry() {
+  local tmp
+  tmp=$(mktemp -d)
+  if ! az bicep build-params --file "$params" --stdout > "$tmp/params.json"; then
+    echo "error: couldn't read the barry parameter in $params" >&2
+    rm -rf "$tmp"; exit 1
+  fi
+  if ! python3 - "$tmp/params.json" "$src/hives/agents-hive/registrations" <<'PY'
+import json, os, re, sys
+
+params = json.loads(json.load(open(sys.argv[1]))["parametersJson"])["parameters"]
+barry = (params.get("barry") or {}).get("value") or {}
+if not barry:
+    print("hosted Barry isn't set; Patricia deploys alone")
+    sys.exit(0)
+bad = False
+ceiling = (params.get("monthlyCeilingUsd") or {}).get("value", "25")
+try:
+    over = float(ceiling) > 5
+except ValueError:
+    over = True
+if over:
+    print(f"error: hosted Barry is set, so Patricia's monthlyCeilingUsd must be '5' or less, not {ceiling!r}",
+          file=sys.stderr)
+    bad = True
+placeholder = re.compile(r"<[^<>]+>")
+for caller in barry.get("callers") or []:
+    name = caller.get("registration")
+    path = os.path.join(sys.argv[2], str(name), "registration.json")
+    if not name or not os.path.isfile(path):
+        print(f"error: barry.callers maps {caller.get('client')} to {name!r}, which isn't a registration", file=sys.stderr)
+        bad = True
+        continue
+    for server in json.load(open(path)).get("servers", []):
+        values = {"card URL": ((server.get("mcp") or {}).get("discovery") or {}).get("card", ""),
+                  "token scope": server.get("token_scope", "")}
+        for what, value in values.items():
+            if placeholder.search(value):
+                print(f"error: registration {name}'s {what} is still a placeholder: {value}", file=sys.stderr)
+                bad = True
+if not bad:
+    print(f"hosted Barry: Patricia's ceiling is ${ceiling}, and each caller's registration is filled in")
+sys.exit(1 if bad else 0)
+PY
+  then
+    rm -rf "$tmp"; exit 1
+  fi
+  rm -rf "$tmp"
+}
+
 # A change to Patricia is promoted only once her trust evaluation has passed on its exact
 # pins, and while no drift waits for a person (hives/agents-hive/scripts/trust_eval.py).
 # A rollback checks the earlier passport with the check as it was at that commit, against
@@ -419,6 +481,8 @@ echo "== role ids"
 check_roles
 echo "== models"
 check_models
+echo "== hosted Barry"
+check_barry
 
 echo "== 1/4 infrastructure"
 if [ "$(az group exists --name "$rg")" != "true" ]; then
@@ -436,9 +500,18 @@ confirm "Build and push the image to $registry?"
 az acr build --registry "${registry%%.*}" --image "hive-a2a:$tag" \
   --file "$azure/Dockerfile" "$src"
 
-echo "== 4/4 app and weekly evaluation job"
+echo "== 4/4 app and weekly evaluation job, and hosted Barry when set"
 outputs=$(deploy "$registry/hive-a2a:$tag")
 echo "Agent Card: $(output "$outputs" agentCard)"
+barry_principal=$(output "$outputs" barryPrincipalId)
+if [ -n "$barry_principal" ]; then
+  echo "Barry's Agent Card: $(output "$outputs" barryAgentCard)"
+  echo "The verify MCP server: $(output "$outputs" verifyUrl)"
+  echo "If his identity doesn't have them yet, grant it Patricia's and the verify server's roles:"
+  echo "  $azure/entra.sh --agent patricia --identity $barry_principal"
+  echo "  $azure/entra.sh --agent verify --identity $barry_principal"
+  echo "Then check him end to end: $azure/verify_barry.sh --by <your-actor-id> $rg"
+fi
 
 # The app is deployed by now, so a rollback that can't be recorded says so, and how to
 # record it, rather than leaving the deploy unrecorded without a word.
