@@ -92,6 +92,10 @@ log = logging.getLogger("hive_a2a")
 CHARS_PER_TOKEN = 3  # as review.py: a conservative estimate, for sizing a turn before it is taken
 MIN_OUTPUT_TOKENS = 256
 CORRECTIONS = 1  # times a final reply that misses the output schema is sent back
+# A turn the provider refuses with HTTP 429 is asked again, unbilled, up to RATE_RETRIES
+# times: after the wait the provider asks for (Retry-After), or RATE_BACKOFF seconds
+# doubling each time, never past RATE_WAIT_MAX or the run's working time.
+RATE_RETRIES, RATE_BACKOFF, RATE_WAIT_MAX = 4, 5, 60
 IDEMPOTENCY_META = "io.werkrbee/idempotency-key"
 MCP_VERSION = "2026-07-28"  # mcp-hive's target; the server may negotiate another
 TIMEOUT = httpx.Timeout(180)  # Patricia's review answers within her 120-second budget
@@ -609,13 +613,15 @@ class Orchestrator:
         max_out, max_usd, seconds = plan
         unmetered = {**self.who(run_id), "usd": round(max_usd, 6), "basis": "estimated"}
         self._await(self.ledger.start(key, unmetered))
+        deadline = None if seconds == math.inf else self._now() + seconds
 
         async def converse():
+            left = None if deadline is None else max(0.0, deadline - self._now())
             return await asyncio.wait_for(self.provider.converse(self.system, list(history), tools, max_out),
-                                          timeout=None if seconds == math.inf else seconds)
+                                          timeout=left)
 
         try:
-            reply = self._await(converse())
+            reply = self._rate_limited(converse, deadline)
         except TimeoutError:
             self._await(self.ledger.charge(run_id, unmetered, pending=key))
             raise TimeoutError(f"the turn ran past the {seconds:.0f} seconds of working time the run had left")
@@ -629,6 +635,28 @@ class Orchestrator:
         used = self.entry(run_id, reply)
         self._await(self.ledger.charge(run_id, used, pending=key))
         return _recorded(reply), {"usd": used["usd"], "tokens": used["tokens"]}
+
+    def _now(self):
+        return self.loop.time() if self.loop else 0.0
+
+    def _rate_limited(self, converse, deadline):
+        """converse(), asked again after each HTTP 429 the provider answers with. A 429 is
+        refused before the model runs, so nothing was billed for it. The last refusal is
+        raised as unbilled, saying how many times the turn was refused."""
+        for attempt in itertools.count():
+            try:
+                return self._await(converse())
+            except ProviderError as err:
+                if err.status != 429:
+                    raise
+                wait = err.retry_after if err.retry_after is not None else RATE_BACKOFF * 2 ** attempt
+                wait = min(wait, RATE_WAIT_MAX)
+                if attempt == RATE_RETRIES or (deadline is not None and self._now() + wait >= deadline):
+                    times = f"{attempt + 1} time{'s' if attempt else ''}"
+                    raise ProviderError(f"{err}: the provider refused the turn {times} for its rate limit",
+                                        sent=False, status=429) from err
+                log.warning("the provider rate-limited a turn; asking again in %.0f seconds", wait)
+                self._await(asyncio.sleep(wait))
 
     def who(self, run_id):
         return {"runId": run_id, "capability": self.config.capability,

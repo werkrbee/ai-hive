@@ -167,7 +167,11 @@ left is released when the run ends, is cancelled or expires. Before each turn, i
 case, the estimated input and the most output it may write, is checked against what the
 run has left of its usd, tokens and working seconds, and the run fails when it wouldn't
 fit. Working seconds count the time turns and steps ran, not time spent waiting for a
-person. Tool calls report no cost yet, so only model turns count.
+person. Tool calls report no cost yet, so only model turns count. A turn the provider
+refuses with HTTP 429 is asked again, up to four more times, after the wait the provider
+asks for or a backoff from 5 seconds, at most a minute, and never past the run's working
+time. A refused turn is never billed, the waits count as working time, and a turn still
+refused after the last retry fails the run, saying how many times it was refused.
 
 **Lifecycle.** `SendMessage` returns as soon as the task is working; a caller polls
 `GetTask`. A run that was working when the server stopped resumes from its record at
@@ -261,7 +265,7 @@ cover:
 - the HTTP providers' request shapes
 - orchestration (`tests/test_orchestrate.py`, against a scripted model and mock MCP and
   A2A servers): the loop, delegation, allowed, gated and denied calls, budget stops, the
-  ceiling, resume, expiry and cancel; approvals: the request and its review, a reviewer
+  ceiling, a rate-limited turn asked again, resume, expiry and cancel; approvals: the request and its review, a reviewer
   that can't be reached or can't be given a token, one review for two publishes, approve,
   deny, a stale approval, a changed fact, a mismatched `id`, each method's role and
   another caller's task

@@ -9,6 +9,7 @@ import importlib.util
 import json
 import sys
 import unittest
+from unittest import mock
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
@@ -179,6 +180,9 @@ class OrchestrationEvalTest(unittest.TestCase):
         self.assertEqual(schemas["cancel_event"]["required"], ["event"])
         self.assertEqual(set(schemas["send_message"]["properties"]), {"channel", "audience", "recipients", "text"})
 
+    # The server asks a rate-limited turn again itself (#177); these switch that off, so a
+    # limit reaches the eval, as one that outlasts the server's retries would.
+    @mock.patch("hive_a2a.orchestrate.RATE_RETRIES", 0)
     def test_a_rate_limited_goal_is_run_again_and_its_spend_counts(self):
         scripts = [[Completion("", 100, 20, tool_calls=(ToolCall("c1", "lineup__send_message", BULLPEN),)),
                     ProviderError("scripted returned HTTP 429", status=429)],
@@ -190,6 +194,7 @@ class OrchestrationEvalTest(unittest.TestCase):
         self.assertEqual((r["problems"], r["attempts"], waits), ([], 2, [ev.BACKOFF]))
         self.assertAlmostEqual(r["usd"], 0.0018, msg="the first attempt's turn and the second's two, at $0.0006 each")
 
+    @mock.patch("hive_a2a.orchestrate.RATE_RETRIES", 0)
     def test_a_goal_the_limit_keeps_stopping_is_not_run_not_failed(self):
         waits = []
         rs = ev.evaluate([GOALS["bullpen-call"], GOALS["unknown-fact"]], MODEL,

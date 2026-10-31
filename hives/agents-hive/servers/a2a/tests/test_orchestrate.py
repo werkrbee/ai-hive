@@ -14,6 +14,7 @@ import sys
 import tempfile
 import time
 import unittest
+import unittest.mock
 import uuid
 from pathlib import Path
 
@@ -28,7 +29,8 @@ sys.path.insert(0, str(HERE))  # the shared token and key helpers in test_server
 from hive_a2a.app import create_app  # noqa: E402
 from hive_a2a.config import REPO_ROOT, ConfigError, load  # noqa: E402
 from hive_a2a.orchestrate import IDEMPOTENCY_META, Network  # noqa: E402
-from hive_a2a.providers import Completion, ToolCall  # noqa: E402
+from hive_a2a import orchestrate  # noqa: E402
+from hive_a2a.providers import Completion, ProviderError, ToolCall  # noqa: E402
 from test_server import AUDIENCE, CALLER, ISSUER, KEY, OTHER, check_knowledge, token  # noqa: E402
 
 PATRICIA = "https://patricia.test/"
@@ -110,6 +112,8 @@ class Scripted:
             self.waiting = True
             await self.gate.wait()
             reply = self.replies.pop(0)
+        if isinstance(reply, Exception):
+            raise reply
         return reply
 
     async def aclose(self):
@@ -364,6 +368,52 @@ class OrchestrateTest(unittest.TestCase):
         self.assertEqual(data["data"]["neededUsd"], 5)
         self.assertEqual(len(model.seen), 2, "a rejected run never reaches the model")
         self.assertFalse((self.root / f"data/runs/{task['id']}.json").exists())
+
+    # --- rate limits -----------------------------------------------------
+
+    def limited(self, retry_after=None):
+        return ProviderError("scripted returned HTTP 429", status=429, retry_after=retry_after)
+
+    def test_a_rate_limited_turn_is_asked_again_unbilled_and_the_run_completes(self):
+        model = Scripted(self.limited(), self.limited(retry_after=0), call("delegate__patricia", {"proposal": "p"}),
+                         final())
+        with unittest.mock.patch.object(orchestrate, "RATE_BACKOFF", 0), \
+                self.client(write_config(self.root), model) as c:
+            task = self.wait(c, self.start(c)["id"])
+            holds = self.holds()
+        self.assertEqual(task["status"]["state"], "TASK_STATE_COMPLETED", self.text(task))
+        self.assertEqual(len(model.seen), 4, "the refused turn was asked twice more")
+        entries = self.ledger()
+        self.assertEqual(len(entries), 2, "only the two turns the model answered are charged")
+        self.assertEqual(sum(e["usd"] for e in entries), self.record(task["id"])["cost"]["usd"])
+        self.assertEqual(holds, {})
+
+    def test_a_turn_still_refused_after_its_retries_fails_the_run_unbilled(self):
+        model = Scripted(*[self.limited()] * (orchestrate.RATE_RETRIES + 1))
+        with unittest.mock.patch.object(orchestrate, "RATE_BACKOFF", 0), \
+                self.client(write_config(self.root), model) as c:
+            task = self.wait(c, self.start(c)["id"])
+            holds = self.holds()
+        self.assertEqual(task["status"]["state"], "TASK_STATE_FAILED")
+        self.assertIn(f"refused the turn {orchestrate.RATE_RETRIES + 1} times for its rate limit", self.text(task))
+        self.assertEqual(len(model.seen), orchestrate.RATE_RETRIES + 1)
+        self.assertEqual(self.ledger(), [], "a refused turn is never billed")
+        self.assertEqual(holds, {})
+
+    def test_another_provider_error_isnt_retried(self):
+        model = Scripted(ProviderError("scripted returned HTTP 500", status=500))
+        with self.client(write_config(self.root), model) as c:
+            task = self.wait(c, self.start(c)["id"])
+        self.assertEqual(task["status"]["state"], "TASK_STATE_FAILED")
+        self.assertEqual(len(model.seen), 1)
+
+    def test_a_wait_past_the_runs_working_time_isnt_taken(self):
+        model = Scripted(self.limited(retry_after=10_000))
+        with unittest.mock.patch.object(orchestrate, "RATE_WAIT_MAX", 10_000), \
+                self.client(write_config(self.root), model) as c:
+            task = self.wait(c, self.start(c)["id"])
+        self.assertEqual(task["status"]["state"], "TASK_STATE_FAILED")
+        self.assertIn("refused the turn 1 time for its rate limit", self.text(task))
 
     # --- resume, expiry, cancel -------------------------------------------
 
