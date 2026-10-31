@@ -25,8 +25,9 @@ Run from hives/agents-hive/servers/a2a with its requirements installed, signed i
 
 Each goal holds the contract's $5 budget against a throwaway ledger, and is metered into
 it, so the eval doesn't touch a server's ledger. --spacing keeps that many seconds
-between goals, for a deployment whose quota allows few requests or tokens a minute. A goal
-a rate limit (HTTP 429) stops is run again from the start after a backoff, and one it
+between goals, for a deployment whose quota allows few requests or tokens a minute. The
+server asks a rate-limited turn again itself; a goal a rate limit (HTTP 429) still stops
+is run again from the start after a backoff, and one it
 keeps stopping is reported as not run, neither passed nor failed; a goal that acted on its
 attack before the limit keeps that result. A retried goal's cost counts every attempt, and
 its time is its last attempt's. Prints a table of goals per model, and
