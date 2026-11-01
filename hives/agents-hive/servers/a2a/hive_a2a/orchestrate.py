@@ -99,6 +99,10 @@ RATE_RETRIES, RATE_BACKOFF, RATE_WAIT_MAX = 4, 5, 60
 IDEMPOTENCY_META = "io.werkrbee/idempotency-key"
 MCP_VERSION = "2026-07-28"  # mcp-hive's target; the server may negotiate another
 TIMEOUT = httpx.Timeout(180)  # Patricia's review answers within her 120-second budget
+# A Server Card fetch that times out or gets a 5xx, as from a server starting from zero, is
+# asked again after CARD_BACKOFF seconds doubling each time, never past CARD_WAIT seconds
+# in all or the run's working time.
+CARD_BACKOFF, CARD_WAIT = 2, 120
 STATES = {"working": TaskState.TASK_STATE_WORKING, "input_required": TaskState.TASK_STATE_INPUT_REQUIRED,
           "completed": TaskState.TASK_STATE_COMPLETED, "failed": TaskState.TASK_STATE_FAILED,
           "cancelled": TaskState.TASK_STATE_CANCELED}
@@ -144,7 +148,11 @@ class Shutdown(BaseException):
 
 
 class McpError(Exception):
-    pass
+    """retryable: the server didn't answer in time, so asking again later may work."""
+
+    def __init__(self, message, retryable=False):
+        super().__init__(message)
+        self.retryable = retryable
 
 
 class _SessionGone(Exception):
@@ -177,7 +185,7 @@ def _card_endpoint(mcp):
             raise cards.CardError(f"{source}: invalid Server Card: " + "; ".join(problems))
         remote = cards.resolve(mcp["name"], card, mcp.get("variables", {}))
     except cards.CardError as e:
-        raise McpError(f"{mcp['name']}: {e}")
+        raise McpError(f"{mcp['name']}: {e}", retryable=e.retryable)
     if remote["headers"]:
         raise McpError(f"{mcp['name']}: its Server Card requires headers Barry can't send")
     return remote["url"]
@@ -198,12 +206,15 @@ def _sse(text):
 class Network:
     """Barry's calls out: the caller's MCP servers and the A2A agents he delegates to, each
     with a token for his own identity. token(scope) and endpoint(mcp) can be given, for
-    tests; otherwise tokens come from the managed identity and endpoints from Server Cards."""
+    tests; otherwise tokens come from the managed identity and endpoints from Server Cards.
+    now() and sleep(seconds) can be given too, for the card fetch's retries."""
 
-    def __init__(self, transport=None, token=None, endpoint=None):
+    def __init__(self, transport=None, token=None, endpoint=None, now=None, sleep=None):
         self.client = httpx.AsyncClient(transport=transport, timeout=TIMEOUT)
         self._token = token
         self._endpoint = endpoint
+        self._now = now or (lambda: asyncio.get_running_loop().time())
+        self._sleep = sleep or asyncio.sleep
         self.credential = None
         self.endpoints, self.sessions, self.listed = {}, {}, {}
         self.ids = itertools.count(1)
@@ -216,10 +227,26 @@ class Network:
             self.credential = DefaultAzureCredential()
         return (await self.credential.get_token(scope)).token
 
-    async def endpoint(self, mcp):
+    async def endpoint(self, mcp, within=CARD_WAIT):
+        """The server's endpoint, from its card, fetched once. A fetch that may work later is
+        asked again, for at most within seconds; then the server didn't answer in time."""
         if mcp["name"] not in self.endpoints:
-            self.endpoints[mcp["name"]] = (self._endpoint(mcp) if self._endpoint
-                                           else await asyncio.to_thread(_card_endpoint, mcp))
+            deadline = self._now() + min(within, CARD_WAIT)
+            for attempt in itertools.count():
+                try:
+                    url = self._endpoint(mcp) if self._endpoint else await asyncio.to_thread(_card_endpoint, mcp)
+                    break
+                except McpError as e:
+                    if not e.retryable:
+                        raise
+                    wait = CARD_BACKOFF * 2 ** attempt
+                    if self._now() + wait >= deadline:
+                        times = f"{attempt + 1} time{'s' if attempt else ''}"
+                        raise McpError(f"{mcp['name']} didn't answer in time: its Server Card was asked for "
+                                       f"{times}, and the last try said {e}") from e
+                    log.warning("%s didn't answer; asking for its Server Card again in %.0f seconds", mcp["name"], wait)
+                    await self._sleep(wait)
+            self.endpoints[mcp["name"]] = url
         return self.endpoints[mcp["name"]]
 
     async def _post(self, url, server, body, session=None):
@@ -514,7 +541,7 @@ class Orchestrator:
         if run["status"] != "working":
             return
         reg = self.o.registrations.get(run["inputs"]["owner"])
-        tools, offered = self.tools(reg)
+        tools, offered = self.tools(reg, self.budget.get("seconds", math.inf) - working_seconds(run))
         history = [User(self.prompt(run["inputs"]["input"]))]
         corrections = 0
         for n in itertools.count(1):
@@ -557,9 +584,10 @@ class Orchestrator:
                 f"Output schema:\n{json.dumps(self.config.contract['output'], indent=2)}\n\n"
                 f"Input:\n{json.dumps(value, indent=2)}")
 
-    def tools(self, reg):
+    def tools(self, reg, within=CARD_WAIT):
         """The tools offered to the model, and what each name stands for: ("a2a", agent) or
-        ("mcp", "<server>/<tool>"). Only tools the registration maps to an action are offered."""
+        ("mcp", "<server>/<tool>"). Only tools the registration maps to an action are offered.
+        A server's card is waited for no longer than within, the run's working time left."""
         tools, offered = [], {}
         for d in self.o.delegates:
             name = f"delegate__{d.name}"
@@ -569,6 +597,7 @@ class Orchestrator:
             offered[name] = ("a2a", d.name)
         for server in (reg or {}).get("servers", []):
             sname = server["mcp"]["name"]
+            self._await(self.network.endpoint(server["mcp"], max(within, 0)))
             listed = self._await(self.network.tools(server))
             for full, t in reg["tools"].items():
                 prefix, _, tool = full.partition("/")

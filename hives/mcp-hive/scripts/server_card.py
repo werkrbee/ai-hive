@@ -32,7 +32,11 @@ TIMEOUT = 10
 
 
 class CardError(Exception):
-    pass
+    """retryable: the server timed out or answered 5xx, so asking again later may work."""
+
+    def __init__(self, message, retryable=False):
+        super().__init__(message)
+        self.retryable = retryable
 
 
 def require_secure(url):
@@ -60,9 +64,10 @@ def fetch_json(url, accept):
         with OPENER.open(req, timeout=TIMEOUT) as resp:
             body = resp.read()
     except urllib.error.HTTPError as e:
-        raise CardError(f"{url}: HTTP {e.code}")
+        raise CardError(f"{url}: HTTP {e.code}", retryable=e.code >= 500)
     except (urllib.error.URLError, OSError) as e:
-        raise CardError(f"{url}: {getattr(e, 'reason', e)}")
+        reason = getattr(e, "reason", e)
+        raise CardError(f"{url}: {reason}", retryable=isinstance(e, TimeoutError) or isinstance(reason, TimeoutError))
     try:
         return json.loads(body)
     except ValueError:
