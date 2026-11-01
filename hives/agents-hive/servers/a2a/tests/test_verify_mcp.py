@@ -10,7 +10,9 @@ import json
 import sys
 import time
 import unittest
+import urllib.error
 from pathlib import Path
+from unittest import mock
 
 import httpx
 import jwt
@@ -103,6 +105,84 @@ class VerifyMcpTest(unittest.TestCase):
         listed, called = asyncio.run(go())
         self.assertIn("record_note", listed)
         self.assertIn("hi", called["content"][0]["text"])
+
+
+class CardColdStartTest(unittest.TestCase):
+    """Barry asks again for a Server Card that times out or gets a 5xx, as from a server
+    starting from zero, within a bound; anything else fails at once."""
+
+    def network(self, answers):
+        self.now, self.slept, self.asked = [0.0], [], 0
+
+        def endpoint(mcp):
+            self.asked += 1
+            answer = answers[min(self.asked, len(answers)) - 1]
+            if isinstance(answer, Exception):
+                raise answer
+            return answer
+
+        async def sleep(seconds):
+            self.slept.append(seconds)
+            self.now[0] += seconds
+
+        return orchestrate.Network(endpoint=endpoint, now=lambda: self.now[0], sleep=sleep)
+
+    def endpoint(self, network, within=orchestrate.CARD_WAIT):
+        async def go():
+            try:
+                return await network.endpoint({"name": "verify"}, within)
+            finally:
+                await network.client.aclose()
+        return asyncio.run(go())
+
+    def test_a_server_that_answers_on_the_second_try(self):
+        timeout = orchestrate.McpError("verify: card: The read operation timed out", retryable=True)
+        network = self.network([timeout, "https://verify.test/mcp"])
+        self.assertEqual(self.endpoint(network), "https://verify.test/mcp")
+        self.assertEqual((self.asked, self.slept), (2, [orchestrate.CARD_BACKOFF]))
+
+    def test_a_server_that_never_answers(self):
+        network = self.network([orchestrate.McpError("verify: card: HTTP 503", retryable=True)])
+        with self.assertRaises(orchestrate.McpError) as caught:
+            self.endpoint(network)
+        self.assertIn("verify didn't answer in time", str(caught.exception))
+        self.assertIn("HTTP 503", str(caught.exception))
+        self.assertLess(self.now[0], orchestrate.CARD_WAIT)
+        self.assertEqual(self.slept, [2, 4, 8, 16, 32])
+        self.assertNotIn("verify", network.endpoints)
+
+    def test_the_wait_stays_inside_the_runs_time_left(self):
+        network = self.network([orchestrate.McpError("verify: card: timed out", retryable=True)])
+        with self.assertRaises(orchestrate.McpError):
+            self.endpoint(network, within=5)
+        self.assertEqual(self.slept, [2])
+
+    def test_a_4xx_or_a_bad_card_fails_at_once(self):
+        for e in (orchestrate.McpError("verify: card: HTTP 404"),
+                  orchestrate.McpError("verify: card: response is not JSON")):
+            network = self.network([e])
+            with self.assertRaises(orchestrate.McpError) as caught:
+                self.endpoint(network)
+            self.assertIs(caught.exception, e)
+            self.assertEqual((self.asked, self.slept), (1, []))
+
+    def test_card_errors_say_whether_asking_again_may_work(self):
+        cards = orchestrate._server_card_module()
+        cases = [(urllib.error.HTTPError("u", 503, "", {}, None), True),
+                 (urllib.error.HTTPError("u", 404, "", {}, None), False),
+                 (TimeoutError("The read operation timed out"), True),
+                 (urllib.error.URLError(TimeoutError("timed out")), True),
+                 (ConnectionRefusedError("refused"), False)]
+        for error, retryable in cases:
+            with mock.patch.object(cards.OPENER, "open", side_effect=error):
+                with self.assertRaises(cards.CardError) as caught:
+                    cards.fetch_json("https://verify.test/card", cards.CARD_TYPE)
+            self.assertEqual(caught.exception.retryable, retryable, error)
+        with mock.patch.object(cards, "load_card", side_effect=cards.CardError("x: timed out", retryable=True)):
+            with mock.patch.object(orchestrate, "_server_card_module", return_value=cards):
+                with self.assertRaises(orchestrate.McpError) as caught:
+                    orchestrate._card_endpoint({"name": "verify", "discovery": {"card": "https://verify.test/card"}})
+        self.assertTrue(caught.exception.retryable)
 
 
 if __name__ == "__main__":
