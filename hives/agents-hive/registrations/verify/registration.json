@@ -12,7 +12,7 @@
         "transport": "streamable-http",
         "discovery": { "card": "https://barry-verify.kindpebble-873b1da9.eastus2.azurecontainerapps.io/.well-known/mcp/server-card.json" }
       },
-      "token_scope": "api://<verify-api-app-id>/.default"
+      "token_scope": "api://be7fb163-3eb6-457c-b22c-3e6a983cc15c/.default"
     }
   ],
   "tools": {
