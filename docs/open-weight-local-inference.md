@@ -1,93 +1,105 @@
-# Open-weight models and local inference
+# Open-weight model catalog
 
-Status: proposed feature; no runtime support or deployment is claimed.
-Repository baseline inspected: 469bae3bfe3f02718eaa2aa6da11c4ec26eb9c03, November 1, 2026.
+Status: proposed feature, tracked in #190. The catalog and ingestion tooling are not implemented.
+Evidence checked November 1, 2026.
 
-## Outcome
+## Outcome and coverage
 
-A person can run a compatible, legally usable model on their own machine and configure
-AI-Hive to use it without a paid hosted-model account. Portable skills, agent definitions,
-approval rules and execution contracts remain independent of the model and serving engine.
+AI-Hive maintains a searchable, versioned catalog of downloadable open-weight models so
+people can compare capabilities, licensing and the hardware needed for local inference.
+The goal is comprehensive coverage, not only frontier text models: language/code,
+embedding/reranking, vision/multimodal, speech/audio and image/video models.
 
-## Terminology
+"All" is a coverage objective, never an unsupported completeness claim. Publish the
+discovery sources, inclusion rules, snapshot date, counts, exclusions and known gaps.
+Track base, instruction-tuned and fine-tuned releases, adapters and quantizations with
+explicit relationships rather than counting mirrors as new foundation models. Support
+paginated discovery and resumable updates; measure coverage against each declared source.
 
-Here, open-weight means model parameters are available to download for inference under
-the publisher's terms. Availability does not guarantee unrestricted commercial use,
-redistribution, access without registration, or compatibility with every machine.
-Free download does not make electricity, hardware or operation free. Downloadable weights
-alone do not establish that the whole AI system is open source.
+## Definition and eligibility
 
-Check the exact model release's license and model card before adoption. Record gated
-access and use restrictions rather than assuming that anybody may use every release.
-OSI's Open Source AI Definition is a separate, stronger standard:
+Open-weight here means downloadable model parameters under published terms. It does not
+automatically mean unrestricted use, full open source, no registration, or free operation.
+Capture free-of-charge download, gated access, commercial permissions, redistribution,
+acceptable-use restrictions and unknown terms separately.
+
+Offer a strict filter for the user's intended use: weights downloadable without a
+purchase and local inference permitted under the recorded license, with registration or
+approval gates disclosed. Restricted entries may remain discoverable but must not be
+labelled unrestricted or universally available. A model that exceeds a person's memory
+does not become practical on that machine just because its weights are downloadable.
+
+Source: OSI Open Source AI Definition, a stronger standard than weight availability:
 https://opensource.org/ai/open-source-ai-definition
 
-## Existing foundation and gap
+## Record contract
 
-The A2A runtime has protocol-named providers in
-hives/agents-hive/servers/a2a/hive_a2a/providers.py. Its Chat Completions adapter supports
-streaming, tool calls and token usage. The inspected HTTP provider requires either
-an API key from an environment variable or Entra authentication. It requests streamed
-usage and rejects missing token counts. An API-compatible URL alone therefore does not
-prove a local server works. Existing Foundry catalog support (#77) does not establish
-local inference support.
+Each release has a stable ID and records:
 
-## Proposed first slice
+- Publisher, family, release name/date, official model card, weight URL, source repository,
+  immutable revision/checksum where available, parent relationships and modality.
+- License identifier/reference, dated evidence for restrictions and no-purchase download,
+  access gates and local-inference permission. Unknown is explicit, never inferred as yes.
+- Parameters (total and active for mixture-of-experts where documented), architecture,
+  context limits, languages, supported tasks, weight format, precision and quantization.
+- Serving-engine compatibility and version, with publisher-claimed versus independently
+  tested status; tool calling, structured output and streaming are separate capabilities.
+- Weight size, RAM/VRAM, accelerator and hardware tier. Estimated memory states its
+  formula, precision, context/batch assumptions and KV-cache/overhead; tested memory
+  names the actual setup. Missing hardware evidence remains unknown.
+- Evaluation name/version, score/unit, date, source, exact model variant, inference
+  settings and evaluation provenance. Publisher claims and independent results remain
+  distinct; incomparable benchmarks are not collapsed into one intelligence ranking.
+- First discovered, last checked, source URLs, provenance, freshness, and lifecycle
+  status such as active, withdrawn, deprecated or unavailable.
 
-Reuse the protocol adapter where practical. Start with one explicitly tested
-loopback-hosted Chat Completions endpoint, with the serving engine selected during
-implementation. Ollama, llama.cpp and vLLM are candidates to evaluate, not a promise
-that all three are supported.
+Store metadata and links, never weights, access tokens, private exports or copied datasets.
+Proposed ownership: knowledge-hive for portable catalog records/schema and guides;
+agents-hive for optional consumers. Any serving-specific integration stays in adapters.
 
-Keep endpoint, model identifier, authentication and capabilities in runtime configuration.
-An explicit no-auth option must be restricted to loopback by default. Reject non-loopback
-unauthenticated endpoints unless separately and deliberately configured under a reviewed
-trust policy. Do not transmit credentials across redirects or silently fall back to a
-hosted provider. Downloads and model execution remain deliberate operator actions.
+## Frontier comparison
 
-Record the publisher/model ID, immutable revision or artifact checksum, weight format,
-quantization, license reference and review date, serving-engine version, context limit,
-and the tested machine's RAM/VRAM and accelerator. Do not commit weights or private data.
+Mozilla's September 2026 report describes approximately a four-month open/closed frontier
+gap on Epoch's index and a 4.4-month fitted gap on METR data:
+https://stateofopensource.ai/
 
-Negotiate or explicitly configure tested capabilities: structured JSON, streaming,
-tool calls, token limits and usage reporting. Unsupported features fail clearly before
-a governed task depends on them. Model-generated tool calls still pass the existing
-permission and approval controls; changing the model never grants additional authority.
+This is dated aggregate evidence about selected leading models and metrics, not a
+definition of open weights, an average over every catalog entry, or a guarantee for a
+small model running on a laptop. Keep such comparisons in dated evidence notes with
+metric, cohort, method, limitations and source. Refresh or mark stale; do not hard-code
+four months into catalog scores, eligibility, rankings or recommendations.
 
-Preserve token accounting. Missing usage is an error unless a separately designed,
-explicitly labelled estimation path is accepted; never invent metered counts.
-Distinguish zero external API charge from unknown local operating cost. Keep hardware,
-energy or allocated-cost estimates separate from actual provider charges.
+## Discovery, maintenance and user access
 
-## Acceptance criteria
+Use official publisher releases/model cards/licenses as primary evidence, with registries
+as discovery sources and benchmarks as separately attributed evaluation sources. Document
+source terms and rate limits. Deduplicate canonical identities and preserve provenance
+when sources disagree; flag conflicts for review.
 
-- A documented setup runs an operator-selected, license-reviewed model on one declared
-  hardware configuration, with exact model and server versions.
-- Text completion and a structured Patricia response pass the appropriate existing eval
-  suite. Barry tool use is supported only after the tool-call round trip and its
-  permission/approval cases pass.
-- Deterministic mock tests cover loopback no-auth configuration, existing authenticated
-  providers, malformed replies, missing usage, unsupported capabilities, timeout,
-  cancellation and bounded retries, and refusal of unintended remote transmission.
-- A manual offline-after-setup run demonstrates inference without an external model API;
-  evidence names what network activity was inspected and what remains unverified.
-- Context/output limits and resource failures stop clearly; they do not trigger a cloud
-  fallback or bypass budgets.
-- Model replacement preserves product knowledge and audit history and requires the
-  applicable version-pinned trust evaluation before promotion.
-- The guide records observed latency and resource use, limitations, license restrictions,
-  configuration, and the date checked. It makes no universal performance claim.
-- Existing hosted-provider tests continue to pass; credentials and prompt contents are
-  absent from committed evidence.
+Provide search and filters for modality, task, publisher, license/access, model size,
+hardware fit, context, compatibility, evaluation evidence and freshness. Expose both
+machine-readable exports and a generated human-readable index from the same records.
 
-## Delivery and boundaries
+Refresh through an operator-run, resumable command initially. Validate updates and propose
+reviewable diffs before publication; retain historical evidence and withdrawn records.
+Scheduled ingestion is a later opt-in, not an automation created by this proposal.
 
-First accept the design and select the initial engine/model/hardware test combination.
-Then implement the configuration and adapter changes with mock tests, run local model
-acceptance, and publish only verified compatibility guidance. Relate this work to #77
-and P3's model guides without marking either local compatibility or a roadmap milestone done.
+## Acceptance and delivery
 
-This proposal does not authorize downloads, model license acceptance on another person's
-behalf, paid compute, public endpoint exposure, production migration, or hosted-agent
-replacement. No training, fine-tuning, model distribution or automatic model installation
-is included in the first slice.
+1. Approve the schema, source coverage manifest, taxonomy and license classifications.
+2. Seed diverse verified records, including gated/restricted, missing-data, quantized and
+   withdrawn examples; publish counts and coverage gaps without claiming exhaustive reach.
+3. Implement discovery/normalization, provenance, deduplication, exports, filters and
+   freshness reporting. Test these with fixtures and source failures, rate limits and
+   resumable pagination. A failed fetch must not erase records or mark them withdrawn.
+4. Validators reject missing IDs/provenance, broken parent relationships, invalid units,
+   duplicate identities and unsupported unrestricted-use claims. Unknown values remain valid
+   where evidence is missing. Untrusted source text cannot authorize code or tool execution.
+5. Verify filters and generated views against the canonical records; ensure stale,
+   estimated, publisher-claimed and independently measured results are visibly distinct.
+6. Review representative licenses, links and hardware/eval claims against primary sources.
+   Record observed verification separately from future acceptance work.
+
+This PR proposes the feature. It neither creates the full catalog nor implements local
+inference, installs models, accepts licenses for users, spends money or changes deployments.
+Existing AI-Hive approval, privacy, accounting and trust-evaluation controls remain applicable.
