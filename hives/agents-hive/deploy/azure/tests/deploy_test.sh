@@ -15,7 +15,10 @@
 # an argument, and drift there stops the deploy before any change, as does a download that
 # fails. So does a job that has gone quiet: one whose newest evaluation, or whose creation
 # when it has none, is more than eight days old, or one that can't be looked up; a job
-# that recorded recently, or was created within the week, goes on. Retention: the audit log's policy is set after the infrastructure, as its own
+# that recorded recently, or was created within the week, goes on. Hosted Barry: with him
+# set, his passport must pin the model modelDeployment names and his promotion check must
+# pass, or the deploy stops before any change, as it does for a Patricia ceiling over $5
+# and a caller's registration that is missing or still a placeholder. Retention: the audit log's policy is set after the infrastructure, as its own
 # gated step, and locked only with --lock-audit-retention and the account's name typed; a
 # locked policy is left alone.
 #
@@ -108,8 +111,9 @@ deepseek='{"deployment": "review-c", "format": "DeepSeek", "name": "DeepSeek-V3.
 # positional ones. Patricia's passport pins $PINNED_NOW (default GPT-5.4). With $HISTORY
 # set, it is v1, pinning $PINNED (default claude-x 1), in one commit and v2, pinning
 # GPT-5.4, in the next, whose promotion check says so; $NO_EVAL_AT_V1 leaves trust_eval.py
-# out of v1. The promotion check refuses when $PROMOTION is "refused", and, given the
-# hosted results, when $HOSTED is "drift".
+# out of v1. Barry's passport pins $BARRY_PINNED (default GPT-5.4), or no model when it is
+# "none". The promotion check refuses when $PROMOTION is "refused", Barry's alone when
+# $BARRY_PROMOTION is, and, given the hosted results, when $HOSTED is "drift".
 deploy_args=()
 run() {
   export STUB="$work/$1"
@@ -143,6 +147,8 @@ print(json.dumps({"parametersJson": json.dumps({"parameters": p})}))' \
   mkdir -p "$repo/hives/agents-hive/scripts"
   cat > "$repo/hives/agents-hive/scripts/trust_eval.py" <<'PY'
 import os, sys
+if sys.argv[2] == "barry" and os.environ.get("BARRY_PROMOTION") == "refused":
+    sys.exit("refused: passport barry v5's baseline was recorded against other pins")
 if os.environ.get("PROMOTION") == "refused":
     sys.exit("refused: passport patricia v4's baseline was recorded against other pins")
 if "--results" in sys.argv:
@@ -153,6 +159,14 @@ if "--results" in sys.argv:
 print(f"{sys.argv[2]}: baseline recorded against its pins, and no drift holds it")
 PY
   git -C "$repo" init -q
+  mkdir -p "$repo/hives/agents-hive/passports/barry"
+  if [ "${BARRY_PINNED:-}" = none ]; then
+    echo '{"passport": "barry", "version": 4, "pins": {}}' > "$repo/hives/agents-hive/passports/barry/passport.json"
+  else
+    set -- ${BARRY_PINNED:-gpt-5.4 2026-03-05}
+    printf '{"passport": "barry", "version": 5, "pins": {"model": {"publisher": "test", "name": "%s", "version": "%s"}}}\n' \
+      "$1" "$2" > "$repo/hives/agents-hive/passports/barry/passport.json"
+  fi
   mkdir -p "$repo/hives/agents-hive/passports/patricia"
   set -- ${PINNED_NOW:-gpt-5.4 2026-03-05}
   passport "$repo" 1 "$1" "$2"
@@ -349,7 +363,27 @@ check "no Barry: said so, and deploy.sh goes on" \
 
 BARRY='{"callers": [{"client": "c1", "registration": "filled"}]}' CEILING=5 run barryok "$bicep"
 check "Barry with Patricia at \$5 and a filled registration: goes on" \
-  eval 'has "hosted Barry: Patricia.s ceiling is \$5, and each caller.s registration is filled in" && has "== 1/4"'
+  eval 'has "hosted Barry: his passport pins gpt-5.4 2026-03-05, the model he calls; Patricia.s ceiling is \$5, and each caller.s registration is filled in" && has "== 1/4"'
+check "Barry: his passport is checked for promotion too" \
+  eval 'has "barry: baseline recorded against its pins, and no drift holds it"'
+
+BARRY='{"callers": [{"client": "c1", "registration": "filled"}]}' CEILING=5 BARRY_PROMOTION=refused run barrypromotion "$bicep"
+check "Barry's passport not promotable: refused before any what-if" \
+  eval '[ "$code" -ne 0 ] && has "passport barry v5.s baseline was recorded against other pins" \
+   && has "Barry.s passport can.t be promoted" && ! has "== 1/4" && read_only'
+
+BARRY='{"callers": [{"client": "c1", "registration": "filled"}]}' CEILING=5 BARRY_PINNED="DeepSeek-V3.2 1" run barryunpinned "$bicep"
+check "Barry's passport pins another model than modelDeployment: refused before any what-if" \
+  eval '[ "$code" -ne 0 ] && has "hosted Barry calls modelDeployment .review-b., gpt-5.4 2026-03-05, but his passport pins DeepSeek-V3.2 1" \
+   && ! has "== 1/4" && read_only'
+
+BARRY='{"callers": [{"client": "c1", "registration": "filled"}]}' CEILING=5 BARRY_PINNED=none run barrynopin "$bicep"
+check "Barry's passport pins no model: refused before any what-if" \
+  eval '[ "$code" -ne 0 ] && has "hosted Barry is set, but his passport pins no model" && ! has "== 1/4" && read_only'
+
+BARRY_PROMOTION=refused BARRY_PINNED=none run barryunset "$bicep"
+check "no Barry: his passport isn't checked" \
+  eval 'has "hosted Barry isn.t set; Patricia deploys alone" && ! has "Barry.s passport" && has "== 1/4"'
 
 BARRY='{"callers": [{"client": "c1", "registration": "filled"}]}' run barryceiling "$bicep"
 check "Barry with Patricia's default ceiling: refused before any what-if" \

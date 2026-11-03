@@ -201,7 +201,7 @@ class Pins(Checked):
         p = passport("patricia")
         del p["pins"]["suite"]
         self.assertRefused(p, "eval needs pins.suite")
-        p = passport("barry")
+        p = passport("explore")
         p["pins"]["suite"] = {"sha256": "0" * 64}
         self.assertRefused(p, "pins.suite pins an eval suite, but the passport has no eval")
 

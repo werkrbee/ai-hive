@@ -148,9 +148,17 @@ audit log's immutable copy is behind", and the next one catches up; a log that n
 starts with its copy isn't pushed again. `./assurance.sh check <rg>` checks his copy, and
 his log against it, after Patricia's.
 
-**Not yet.** His passport pins no model, so no trust evaluation gates his promotion, as
-one gates Patricia's; the orchestration eval (`eval/orchestration.py`) chose his model but
-doesn't run on a schedule.
+**His trust evaluation.** His passport pins Claude Sonnet 5.5, the model the
+orchestration eval chose for him, and its suite is that eval's goals, with each attack
+critical. `deploy.sh` refuses, before any change, unless `modelDeployment`, which he calls
+as Patricia does, is the model his passport pins, and his passport can be promoted: its
+baseline recorded against its exact pins, and no drift holding it. Run it with
+`eval/orchestration.py --passport barry --config <his config>`, from `servers/a2a`; it
+calls the model for each of the fifteen goals, about $0.46 a run, and a run that drifts is
+run again.
+
+**Not yet.** Nothing runs his trust evaluation on a schedule, as Patricia's weekly job
+runs hers, so his promotion rests on the evaluations recorded in the repo.
 
 The order, once:
 
@@ -370,9 +378,12 @@ results recorded then, since that passport's baseline still applies. That check 
 a result recorded later, so if a later evaluation of the same pins found something (drift,
 say, or a not-run), it names it in a warning before the first what-if, for you to weigh
 before typing yes. A version from before trust evaluation can't be promoted, so it can't
-be rolled back to. `modelDeployment` in the parameters must be the model that passport
-pins, by name and version, and the model check refuses it if the catalog no longer offers
-it as generally available, since a retired model can't come back. Once the app is
+be rolled back to. With hosted Barry set, his passport is checked as it was at that commit
+too, so a commit from before his passport pinned a model and his trust evaluation (#182)
+is refused, with "hosted Barry is set, but his passport pins no model". `modelDeployment`
+in the parameters must be the model that passport pins, by name and version, and the model
+check refuses it if the catalog no longer offers it as generally available, since a
+retired model can't come back. Once the app is
 deployed, the audit log (`--audit`, by default the workflows-hive engine's) records who
 rolled her back (`--by`, or `WORKFLOWS_HIVE_ACTOR`) and the digest of a record in
 `rollbacks/` beside it, which keeps the reason. If a step fails or you stop it partway,

@@ -69,6 +69,32 @@ class Suite(unittest.TestCase):
         self.assertEqual((r["usd"], r["seconds"]), (round(0.0104 * n, 6), 3.0 * n))
 
 
+class Barry(unittest.TestCase):
+    """Hosted Barry's trust evaluation, whose suite is the orchestration eval's goals."""
+
+    def setUp(self):
+        self.p = te.passport("barry")
+        self.suite = te.cases(self.p)
+
+    def test_his_suite_is_the_orchestration_goals_and_each_attack_is_critical(self):
+        self.assertEqual(self.p["eval"]["suite"], "hives/agents-hive/deploy/azure/eval/goals.json")
+        self.assertEqual(len(self.suite), 15)
+        self.assertEqual(te.critical(self.suite), {g["id"] for g in self.suite if "attack" in g})
+        self.assertEqual(len(te.critical(self.suite)), 6)
+
+    def test_his_passport_pins_the_model_his_eval_chose(self):
+        self.assertEqual(self.p["pins"]["model"], PATRICIA["pins"]["model"])  # Claude Sonnet 5.5, as review-a
+
+    def test_his_baseline_was_recorded_against_his_pins_so_he_promotes(self):
+        self.assertEqual(te.holds(self.p, te.baseline(self.p), []), [])
+
+    def test_an_attack_goal_missed_drifts(self):
+        outcomes = [{"id": g["id"], "pass": g["id"] != "misstated-tool", "usd": 0.03, "seconds": 5.0} for g in self.suite]
+        r = te.run_record(self.suite, outcomes)
+        self.assertEqual(r["met"], 14)
+        self.assertTrue(te.drifts(self.p, self.suite, r))
+
+
 class Drift(unittest.TestCase):
     def test_a_run_below_the_baseline_drifts(self):
         self.assertFalse(te.drifts(PATRICIA, SUITE, run()))
@@ -379,8 +405,8 @@ class Promotion(Recorded):
         self.assertEqual(te.unanswered(p, CRITICAL, history, self.engine.items(None)), [])
 
     def test_a_passport_without_an_eval_cant_be_promoted(self):
-        problems = te.promotion("barry", self.engine)
-        self.assertEqual(problems, ["passport barry has no eval: only an agent with a model pin is evaluated"])
+        problems = te.promotion("explore", self.engine)
+        self.assertEqual(problems, ["passport explore has no eval: only an agent with a model pin is evaluated"])
 
 
 class Configuration(unittest.TestCase):

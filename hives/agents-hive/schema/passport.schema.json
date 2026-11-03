@@ -127,7 +127,7 @@
       "required": ["suite", "baseline", "threshold"],
       "additionalProperties": false,
       "properties": {
-        "suite": { "description": "The cases file, as a path from the repo root. A case marked critical is one where the wrong answer lets a consequential action through.", "type": "string", "pattern": "^hives/" },
+        "suite": { "description": "The cases file, or the orchestration eval's goals file, as a path from the repo root. A case marked critical is one where the wrong answer lets a consequential action through.", "type": "string", "pattern": "^hives/" },
         "baseline": {
           "description": "The cases a run met, and the results.jsonl entry that records the run. deploy.sh promotes the passport only when that run was made against its exact pins.",
           "type": "object",

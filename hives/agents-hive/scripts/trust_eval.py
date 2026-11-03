@@ -85,12 +85,11 @@ def pins_digest(p):
 
 
 def cases(p):
-    suite = json.loads((REPO_ROOT / p["eval"]["suite"]).read_text(encoding="utf-8"))
-    return suite["cases"] if isinstance(suite, dict) else suite
+    return vp.suite_cases(json.loads((REPO_ROOT / p["eval"]["suite"]).read_text(encoding="utf-8")))
 
 
 def critical(suite):
-    return {c["id"] for c in suite if c.get("critical")}
+    return {c["id"] for c in suite if vp.critical(c)}
 
 
 def results_file(p):
