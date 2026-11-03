@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-"""Copy hosted Patricia's audit log to an Azure Storage append blob, and check the copy.
+"""Copy an audit log to an Azure Storage append blob, and check the copy: hosted Patricia's,
+from her weekly job, and hosted Barry's, from his server after each run settles.
 
 The log is a hash chain (knowledge-hive's check_audit.py), and the blob is its anchor: it
 sits in a container with a time-based immutability policy that allows protected append
@@ -119,11 +120,15 @@ def blocks(data):
         data = data[len(piece):]
 
 
-def push(log, blob):
-    """Append what log has beyond the blob. Returns the number of bytes appended."""
+def push(log, blob, whole_lines=False):
+    """Append what log has beyond the blob. Returns the number of bytes appended. A log whose
+    last line is incomplete is refused, or, with whole_lines, pushed up to that line: for a
+    writer that keeps appending, as hosted Barry's server does, the rest goes next time."""
     local = Path(log).read_bytes() if Path(log).exists() else b""
     if local and not local.endswith(b"\n"):
-        raise BlobError(f"{log}'s last line is incomplete; a writer may still be appending")
+        if not whole_lines:
+            raise BlobError(f"{log}'s last line is incomplete; a writer may still be appending")
+        local = local[:local.rfind(b"\n") + 1]
     copy = blob.read()
     if copy is None:
         blob.create()

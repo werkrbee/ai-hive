@@ -104,8 +104,8 @@ resource registryPull 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
   }
 }
 
-// Barry's identity, separate from Patricia's, holds only what he uses: AcrPull here and
-// Foundry access below. Tokens for Patricia's API and the verify server's are app roles
+// Barry's identity, separate from Patricia's, holds only what he uses: AcrPull here,
+// Foundry access below, and appends to his own audit blob (barryAuditWrite). Tokens for Patricia's API and the verify server's are app roles
 // granted to it in Entra (entra.sh --identity), not Azure roles. The verify server's
 // identity only pulls the image.
 resource barryIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = if (barryOn) {
@@ -292,6 +292,26 @@ resource auditRead 'Microsoft.Authorization/roleAssignments@2022-04-01' = [for r
 }]
 
 var auditBlobUrl = '${auditStorage.properties.primaryEndpoints.blob}${auditContainer}/patricia.jsonl'
+
+// Barry's server appends his audit log to his own blob in the same container, after each
+// run settles. The role is conditioned to that one blob, so he can't read or add to
+// Patricia's, and the retention policy still refuses any change or delete.
+var barryAuditBlob = 'barry.jsonl'
+var barryAuditBlobUrl = '${auditStorage.properties.primaryEndpoints.blob}${auditContainer}/${barryAuditBlob}'
+var blobActions = ['read', 'write', 'delete', 'add/action', 'move/action']
+var notBlobActions = join(map(blobActions, a => '!(ActionMatches{\'Microsoft.Storage/storageAccounts/blobServices/containers/blobs/${a}\'})'), ' AND ')
+
+resource barryAuditWrite 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (barryOn) {
+  name: guid(audit.id, '${barryName}-id', storageBlobDataContributor)
+  scope: audit
+  properties: {
+    principalId: barryIdentity!.properties.principalId
+    principalType: 'ServicePrincipal'
+    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', storageBlobDataContributor)
+    conditionVersion: '2.0'
+    condition: '((${notBlobActions}) OR (@Resource[Microsoft.Storage/storageAccounts/blobServices/containers/blobs:path] StringEquals \'${barryAuditBlob}\'))'
+  }
+}
 
 resource logs 'Microsoft.OperationalInsights/workspaces@2023-09-01' = {
   name: '${prefix}-logs-${suffix}'
@@ -481,6 +501,7 @@ var barryEnv = [
   { name: 'PATRICIA_URL', value: publicUrl }
   { name: 'PATRICIA_API_APP_ID', value: apiAppId }
   { name: 'CALLERS', value: join(map(barry.?callers ?? [], c => '${c.client}=${c.registration}'), ',') }
+  { name: 'AUDIT_BLOB_URL', value: barryAuditBlobUrl }
 ]
 
 resource barryApp 'Microsoft.App/containerApps@2024-03-01' = if (barryOn && !empty(image)) {
@@ -490,7 +511,7 @@ resource barryApp 'Microsoft.App/containerApps@2024-03-01' = if (barryOn && !emp
     type: 'UserAssigned'
     userAssignedIdentities: { '${barryIdentity.id}': {} }
   }
-  dependsOn: [barryPull, barryAiOpenAiUser, barryAiUser, deployments]
+  dependsOn: [barryPull, barryAiOpenAiUser, barryAiUser, deployments, barryAuditWrite]
   properties: {
     environmentId: environment.id
     configuration: {
@@ -602,5 +623,6 @@ output auditContainer string = auditContainer
 output auditBlobUrl string = auditBlobUrl
 output barryUrl string = barryOn ? barryUrl : ''
 output barryAgentCard string = barryOn ? '${barryUrl}.well-known/agent-card.json' : ''
+output barryAuditBlobUrl string = barryOn ? barryAuditBlobUrl : ''
 output barryPrincipalId string = barryOn ? barryIdentity!.properties.principalId : ''
 output verifyUrl string = barryOn ? verifyUrl : ''

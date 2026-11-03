@@ -56,6 +56,13 @@ Task states:
   failed          a denial, a budget stop, an error, or an expired approval
   canceled        CancelTask: a paused task at once, a working one before its next step
 
+The audit log. Every decision goes into the run engine's hash-chained audit log, beside
+the run records. With orchestration.audit_blob set, the log's new whole lines are appended
+to that Azure append blob, under a retention policy that refuses changes and deletes
+(deploy/azure/audit_blob.py), when the server starts, after each run settles or is
+cancelled, and when it stops. A push that fails is logged, and the next one catches up;
+a log that no longer starts with its copy can't be pushed again until someone looks.
+
 A working run resumes from its record when the server starts, repeating neither a
 completed turn nor a completed step. SendMessage returns as soon as the task is working;
 a caller polls GetTask.
@@ -133,6 +140,14 @@ def _engine_module():
 def _server_card_module():
     path = REPO_ROOT / "hives/mcp-hive/scripts/server_card.py"
     spec = importlib.util.spec_from_file_location("server_card", path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def _audit_blob_module():
+    path = REPO_ROOT / "hives/agents-hive/deploy/azure/audit_blob.py"
+    spec = importlib.util.spec_from_file_location("audit_blob", path)
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
@@ -444,6 +459,9 @@ class Orchestrator:
         self.claimed = set()  # runs an answer has been accepted for and not yet applied
         self.closing = False
         self.sweeper = None
+        # A blob for each push, so its token is never older than the push; tests swap it.
+        self.audit_copy = _audit_blob_module().Blob if self.o.audit_blob else None
+        self.anchoring = asyncio.Lock()
         self.publishing = asyncio.Lock()
         self.reviewing = {}  # approval ID -> lock, so two publishes ask the reviewer once
 
@@ -926,6 +944,21 @@ class Orchestrator:
         await self.publish(run_id)
         if run["status"] in engine.TERMINAL:
             await self.ledger.release(run_id)
+        await self.anchor()
+
+    async def anchor(self):
+        """Append the audit log's new whole lines to its immutable copy, when there is one. A
+        failed push is logged, not raised: what it records has happened, and the next push
+        catches up."""
+        if self.audit_copy is None:
+            return
+        blobs = _audit_blob_module()
+        async with self.anchoring:
+            try:
+                await asyncio.to_thread(blobs.push, self.engine.audit_path, self.audit_copy(self.o.audit_blob),
+                                        True)
+            except Exception as e:
+                log.error("the audit log's immutable copy is behind: %s", e)
 
     # Startup, expiry, cancel and shutdown
 
@@ -959,6 +992,7 @@ class Orchestrator:
             else:  # a paused run's request, with its review, in case the server stopped first
                 await self.publish(run["runId"])
         await self.sweep()
+        await self.anchor()  # anything a run left unpushed before the server stopped
         self.sweeper = asyncio.create_task(self._sweep_forever())
 
     async def _sweep_forever(self):
@@ -1026,12 +1060,14 @@ class Orchestrator:
             return
         if run["status"] in engine.TERMINAL:
             await self.ledger.release(run_id)
+        await self.anchor()
 
     async def close(self):
         self.closing = True
         if self.sweeper:
             self.sweeper.cancel()
         await asyncio.gather(*self.drives.values(), return_exceptions=True)
+        await self.anchor()
         await self.network.aclose()
 
 

@@ -35,6 +35,7 @@ from hive_a2a.providers import Completion, ProviderError, ToolCall  # noqa: E402
 from test_server import AUDIENCE, CALLER, ISSUER, KEY, OTHER, check_knowledge, token  # noqa: E402
 
 PATRICIA = "https://patricia.test/"
+AUDIT_BLOB = "https://log.blob.test/audit/barry.jsonl"
 LINEUP = "https://lineup.test/mcp"
 FINAL = {"summary": "Done.", "results": [{"workstream": "bullpen", "result": "sent"}]}
 WAITS = ("TASK_STATE_COMPLETED", "TASK_STATE_FAILED", "TASK_STATE_CANCELED", "TASK_STATE_REJECTED",
@@ -42,7 +43,7 @@ WAITS = ("TASK_STATE_COMPLETED", "TASK_STATE_FAILED", "TASK_STATE_CANCELED", "TA
 
 
 def write_config(root, ceiling=25.0, callers=((CALLER, "lineup"),), delegates=(("patricia", PATRICIA),),
-                 reviewer=None):
+                 reviewer=None, audit_blob=None):
     jwk = json.loads(jwt.algorithms.RSAAlgorithm.to_jwk(KEY.public_key()))
     (root / "jwks.json").write_text(json.dumps({"keys": [{**jwk, "kid": "k1", "use": "sig", "alg": "RS256"}]}))
     tables = "".join(f'\n[[orchestration.delegates]]\nname = "{n}"\nurl = "{u}"\ncapability = "governance-review"\n'
@@ -78,6 +79,7 @@ max_output_tokens = 2000
 passport = "barry"
 state_dir = "data/runs"
 {f'reviewer = "{reviewer}"' if reviewer else ""}
+{f'audit_blob = "{audit_blob}"' if audit_blob else ""}
 {tables}""")
     return load(root / "config.toml")
 
@@ -167,6 +169,29 @@ class Servers:
 
     def sent(self, tool):
         return [c for c in self.calls if c["tool"] == tool]
+
+
+class AppendBlob:
+    """An append blob as audit_blob.py's Blob sees it: read, create, append at the end. The
+    first fail reads raise, as an unreachable service would."""
+
+    url = AUDIT_BLOB
+
+    def __init__(self, fail=0):
+        self.data, self.fail = None, fail
+
+    def read(self):
+        if self.fail:
+            self.fail -= 1
+            raise ConnectionError("the blob service didn't answer")
+        return self.data
+
+    def create(self):
+        self.data = b"" if self.data is None else self.data
+
+    def append(self, data, at):
+        assert at == len(self.data)
+        self.data += data
 
 
 async def fake_token(scope):
@@ -599,6 +624,65 @@ class OrchestrateTest(unittest.TestCase):
         self.assertEqual(len(model.seen), 2, "approval runs the call without asking the model again")
         self.assertEqual(holds, {})
 
+    def copied(self, config, model, blob):
+        """A client whose app copies its audit log to blob, an in-memory append blob, from
+        the push at startup on."""
+        c = self.client(config, model)
+
+        def make(url):
+            self.assertEqual(url, AUDIT_BLOB)
+            return blob
+        self.app.state.orchestrator.audit_copy = make
+        return c
+
+    def caught_up(self, blob):
+        log = self.root / "data/audit.jsonl"
+        for _ in range(100):
+            if log.exists() and blob.data == log.read_bytes():
+                return True
+            time.sleep(0.02)
+        return False
+
+    def test_each_settled_run_appends_its_audit_entries_to_the_immutable_copy(self):
+        blob = AppendBlob()
+        model = Scripted(call("lineup__send_message", self.BLAST), final())
+        config = write_config(self.root, reviewer="patricia", audit_blob=AUDIT_BLOB)
+        with self.copied(config, model, blob) as c:
+            task = self.paused(c)
+            self.assertTrue(self.caught_up(blob), "the pause's decision is copied once the run settles")
+            self.assertIn(b'"paused"', blob.data)
+            self.answer(c, task, id=self.request(task)["id"], decision="approve", by="usr_7f3a")
+            self.wait(c, task["id"], until=("TASK_STATE_COMPLETED",))
+            self.assertTrue(self.caught_up(blob))
+        kinds = [json.loads(line)["kind"] for line in blob.data.splitlines()]
+        self.assertIn("run.completed", kinds)
+        approvals = [json.loads(line) for line in blob.data.splitlines() if b'"usr_7f3a"' in line]
+        self.assertTrue(approvals, "the person's approval is in the copy")
+
+    def test_a_failed_push_is_logged_and_the_next_one_catches_up(self):
+        blob = AppendBlob(fail=2)  # the push at startup, and the first run's
+        model = Scripted(final(), final())
+        with self.assertLogs("hive_a2a", "ERROR") as logged:
+            with self.copied(write_config(self.root, audit_blob=AUDIT_BLOB), model, blob) as c:
+                first = self.start(c)
+                self.wait(c, first["id"], until=("TASK_STATE_COMPLETED",))
+                for _ in range(100):
+                    if blob.fail == 0:
+                        break
+                    time.sleep(0.02)
+                self.assertIsNone(blob.data, "nothing is copied while the blob doesn't answer")
+                second = self.start(c)
+                self.wait(c, second["id"], until=("TASK_STATE_COMPLETED",))
+                self.assertTrue(self.caught_up(blob), "both runs' entries, once the blob answers again")
+        self.assertEqual(len(logged.output), 2)
+        self.assertTrue(all("the audit log's immutable copy is behind" in line for line in logged.output))
+        self.assertEqual(sum(b'"run.completed"' in line for line in blob.data.splitlines()), 2)
+
+    def test_without_an_audit_blob_nothing_is_pushed(self):
+        with self.client(write_config(self.root), Scripted(final())) as c:
+            self.assertIsNone(self.app.state.orchestrator.audit_copy)
+            self.wait(c, self.start(c)["id"], until=("TASK_STATE_COMPLETED",))
+
     def test_deny_fails_the_run(self):
         with self.client(write_config(self.root), Scripted(call("lineup__send_message", self.BLAST))) as c:
             task = self.paused(c)
@@ -713,6 +797,8 @@ class OrchestrateTest(unittest.TestCase):
         self.assertEqual(config.orchestration.registrations["verify-client"]["registration"], "verify")
 
     def test_config_refuses_a_caller_or_delegate_it_cant_trust(self):
+        with self.assertRaisesRegex(ConfigError, "audit_blob must be an https URL"):
+            write_config(self.root, audit_blob="http://log.blob.test/audit/barry.jsonl")
         with self.assertRaisesRegex(ConfigError, "isn't on auth.allowed_clients"):
             write_config(self.root, callers=(("stranger-app", "lineup"),))
         with self.assertRaisesRegex(ConfigError, "no registration 'nowhere'"):
