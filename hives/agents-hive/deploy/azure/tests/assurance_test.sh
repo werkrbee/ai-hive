@@ -4,7 +4,8 @@
 # to the share with its audit entry, the key only ever in the environment; an answer
 # without a terminal is refused and nothing is uploaded; and when the share's audit log
 # changes while a person answers, or just after the download, before the answer began,
-# nothing is uploaded. A template from before the weekly job has nothing to read. Bash 3.2 safe; run it with /bin/bash on macOS.
+# nothing is uploaded. check compares each audit log with its copy, Barry's too when he is
+# deployed. A template from before the weekly job has nothing to read. Bash 3.2 safe; run it with /bin/bash on macOS.
 #
 # Usage: tests/assurance_test.sh        (from hives/agents-hive/deploy/azure, or anywhere)
 set -u
@@ -138,6 +139,23 @@ check "approve when the job wrote the log just after the download: nothing is up
   eval '[ "$code" -ne 0 ] && has "the share.s audit log changed while you answered" \
    && [ "$(status)" = open ] && grep -q "\"seq\": 98" "$STUB/share/assurance/audit.jsonl" \
    && ! grep -q "^storage file upload" "$STUB/calls"'
+
+# check runs audit_blob.py on each log and its copy. URLs it refuses before any request keep
+# this offline; what's checked is which logs go to which copies.
+setup
+echo '{"dataAccount": {"value": "patriciasttest"}, "auditBlobUrl": {"value": "http://patricia-copy"}}' > "$STUB/outputs"
+assurance check rg-test
+check "check without Barry: only Patricia's log, against her copy" \
+  eval '[ "$code" -ne 0 ] && has "http://patricia-copy isn.t an https URL" && ! has barry-copy \
+   && ! grep -q "share-name hive-barry-data" "$STUB/calls"'
+
+setup
+echo '{"dataAccount": {"value": "patriciasttest"}, "auditBlobUrl": {"value": "http://patricia-copy"},
+  "barryAuditBlobUrl": {"value": "http://barry-copy"}}' > "$STUB/outputs"
+assurance check rg-test
+check "check with Barry: his log, from his share, against his copy too" \
+  eval '[ "$code" -ne 0 ] && has "http://patricia-copy isn.t an https URL" && has "http://barry-copy isn.t an https URL" \
+   && grep -q "^storage file download --account-name patriciasttest --share-name hive-barry-data --path audit.jsonl" "$STUB/calls"'
 
 setup
 echo '{"registry": {"value": "reg.azurecr.io"}}' > "$STUB/outputs"

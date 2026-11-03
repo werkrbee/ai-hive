@@ -77,6 +77,9 @@ class Render(unittest.TestCase):
                                            "capability": "governance-review", "token_scope": "api://p/.default"}])
         self.assertEqual(o["callers"], [{"client": "v1", "registration": "verify"},
                                         {"client": "l1", "registration": "lineup"}])
+        self.assertNotIn("audit_blob", o)
+        blob = "https://log.blob.core.windows.net/audit/barry.jsonl"
+        self.assertEqual(self.config(**{**BARRY_ENV, "AUDIT_BLOB_URL": blob})["orchestration"]["audit_blob"], blob)
 
     def test_patricias_config_has_no_orchestration_and_keeps_her_role(self):
         c = self.config()

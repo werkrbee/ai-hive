@@ -10,8 +10,9 @@ keep a ledger on the share (LEDGER) and count the other's toward the ceiling
 
 Barry's config adds the orchestration section: his passport, his run records on his own
 share, Patricia as his one delegate and reviewer (PATRICIA_URL, PATRICIA_API_APP_ID), and
-his callers' registrations (CALLERS, "client=registration" pairs, comma-separated). His
-roles are checked per method, so his auth section requires none.
+his callers' registrations (CALLERS, "client=registration" pairs, comma-separated), and
+the append blob his audit log is copied to (AUDIT_BLOB_URL), when it is set. His roles are
+checked per method, so his auth section requires none.
 
 Nothing here is secret: identities are ids, and the model is reached with the app's
 managed identity. Standard library only.
@@ -81,12 +82,13 @@ def orchestration(env, data, q):
               f"capability = \"governance-review\"\ntoken_scope = {q(scope)}\n")
     for client, registration in callers(env.get("CALLERS", "")):
         tables += f"\n[[orchestration.callers]]\nclient = {q(client)}\nregistration = {q(registration)}\n"
+    blob = f"audit_blob = {q(env['AUDIT_BLOB_URL'])}\n" if env.get("AUDIT_BLOB_URL") else ""
     return f"""
 [orchestration]
 passport = "barry"
 state_dir = {q(data + "/runs")}
 reviewer = "patricia"
-{tables}"""
+{blob}{tables}"""
 
 
 def render(env, root=None):

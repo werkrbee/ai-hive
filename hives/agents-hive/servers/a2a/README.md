@@ -229,6 +229,14 @@ be the client that started it. A token without the role gets `InvalidRequestErro
 (-32600), since A2A has no authorization error of its own. Leave `auth.required_roles`
 empty, or list both, so a client holding only one can still use what it holds.
 
+**The audit log's copy.** Every decision goes into the engine's hash-chained audit log,
+`audit.jsonl` beside `orchestration.state_dir`. With `orchestration.audit_blob` set, an
+Azure append blob under a retention policy that refuses changes and deletes, the server
+appends the log's new whole lines to it (`deploy/azure/audit_blob.py`, with its managed
+identity's token) when it starts, after each run settles or is cancelled, and when it
+stops. A failed push is logged and the next one catches up; the run it records isn't
+affected.
+
 ## Run it
 
 ```bash

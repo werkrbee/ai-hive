@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Read and answer what Patricia's weekly trust evaluation recorded in Azure, and check her
-# audit log against its immutable copy.
+# audit log, and hosted Barry's when he is deployed, against its immutable copy.
 #
 # The weekly job (eval/weekly.sh) keeps its results, its review queue and its audit log on
 # the deployment's file share, under assurance/. Drift it found holds promotion: deploy.sh
@@ -10,14 +10,16 @@
 # WORKFLOWS_HIVE_ACTOR), recorded in the audit log with via "cli". The answered item and
 # the audit log then go back to the share, unless the share's log changed while you
 # answered (the job ran, say), in which case nothing is uploaded and you answer again. The
-# job pushes the new audit entries to the immutable copy when it next runs.
+# job pushes the new audit entries to the immutable copy when it next runs. Barry's server
+# pushes his own log to his copy after each run settles; check compares it with the log on
+# his share.
 #
 # Usage:
 #   ./assurance.sh list    <resource-group> [--all]
 #   ./assurance.sh show    <resource-group> ID
 #   ./assurance.sh approve <resource-group> ID [--by ACTOR-ID]
 #   ./assurance.sh deny    <resource-group> ID --reason TEXT [--by ACTOR-ID]
-#   ./assurance.sh check   <resource-group>    # the audit log against its immutable copy
+#   ./assurance.sh check   <resource-group>    # each audit log against its immutable copy
 # Needs: az login, as someone who can read the data account's key; check also needs
 # Storage Blob Data Reader on the audit container (main.bicep's auditReaders).
 set -euo pipefail
@@ -41,7 +43,7 @@ outputs=$(az deployment group show --resource-group "$rg" --name main --query pr
   exit 1
 }
 value() { python3 -c 'import json, sys; print((json.loads(sys.argv[1]).get(sys.argv[2]) or {}).get("value", ""))' "$outputs" "$1"; }
-account=$(value dataAccount) blob=$(value auditBlobUrl)
+account=$(value dataAccount) blob=$(value auditBlobUrl) barry_blob=$(value barryAuditBlobUrl)
 if [ -z "$account" ]; then
   echo "error: the template deployed in $rg predates the weekly evaluation; there is nothing to read" >&2
   exit 1
@@ -87,5 +89,13 @@ case "$command" in
       --destination-path assurance/queue --source "$state/queue" -o none
     echo "answered on the share; the weekly job pushes the audit entry to its immutable copy when it next runs" ;;
   check)
-    python3 "$here/audit_blob.py" check "$state/audit.jsonl" "$blob" ;;
+    status=0
+    python3 "$here/audit_blob.py" check "$state/audit.jsonl" "$blob" || status=1
+    if [ -n "$barry_blob" ]; then
+      # Barry's log is on his own share, at its top; before his first run there is none.
+      az storage file download --account-name "$account" --share-name hive-barry-data --path audit.jsonl \
+        --dest "$work/barry-audit.jsonl" -o none 2>/dev/null || : > "$work/barry-audit.jsonl"
+      python3 "$here/audit_blob.py" check "$work/barry-audit.jsonl" "$barry_blob" || status=1
+    fi
+    exit "$status" ;;
 esac

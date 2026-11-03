@@ -6,7 +6,8 @@ variable that holds it.
 A server whose capability is orchestration (hosted Barry) also needs an [orchestration]
 section: where its runs are kept, the passport they run under, the A2A agents it may
 delegate to, the one that reviews a gated action before it pauses, each caller's
-registration, and the app roles that start and answer a task.
+registration, the app roles that start and answer a task, and, optionally, the append blob
+its audit log is copied to (audit_blob).
 """
 import importlib.util
 import json
@@ -74,6 +75,7 @@ class Orchestration:
     reviewer: str | None  # the delegate asked to review a gated action before it pauses
     request_roles: tuple[str, ...]  # a token needs one to start or cancel a task
     approve_roles: tuple[str, ...]  # and one of these to answer an approval
+    audit_blob: str | None = None  # the append blob the audit log is copied to after each run settles
 
 
 @dataclass(frozen=True)
@@ -184,6 +186,9 @@ def _orchestration(raw, base, auth):
     reviewer = _get(o, "reviewer", str, "orchestration", None)
     if reviewer is not None and reviewer not in {d.name for d in delegates}:
         raise ConfigError(f"orchestration.reviewer {reviewer} isn't one of orchestration.delegates")
+    audit_blob = _get(o, "audit_blob", str, "orchestration", None)
+    if audit_blob is not None and not audit_blob.startswith("https://"):
+        raise ConfigError("orchestration.audit_blob must be an https URL")
     return Orchestration(
         passport=_get(o, "passport", str, "orchestration"),
         state_dir=_path(base, _get(o, "state_dir", str, "orchestration")),
@@ -193,6 +198,7 @@ def _orchestration(raw, base, auth):
         reviewer=reviewer,
         request_roles=_strings(o, "request_roles", "orchestration") or ("Orchestration.Request",),
         approve_roles=_strings(o, "approve_roles", "orchestration") or ("Orchestration.Approve",),
+        audit_blob=audit_blob,
     )
 
 

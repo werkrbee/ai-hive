@@ -19,7 +19,7 @@ One resource group holds the whole deployment, so one budget covers it.
 | Container Apps environment and Log Analytics | Hosting and logs, kept 30 days and capped at 0.1 GB a day. Past the cap, logging stops until the next day. |
 | Azure Files share | `/data`: the task database and the usage ledger, so both survive restarts and scale-to-zero, and the weekly evaluation's ledger and its results, queue and audit log under `assurance/`. It is mounted with `nobrl`, which is safe only with one writer to each file: the app and the job never write the same one. |
 | Container Apps job (weekly) | Patricia's weekly trust evaluation, from the app's image, under the same identity and in the same environment, so no credential goes into CI (see "Weekly evaluation"). |
-| Audit log storage account | The audit log's immutable copy, an append blob in a container under a time-based retention policy, in an account of its own so that locking the policy holds nothing else. Only Entra identities reach it: account keys are off. The identity may append (Storage Blob Data Contributor, on the container), and the people in `auditReaders` may read it. |
+| Audit log storage account | The audit log's immutable copy, an append blob in a container under a time-based retention policy, in an account of its own so that locking the policy holds nothing else. Only Entra identities reach it: account keys are off. The identity may append (Storage Blob Data Contributor, on the container); Barry's may append only to his own blob, `barry.jsonl` (the same role, conditioned to that path); and the people in `auditReaders` may read both. |
 | Microsoft Foundry (AI Services) | The models. Key auth is disabled, so the server reaches them only with its managed identity, and there is no API key to store. |
 | User-assigned managed identity | Pulls the image (AcrPull) and calls Foundry with the narrowest built-in role the model's API allows. For Chat Completions that's Cognitive Services OpenAI User, which can call the OpenAI v1 endpoint but can't list keys or use Foundry's other services; verified with the managed identity on 2026-10-14. For Messages (Anthropic models) it's Cognitive Services User, the role Microsoft names for Entra calls to Claude's `/anthropic` endpoint, which isn't under the OpenAI role. A deploy adds roles but doesn't remove them, so after switching from an Anthropic model to any other, remove the identity's Cognitive Services User assignment by hand. |
 | Container registry (Basic) | Holds the image, built from a commit by `az acr build`. |
@@ -99,7 +99,8 @@ the same gated steps. Without it, the deploy is Patricia's alone.
 
 **Identity.** He has his own managed identity, separate from Patricia's, holding only what
 he uses: AcrPull on the registry, the same narrowest Foundry role as hers for the model's
-API, and app roles for the two APIs he calls, Patricia's `Review.Request` and the verify
+API, Storage Blob Data Contributor on the audit container conditioned to his own blob
+(`barry.jsonl`), so he can't read or append to hers, and app roles for the two APIs he calls, Patricia's `Review.Request` and the verify
 server's `Verify.Call`. App roles are Entra grants, not Azure roles, so `entra.sh
 --identity` makes them, once, after the first deploy with him prints his principal id.
 Patricia's server adds his identity's client id to her allowed clients itself.
@@ -137,10 +138,19 @@ the task pauses, it shows the tool, the action, the note and Patricia's verdict,
 approves as `--by` only when you type yes again; any other answer denies it. Neither the
 secret nor the token is printed or written to disk. A check costs a few cents.
 
+**His audit log.** His runs keep their engine records and audit log on his share. His
+server appends the log's new whole lines to his own append blob, `audit/barry.jsonl`, in
+the audit log's storage account, under the same retention policy as Patricia's copy: when
+it starts, after each run settles or is cancelled, and when it stops. So the record that a
+person approved a gated call is out of reach of anyone who can write the share within
+seconds of the decision, not at the next weekly run. A push that fails is logged as "the
+audit log's immutable copy is behind", and the next one catches up; a log that no longer
+starts with its copy isn't pushed again. `./assurance.sh check <rg>` checks his copy, and
+his log against it, after Patricia's.
+
 **Not yet.** His passport pins no model, so no trust evaluation gates his promotion, as
 one gates Patricia's; the orchestration eval (`eval/orchestration.py`) chose his model but
-doesn't run on a schedule. His runs keep their engine records, audit log and review queue
-on his share, but his audit log isn't copied to the immutable blob as hers is.
+doesn't run on a schedule.
 
 The order, once:
 
@@ -318,7 +328,8 @@ or just after it is caught too. The job pushes your answer's audit entry to the 
 
 The audit log on the share is a hash chain, which shows tampering but can't prevent it:
 anyone who can write the share can rewrite the log whole. Its copy, the append blob
-`audit/patricia.jsonl` in the audit log's storage account, is held by a time-based
+`audit/patricia.jsonl` in the audit log's storage account (and hosted Barry's,
+`audit/barry.jsonl`; see "Hosted Barry"), is held by a time-based
 retention policy that allows protected append writes. The storage service lets blocks be
 appended and refuses to change or delete them, even for the subscription's owner, until
 the period ends. `audit_blob.py push` appends only while the log still starts with what

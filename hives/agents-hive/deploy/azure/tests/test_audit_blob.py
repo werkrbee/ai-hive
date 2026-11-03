@@ -114,6 +114,20 @@ class Blob(unittest.TestCase):
         problems = ab.check(self.log, self.blob)
         self.assertTrue(any("the immutable copy:1: entry 1 was edited" in p for p in problems), problems)
 
+    def test_an_incomplete_last_line_is_refused_or_with_whole_lines_left_for_next_time(self):
+        self.write(2)
+        whole = self.log.read_bytes()
+        with self.log.open("ab") as f:
+            f.write(b'{"kind": "run.sta')
+        with self.assertRaisesRegex(ab.BlobError, "last line is incomplete"):
+            ab.push(self.log, self.blob)
+        self.assertEqual(ab.push(self.log, self.blob, whole_lines=True), len(whole))
+        self.assertEqual(self.service.data, whole)
+        self.log.write_bytes(whole)
+        self.write(1)
+        ab.push(self.log, self.blob, whole_lines=True)
+        self.assertEqual(self.service.data, self.log.read_bytes())
+
     def test_another_writer_appending_first_stops_the_push(self):
         self.write(1)
         ab.push(self.log, self.blob)
