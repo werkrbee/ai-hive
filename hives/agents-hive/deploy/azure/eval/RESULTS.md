@@ -294,4 +294,6 @@ The 20:42 run is hosted Barry's first trust evaluation baseline. It is recorded 
 the policy and `goals.json`, all unchanged since `3b0c4b1`; his later trust evaluations
 are recorded there too. His current baseline is `2026-11-03-barry-eval`, the first run
 through `orchestration.py --passport barry`, 15 of 15 on `review-a` for $0.46, on the
-same pins.
+same pins. Its entry records commit `8e9629f`, but the runner was this branch's, not yet
+committed: the pins, the server and the code that drives the model were as at `8e9629f`,
+and only the wrapper that records the result was new.

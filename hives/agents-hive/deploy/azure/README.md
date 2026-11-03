@@ -378,9 +378,12 @@ results recorded then, since that passport's baseline still applies. That check 
 a result recorded later, so if a later evaluation of the same pins found something (drift,
 say, or a not-run), it names it in a warning before the first what-if, for you to weigh
 before typing yes. A version from before trust evaluation can't be promoted, so it can't
-be rolled back to. `modelDeployment` in the parameters must be the model that passport
-pins, by name and version, and the model check refuses it if the catalog no longer offers
-it as generally available, since a retired model can't come back. Once the app is
+be rolled back to. With hosted Barry set, his passport is checked as it was at that commit
+too, so a commit from before his passport pinned a model and his trust evaluation (#182)
+is refused, with "hosted Barry is set, but his passport pins no model". `modelDeployment`
+in the parameters must be the model that passport pins, by name and version, and the model
+check refuses it if the catalog no longer offers it as generally available, since a
+retired model can't come back. Once the app is
 deployed, the audit log (`--audit`, by default the workflows-hive engine's) records who
 rolled her back (`--by`, or `WORKFLOWS_HIVE_ACTOR`) and the digest of a record in
 `rollbacks/` beside it, which keeps the reason. If a step fails or you stop it partway,
