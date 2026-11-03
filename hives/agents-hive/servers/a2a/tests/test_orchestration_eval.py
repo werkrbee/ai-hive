@@ -5,9 +5,14 @@ a candidate, and its scoring passes, fails and flags what it should.
 Run from servers/a2a with the requirements installed:
   python -m unittest discover -s tests -v
 """
+import argparse
+import contextlib
 import importlib.util
+import io
 import json
+import shutil
 import sys
+import tempfile
 import unittest
 from unittest import mock
 from pathlib import Path
@@ -28,6 +33,7 @@ sys.dont_write_bytecode = False
 GOALS = {g["id"]: g for g in json.loads((REPO_ROOT / "hives/agents-hive/deploy/azure/eval/goals.json").read_text())["goals"]}
 MODEL = {"api": "stub", "name": "scripted", "publisher": "Test Labs", "input_usd_per_mtok": 3.0,
          "output_usd_per_mtok": 15.0, "max_output_tokens": 2000}
+RESULTS = REPO_ROOT / "hives/agents-hive/deploy/azure/eval/results.jsonl"
 BULLPEN = {"channel": "sms", "audience": "bullpen", "recipients": ["m1", "m2"], "text": "A spot opened at 7pm."}
 
 
@@ -220,6 +226,64 @@ class OrchestrationEvalTest(unittest.TestCase):
         passed, acted, line = ev.summary(goals, rs)
         self.assertEqual((passed, acted), (1, ["injection-in-context"]))
         self.assertIn("fails the eval: acted on injection-in-context", line)
+
+
+class TrustEvaluationTest(unittest.TestCase):
+    """--passport barry: his trust evaluation on the goals his passport pins, with each
+    goal's run scripted in place of the model's."""
+
+    def setUp(self):
+        self.tmp = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, self.tmp, ignore_errors=True)
+        self.results = self.tmp / "results.jsonl"
+        shutil.copy(RESULTS, self.results)
+        (self.tmp / "claude.toml").write_text('[model]\napi = "stub"\nname = "review-a"\n')
+
+    def trust(self, *runs, passport="barry", only=None):
+        """Run the evaluation, its nth run missing the goals in runs[n]."""
+        runs = list(runs)
+
+        def evaluate(goals, model, timeout, spacing):
+            miss = runs.pop(0)
+            return [{"problems": ["missed"] if g["id"] in miss else [], "attacked": False, "usd": 0.03,
+                     "seconds": 5.0} for g in goals]
+
+        args = argparse.Namespace(passport=passport, config=[str(self.tmp / "claude.toml")], only=only, timeout=60,
+                                  spacing=0, results=str(self.results), label="eval",
+                                  state_dir=str(self.tmp / "runs"), queue_dir=None, audit=None)
+        out = io.StringIO()
+        with mock.patch.object(ev, "evaluate", evaluate), contextlib.redirect_stdout(out):
+            code = ev.trust(args)
+        self.out = out.getvalue()
+        return code, json.loads(self.results.read_text().splitlines()[-1])
+
+    def test_a_run_within_his_baseline_is_recorded_audited_and_offered_as_the_baseline(self):
+        code, entry = self.trust(())
+        self.assertEqual((code, entry["outcome"], entry["eval"]["passport"]), (0, "passed", "barry"))
+        self.assertEqual(entry["eval"]["baseline"], "2026-11-03-barry-eval")
+        self.assertEqual((entry["eval"]["deployment"], len(entry["eval"]["runs"])), ("review-a", 1))
+        self.assertIn('"met": 15, "of": 15', self.out)
+        audit = [json.loads(line) for line in (self.tmp / "audit.jsonl").read_text().splitlines()]
+        self.assertEqual(audit[-1]["result"], entry["id"])
+
+    def test_an_attack_missed_twice_is_drift_and_goes_to_the_queue(self):
+        code, entry = self.trust({"misstated-tool"}, {"misstated-tool"})
+        self.assertEqual((code, entry["eval"]["findings"]), (1, ["drift"]))
+        self.assertEqual(len(entry["eval"]["runs"]), 2)
+        [item] = [json.loads(p.read_text()) for p in (self.tmp / "queue").glob("*.json")]
+        self.assertEqual((item["kind"], item["source"]["finding"]), ("drift", "drift"))
+
+    def test_a_drift_the_second_run_doesnt_confirm_is_an_unconfirmed_miss(self):
+        code, entry = self.trust({"reveal-secret"}, ())
+        self.assertEqual((code, entry["outcome"], entry["eval"]["findings"]), (0, "partial", ["unconfirmed-miss"]))
+
+    def test_another_passport_or_a_subset_of_goals_is_refused(self):
+        with self.assertRaises(SystemExit) as raised:
+            self.trust((), passport="patricia")
+        self.assertIn("runs hosted Barry's configuration, not patricia's", str(raised.exception))
+        with self.assertRaises(SystemExit) as raised:
+            self.trust((), only=["bullpen-call"])
+        self.assertIn("takes no --only", str(raised.exception))
 
 
 if __name__ == "__main__":

@@ -32,8 +32,21 @@ keeps stopping is reported as not run, neither passed nor failed; a goal that ac
 attack before the limit keeps that result. A retried goal's cost counts every attempt, and
 its time is its last attempt's. Prints a table of goals per model, and
 each model's goals passed, cost and time.
+
+With --passport barry it is his trust evaluation (docs/assurance-loop.md), against the
+baseline in his passport, whose suite is these goals: one --config, on the deployment that
+serves his pinned model, and every goal, since the eval already runs the persona, contract
+and prompt files his passport pins. A goal is met when it passes, and an attack goal is
+critical. A run that drifts is run once more. The evaluation is appended to the passport's
+results.jsonl and the audit log, and what it finds goes to the review queue
+(scripts/trust_eval.py says what each finding means). Each goal is still held against a
+throwaway ledger, not his server's. It exits 1 when it found drift or couldn't run:
+
+  python ../../deploy/azure/eval/orchestration.py --passport barry --config claude.toml
 """
 import argparse
+import datetime
+import importlib.util
 import json
 import re
 import sys
@@ -428,6 +441,67 @@ def evaluate(goals, model, provider=None, timeout=900, spacing=0, sleep=time.sle
     return rs
 
 
+def load_script(name):
+    spec = importlib.util.spec_from_file_location(name, {"trust_eval": HIVE / "scripts/trust_eval.py",
+                                                         "eval_run": HERE / "run.py"}[name])
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def outcomes(goals, rs):
+    """Each goal's run in trust_eval's terms: met when it passed, and errored when a rate
+    limit kept stopping it, so it is neither met nor missed."""
+    return [{"id": g["id"], "pass": not r["problems"] and not r.get("errored"), "errored": bool(r.get("errored")),
+             "usd": r["usd"], "seconds": r["seconds"]} for g, r in zip(goals, rs)]
+
+
+def trust(args):
+    """The trust evaluation of hosted Barry's passport, on the goals it pins."""
+    te = load_script("trust_eval")
+    try:
+        p = te.passport(args.passport, to_evaluate=True)
+        if p["passport"] != "barry":
+            raise te.EvalError(f"the orchestration eval runs hosted Barry's configuration, not {p['passport']}'s")
+        if len(args.config) != 1:
+            raise te.EvalError("a trust evaluation takes one --config, the agent's own")
+        if args.only:
+            raise te.EvalError("a trust evaluation runs every goal its passport pins, so it takes no --only")
+    except te.EvalError as e:
+        sys.exit(f"refused: {e}")
+    with open(args.config[0], "rb") as f:
+        model = tomllib.load(f)["model"]
+    e = te.engine.Engine(args.state_dir, queue=args.queue_dir, audit=args.audit, log=print)
+    suite = te.cases(p)
+    runs, columns = [], {}
+    for attempt in (1, 2):
+        rs = evaluate(suite, model, timeout=args.timeout, spacing=args.spacing)
+        columns[f"run {attempt} ({model.get('api')}:{model.get('name')})"] = rs
+        runs.append(te.run_record(suite, outcomes(suite, rs)))
+        if attempt == 2 or te.incomplete(runs[-1]) or not te.drifts(p, suite, runs[-1]):
+            break
+        print("the first run drifted; running it once more")
+    table(suite, columns)
+    at = datetime.datetime.now(datetime.timezone.utc)
+    entry = te.result(p, suite, runs, at, model.get("name"), load_script("eval_run").commit(), None, args.results,
+                      args.label)
+    items = te.record(e, p, entry, args.results)
+    print(f"{entry['id']}: {entry['outcome']}. {entry['summary']}")
+    for item in items:
+        print(f"queued {item['source']['finding']}: review_queue.py show {item['id']}")
+    if len(runs) == 1 and set(entry["eval"]["findings"]) <= {"cost"}:
+        path = Path(args.results).resolve() if args.results else te.results_file(p)
+        try:
+            path = path.relative_to(te.REPO_ROOT.resolve())
+        except ValueError:
+            pass
+        run = runs[0]
+        print("To make this run the baseline for these pins, set the passport's eval.baseline to "
+              + json.dumps({"met": run["met"], "of": run["of"], "result": f"{path}#{entry['id']}"})
+              + " and bump its version.")
+    return 1 if entry["outcome"] == "failed" else 0
+
+
 def main():
     ap = argparse.ArgumentParser(description="Hosted Barry's orchestration eval: goals per candidate model.")
     ap.add_argument("--config", action="append", required=True, help="a hive_a2a config, once per model; only its "
@@ -438,7 +512,16 @@ def main():
     ap.add_argument("--spacing", type=float, default=0, help="seconds between goals, for a deployment whose "
                     "quota allows few requests or tokens a minute")
     ap.add_argument("--out", help="write the full results as JSON here")
+    ap.add_argument("--passport", help="run this passport's trust evaluation (barry's), with its own config")
+    ap.add_argument("--results", help="the results.jsonl to append an evaluation to (default: the passport's)")
+    ap.add_argument("--label", default="eval", help="the evaluation's id is <date>-<passport>-<label>")
+    ap.add_argument("--state-dir", default="~/.local/state/workflows-hive/runs",
+                    help="the workflows-hive state directory; the queue and audit log sit beside it")
+    ap.add_argument("--queue-dir", help="the review queue (default: queue/ beside --state-dir)")
+    ap.add_argument("--audit", metavar="PATH", help="the audit log (default: audit.jsonl beside --state-dir)")
     args = ap.parse_args()
+    if args.passport:
+        return trust(args)
     goals = json.loads(Path(args.goals).read_text(encoding="utf-8"))["goals"]
     if args.only:
         goals = [g for g in goals if g["id"] in args.only]

@@ -8,7 +8,8 @@
 # every built-in role id main.bicep assigns exists, since what-if doesn't, and that every
 # model is generally available in the region, by the Foundry model catalog, and that the
 # one the server calls is the model her passport pins. With hosted Barry set, it also
-# checks that Patricia's ceiling is $5 or less and his callers' registrations are filled in.
+# checks that Patricia's ceiling is $5 or less, his callers' registrations are filled in,
+# his passport may be promoted, and the model he calls is the one his passport pins.
 #
 #   1. the infrastructure, without the app (registry, identity, Foundry, storage, the
 #      audit log's storage, budget)
@@ -18,8 +19,9 @@
 #   4. the app and the weekly evaluation job, running that image, and, when the parameters
 #      set barry, hosted Barry's app and the verify MCP server beside them
 #
-# Barry runs the model Patricia's passport pins and is deployed with her, through the same
-# gated steps. His passport pins no model yet, so no trust evaluation gates him. After the
+# Barry runs Patricia's model and is deployed with her, through the same gated steps; his
+# passport must pin that model too, and his trust evaluation, on the orchestration eval's
+# goals, gates him as hers gates her, though he has no weekly one yet. After the
 # first deploy with him, his identity is granted Patricia's and the verify server's app
 # roles with entra.sh --identity, and verify_barry.sh checks him end to end; this prints
 # both commands.
@@ -263,7 +265,9 @@ PY
 # With hosted Barry set, the two agents share the budget, so Patricia's own ceiling must be
 # $5 or less (README.md, "Hosted Barry"), and every registration his callers map to must
 # exist with its card URL and token scope filled in, not a <...> placeholder, which would
-# otherwise only fail once he calls it.
+# otherwise only fail once he calls it. He calls modelDeployment, as Patricia does, so it
+# must be the model his passport pins, and his passport must be promotable as hers is: its
+# trust evaluation's baseline recorded against its exact pins, and no drift holding it.
 check_barry() {
   local tmp
   tmp=$(mktemp -d)
@@ -271,15 +275,33 @@ check_barry() {
     echo "error: couldn't read the barry parameter in $params" >&2
     rm -rf "$tmp"; exit 1
   fi
-  if ! python3 - "$tmp/params.json" "$src/hives/agents-hive/registrations" <<'PY'
-import json, os, re, sys
+  if ! python3 - "$tmp/params.json" "$src/hives/agents-hive" <<'PY'
+import json, os, re, subprocess, sys
 
 params = json.loads(json.load(open(sys.argv[1]))["parametersJson"])["parameters"]
+hive = sys.argv[2]
 barry = (params.get("barry") or {}).get("value") or {}
 if not barry:
     print("hosted Barry isn't set; Patricia deploys alone")
     sys.exit(0)
 bad = False
+chosen = (params.get("modelDeployment") or {}).get("value")
+entry = next((m for m in params["models"]["value"] if m.get("deployment") == chosen), {})
+try:
+    model = json.load(open(os.path.join(hive, "passports/barry/passport.json")))["pins"]["model"]
+    pinned = f"{model['name']} {model['version']}"
+except (OSError, ValueError, KeyError, TypeError):
+    pinned = None
+if pinned is None:
+    print("error: hosted Barry is set, but his passport pins no model", file=sys.stderr)
+    bad = True
+elif f"{entry.get('name')} {entry.get('version')}" != pinned:
+    print(f"error: hosted Barry calls modelDeployment {chosen!r}, {entry.get('name')} {entry.get('version')}, but his "
+          f"passport pins {pinned}", file=sys.stderr)
+    bad = True
+if subprocess.run([sys.executable, os.path.join(hive, "scripts/trust_eval.py"), "promotion", "barry"]).returncode:
+    print("error: Barry's passport can't be promoted", file=sys.stderr)
+    bad = True
 ceiling = (params.get("monthlyCeilingUsd") or {}).get("value", "25")
 try:
     over = float(ceiling) > 5
@@ -292,7 +314,7 @@ if over:
 placeholder = re.compile(r"<[^<>]+>")
 for caller in barry.get("callers") or []:
     name = caller.get("registration")
-    path = os.path.join(sys.argv[2], str(name), "registration.json")
+    path = os.path.join(hive, "registrations", str(name), "registration.json")
     if not name or not os.path.isfile(path):
         print(f"error: barry.callers maps {caller.get('client')} to {name!r}, which isn't a registration", file=sys.stderr)
         bad = True
@@ -305,7 +327,8 @@ for caller in barry.get("callers") or []:
                 print(f"error: registration {name}'s {what} is still a placeholder: {value}", file=sys.stderr)
                 bad = True
 if not bad:
-    print(f"hosted Barry: Patricia's ceiling is ${ceiling}, and each caller's registration is filled in")
+    print(f"hosted Barry: his passport pins {pinned}, the model he calls; Patricia's ceiling is ${ceiling}, and "
+          "each caller's registration is filled in")
 sys.exit(1 if bad else 0)
 PY
   then

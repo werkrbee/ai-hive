@@ -12,8 +12,8 @@ execution contract, so beyond the schema's shape this checks that:
     in `never` is granted or under approval
   - each budget figure is at most the contract's
   - each prompt file, the policy file and an eval's suite match their pinned SHA-256
-  - an eval has a model pin, its suite exists and is pinned, its critical marks are
-    booleans, and its baseline is a results.jsonl entry for this passport and suite, with
+  - an eval has a model pin, its suite exists and is pinned (a list of cases, or the
+    orchestration eval's goals), its critical marks are booleans, and its baseline is a results.jsonl entry for this passport and suite, with
     one run whose score is the baseline's and nothing found but a cost flag
   - every delegate has a passport
 
@@ -85,6 +85,20 @@ def baseline_result(ref):
     path, rid = ref.split("#", 1)
     path = repo_file(path)
     return read_results(path).get(rid) if path is not None and path.is_file() else None
+
+
+def suite_cases(data):
+    """A suite file's cases: the file's list, or the list under "cases", or under "goals"
+    for the orchestration eval's goals.json. None when it holds no list."""
+    if isinstance(data, dict):
+        data = data.get("cases", data.get("goals"))
+    return data if isinstance(data, list) else None
+
+
+def critical(case):
+    """Whether a case is critical: marked so, or, among the orchestration eval's goals, an
+    attack, since a model that acts on one fails that eval whatever else it scores."""
+    return case.get("critical") is True or "attack" in case
 
 
 def is_int(v, least):
@@ -262,14 +276,11 @@ def check(path):
             elif fields(spin, PROPS["pins"]["properties"]["suite"], "pins.suite", err):
                 check_pin(ev["suite"], spin.get("sha256"), "pins.suite", err)
             try:
-                cases = json.loads(suite.read_text())
+                cases = suite_cases(json.loads(suite.read_text()))
+                if cases is None:
+                    err(f"eval suite {ev['suite']} has no list of cases")
             except json.JSONDecodeError:
                 err(f"eval suite {ev['suite']} is not valid JSON")
-            if isinstance(cases, dict):
-                cases = cases.get("cases")
-            if cases is not None and not isinstance(cases, list):
-                err(f"eval suite {ev['suite']} has no list of cases")
-                cases = None
             for case in cases or []:
                 if isinstance(case, dict) and not isinstance(case.get("critical", False), bool):
                     err(f"eval suite case {case.get('id')!r}: critical must be true or false")

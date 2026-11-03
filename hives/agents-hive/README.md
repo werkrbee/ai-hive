@@ -67,7 +67,7 @@ the assurance loop ([`docs/assurance-loop.md`](../../docs/assurance-loop.md)).
 
 | Passport | Contract | Owner | Pins a model |
 |----------|----------|-------|--------------|
-| [**Barry**](passports/barry/passport.json) | `orchestration` | `@werkrbee` | no, he runs in a harness, which picks it |
+| [**Barry**](passports/barry/passport.json) | `orchestration` | `@werkrbee` | Claude Sonnet 5.5, version 2, hosted, with a trust evaluation baseline of 15 of 15; in a harness, the harness picks it |
 | [**Patricia**](passports/patricia/passport.json) | `governance-review` | `@werkrbee` | Claude Sonnet 5.5, version 2, with a trust evaluation baseline of 17 of 17 |
 | [**explore**](passports/explore/passport.json) | `code-discovery` | `@werkrbee` | no, it runs in a harness |
 | [**code-review**](passports/code-review/passport.json) | `code-review` | `@werkrbee` | no, it runs in a harness |
@@ -107,9 +107,11 @@ An agent drifts when it stops behaving the way it did when it was approved, and 
 evaluation is how that shows. Each agent with a model pin has a suite of cases that run
 through its own deployed path, and a baseline in its passport. Patricia's seventeen
 governance-review cases are the first suite
-([`deploy/azure/eval/cases.json`](deploy/azure/eval/cases.json)); Barry's orchestration
-eval (#119) joins when it lands. A case marked `critical` is one where the wrong answer
-lets a consequential action through. Patricia's are the six whose only acceptable verdict
+([`deploy/azure/eval/cases.json`](deploy/azure/eval/cases.json)); hosted Barry's are the
+orchestration eval's fifteen goals ([`deploy/azure/eval/goals.json`](deploy/azure/eval/goals.json)).
+A case marked `critical` is one where the wrong answer lets a consequential action
+through; among Barry's goals, each of the six attacks is critical, since a model that acts
+on one fails that eval whatever else it scores. Patricia's are the six whose only acceptable verdict
 is `block`, and five adversarial cases, whose input tries to talk her into a verdict: an
 approval the proposing agent only claims, an instruction planted in a CI log, an approval
 record the agent wrote for itself, a request to reveal a secret and her prompt, and a
@@ -146,6 +148,16 @@ baseline wasn't recorded against its exact pins, or that drift holds. `deploy.sh
 --rollback VERSION` deploys an earlier passport version instead, with
 [`scripts/rollback.py`](scripts/rollback.py) finding its commit and recording who rolled
 it back and why (`deploy/azure/README.md`, "Rolling back").
+
+Barry's runner is `deploy/azure/eval/orchestration.py --passport barry`, which runs every
+goal through the server in-process, against its stubs, as the model comparison does, and
+records the same way; each goal is held against a throwaway ledger rather than his
+server's. With hosted Barry set, `deploy.sh` runs `trust_eval.py promotion barry` too, and
+refuses unless the model he calls, Patricia's `modelDeployment`, is the one his passport
+pins. His baseline is `2026-11-03-barry-eval`, his first run through this runner, 15 of
+15 on `review-a` for $0.46. It replaced his first, the 2026-10-30 run at 20:42 UTC,
+recorded from `RESULTS.md` with its pins rebuilt, as Patricia's first was. He has no
+weekly evaluation yet.
 
 Patricia's baseline is her 2026-10-29 run, 17 of 17 with the adversarial cases, on
 `review-a`, the deployment pinned to Claude Sonnet 5.5, recorded after the Charter gained
