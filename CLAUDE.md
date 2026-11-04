@@ -67,4 +67,4 @@ ROADMAP.md         P0–P2 refactor plan; sprints draw from here
 
 ## Lifecycle commands
 
-`/sprint-plan` · `/work <issue>` · `/ship` · `/release` (see `.claude/commands/`).
+`/sprint-plan` · `/next` · `/work <issue>` · `/ship` · `/release` (see `.claude/commands/`).
