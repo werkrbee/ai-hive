@@ -462,6 +462,7 @@ class Orchestrator:
         # A blob for each push, so its token is never older than the push; tests swap it.
         self.audit_copy = _audit_blob_module().Blob if self.o.audit_blob else None
         self.anchoring = asyncio.Lock()
+        self.pushes = set()  # pushes running in the background, kept so they aren't collected
         self.publishing = asyncio.Lock()
         self.reviewing = {}  # approval ID -> lock, so two publishes ask the reviewer once
 
@@ -931,9 +932,10 @@ class Orchestrator:
                                                parts=[new_data_part(result, "application/json")]))
             await self.store.save(task, context)
 
-    async def settle(self, run_id):
+    async def settle(self, run_id, wait=True):
         """After the loop stops: apply a cancel that landed as it paused, publish, and release
-        an ended run's hold."""
+        an ended run's hold. wait=False pushes the audit log in the background, for a caller
+        whose answer shouldn't wait on the push."""
         def cancelled():
             run = self.engine.load(run_id)
             if run["status"] not in engine.TERMINAL:
@@ -944,7 +946,10 @@ class Orchestrator:
         await self.publish(run_id)
         if run["status"] in engine.TERMINAL:
             await self.ledger.release(run_id)
-        await self.anchor()
+        if wait:
+            await self.anchor()
+        else:
+            self.anchor_later()
 
     async def anchor(self):
         """Append the audit log's new whole lines to its immutable copy, when there is one. A
@@ -959,6 +964,15 @@ class Orchestrator:
                                         True)
             except Exception as e:
                 log.error("the audit log's immutable copy is behind: %s", e)
+
+    def anchor_later(self):
+        """Push the audit log in the background, still one push at a time; close() waits for
+        it."""
+        if self.audit_copy is None:
+            return
+        push = asyncio.create_task(self.anchor())
+        self.pushes.add(push)
+        push.add_done_callback(self.pushes.discard)
 
     # Startup, expiry, cancel and shutdown
 
@@ -992,7 +1006,7 @@ class Orchestrator:
             else:  # a paused run's request, with its review, in case the server stopped first
                 await self.publish(run["runId"])
         await self.sweep()
-        await self.anchor()  # anything a run left unpushed before the server stopped
+        self.anchor_later()  # anything a run left unpushed before the server stopped
         self.sweeper = asyncio.create_task(self._sweep_forever())
 
     async def _sweep_forever(self):
@@ -1035,7 +1049,7 @@ class Orchestrator:
         if run is None or run["inputs"]["owner"] != owner:
             raise TaskNotFoundError()
         if await asyncio.to_thread(self.engine.expire_if_due, run):
-            await self.settle(run_id)
+            await self.settle(run_id, wait=False)
             raise InvalidParamsError(message=f"too late: {run['error']['message']}")
         pending = run.get("pending") or {}
         if run["status"] != "input_required" or not pending:
@@ -1060,13 +1074,14 @@ class Orchestrator:
             return
         if run["status"] in engine.TERMINAL:
             await self.ledger.release(run_id)
-        await self.anchor()
+        self.anchor_later()
 
     async def close(self):
         self.closing = True
         if self.sweeper:
             self.sweeper.cancel()
         await asyncio.gather(*self.drives.values(), return_exceptions=True)
+        await asyncio.gather(*self.pushes, return_exceptions=True)
         await self.anchor()
         await self.network.aclose()
 

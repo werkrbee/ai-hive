@@ -234,6 +234,9 @@ empty, or list both, so a client holding only one can still use what it holds.
 Azure append blob under a retention policy that refuses changes and deletes, the server
 appends the log's new whole lines to it (`deploy/azure/audit_blob.py`, with its managed
 identity's token) when it starts, after each run settles or is cancelled, and when it
+stops. Pushes go one at a time, and no answer waits on one: a cancel, an answer that came
+too late and the server's start push in the background, so a slow or hung storage
+endpoint doesn't hold them up, and the server waits for any push still running before it
 stops. A failed push is logged and the next one catches up; the run it records isn't
 affected.
 
