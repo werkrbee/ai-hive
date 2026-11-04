@@ -23,9 +23,9 @@ welcome — code, hives, docs, and evals.
 ## Using Claude Code
 
 This repo is set up for Claude Code: `CLAUDE.md` carries the context, `.claude/commands/`
-provides `/sprint-plan`, `/work`, `/ship`, `/release`, and `.claude/agents/` has the Barry
-(orchestrator) and Patricia (reviewer) subagents. You don't need Claude Code to contribute —
-it's one supported path.
+provides `/sprint-plan`, `/next`, `/work`, `/ship`, `/release`, and `.claude/agents/` has the
+Barry (orchestrator) and Patricia (reviewer) subagents. You don't need Claude Code to
+contribute — it's one supported path.
 
 ## Don't commit
 
