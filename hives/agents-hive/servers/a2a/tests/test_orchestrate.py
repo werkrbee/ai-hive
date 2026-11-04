@@ -13,6 +13,7 @@ import json
 import shutil
 import sys
 import tempfile
+import threading
 import time
 import unittest
 import unittest.mock
@@ -192,6 +193,19 @@ class AppendBlob:
     def append(self, data, at):
         assert at == len(self.data)
         self.data += data
+
+
+class StuckBlob(AppendBlob):
+    """An append blob whose reads hang until released is set, as a hung service's would,
+    giving up after ten seconds so a test that waits on one fails rather than hangs."""
+
+    def __init__(self):
+        super().__init__()
+        self.released = threading.Event()
+
+    def read(self):
+        self.released.wait(10)
+        return super().read()
 
 
 async def fake_token(scope):
@@ -677,6 +691,23 @@ class OrchestrateTest(unittest.TestCase):
         self.assertEqual(len(logged.output), 2)
         self.assertTrue(all("the audit log's immutable copy is behind" in line for line in logged.output))
         self.assertEqual(sum(b'"run.completed"' in line for line in blob.data.splitlines()), 2)
+
+    def test_a_cancel_answers_while_a_push_hangs_and_the_copy_catches_up_after(self):
+        blob = StuckBlob()
+        with self.copied(write_config(self.root, audit_blob=AUDIT_BLOB),
+                         Scripted(call("lineup__send_message", self.BLAST)), blob) as c:
+            try:
+                task = self.paused(c)  # the server started, and the run paused, behind the hung push
+                began = time.monotonic()
+                canceled = self.rpc(c, "CancelTask", {"id": task["id"]})["result"]
+                waited = time.monotonic() - began
+                self.assertEqual(canceled["status"]["state"], "TASK_STATE_CANCELED")
+                self.assertLess(waited, 5, "the cancel didn't wait for the push")
+                self.assertIsNone(blob.data, "still nothing copied while the push hangs")
+            finally:
+                blob.released.set()
+            self.assertTrue(self.caught_up(blob), "the copy catches up once the push goes through")
+        self.assertIn(b'"run.cancelled"', blob.data)
 
     def test_without_an_audit_blob_nothing_is_pushed(self):
         with self.client(write_config(self.root), Scripted(final())) as c:
