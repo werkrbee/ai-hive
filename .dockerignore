@@ -27,6 +27,7 @@
 !hives/rules-hive/rules/queen-charter/policy.json
 !hives/skills-hive/skills/barry/SKILL.md
 !hives/skills-hive/skills/barry/references/fleet.md
+!hives/agents-hive/deploy/azure/eval/goals.json
 !hives/agents-hive/registrations
 !hives/agents-hive/scripts/registrations.py
 !hives/mcp-hive/scripts/server_card.py
