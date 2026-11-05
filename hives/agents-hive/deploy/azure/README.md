@@ -81,7 +81,19 @@ clients need it to learn how to authenticate.
 
    If a what-if fails, it stops there without asking, since there is no plan to approve.
 
-   It prints the Agent Card URL at the end. The app and the job start only on the prompt
+   Azure accepts an app's new revision before it starts, so last it waits, up to five
+   minutes (`REVISION_WAIT_SECONDS`), for each app's newest revision, Patricia's and, with
+   hosted Barry set, his and the verify server's, to be provisioned and healthy, running
+   or scaled to zero as an idle app is. It prints each one's revision and image. One that
+   fails to activate, stops, or isn't up in time fails the deploy, naming the revision and
+   the `az containerapp logs show` command that reads why; the running state is what
+   counts, since a revision that failed to activate can read Healthy once it has stopped.
+   It changes nothing to recover: what was applied stays applied, so read the logs, fix the
+   cause and deploy again, or roll back ("Rolling back"), each a gated step of its own.
+   This check came after Barry's revision on 2026-11-04 failed to start on every attempt,
+   missing a file his passport names, while the deploy reported success.
+
+   It prints the Agent Card URL before that wait. The app and the job start only on the prompt
    files her passport pins: each must match its pinned digest, or the container exits
    before it serves anything (`render_config.py`). The policy she is pinned to isn't read
    by the server; the promotion check holds it to its pin.

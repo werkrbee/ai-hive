@@ -19,6 +19,9 @@
 #   4. the app and the weekly evaluation job, running that image, and, when the parameters
 #      set barry, hosted Barry's app and the verify MCP server beside them
 #
+# Then it waits for each app's newest revision to come up, and fails, changing nothing,
+# if one doesn't.
+#
 # Barry runs Patricia's model and is deployed with her, through the same gated steps; his
 # passport must pin that model too, and his trust evaluation, on the orchestration eval's
 # goals, gates him as hers gates her, though he has no weekly one yet. After the
@@ -495,6 +498,61 @@ retention() {  # $1 = deployment outputs JSON
   echo "$account/$container: locked"
 }
 
+# Azure accepts an app's new revision before it starts, so a deploy that succeeded can leave
+# an app whose newest revision never runs: on 2026-11-04 Barry's failed to activate on every
+# start, and nothing said so. After the last step, wait up to REVISION_WAIT_SECONDS for each
+# app's newest revision to be provisioned and healthy, running or scaled to zero as they
+# are when idle. Its running state is what to go by: a revision that failed to activate
+# can still read Healthy once it has stopped. Only reads; recovering, by a rollback, say,
+# is a separate, gated step.
+REVISION_WAIT_SECONDS=${REVISION_WAIT_SECONDS:-300}
+REVISION_POLL_SECONDS=${REVISION_POLL_SECONDS:-10}
+revisions_up() {  # $1 = deployment outputs JSON
+  local apps=() url host app revision info prov running health image deadline failed=''
+  for url in "$(output "$1" publicUrl)" "$(output "$1" barryUrl)" "$(output "$1" verifyUrl)"; do
+    host=${url#https://}
+    [ -z "$url" ] || apps+=("${host%%.*}")  # an app's URL is https://<app>.<environment domain>/
+  done
+  if [ "${#apps[@]}" -eq 0 ]; then
+    echo "this template names no app; no revision to wait for"
+    return
+  fi
+  deadline=$((SECONDS + REVISION_WAIT_SECONDS))
+  for app in "${apps[@]}"; do
+    if ! revision=$(az containerapp show --resource-group "$rg" --name "$app" \
+        --query properties.latestRevisionName -o tsv) || [ -z "$revision" ]; then
+      echo "error: couldn't read $app's newest revision" >&2
+      failed=1
+      continue
+    fi
+    while :; do
+      if ! info=$(az containerapp revision show --resource-group "$rg" --name "$app" --revision "$revision" \
+          --query "[properties.provisioningState, properties.runningState, properties.healthState, properties.template.containers[0].image]" \
+          -o tsv); then
+        info="unreadable unreadable unreadable -"
+      fi
+      read -r prov running health image <<< "$(printf '%s' "$info" | tr '\n\t' '  ')"
+      case "$prov/$running/$health" in
+        Provisioned/Running/Healthy|Provisioned/RunningAtMaxScale/Healthy|Provisioned/ScaledToZero/Healthy)
+          echo "$app: $revision is up ($running), on $image"
+          break ;;
+        Failed/*|*/ActivationFailed/*|*/Failed/*|*/Degraded/*|*/Stopped/*|*/*/Unhealthy) ;;
+        *) if [ "$SECONDS" -lt "$deadline" ]; then sleep "$REVISION_POLL_SECONDS"; continue; fi ;;
+      esac
+      echo "error: $app's newest revision, $revision, didn't come up: provisioning $prov, running" \
+        "$running, health $health. Read its logs with: az containerapp logs show --resource-group" \
+        "$rg --name $app --revision $revision --tail 50" >&2
+      failed=1
+      break
+    done
+  done
+  if [ -n "$failed" ]; then
+    echo "error: the deploy was applied, but not every app came up; nothing was changed to" \
+      "recover it" >&2
+    exit 1
+  fi
+}
+
 if [ -z "$rollback" ]; then
   echo "== hosted evaluations"
   hosted_check
@@ -546,3 +604,6 @@ if [ -n "$rollback" ] && ! python3 "$rollback_py" record patricia "$commit" --by
     "$commit --by $by --reason <the reason>${audit:+ --audit $audit}" >&2
   exit 1
 fi
+
+echo "== the apps' new revisions"
+revisions_up "$outputs"
