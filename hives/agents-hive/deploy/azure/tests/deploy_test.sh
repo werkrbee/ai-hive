@@ -28,8 +28,14 @@
 # deployed but unable to write the audit log, it fails, naming the command that records
 # it. A modelDeployment that isn't the model v1 pins, a pinned model the catalog no longer
 # has, a version that isn't earlier, a missing reason and a passport from before trust
-# evaluation each stop it before any change. Bash 3.2 safe; run it with /bin/bash on
-# macOS.
+# evaluation each stop it before any change.
+#
+# Revisions: after the last step, each app's newest revision must come up, provisioned and
+# healthy, running or scaled to zero, within the wait; one that is still activating is
+# waited for. One that fails to activate, or is still not up when the wait ends, fails the
+# deploy, naming the app, the revision and the command that reads its logs, with only
+# reads after the apply. With hosted Barry set, his app and the verify server's are
+# waited for too. Bash 3.2 safe; run it with /bin/bash on macOS.
 #
 # Usage: tests/deploy_test.sh           (from hives/agents-hive/deploy/azure, or anywhere)
 set -u
@@ -44,8 +50,11 @@ fail=0
 # catalog; every call is appended to $STUB/calls. $STUB/deployed is whether a deployment
 # named main exists (0 or 1), $STUB/outputs its outputs, $STUB/hosted/ what the share's
 # assurance/ holds, $STUB/job-created when the weekly job was created (none: no job) and
-# $STUB/policy the audit container's retention policy, as container-rm show prints it. STUB_FAIL, when set, is a pattern; a call whose arguments
-# match it fails.
+# $STUB/policy the audit container's retention policy, as container-rm show prints it,
+# $STUB/created the outputs the last deployment returns, when not the default, and
+# $STUB/states/<app> the states its newest revision reads in turn, one line each, the last
+# line repeating (default: up, scaled to zero). STUB_FAIL, when set, is a pattern; a call
+# whose arguments match it fails.
 mkdir -p "$work/bin"
 cat > "$work/bin/az" <<'STUB'
 #!/usr/bin/env bash
@@ -75,8 +84,23 @@ case "$args" in
   "storage container immutability-policy show"*) echo '"etag-1"' ;;
   "storage container immutability-policy lock"*) printf 'True\tLocked\t365\tTrue\n' > "$STUB/policy" ;;
   "deployment group what-if"*) echo "what-if shown" ;;
-  "deployment group create"*) echo '{"registry": {"value": "reg.azurecr.io"}, "agentCard": {"value": "https://card"},
-    "auditAccount": {"value": "patricialogtest"}, "auditContainer": {"value": "audit"}}' ;;
+  "deployment group create"*)
+    if [ -f "$STUB/created" ]; then cat "$STUB/created"; else
+      echo '{"registry": {"value": "reg.azurecr.io"}, "agentCard": {"value": "https://card"},
+        "publicUrl": {"value": "https://patricia-a2a.env.example/"},
+        "auditAccount": {"value": "patricialogtest"}, "auditContainer": {"value": "audit"}}'
+    fi ;;
+  "containerapp show"*)
+    echo "$(printf '%s' "$args" | sed -n 's/.*--name \([^ ]*\).*/\1/p')--0000002" ;;
+  "containerapp revision show"*)
+    app=$(printf '%s' "$args" | sed -n 's/.*--name \([^ ]*\).*/\1/p')
+    states="$STUB/states/$app"
+    if [ -s "$states" ]; then
+      head -n 1 "$states"
+      if [ "$(wc -l < "$states")" -gt 1 ]; then tail -n +2 "$states" > "$states.next" && mv "$states.next" "$states"; fi
+    else
+      printf 'Provisioned\tScaledToZero\tHealthy\treg.azurecr.io/hive-a2a:test\n'
+    fi ;;
   "acr build"*) echo "built" ;;
 esac
 STUB
@@ -114,6 +138,8 @@ deepseek='{"deployment": "review-c", "format": "DeepSeek", "name": "DeepSeek-V3.
 # out of v1. Barry's passport pins $BARRY_PINNED (default GPT-5.4), or no model when it is
 # "none". The promotion check refuses when $PROMOTION is "refused", Barry's alone when
 # $BARRY_PROMOTION is, and, given the hosted results, when $HOSTED is "drift".
+# A revision is polled at once, and waited for at most a few seconds, unless a case says.
+export REVISION_POLL_SECONDS=0 REVISION_WAIT_SECONDS=5
 deploy_args=()
 run() {
   export STUB="$work/$1"
@@ -577,6 +603,70 @@ deploy_args=(--rollback 1 --reason "why" --by usr_test)
 HISTORY=1 NO_EVAL_AT_V1=1 ANSWER=yes run rbnoeval "$bicep"
 check "rollback: a passport from before trust evaluation is refused before any az call" \
   eval '[ "$code" -ne 0 ] && has "passport v1 predates trust evaluation" && [ ! -s "$STUB/calls" ]'
+
+deploy_args=()
+# Revisions. Up at once, scaled to zero as an idle app is: the deploy ends saying so.
+ANSWER=yes run revup "$bicep"
+check "revisions: an app scaled to zero and healthy is up, and the deploy succeeds" \
+  eval '[ "$code" -eq 0 ] && has "== the apps. new revisions" \
+   && has "patricia-a2a: patricia-a2a--0000002 is up (ScaledToZero), on reg.azurecr.io/hive-a2a:test"'
+
+# Still activating at first: waited for, then up.
+mkdir -p "$work/revwait/states"
+printf 'Provisioning\tActivating\tNone\t-\nProvisioned\tRunning\tHealthy\treg.azurecr.io/hive-a2a:test\n' \
+  > "$work/revwait/states/patricia-a2a"
+ANSWER=yes run revwait "$bicep"
+check "revisions: one still activating is waited for, then up" \
+  eval '[ "$code" -eq 0 ] && has "patricia-a2a: patricia-a2a--0000002 is up (Running)" \
+   && [ "$(grep -c "^containerapp revision show" "$STUB/calls")" -eq 2 ]'
+
+# Only reads after the apply: nothing past the last deployment but app and revision reads.
+reads_after_apply() {
+  grep -q "^deployment group create" "$STUB/calls" && ! awk '/^deployment group create/ {n = NR} {line[NR] = $0}
+    END {for (i = n + 1; i <= NR; i++) print line[i]}' "$STUB/calls" | grep -qvE "^containerapp (show|revision show)"
+}
+
+# Fails to activate, as Barry's did on 2026-11-04: the deploy fails, naming it and how to
+# read its logs, and changes nothing more.
+mkdir -p "$work/revfailed/states"
+printf 'Provisioned\tActivationFailed\tNone\treg.azurecr.io/hive-a2a:test\n' > "$work/revfailed/states/patricia-a2a"
+ANSWER=yes run revfailed "$bicep"
+check "revisions: one that fails to activate fails the deploy, naming it and its logs" \
+  eval '[ "$code" -ne 0 ] \
+   && has "patricia-a2a.s newest revision, patricia-a2a--0000002, didn.t come up: provisioning Provisioned, running ActivationFailed, health None" \
+   && has "az containerapp logs show --resource-group rg-test --name patricia-a2a --revision patricia-a2a--0000002" \
+   && has "not every app came up; nothing was changed to recover it" && reads_after_apply'
+
+# A stopped revision reads Healthy, but isn't up.
+mkdir -p "$work/revstopped/states"
+printf 'Provisioned\tStopped\tHealthy\treg.azurecr.io/hive-a2a:test\n' > "$work/revstopped/states/patricia-a2a"
+ANSWER=yes run revstopped "$bicep"
+check "revisions: a stopped one isn't up, though it reads Healthy" \
+  eval '[ "$code" -ne 0 ] && has "running Stopped, health Healthy" && ! has "is up"'
+
+# Never up within the wait: fails the same way.
+mkdir -p "$work/revslow/states"
+printf 'Provisioned\tActivating\tNone\treg.azurecr.io/hive-a2a:test\n' > "$work/revslow/states/patricia-a2a"
+REVISION_WAIT_SECONDS=0 ANSWER=yes run revslow "$bicep"
+check "revisions: one not up when the wait ends fails the deploy" \
+  eval '[ "$code" -ne 0 ] && has "didn.t come up: provisioning Provisioned, running Activating, health None" \
+   && reads_after_apply'
+
+# With hosted Barry: all three apps are waited for, and his failing is named while the
+# others are up.
+mkdir -p "$work/revbarry/states"
+printf 'Provisioned\tActivationFailed\tNone\treg.azurecr.io/hive-a2a:test\n' > "$work/revbarry/states/barry-a2a"
+echo '{"registry": {"value": "reg.azurecr.io"}, "agentCard": {"value": "https://card"},
+  "publicUrl": {"value": "https://patricia-a2a.env.example/"}, "barryUrl": {"value": "https://barry-a2a.env.example/"},
+  "barryAgentCard": {"value": "https://barry-card"}, "barryPrincipalId": {"value": "p1"},
+  "verifyUrl": {"value": "https://barry-verify.env.example/"},
+  "auditAccount": {"value": "patricialogtest"}, "auditContainer": {"value": "audit"}}' > "$work/revbarry/created"
+BARRY='{"callers": [{"client": "c1", "registration": "filled"}]}' CEILING=5 ANSWER=yes run revbarry "$bicep"
+check "revisions: with hosted Barry, his app and the verify server's are waited for too" \
+  eval '[ "$code" -ne 0 ] && has "patricia-a2a: patricia-a2a--0000002 is up" \
+   && has "barry-verify: barry-verify--0000002 is up" \
+   && has "barry-a2a.s newest revision, barry-a2a--0000002, didn.t come up: provisioning Provisioned, running ActivationFailed" \
+   && reads_after_apply'
 
 deploy_args=(--reason "why" rg)
 run rbusage "$bicep"
