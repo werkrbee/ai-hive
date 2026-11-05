@@ -20,9 +20,12 @@ welcome — code, hives, docs, and evals.
 5. Open a PR using the template. CI must pass and a Charter review must pass before merge.
 6. Squash-merge. Releases are automated from Conventional Commits — don't bump versions by hand.
 
-## Using Claude Code
+## Using a coding agent
 
-This repo is set up for Claude Code: `CLAUDE.md` carries the context, `.claude/commands/`
+`AGENTS.md` carries the repo's context for any coding agent that reads the open standard.
+Each harness adapter adds only what is specific to its harness.
+
+This repo is set up for Claude Code: `CLAUDE.md` imports `AGENTS.md`, `.claude/commands/`
 provides `/sprint-plan`, `/next`, `/work`, `/ship`, `/release`, and `.claude/agents/` has the
 Barry (orchestrator) and Patricia (reviewer) subagents. You don't need Claude Code to
 contribute — it's one supported path.

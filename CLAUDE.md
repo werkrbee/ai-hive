@@ -1,70 +1,19 @@
 # CLAUDE.md — ai-hive
 
-Context for Claude Code working in this repository. (A mirror lives in `AGENTS.md` for
-non-Claude tools — keep the two in sync.)
+The Claude Code adapter for this repository. The repo's context lives in `AGENTS.md`, the
+open cross-tool standard, imported here; this file adds only what is specific to Claude
+Code. Put anything that isn't about Claude Code in `AGENTS.md`.
 
-## What this is
+@AGENTS.md
 
-`ai-hive` is **werkrbee's House of Hives** — a harness-agnostic *factory* for building AI
-agent products. It is not an app; it is the reusable layers apps are assembled from. The
-guiding thesis: build the factory, then the product (`docs/factory-thesis.md`), and keep a
-product's capabilities independent of any one interface (`docs/interface-independence.md`).
+## Claude Code
 
-**Vision and mission.** Every person and every organization on the planet is the world's
-best user of AI, and an expert at it; ai-hive is the framework that gets them there. It is
-obsessed with how to use AI across every model, harness and part of the craft (memory,
-knowledge graphs, evaluation, cost, governance), and it explains why what works works, so
-its users become experts. Advice about AI names its evidence and when it was checked.
+**Subagents.** `.claude/agents/barry.md` and `.claude/agents/patricia.md` run the dev team
+as Claude Code subagents. Use Barry for planning and coordination, and Patricia to review a
+diff or PR against the Charter before merge.
 
-**Monorepo.** The hives live under `hives/` as plain directories (migrated off git
-submodules — see `scripts/monorepo-migrate.sh`). Change them with ordinary edits; PRs can
-span hives atomically.
+**Lifecycle commands.** `/sprint-plan` · `/next` · `/work <issue>` · `/ship` · `/release`,
+in `.claude/commands/`.
 
-## Layout
-
-```
-hives/
-  skills-hive/     capabilities — portable SKILL.md (Barry, Patricia live here)
-  rules-hive/      instructions — AGENTS.md guardrails (the Queen Bee's Charter)
-  mcp-hive/        tools — MCP server configs / registry
-  agents-hive/     actors — subagent & persona definitions
-  plugins-hive/    composition — installable packs
-  projects-hive/   containers — scaffolds that assemble the House per initiative
-  workflows-hive/  orchestration — durable, resumable workflows and a reference engine
-  knowledge-hive/  state — STATE.md, memory, results and usage ledgers
-docs/              factory-thesis, interface-independence, product-adoption, prompts, sprints
-.claude/           Claude Code config: commands, subagents, settings
-.github/           OSS health, issue/PR templates, CI
-ROADMAP.md         P0–P2 refactor plan; sprints draw from here
-```
-
-## Conventions (do not break)
-
-- **Harness-agnostic.** Artifacts ride open standards (`SKILL.md`, `AGENTS.md`, MCP, A2A).
-  Nothing is locked to one agent or model.
-- **Two axes.** `<thing>/` is *what* an artifact is (portable source of truth);
-  `adapters/<harness>/` is *where* it runs. Sub-harnesses nest one level deeper.
-- **Naming.** kebab-case product directories (`claude-code`, `github-copilot`).
-- **Docs voice.** Plain prose, sentence case, minimal bullets, two weights. Match the
-  existing docs. No hype.
-
-## Working rules
-
-- **Conventional Commits** (`feat:`, `fix:`, `refactor:`, `docs:`, `chore:`, `ci:`). This
-  drives automated versioning and the changelog.
-- **Trunk-based.** Short-lived branches (`feat/…`, `refactor/…`), one issue each,
-  squash-merge to `main`.
-- **Every change is reviewable.** Run the checks in `.github/workflows/ci.yml` locally
-  before shipping; a PR needs green CI and a Patricia charter-review pass.
-- **Don't commit** `.DS_Store`, `node_modules/`, secrets, or `.env` (see `.gitignore`).
-
-## The dev team (subagents)
-
-- **Barry** (`.claude/agents/barry.md`) — orchestrator/chief of staff; decomposes a sprint
-  issue, delegates, synthesizes.
-- **Patricia** (`.claude/agents/patricia.md`) — governance reviewer; gates PRs against the
-  Charter before merge.
-
-## Lifecycle commands
-
-`/sprint-plan` · `/next` · `/work <issue>` · `/ship` · `/release` (see `.claude/commands/`).
+**Settings.** `.claude/settings.json` holds the shared settings; `settings.local.json` is
+each person's own and isn't committed.
