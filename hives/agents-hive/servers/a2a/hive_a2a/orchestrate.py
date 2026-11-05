@@ -1005,7 +1005,7 @@ class Orchestrator:
                 self.spawn(run["runId"])
             else:  # a paused run's request, with its review, in case the server stopped first
                 await self.publish(run["runId"])
-        await self.sweep()
+        await self.sweep(wait=False)  # the server serves without waiting on their pushes
         self.anchor_later()  # anything a run left unpushed before the server stopped
         self.sweeper = asyncio.create_task(self._sweep_forever())
 
@@ -1017,12 +1017,14 @@ class Orchestrator:
             except Exception:
                 log.exception("the expiry sweep failed")
 
-    async def sweep(self):
-        """Fail each paused run whose approval has waited past its expiry."""
+    async def sweep(self, wait=True):
+        """Fail each paused run whose approval has waited past its expiry. The periodic sweep
+        awaits each push, since nothing waits on it, so pushes don't pile up behind a hung
+        service; startup's passes wait=False."""
         for run in await asyncio.to_thread(self.runs):
             if run.get("open") and run["status"] == "input_required" \
                     and await asyncio.to_thread(self.engine.expire_if_due, run):
-                await self.settle(run["runId"])
+                await self.settle(run["runId"], wait=wait)
 
     @staticmethod
     def read_answer(message):

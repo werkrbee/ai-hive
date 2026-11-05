@@ -709,6 +709,26 @@ class OrchestrateTest(unittest.TestCase):
             self.assertTrue(self.caught_up(blob), "the copy catches up once the push goes through")
         self.assertIn(b'"run.cancelled"', blob.data)
 
+    def test_the_server_starts_while_an_expired_runs_push_hangs_and_the_copy_catches_up_after(self):
+        config = write_config(self.root, audit_blob=AUDIT_BLOB)
+        with self.copied(config, Scripted(call("lineup__send_message", self.BLAST)), AppendBlob()) as c:
+            task_id = self.paused(c)["id"]
+        self.now[0] += datetime.timedelta(days=8)  # its approval expired while the server was down
+        blob = StuckBlob()
+        try:
+            began = time.monotonic()
+            with self.copied(config, Scripted(), blob) as c:
+                started = time.monotonic() - began
+                task = self.wait(c, task_id, until=("TASK_STATE_FAILED",))
+                self.assertLess(started, 5, "startup didn't wait for the expired run's push")
+                self.assertIn("expired unanswered", self.text(task))
+                self.assertIsNone(blob.data, "still nothing copied while the push hangs")
+                blob.released.set()
+                self.assertTrue(self.caught_up(blob), "the copy catches up once the push goes through")
+        finally:
+            blob.released.set()
+        self.assertIn(b'"run.expired"', blob.data)
+
     def test_without_an_audit_blob_nothing_is_pushed(self):
         with self.client(write_config(self.root), Scripted(final())) as c:
             self.assertIsNone(self.app.state.orchestrator.audit_copy)
