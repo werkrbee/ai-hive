@@ -46,6 +46,16 @@ while IFS= read -r -d '' f; do
   fi
 done < <(find . -path ./.git -prune -o -type f -name 'AGENTS.md' -print0)
 
+# The root AGENTS.md is the repo's context; CLAUDE.md imports it and repeats none of it.
+if ! grep -qxF '@AGENTS.md' CLAUDE.md; then
+  echo "FAIL  CLAUDE.md: doesn't import AGENTS.md (a line reading @AGENTS.md)"; fail=1
+fi
+while IFS= read -r heading; do
+  if grep -qxF "$heading" AGENTS.md; then
+    echo "FAIL  CLAUDE.md: repeats AGENTS.md's section \"$heading\"; keep it in AGENTS.md"; fail=1
+  fi
+done < <(grep -E '^##+[[:space:]]' CLAUDE.md)
+
 # Execution contracts: the validator prints its own FAIL lines.
 if ! contracts_out=$(python3 hives/agents-hive/scripts/validate_contracts.py); then
   printf '%s\n' "$contracts_out"; fail=1

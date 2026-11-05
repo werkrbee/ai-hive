@@ -13,7 +13,7 @@ Closes #
 - [ ] Harness-agnostic — no lock-in to one agent/model/vendor
 - [ ] Two-axis respected (`<thing>/` vs `adapters/<harness>/`)
 - [ ] CI green (artifact validation + installer checks)
-- [ ] Docs updated (and CLAUDE.md/AGENTS.md kept in sync if relevant)
+- [ ] Docs updated (repo context goes in AGENTS.md; CLAUDE.md only adds what's specific to Claude Code)
 - [ ] No secrets / PII / `.DS_Store` / `node_modules`
 
 ## Patricia (Charter) review
