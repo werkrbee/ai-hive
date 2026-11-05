@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.10.0](https://github.com/werkrbee/ai-hive/compare/v0.9.0...v0.10.0) (2026-11-05)
+
+
+### Features
+
+* **agents-hive:** copy hosted Barry's audit log to the immutable audit container ([#192](https://github.com/werkrbee/ai-hive/issues/192)) ([8e9629f](https://github.com/werkrbee/ai-hive/commit/8e9629f8ca39252052725917cdb1c5d051279095)), closes [#183](https://github.com/werkrbee/ai-hive/issues/183) [#106](https://github.com/werkrbee/ai-hive/issues/106)
+* **agents-hive:** gate hosted Barry's promotion on his passport's pins and trust evaluation ([#197](https://github.com/werkrbee/ai-hive/issues/197)) ([b0c4f55](https://github.com/werkrbee/ai-hive/commit/b0c4f55e41b1b3357da01b6254733bbca81ca622))
+
+
+### Bug fixes
+
+* **agents-hive:** copy Barry's eval goals into the image ([#201](https://github.com/werkrbee/ai-hive/issues/201)) ([12fdcf0](https://github.com/werkrbee/ai-hive/commit/12fdcf06804ab15e93e366e4dc8a35afed177511)), closes [#182](https://github.com/werkrbee/ai-hive/issues/182) [#106](https://github.com/werkrbee/ai-hive/issues/106)
+* **agents-hive:** don't hold up Barry's cancel, expiry or start on an audit push ([#199](https://github.com/werkrbee/ai-hive/issues/199)) ([bfdbd74](https://github.com/werkrbee/ai-hive/commit/bfdbd74f655d71ce2268d54ffd58c48f2cc174a2)), closes [#195](https://github.com/werkrbee/ai-hive/issues/195) [#106](https://github.com/werkrbee/ai-hive/issues/106)
+* **agents-hive:** make deploy.sh wait for each app's new revision to come up healthy ([#203](https://github.com/werkrbee/ai-hive/issues/203)) ([bde3ac0](https://github.com/werkrbee/ai-hive/commit/bde3ac0b9d45678fc4779515b0b0e5cff504caed)), closes [#202](https://github.com/werkrbee/ai-hive/issues/202) [#106](https://github.com/werkrbee/ai-hive/issues/106)
+
 ## [0.9.0](https://github.com/werkrbee/ai-hive/compare/v0.8.0...v0.9.0) (2026-11-01)
 
 
