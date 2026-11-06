@@ -19,6 +19,9 @@ jobs:
       - name: Validate SKILL.md / AGENTS.md artifacts
         run: ./scripts/validate-artifacts.sh
 
+      - name: Architecture diagram is current
+        run: python3 scripts/architecture.py --check
+
       - name: Compile the Azure deployment (Bicep)
         run: |
           az bicep install

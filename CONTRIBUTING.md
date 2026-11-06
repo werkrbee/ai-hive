@@ -20,6 +20,13 @@ welcome — code, hives, docs, and evals.
 5. Open a PR using the template. CI must pass and a Charter review must pass before merge.
 6. Squash-merge. Releases are automated from Conventional Commits — don't bump versions by hand.
 
+The architecture diagram, `assets/architecture.svg`, is drawn by `scripts/architecture.py`;
+edit the script, not the SVG, and run it to redraw. CI fails when the repo has a hive,
+harness or Azure resource the diagram doesn't account for, or when the SVG is out of date.
+The release PR stamps the new version into it. Before merging a release PR, check that the
+diagram's words still hold for what the changelog says is shipping; if they don't, fix the
+script in its own PR first.
+
 ## Using a coding agent
 
 `AGENTS.md` carries the repo's context for any coding agent that reads the open standard.
