@@ -88,8 +88,12 @@ clients need it to learn how to authenticate.
    fails to activate, stops, or isn't up in time fails the deploy, naming the revision and
    the `az containerapp logs show` command that reads why; the running state is what
    counts, since a revision that failed to activate can read Healthy once it has stopped.
-   It changes nothing to recover: what was applied stays applied, so read the logs, fix the
-   cause and deploy again, or roll back ("Rolling back"), each a gated step of its own.
+   Unhealthy while a revision is still activating, before its probes pass, is waited for;
+   Unhealthy once it runs fails at once. The apps come from the deployment's outputs, so
+   outputs that name no app for Patricia, or, with hosted Barry set, none for his app or
+   the verify server, fail the deploy too, rather than leave an app unchecked. It changes
+   nothing to recover: what was applied stays applied, so read the logs, fix the cause and
+   deploy again, or roll back ("Rolling back"), each a gated step of its own.
    This check came after Barry's revision on 2026-11-04 failed to start on every attempt,
    missing a file his passport names, while the deploy reported success.
 

@@ -668,6 +668,51 @@ check "revisions: with hosted Barry, his app and the verify server's are waited 
    && has "barry-a2a.s newest revision, barry-a2a--0000002, didn.t come up: provisioning Provisioned, running ActivationFailed" \
    && reads_after_apply'
 
+# Unhealthy while still activating, before its probes pass: waited for, then up.
+mkdir -p "$work/revprobes/states"
+printf 'Provisioned\tActivating\tUnhealthy\t-\nProvisioned\tRunning\tHealthy\treg.azurecr.io/hive-a2a:test\n' \
+  > "$work/revprobes/states/patricia-a2a"
+ANSWER=yes run revprobes "$bicep"
+check "revisions: Unhealthy while activating is waited for, then up" \
+  eval '[ "$code" -eq 0 ] && has "patricia-a2a: patricia-a2a--0000002 is up (Running)" \
+   && [ "$(grep -c "^containerapp revision show" "$STUB/calls")" -eq 2 ]'
+
+# Unhealthy while activating past the wait fails, and Unhealthy once running fails at once.
+mkdir -p "$work/revunhealthy/states"
+printf 'Provisioned\tActivating\tUnhealthy\t-\n' > "$work/revunhealthy/states/patricia-a2a"
+REVISION_WAIT_SECONDS=0 ANSWER=yes run revunhealthy "$bicep"
+check "revisions: Unhealthy while activating past the wait fails the deploy" \
+  eval '[ "$code" -ne 0 ] && has "didn.t come up: provisioning Provisioned, running Activating, health Unhealthy" \
+   && reads_after_apply'
+mkdir -p "$work/revrunsick/states"
+printf 'Provisioned\tRunning\tUnhealthy\treg.azurecr.io/hive-a2a:test\n' > "$work/revrunsick/states/patricia-a2a"
+ANSWER=yes run revrunsick "$bicep"
+check "revisions: Unhealthy once running fails the deploy at once" \
+  eval '[ "$code" -ne 0 ] && has "running Running, health Unhealthy" \
+   && [ "$(grep -c "^containerapp revision show" "$STUB/calls")" -eq 1 ]'
+
+# Outputs that name no app for Patricia: the step fails rather than checking nothing.
+mkdir -p "$work/revnoapp"
+echo '{"registry": {"value": "reg.azurecr.io"}, "agentCard": {"value": "https://card"},
+  "auditAccount": {"value": "patricialogtest"}, "auditContainer": {"value": "audit"}}' > "$work/revnoapp/created"
+ANSWER=yes run revnoapp "$bicep"
+check "revisions: outputs with no publicUrl fail the step" \
+  eval '[ "$code" -ne 0 ] && has "the deployment.s outputs name no app for Patricia: publicUrl is empty" \
+   && has "not every app came up" && reads_after_apply'
+
+# With hosted Barry set, outputs without his verify server's URL fail the step, and the
+# apps they do name are still checked.
+mkdir -p "$work/revbarrygap"
+echo '{"registry": {"value": "reg.azurecr.io"}, "agentCard": {"value": "https://card"},
+  "publicUrl": {"value": "https://patricia-a2a.env.example/"}, "barryUrl": {"value": "https://barry-a2a.env.example/"},
+  "barryAgentCard": {"value": "https://barry-card"}, "barryPrincipalId": {"value": "p1"},
+  "auditAccount": {"value": "patricialogtest"}, "auditContainer": {"value": "audit"}}' > "$work/revbarrygap/created"
+BARRY='{"callers": [{"client": "c1", "registration": "filled"}]}' CEILING=5 ANSWER=yes run revbarrygap "$bicep"
+check "revisions: with hosted Barry set, outputs without verifyUrl fail the step" \
+  eval '[ "$code" -ne 0 ] && has "hosted Barry is set, but the deployment.s outputs have no verifyUrl" \
+   && has "patricia-a2a: patricia-a2a--0000002 is up" && has "barry-a2a: barry-a2a--0000002 is up" \
+   && ! has "outputs have no barryUrl"'
+
 deploy_args=(--reason "why" rg)
 run rbusage "$bicep"
 check "a reason without --rollback is a usage error" eval '[ "$code" -eq 2 ] && has "usage:"'
