@@ -116,11 +116,12 @@ the same gated steps. Without it, the deploy is Patricia's alone.
 **Identity.** He has his own managed identity, separate from Patricia's, holding only what
 he uses: AcrPull on the registry, the same narrowest Foundry role as hers for the model's
 API, Storage Blob Data Contributor on the audit container conditioned to his own blob
-(`barry.jsonl`), so he can't read or append to hers, as hers is conditioned to
-`patricia.jsonl`, and app roles for the two APIs he calls, Patricia's `Review.Request` and
-the verify server's `Verify.Call`. App roles are Entra grants, not Azure roles, so `entra.sh
---identity` makes them, once, after the first deploy with him prints his principal id.
-Patricia's server adds his identity's client id to her allowed clients itself.
+(`barry.jsonl`), and app roles for the two APIs he calls, Patricia's `Review.Request` and
+the verify server's `Verify.Call`. The condition keeps him from reading or appending to
+Patricia's copy, as hers keeps her to `patricia.jsonl`. App roles are Entra grants, not
+Azure roles, so `entra.sh --identity` makes them, once, after the first deploy with him
+prints his principal id. Patricia's server adds his identity's client id to her allowed
+clients itself.
 
 **Callers.** `./entra.sh --agent barry <caller>...` makes his API app, with the
 `Orchestration.Request` and `Orchestration.Approve` app roles, v2 tokens and assignment
@@ -531,6 +532,8 @@ deploy/azure/
 │   ├── assurance_test.sh      # assurance.sh's answers, against a stubbed az and share
 │   ├── test_audit_blob.py     # audit_blob.py, against a fake Blob service
 │   ├── test_render_config.py  # the config's pinned prompts and ledgers, and Barry's orchestration
+│   ├── test_image.py          # every file a deployed passport names is in the image
+│   ├── test_template.py       # each agent's audit role is conditioned to its own blob (az bicep build)
 │   └── prices_test.sh         # prices.sh's lookup, against a stubbed curl
 └── eval/
     ├── cases.json             # governance-review cases, their acceptable verdicts, which are critical
