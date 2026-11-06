@@ -138,10 +138,20 @@ def bicep():
     params = dict(re.findall(r"^param (\w+) \w+ = '?([^'\n]*)'?$", src, re.M))
     variables = dict(re.findall(r"^var (\w+) = '([^'\n]*)'$", src, re.M))
 
-    def resolve(expr):
-        value = variables.get(expr, expr.strip("'"))
-        return re.sub(r"\$\{(\w+)\}", lambda m: params.get(m.group(1), variables.get(m.group(1), m.group(0))), value)
+    def resolve(symbol, expr):
+        """A name that's a quoted string or a var, with ${...} filled from params and vars."""
+        if not re.fullmatch(r"\w+|'[^']*'", expr) or (expr[0] != "'" and expr not in variables):
+            raise Drift(f"main.bicep's {symbol} is named {expr}, which the diagram can't read; teach resolve() to")
+        value = re.sub(r"\$\{(\w+)\}", lambda m: params.get(m.group(1), variables.get(m.group(1), m.group(0))),
+                       variables.get(expr, expr.strip("'")))
+        if "${" in value:
+            raise Drift(f"main.bicep's {symbol} is named {value}, which the diagram can't fill in")
+        return value
 
+    # The drift check reads top-level resources; a module or nested resource would slip past it.
+    other = re.search(r"^(module \w+|[ \t]+resource \w+)", src, re.M)
+    if other:
+        raise Drift(f"main.bicep has {other.group(1).strip()}, which the diagram's check doesn't read; teach bicep() to")
     apps = []
     for m in re.finditer(r"^resource (\w+) '([\w./]+)@", src, re.M):
         symbol, kind = m.groups()
@@ -150,11 +160,17 @@ def bicep():
         if AZURE_TYPES[kind] == "apps":
             if symbol not in APPS:
                 raise Drift(f"main.bicep's {kind} {symbol} has no tile in the diagram")
-            name = re.compile(r"^\s+name: (\S+)$", re.M).search(src, m.end()).group(1)
-            apps.append((symbol, resolve(name), kind == "Microsoft.App/jobs"))
+            block = src[m.end():src.find("\n}", m.end())]
+            name = re.search(r"^  name: (.*?)\s*$", block, re.M)
+            if not name:
+                raise Drift(f"main.bicep's {symbol} has no name: line the diagram can read")
+            apps.append((symbol, resolve(symbol, name.group(1)), kind == "Microsoft.App/jobs"))
     missing = set(APPS) - {s for s, _, _ in apps}
     if missing:
         raise Drift(f"the diagram draws {', '.join(sorted(missing))}, which main.bicep no longer declares")
+    for key in ("budgetUsd", "evalSchedule"):
+        if key not in params:
+            raise Drift(f"main.bicep's {key} has no default the diagram can read")
     return apps, params["budgetUsd"], schedule(params["evalSchedule"])
 
 
@@ -217,9 +233,14 @@ class Svg:
         if label:
             self.text(at[0], at[1], label, 13.5, 500, BROWN, anchor)
 
+    def icons(self):
+        """Each icon once, at unit size, for icon() to place and scale."""
+        for key, file in ICON_FILES.items():
+            data = base64.b64encode((ICONS / file).read_bytes()).decode()
+            self.add(f'<image id="icon-{key}" width="1" height="1" href="data:image/svg+xml;base64,{data}"/>')
+
     def icon(self, key, x, y, size):
-        data = base64.b64encode((ICONS / ICON_FILES[key]).read_bytes()).decode()
-        self.add(f'<image x="{x}" y="{y}" width="{size}" height="{size}" href="data:image/svg+xml;base64,{data}"/>')
+        self.add(f'<use href="#icon-{key}" transform="translate({x} {y}) scale({size})"/>')
 
     def tile(self, x, y, w, h, key, title, lines, tag=None):
         """An Azure tile: the icon, then the service's full name beside it, as Microsoft asks."""
@@ -261,6 +282,7 @@ def draw():
     for c in (INK, AMBER, BROWN):
         s.add(f'<marker id="head-{c[1:]}" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" '
               f'orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="{c}"/></marker>')
+    s.icons()
     s.add("</defs>")
     s.box(6, 6, W - 12, H - 12, PAPER, BORDER, 2.5, rx=28)
 
@@ -320,8 +342,8 @@ def draw():
     s.arrow([(945, 1028), (945, 1088)], "stamps out", (960, 1064), color=BROWN, anchor="start")
     s.card(110, 1092, 410, 86, 'lineup — "our Basecamp"',
            ["First real product: pickup-sports RSVP on Airtable", "+ Inkbox; stress-tests the hives"], stroke=BROWN)
-    s.card(740, 1092, 410, 86, "werkrbee app",
-           ["Its own repo, Rails-style: the framework lives", "in ai-hive, the product lives separately"], stroke=BROWN)
+    s.card(740, 1092, 410, 86, "singularity",
+           ["A game whose React app is one client of a game", "service; follows the House's patterns"], stroke=BROWN)
     s.arrow([(315, 1180), (340, 1236)], color=BROWN)
     s.arrow([(945, 1180), (920, 1236)], "runs on", (946, 1214), color=BROWN, anchor="start")
 
@@ -358,9 +380,9 @@ def draw():
         s.tile(100 + (i % 2) * 350, 1528 + (i // 2) * 140, 330, 124, "app", name, lines,
                "Container Apps job" if job else "Container App")
     for i, (key, title, lines) in enumerate((
-            ("registry", "Container Registry", ["The hive-a2a image every app runs"]),
+            ("registry", "Azure Container Registry", ["The hive-a2a image every app runs"]),
             ("foundry", "Microsoft Foundry", ["Models via managed identity, no API keys"]),
-            ("identities", "Managed Identities", ["One each for Patricia, Barry", "and barry-verify"]),
+            ("identities", "Microsoft Entra Managed Identities", ["One each for Patricia, Barry", "and barry-verify"]),
             ("appreg", "Entra ID app registrations", ["Only werkrbee products may call"]),
             ("storage", "Storage account (audit)", ["Immutable blob; each agent appends", "only to its own copy"]),
             ("files", "Azure Files", ["State shares for Patricia and Barry"]),
