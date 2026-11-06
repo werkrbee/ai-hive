@@ -278,6 +278,10 @@ check_barry() {
     echo "error: couldn't read the barry parameter in $params" >&2
     rm -rf "$tmp"; exit 1
   fi
+  # As main.bicep's barryOn: set when the barry parameter isn't empty. revisions_up uses it.
+  barry_on=$(python3 -c 'import json, sys
+p = json.loads(json.load(open(sys.argv[1]))["parametersJson"])["parameters"]
+print(1 if (p.get("barry") or {}).get("value") else "")' "$tmp/params.json") || exit 1
   if ! python3 - "$tmp/params.json" "$src/hives/agents-hive" <<'PY'
 import json, os, re, subprocess, sys
 
@@ -503,22 +507,32 @@ retention() {  # $1 = deployment outputs JSON
 # start, and nothing said so. After the last step, wait up to REVISION_WAIT_SECONDS for each
 # app's newest revision to be provisioned and healthy, running or scaled to zero as they
 # are when idle. Its running state is what to go by: a revision that failed to activate
-# can still read Healthy once it has stopped. Only reads; recovering, by a rollback, say,
-# is a separate, gated step.
+# can still read Healthy once it has stopped, and one still activating may read Unhealthy
+# before its probes pass, so that is waited for; Unhealthy once it runs is final. The apps
+# come from the deployment's outputs, and Patricia's app, and Barry's two when he is set,
+# must be in them: an empty one means the outputs are wrong, not that there's nothing to
+# check. Only reads; recovering, by a rollback, say, is a separate, gated step.
 REVISION_WAIT_SECONDS=${REVISION_WAIT_SECONDS:-300}
 REVISION_POLL_SECONDS=${REVISION_POLL_SECONDS:-10}
+barry_on=''  # check_barry sets it
 revisions_up() {  # $1 = deployment outputs JSON
-  local apps=() url host app revision info prov running health image deadline failed=''
-  for url in "$(output "$1" publicUrl)" "$(output "$1" barryUrl)" "$(output "$1" verifyUrl)"; do
-    host=${url#https://}
-    [ -z "$url" ] || apps+=("${host%%.*}")  # an app's URL is https://<app>.<environment domain>/
+  local apps=() name url host app revision info prov running health image deadline failed=''
+  for name in publicUrl barryUrl verifyUrl; do
+    url=$(output "$1" "$name")
+    if [ -n "$url" ]; then
+      host=${url#https://}
+      apps+=("${host%%.*}")  # an app's URL is https://<app>.<environment domain>/
+    elif [ "$name" = publicUrl ]; then
+      echo "error: the deployment's outputs name no app for Patricia: publicUrl is empty" >&2
+      failed=1
+    elif [ -n "$barry_on" ]; then
+      echo "error: hosted Barry is set, but the deployment's outputs have no $name, so his app" \
+        "can't be checked" >&2
+      failed=1
+    fi
   done
-  if [ "${#apps[@]}" -eq 0 ]; then
-    echo "this template names no app; no revision to wait for"
-    return
-  fi
   deadline=$((SECONDS + REVISION_WAIT_SECONDS))
-  for app in "${apps[@]}"; do
+  for app in ${apps[@]+"${apps[@]}"}; do
     if ! revision=$(az containerapp show --resource-group "$rg" --name "$app" \
         --query properties.latestRevisionName -o tsv) || [ -z "$revision" ]; then
       echo "error: couldn't read $app's newest revision" >&2
@@ -536,7 +550,8 @@ revisions_up() {  # $1 = deployment outputs JSON
         Provisioned/Running/Healthy|Provisioned/RunningAtMaxScale/Healthy|Provisioned/ScaledToZero/Healthy)
           echo "$app: $revision is up ($running), on $image"
           break ;;
-        Failed/*|*/ActivationFailed/*|*/Failed/*|*/Degraded/*|*/Stopped/*|*/*/Unhealthy) ;;
+        Failed/*|*/ActivationFailed/*|*/Failed/*|*/Degraded/*|*/Stopped/*) ;;
+        */Running/Unhealthy|*/RunningAtMaxScale/Unhealthy|*/ScaledToZero/Unhealthy) ;;
         *) if [ "$SECONDS" -lt "$deadline" ]; then sleep "$REVISION_POLL_SECONDS"; continue; fi ;;
       esac
       echo "error: $app's newest revision, $revision, didn't come up: provisioning $prov, running" \
