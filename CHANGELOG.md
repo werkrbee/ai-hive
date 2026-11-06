@@ -1,5 +1,24 @@
 # Changelog
 
+## [0.11.0](https://github.com/werkrbee/ai-hive/compare/v0.10.0...v0.11.0) (2026-11-06)
+
+
+### Features
+
+* **agents-hive:** limit Patricia's audit role to her own blob ([#211](https://github.com/werkrbee/ai-hive/issues/211)) ([c37c5db](https://github.com/werkrbee/ai-hive/commit/c37c5db9617a464f94499cbcb8ceffc8ad6d987b))
+
+
+### Bug fixes
+
+* **agents-hive:** don't hold up Barry's startup on the pushes for runs that expired while he was down ([#209](https://github.com/werkrbee/ai-hive/issues/209)) ([4a076c0](https://github.com/werkrbee/ai-hive/commit/4a076c045e7db22bf89f940af4a549fa3ea18de1)), closes [#200](https://github.com/werkrbee/ai-hive/issues/200) [#106](https://github.com/werkrbee/ai-hive/issues/106)
+* **agents-hive:** don't let deploy.sh's revision check pass on missing outputs or fail on a brief Unhealthy ([#210](https://github.com/werkrbee/ai-hive/issues/210)) ([545d24f](https://github.com/werkrbee/ai-hive/commit/545d24fa93bdafcc369159a4a431170479dec719)), closes [#204](https://github.com/werkrbee/ai-hive/issues/204) [#106](https://github.com/werkrbee/ai-hive/issues/106)
+
+
+### Documentation
+
+* add the architecture diagram to assets/, drawn from the repo and stamped at each release ([#214](https://github.com/werkrbee/ai-hive/issues/214)) ([972f46d](https://github.com/werkrbee/ai-hive/commit/972f46dde51d39045dddd3729d25bb2224bab968))
+* make the root AGENTS.md the repo's canonical context and CLAUDE.md a thin adapter ([#207](https://github.com/werkrbee/ai-hive/issues/207)) ([2e21062](https://github.com/werkrbee/ai-hive/commit/2e210620adccdff55097ce1e7b9f1c57c10f3bc2)), closes [#205](https://github.com/werkrbee/ai-hive/issues/205)
+
 ## [0.10.0](https://github.com/werkrbee/ai-hive/compare/v0.9.0...v0.10.0) (2026-11-05)
 
 
