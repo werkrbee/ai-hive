@@ -113,6 +113,14 @@ Prompts, evals, and hooks intentionally **fold into the cells above** rather tha
 standing alone — prompts live inside skills, evals ship beside the skill/agent
 they test, and hooks are per-harness config.
 
+<p align="center">
+  <img src="assets/architecture.svg" alt="ai-hive architecture: humans, Patricia and Barry over the six artifact hives, composed by plugins-hive and projects-hive into products on every harness, with the assurance loop and the Azure hosting" width="900">
+</p>
+
+The architecture diagram is drawn from the repo by `scripts/architecture.py`, which reads
+the hives, harnesses and Azure resources it shows, and CI fails when it's out of date. Each
+release stamps its version into it.
+
 ## What earns a hive
 
 A category becomes a hive only when its artifact passes two tests:
