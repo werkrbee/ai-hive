@@ -105,6 +105,8 @@ ICON_FILES = {
     "budget": "10793-icon-service-Cost-Budgets.svg",
 }
 
+ICON_SIZE = 48
+
 DAYS = ["Sundays", "Mondays", "Tuesdays", "Wednesdays", "Thursdays", "Fridays", "Saturdays"]
 
 
@@ -234,13 +236,13 @@ class Svg:
             self.text(at[0], at[1], label, 13.5, 500, BROWN, anchor)
 
     def icons(self):
-        """Each icon once, at unit size, for icon() to place and scale."""
+        """Each icon once, at 48 by 48 (the tiles' size), for icon() to place and scale."""
         for key, file in ICON_FILES.items():
             data = base64.b64encode((ICONS / file).read_bytes()).decode()
-            self.add(f'<image id="icon-{key}" width="1" height="1" href="data:image/svg+xml;base64,{data}"/>')
+            self.add(f'<image id="icon-{key}" width="{ICON_SIZE}" height="{ICON_SIZE}" href="data:image/svg+xml;base64,{data}"/>')
 
     def icon(self, key, x, y, size):
-        self.add(f'<use href="#icon-{key}" transform="translate({x} {y}) scale({size})"/>')
+        self.add(f'<use href="#icon-{key}" transform="translate({x} {y}) scale({size / ICON_SIZE:g})"/>')
 
     def tile(self, x, y, w, h, key, title, lines, tag=None):
         """An Azure tile: the icon, then the service's full name beside it, as Microsoft asks."""
