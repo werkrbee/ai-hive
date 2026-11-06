@@ -269,8 +269,15 @@ resource audit 'Microsoft.Storage/storageAccounts/blobServices/containers@2023-0
   properties: { publicAccess: 'None' }
 }
 
-// The job appends to the copy. Under the retention policy, a contributor can add blocks
-// but can't change or delete them.
+// Each agent's identity may touch only its own blob in the container: the condition allows
+// every action but the blob data ones, and those only on that blob's path.
+var blobActions = ['read', 'write', 'delete', 'add/action', 'move/action']
+var notBlobActions = join(map(blobActions, a => '!(ActionMatches{\'Microsoft.Storage/storageAccounts/blobServices/containers/blobs/${a}\'})'), ' AND ')
+
+// The job appends to Patricia's copy. Under the retention policy, a contributor can add
+// blocks but can't change or delete them, and the condition keeps her to her own blob, so
+// she can't read or add to Barry's.
+var patriciaAuditBlob = 'patricia.jsonl'
 resource auditWrite 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
   name: guid(audit.id, identity.id, storageBlobDataContributor)
   scope: audit
@@ -278,6 +285,8 @@ resource auditWrite 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
     principalId: identity.properties.principalId
     principalType: 'ServicePrincipal'
     roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', storageBlobDataContributor)
+    conditionVersion: '2.0'
+    condition: '((${notBlobActions}) OR (@Resource[Microsoft.Storage/storageAccounts/blobServices/containers/blobs:path] StringEquals \'${patriciaAuditBlob}\'))'
   }
 }
 
@@ -291,15 +300,13 @@ resource auditRead 'Microsoft.Authorization/roleAssignments@2022-04-01' = [for r
   }
 }]
 
-var auditBlobUrl = '${auditStorage.properties.primaryEndpoints.blob}${auditContainer}/patricia.jsonl'
+var auditBlobUrl = '${auditStorage.properties.primaryEndpoints.blob}${auditContainer}/${patriciaAuditBlob}'
 
 // Barry's server appends his audit log to his own blob in the same container, after each
 // run settles. The role is conditioned to that one blob, so he can't read or add to
 // Patricia's, and the retention policy still refuses any change or delete.
 var barryAuditBlob = 'barry.jsonl'
 var barryAuditBlobUrl = '${auditStorage.properties.primaryEndpoints.blob}${auditContainer}/${barryAuditBlob}'
-var blobActions = ['read', 'write', 'delete', 'add/action', 'move/action']
-var notBlobActions = join(map(blobActions, a => '!(ActionMatches{\'Microsoft.Storage/storageAccounts/blobServices/containers/blobs/${a}\'})'), ' AND ')
 
 resource barryAuditWrite 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (barryOn) {
   name: guid(audit.id, '${barryName}-id', storageBlobDataContributor)

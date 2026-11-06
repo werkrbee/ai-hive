@@ -19,7 +19,7 @@ One resource group holds the whole deployment, so one budget covers it.
 | Container Apps environment and Log Analytics | Hosting and logs, kept 30 days and capped at 0.1 GB a day. Past the cap, logging stops until the next day. |
 | Azure Files share | `/data`: the task database and the usage ledger, so both survive restarts and scale-to-zero, and the weekly evaluation's ledger and its results, queue and audit log under `assurance/`. It is mounted with `nobrl`, which is safe only with one writer to each file: the app and the job never write the same one. |
 | Container Apps job (weekly) | Patricia's weekly trust evaluation, from the app's image, under the same identity and in the same environment, so no credential goes into CI (see "Weekly evaluation"). |
-| Audit log storage account | The audit log's immutable copy, an append blob in a container under a time-based retention policy, in an account of its own so that locking the policy holds nothing else. Only Entra identities reach it: account keys are off. The identity may append (Storage Blob Data Contributor, on the container); Barry's may append only to his own blob, `barry.jsonl` (the same role, conditioned to that path); and the people in `auditReaders` may read both. |
+| Audit log storage account | The audit log's immutable copy, an append blob in a container under a time-based retention policy, in an account of its own so that locking the policy holds nothing else. Only Entra identities reach it: account keys are off. Each agent's identity may append only to its own blob, Patricia's to `patricia.jsonl` and Barry's to `barry.jsonl` (Storage Blob Data Contributor on the container, conditioned to that path), so neither can read or add to the other's copy; the people in `auditReaders` may read both. |
 | Microsoft Foundry (AI Services) | The models. Key auth is disabled, so the server reaches them only with its managed identity, and there is no API key to store. |
 | User-assigned managed identity | Pulls the image (AcrPull) and calls Foundry with the narrowest built-in role the model's API allows. For Chat Completions that's Cognitive Services OpenAI User, which can call the OpenAI v1 endpoint but can't list keys or use Foundry's other services; verified with the managed identity on 2026-10-14. For Messages (Anthropic models) it's Cognitive Services User, the role Microsoft names for Entra calls to Claude's `/anthropic` endpoint, which isn't under the OpenAI role. A deploy adds roles but doesn't remove them, so after switching from an Anthropic model to any other, remove the identity's Cognitive Services User assignment by hand. |
 | Container registry (Basic) | Holds the image, built from a commit by `az acr build`. |
@@ -116,10 +116,12 @@ the same gated steps. Without it, the deploy is Patricia's alone.
 **Identity.** He has his own managed identity, separate from Patricia's, holding only what
 he uses: AcrPull on the registry, the same narrowest Foundry role as hers for the model's
 API, Storage Blob Data Contributor on the audit container conditioned to his own blob
-(`barry.jsonl`), so he can't read or append to hers, and app roles for the two APIs he calls, Patricia's `Review.Request` and the verify
-server's `Verify.Call`. App roles are Entra grants, not Azure roles, so `entra.sh
---identity` makes them, once, after the first deploy with him prints his principal id.
-Patricia's server adds his identity's client id to her allowed clients itself.
+(`barry.jsonl`), and app roles for the two APIs he calls, Patricia's `Review.Request` and
+the verify server's `Verify.Call`. The condition keeps him from reading or appending to
+Patricia's copy, as hers keeps her to `patricia.jsonl`. App roles are Entra grants, not
+Azure roles, so `entra.sh --identity` makes them, once, after the first deploy with him
+prints his principal id. Patricia's server adds his identity's client id to her allowed
+clients itself.
 
 **Callers.** `./entra.sh --agent barry <caller>...` makes his API app, with the
 `Orchestration.Request` and `Orchestration.Approve` app roles, v2 tokens and assignment
@@ -530,6 +532,8 @@ deploy/azure/
 │   ├── assurance_test.sh      # assurance.sh's answers, against a stubbed az and share
 │   ├── test_audit_blob.py     # audit_blob.py, against a fake Blob service
 │   ├── test_render_config.py  # the config's pinned prompts and ledgers, and Barry's orchestration
+│   ├── test_image.py          # every file a deployed passport names is in the image
+│   ├── test_template.py       # each agent's audit role is conditioned to its own blob (az bicep build)
 │   └── prices_test.sh         # prices.sh's lookup, against a stubbed curl
 └── eval/
     ├── cases.json             # governance-review cases, their acceptable verdicts, which are critical

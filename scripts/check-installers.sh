@@ -136,8 +136,9 @@ run "agents-hive assurance.sh hosted queue answers (stubbed az)" \
 
 # agents-hive: audit_blob.py copies the audit log to an append blob only while the log
 # still starts with the copy, render_config.py takes the prompt files the passport pins,
-# and the image holds every file the deployed passports name.
-run "agents-hive audit blob, config rendering and image contents (fake Blob service)" \
+# the image holds every file the deployed passports name, and each agent's audit role in the
+# compiled template is conditioned to its own blob.
+run "agents-hive audit blob, config rendering, image contents and audit roles (fake Blob service)" \
   python3 -B -m unittest discover -s hives/agents-hive/deploy/azure/tests -p 'test_*.py'
 
 # agents-hive: prices.sh reads the Retail Prices API's pages, against a stubbed curl.
