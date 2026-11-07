@@ -301,7 +301,9 @@ engine.finish(r, result)
 
 A turn whose process died before its reply was recorded is called again, as a step that
 died mid-flight runs again with the same idempotency key. A turn that raises fails the
-run, and `turn` raises `Stopped` once the run has failed or been cancelled.
+run, unless the run's cancel was requested meanwhile, as when the turn stopped waiting
+because of it: then the run is cancelled. `turn` raises `Stopped` once the run has failed
+or been cancelled.
 
 `escalate(r, "which-repo", "Which repo should I release?")` asks a person, as the Charter
 requires on an ambiguous decision, missing credentials or repeated failure. The run waits

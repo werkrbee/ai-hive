@@ -213,6 +213,21 @@ class Turns(Base):
         with self.assertRaises(engine.Stopped):
             e.turn(run, "t2", self.model("late"))
 
+    def test_a_turn_that_raises_after_a_cancel_cancels_the_run(self):
+        e = self.engine
+        run = e.open("loop")
+
+        def gave_up(_key):  # as a turn does that stops waiting when it sees the cancel
+            e.cancel(run["runId"], by="ci")
+            raise RuntimeError("stopped waiting: the run's cancel was requested")
+        with self.assertRaises(engine.Stopped) as stopped:
+            e.turn(run, "t1", gave_up)
+        self.assertEqual(stopped.exception.run["status"], "cancelled")
+        saved = e.load(run["runId"])
+        self.assertEqual((saved["status"], saved["turns"]["t1"]["status"]), ("cancelled", "failed"))
+        self.assertEqual(saved["error"]["message"], "cancelled by ci")
+        self.assertEqual(kinds(self, run["runId"])[1:], [("turn.failed", "t1", None), ("run.cancelled", None, None)])
+
     def test_turns_and_steps_add_to_the_run_cost(self):
         e = self.engine
         run = e.open("loop")

@@ -101,8 +101,10 @@ MIN_OUTPUT_TOKENS = 256
 CORRECTIONS = 1  # times a final reply that misses the output schema is sent back
 # A turn the provider refuses with HTTP 429 is asked again, unbilled, up to RATE_RETRIES
 # times: after the wait the provider asks for (Retry-After), or RATE_BACKOFF seconds
-# doubling each time, never past RATE_WAIT_MAX or the run's working time.
-RATE_RETRIES, RATE_BACKOFF, RATE_WAIT_MAX = 4, 5, 60
+# doubling each time, never past RATE_WAIT_MAX. A wait is taken only if RATE_ROOM seconds
+# of the run's working time are left after it for the turn itself. A requested cancel is
+# looked for before each wait and every CANCEL_POLL seconds during it.
+RATE_RETRIES, RATE_BACKOFF, RATE_WAIT_MAX, RATE_ROOM, CANCEL_POLL = 4, 5, 60, 30, 0.5
 IDEMPOTENCY_META = "io.werkrbee/idempotency-key"
 MCP_VERSION = "2026-07-28"  # mcp-hive's target; the server may negotiate another
 TIMEOUT = httpx.Timeout(180)  # Patricia's review answers within her 120-second budget
@@ -160,6 +162,10 @@ registrations = _registrations()
 class Shutdown(BaseException):
     """The server is stopping. A BaseException, so the engine records no failure: the turn
     or step it cut off is still working in the record, and runs again on resume."""
+
+
+class TurnCancelled(Exception):
+    """The run's cancel was requested while its turn waited to ask the provider again."""
 
 
 class McpError(Exception):
@@ -669,7 +675,10 @@ class Orchestrator:
                                           timeout=left)
 
         try:
-            reply = self._rate_limited(converse, deadline)
+            reply = self._rate_limited(run_id, converse, deadline)
+        except TurnCancelled:
+            self._await(self.ledger.settle(0, key=key))  # every attempt was refused, so nothing was billed
+            raise
         except TimeoutError:
             self._await(self.ledger.charge(run_id, unmetered, pending=key))
             raise TimeoutError(f"the turn ran past the {seconds:.0f} seconds of working time the run had left")
@@ -687,10 +696,12 @@ class Orchestrator:
     def _now(self):
         return self.loop.time() if self.loop else 0.0
 
-    def _rate_limited(self, converse, deadline):
+    def _rate_limited(self, run_id, converse, deadline):
         """converse(), asked again after each HTTP 429 the provider answers with. A 429 is
         refused before the model runs, so nothing was billed for it. The last refusal is
-        raised as unbilled, saying how many times the turn was refused."""
+        raised as unbilled, saying how many times the turn was refused and whether the
+        retries or the run's working time ran out. Raises TurnCancelled if the run's cancel
+        is requested while it waits."""
         for attempt in itertools.count():
             try:
                 return self._await(converse())
@@ -699,12 +710,26 @@ class Orchestrator:
                     raise
                 wait = err.retry_after if err.retry_after is not None else RATE_BACKOFF * 2 ** attempt
                 wait = min(wait, RATE_WAIT_MAX)
-                if attempt == RATE_RETRIES or (deadline is not None and self._now() + wait >= deadline):
-                    times = f"{attempt + 1} time{'s' if attempt else ''}"
-                    raise ProviderError(f"{err}: the provider refused the turn {times} for its rate limit",
-                                        sent=False, status=429) from err
+                times = f"{attempt + 1} time{'s' if attempt else ''}"
+                refused = f"{err}: the provider refused the turn {times} for its rate limit"
+                if attempt == RATE_RETRIES:
+                    raise ProviderError(refused, sent=False, status=429) from err
+                if deadline is not None and self._now() + wait + RATE_ROOM > deadline:
+                    raise ProviderError(f"{refused}, and the run's working time left no room to wait {wait:.0f} "
+                                        "seconds and ask again", sent=False, status=429) from err
                 log.warning("the provider rate-limited a turn; asking again in %.0f seconds", wait)
-                self._await(asyncio.sleep(wait))
+                self._wait(run_id, wait)
+
+    def _wait(self, run_id, seconds):
+        """Sleep for seconds, unless the run's cancel is requested first: then raise
+        TurnCancelled, and the engine cancels the run."""
+        end = self._now() + seconds
+        while not self.engine.cancel_path(run_id).is_file():
+            left = end - self._now()
+            if left <= 0:
+                return
+            self._await(asyncio.sleep(min(left, CANCEL_POLL)))
+        raise TurnCancelled("the run's cancel was requested while its turn waited out a rate limit")
 
     def who(self, run_id):
         return {"runId": run_id, "capability": self.config.capability,
