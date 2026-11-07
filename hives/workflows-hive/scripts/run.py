@@ -971,7 +971,9 @@ class Engine:
         call gets the turn's idempotency key and returns (output, cost). A completed turn
         is never called again, so a resumed loop replays its turns from the record. A turn
         whose process died before its reply was recorded is called again. If call raises,
-        the run fails. Raises Stopped when the run has failed or been cancelled.
+        the run fails, unless its cancel was requested meanwhile, as when call gave up
+        waiting because of it: then the run is cancelled. Raises Stopped when the run has
+        failed or been cancelled.
         """
         if run["status"] != "working" or self.cancel_requested(run):
             raise Stopped(run, f"run {run['runId']} is {run['status']}")
@@ -992,6 +994,8 @@ class Engine:
             message = f"{type(e).__name__}: {e}"
             state.update(status="failed", endedAt=now())
             self.audit(run, "turn.failed", turn=turn_id)
+            if self.cancel_requested(run):
+                raise Stopped(run, f"run {run['runId']} is cancelled") from e
             self.end(run, "failed", error={"step": None, "turn": turn_id, "message": message})
             self.log(f"fail  turn {turn_id} ({message})")
             raise Stopped(run, message) from e

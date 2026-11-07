@@ -436,6 +436,7 @@ class OrchestrateTest(unittest.TestCase):
             holds = self.holds()
         self.assertEqual(task["status"]["state"], "TASK_STATE_FAILED")
         self.assertIn(f"refused the turn {orchestrate.RATE_RETRIES + 1} times for its rate limit", self.text(task))
+        self.assertNotIn("working time", self.text(task), "the retry count, not the time, ended the retries")
         self.assertEqual(len(model.seen), orchestrate.RATE_RETRIES + 1)
         self.assertEqual(self.ledger(), [], "a refused turn is never billed")
         self.assertEqual(holds, {})
@@ -453,7 +454,51 @@ class OrchestrateTest(unittest.TestCase):
                 self.client(write_config(self.root), model) as c:
             task = self.wait(c, self.start(c)["id"])
         self.assertEqual(task["status"]["state"], "TASK_STATE_FAILED")
-        self.assertIn("refused the turn 1 time for its rate limit", self.text(task))
+        self.assertIn("refused the turn 1 time for its rate limit, and the run's working time left no room to "
+                      "wait 10000 seconds and ask again", self.text(task))
+
+    def test_a_wait_that_leaves_the_turn_too_little_time_isnt_taken(self):
+        # Waiting nothing at all would still leave less than RATE_ROOM of the hour, so the
+        # retry isn't sent only to time out and be charged the turn's estimate.
+        model = Scripted(self.limited(retry_after=0), final())
+        with unittest.mock.patch.object(orchestrate, "RATE_ROOM", 3_600), \
+                self.client(write_config(self.root), model) as c:
+            task = self.wait(c, self.start(c)["id"])
+            holds = self.holds()
+        self.assertEqual(task["status"]["state"], "TASK_STATE_FAILED")
+        self.assertIn("working time left no room to wait 0 seconds and ask again", self.text(task))
+        self.assertEqual(len(model.seen), 1, "the retry was never sent")
+        self.assertEqual(self.ledger(), [], "nothing is charged")
+        self.assertEqual(holds, {})
+
+    def test_a_cancel_stops_a_rate_limited_turn_at_once_and_the_run_ends_cancelled(self):
+        # During the 30-second wait, and when it lands while the refused attempt is in flight.
+        cases = {"during the wait": (self.limited(retry_after=30), final()),
+                 "before the wait": (GATE, self.limited(retry_after=30), final())}
+        for name, replies in cases.items():
+            model = Scripted(*replies)
+            with self.subTest(name), self.client(write_config(self.root), model) as c:
+                task_id = self.start(c)["id"]
+                for _ in range(200):
+                    if model.waiting if replies[0] is GATE else model.seen:
+                        break
+                    time.sleep(0.02)
+                asked = time.monotonic()
+                self.assertEqual(self.rpc(c, "CancelTask", {"id": task_id})["result"]["status"]["state"],
+                                 "TASK_STATE_CANCELED")
+                if model.gate:
+                    c.portal.call(model.gate.set)
+                for _ in range(250):
+                    if self.record(task_id)["status"] == "cancelled" and task_id not in self.holds():
+                        break
+                    time.sleep(0.02)
+                self.assertLess(time.monotonic() - asked, 5, "the cancel didn't wait out the 30 seconds")
+                record = self.record(task_id)
+                self.assertEqual(record["status"], "cancelled", record.get("error"))
+                self.assertNotIn(task_id, self.holds())
+                self.assertEqual(len(model.seen), 1, "the turn wasn't asked again")
+                self.assertEqual(self.ledger(), [], "the refused turn wasn't billed")
+                self.assertEqual(self.wait(c, task_id)["status"]["state"], "TASK_STATE_CANCELED")
 
     # --- resume, expiry, cancel -------------------------------------------
 
