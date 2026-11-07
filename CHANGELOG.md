@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.11.1](https://github.com/werkrbee/ai-hive/compare/v0.11.0...v0.11.1) (2026-11-07)
+
+
+### Bug fixes
+
+* **agents-hive:** see a cancel during a rate-limit wait, and don't send a retry the working time can't fit ([#216](https://github.com/werkrbee/ai-hive/issues/216)) ([ac8eaa0](https://github.com/werkrbee/ai-hive/commit/ac8eaa0857052f774ade67126a496e82f6e98190)), closes [#179](https://github.com/werkrbee/ai-hive/issues/179) [#106](https://github.com/werkrbee/ai-hive/issues/106)
+
 ## [0.11.0](https://github.com/werkrbee/ai-hive/compare/v0.10.0...v0.11.0) (2026-11-06)
 
 
