@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.11.2](https://github.com/werkrbee/ai-hive/compare/v0.11.1...v0.11.2) (2026-11-07)
+
+
+### Bug fixes
+
+* **agents-hive:** refuse a nan, infinite or negative ceiling in deploy.sh's hosted Barry check ([#218](https://github.com/werkrbee/ai-hive/issues/218)) ([ea7dc6f](https://github.com/werkrbee/ai-hive/commit/ea7dc6f29477fdaa05c169b89cf0dd9804ccf278)), closes [#185](https://github.com/werkrbee/ai-hive/issues/185) [#106](https://github.com/werkrbee/ai-hive/issues/106)
+* **agents-hive:** report a failed download of Barry's log in assurance.sh check ([#220](https://github.com/werkrbee/ai-hive/issues/220)) ([0578b03](https://github.com/werkrbee/ai-hive/commit/0578b0334d22ed5690a696a3fcbf9a00209fb350)), closes [#196](https://github.com/werkrbee/ai-hive/issues/196) [#106](https://github.com/werkrbee/ai-hive/issues/106)
+
 ## [0.11.1](https://github.com/werkrbee/ai-hive/compare/v0.11.0...v0.11.1) (2026-11-07)
 
 
