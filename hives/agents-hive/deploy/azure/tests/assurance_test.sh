@@ -5,7 +5,8 @@
 # without a terminal is refused and nothing is uploaded; and when the share's audit log
 # changes while a person answers, or just after the download, before the answer began,
 # nothing is uploaded. check compares each audit log with its copy, Barry's too when he is
-# deployed. A template from before the weekly job has nothing to read. Bash 3.2 safe; run it with /bin/bash on macOS.
+# deployed; a missing log on his share is checked as empty, and any other failed download
+# is reported as itself. A template from before the weekly job has nothing to read. Bash 3.2 safe; run it with /bin/bash on macOS.
 #
 # Usage: tests/assurance_test.sh        (from hives/agents-hive/deploy/azure, or anywhere)
 set -u
@@ -34,6 +35,15 @@ case "$args" in
   "storage file download-batch"*)
     mkdir -p "$(arg --destination)" && cp -R "$STUB/share/assurance" "$(arg --destination)/"
     [ ! -f "$STUB/race-download" ] || echo '{"seq": 98}' >> "$STUB/share/assurance/audit.jsonl" ;;
+  "storage file download "*)
+    # Barry's share: $STUB/barry-download-error, when it exists, is what a failed download
+    # prints; without a log there, az's "not found".
+    if [ -f "$STUB/barry-download-error" ]; then
+      cat "$STUB/barry-download-error" >&2; exit 1
+    elif [ ! -f "$STUB/share/hive-barry-data/$(arg --path)" ]; then
+      printf 'The specified resource does not exist.\nErrorCode:ResourceNotFound\n' >&2; exit 1
+    fi
+    cp "$STUB/share/hive-barry-data/$(arg --path)" "$(arg --dest)" ;;
   "storage file show"*)
     log="$STUB/share/assurance/audit.jsonl"
     [ -f "$log" ] || exit 1
@@ -152,10 +162,30 @@ check "check without Barry: only Patricia's log, against her copy" \
 setup
 echo '{"dataAccount": {"value": "patriciasttest"}, "auditBlobUrl": {"value": "http://patricia-copy"},
   "barryAuditBlobUrl": {"value": "http://barry-copy"}}' > "$STUB/outputs"
+mkdir -p "$STUB/share/hive-barry-data" && echo '{"seq": 1}' > "$STUB/share/hive-barry-data/audit.jsonl"
 assurance check rg-test
 check "check with Barry: his log, from his share, against his copy too" \
   eval '[ "$code" -ne 0 ] && has "http://patricia-copy isn.t an https URL" && has "http://barry-copy isn.t an https URL" \
    && grep -q "^storage file download --account-name patriciasttest --share-name hive-barry-data --path audit.jsonl" "$STUB/calls"'
+
+# Before Barry's first run his share has no log: that, and only that, is checked as an
+# empty one. Any other failed download is reported as itself, and his copy isn't read.
+setup
+echo '{"dataAccount": {"value": "patriciasttest"}, "auditBlobUrl": {"value": "http://patricia-copy"},
+  "barryAuditBlobUrl": {"value": "http://barry-copy"}}' > "$STUB/outputs"
+assurance check rg-test
+check "check with Barry and no log on his share yet: checked as an empty log" \
+  eval '[ "$code" -ne 0 ] && has "http://barry-copy isn.t an https URL" && ! has "couldn.t download"'
+
+setup
+echo '{"dataAccount": {"value": "patriciasttest"}, "auditBlobUrl": {"value": "http://patricia-copy"},
+  "barryAuditBlobUrl": {"value": "http://barry-copy"}}' > "$STUB/outputs"
+printf 'This request is not authorized to perform this operation using this permission.\nErrorCode:AuthorizationPermissionMismatch\n' \
+  > "$STUB/barry-download-error"
+assurance check rg-test
+check "check with Barry when his log can't be downloaded: the download error, not a mismatch" \
+  eval '[ "$code" -ne 0 ] && has "couldn.t download Barry.s log, audit.jsonl on the hive-barry-data share" \
+   && has "ErrorCode:AuthorizationPermissionMismatch" && ! has barry-copy && has "http://patricia-copy isn.t an https URL"'
 
 setup
 echo '{"registry": {"value": "reg.azurecr.io"}}' > "$STUB/outputs"

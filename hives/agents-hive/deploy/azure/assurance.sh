@@ -92,10 +92,21 @@ case "$command" in
     status=0
     python3 "$here/audit_blob.py" check "$state/audit.jsonl" "$blob" || status=1
     if [ -n "$barry_blob" ]; then
-      # Barry's log is on his own share, at its top; before his first run there is none.
-      az storage file download --account-name "$account" --share-name hive-barry-data --path audit.jsonl \
-        --dest "$work/barry-audit.jsonl" -o none 2>/dev/null || : > "$work/barry-audit.jsonl"
-      python3 "$here/audit_blob.py" check "$work/barry-audit.jsonl" "$barry_blob" || status=1
+      # Barry's log is on his own share, at its top; before his first run there is none, and
+      # only that is checked as an empty log. Any other failure (sign-in, permissions, a
+      # missing share) is reported as itself, not as a log that doesn't match its copy.
+      if az storage file download --account-name "$account" --share-name hive-barry-data --path audit.jsonl \
+          --dest "$work/barry-audit.jsonl" -o none 2> "$work/barry-download.err"; then
+        python3 "$here/audit_blob.py" check "$work/barry-audit.jsonl" "$barry_blob" || status=1
+      elif grep -q ResourceNotFound "$work/barry-download.err"; then
+        : > "$work/barry-audit.jsonl"
+        python3 "$here/audit_blob.py" check "$work/barry-audit.jsonl" "$barry_blob" || status=1
+      else
+        echo "error: couldn't download Barry's log, audit.jsonl on the hive-barry-data share, so it" \
+          "wasn't checked:" >&2
+        cat "$work/barry-download.err" >&2
+        status=1
+      fi
     fi
     exit "$status" ;;
 esac

@@ -164,7 +164,9 @@ person approved a gated call is out of reach of anyone who can write the share w
 seconds of the decision, not at the next weekly run. A push that fails is logged as "the
 audit log's immutable copy is behind", and the next one catches up; a log that no longer
 starts with its copy isn't pushed again. `./assurance.sh check <rg>` checks his copy, and
-his log against it, after Patricia's.
+his log against it, after Patricia's. Before his first run there's no log on his share, and
+check compares an empty one; any other failed download (sign-in, permissions, a missing
+share) is reported as itself and fails the check.
 
 **His trust evaluation.** His passport pins Claude Sonnet 5.5, the model the
 orchestration eval chose for him, and its suite is that eval's goals, with each attack
