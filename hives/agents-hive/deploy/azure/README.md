@@ -144,8 +144,8 @@ his callers map to still holds a `<...>` placeholder.
 **Ceilings.** Barry's ceiling is `barry.monthlyCeilingUsd`, $15 by default, on his own
 ledger. Patricia's `monthlyCeilingUsd` must be a number from $0 to $5 alongside him,
 which covers hundreds of her reviews, and `deploy.sh` refuses, before any change, when it
-isn't; the Azure budget stays at $25 for the whole group. Each Barry run holds its whole $5 budget
-against his ceiling while it runs, so at most three run at once.
+isn't; the Azure budget stays at $25 for the whole group. Each Barry run holds its whole
+$5 budget against his ceiling while it runs, so at most three run at once.
 
 **Checking him.** `./verify_barry.sh --by <actor-id> <resource-group>` checks that his
 card is served, that a call without a token is refused, and that a goal with a gated
