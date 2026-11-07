@@ -283,7 +283,7 @@ check_barry() {
 p = json.loads(json.load(open(sys.argv[1]))["parametersJson"])["parameters"]
 print(1 if (p.get("barry") or {}).get("value") else "")' "$tmp/params.json") || exit 1
   if ! python3 - "$tmp/params.json" "$src/hives/agents-hive" <<'PY'
-import json, os, re, subprocess, sys
+import json, math, os, re, subprocess, sys
 
 params = json.loads(json.load(open(sys.argv[1]))["parametersJson"])["parameters"]
 hive = sys.argv[2]
@@ -311,12 +311,13 @@ if subprocess.run([sys.executable, os.path.join(hive, "scripts/trust_eval.py"), 
     bad = True
 ceiling = (params.get("monthlyCeilingUsd") or {}).get("value", "25")
 try:
-    over = float(ceiling) > 5
+    usd = float(ceiling)
+    allowed = math.isfinite(usd) and 0 <= usd <= 5
 except ValueError:
-    over = True
-if over:
-    print(f"error: hosted Barry is set, so Patricia's monthlyCeilingUsd must be '5' or less, not {ceiling!r}",
-          file=sys.stderr)
+    allowed = False
+if not allowed:
+    print(f"error: hosted Barry is set, so Patricia's monthlyCeilingUsd must be a number from '0' to '5', "
+          f"not {ceiling!r}", file=sys.stderr)
     bad = True
 placeholder = re.compile(r"<[^<>]+>")
 for caller in barry.get("callers") or []:
