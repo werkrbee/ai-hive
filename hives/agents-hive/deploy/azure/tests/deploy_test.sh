@@ -17,7 +17,7 @@
 # when it has none, is more than eight days old, or one that can't be looked up; a job
 # that recorded recently, or was created within the week, goes on. Hosted Barry: with him
 # set, his passport must pin the model modelDeployment names and his promotion check must
-# pass, or the deploy stops before any change, as it does for a Patricia ceiling over $5
+# pass, or the deploy stops before any change, as it does for a Patricia ceiling that isn't from $0 to $5
 # and a caller's registration that is missing or still a placeholder. Retention: the audit log's policy is set after the infrastructure, as its own
 # gated step, and locked only with --lock-audit-retention and the account's name typed; a
 # locked policy is left alone.
@@ -413,12 +413,20 @@ check "no Barry: his passport isn't checked" \
 
 BARRY='{"callers": [{"client": "c1", "registration": "filled"}]}' run barryceiling "$bicep"
 check "Barry with Patricia's default ceiling: refused before any what-if" \
-  eval '[ "$code" -ne 0 ] && has "Patricia.s monthlyCeilingUsd must be .5. or less, not .25." \
+  eval '[ "$code" -ne 0 ] && has "Patricia.s monthlyCeilingUsd must be a number from .0. to .5., not .25." \
    && ! has "== 1/4" && read_only'
 
 BARRY='{"callers": [{"client": "c1", "registration": "filled"}]}' CEILING=lots run barrynotnumber "$bicep"
 check "Barry with a ceiling that isn't a number: refused before any what-if" \
-  eval '[ "$code" -ne 0 ] && has "must be .5. or less, not .lots." && ! has "== 1/4" && read_only'
+  eval '[ "$code" -ne 0 ] && has "must be a number from .0. to .5., not .lots." && ! has "== 1/4" && read_only'
+
+# float() reads these, but none is a finite number from 0 to 5: nan and -inf compare false
+# with 5, and a negative ceiling is below it.
+for ceiling in nan inf -inf -1; do
+  BARRY='{"callers": [{"client": "c1", "registration": "filled"}]}' CEILING=$ceiling run "barry$ceiling" "$bicep"
+  check "Barry with a ceiling of $ceiling: refused before any what-if" \
+    eval '[ "$code" -ne 0 ] && has "must be a number from .0. to .5., not .$ceiling." && ! has "== 1/4" && read_only'
+done
 
 BARRY='{"callers": [{"client": "c1", "registration": "todo"}]}' CEILING=5 run barryplaceholder "$bicep"
 check "Barry with a placeholder token scope: refused before any what-if, naming it" \
