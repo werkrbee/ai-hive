@@ -269,9 +269,11 @@ model can choose a call's arguments without vouching for a fact that unlocks it
   call's arguments is refused.
 - **Subjects**, such as a message's recipients, are a list in the call's arguments. A
   lookup whose input is `{"from": "subject"}` is made for each of them, and the fact holds
-  only when it is the same for every one. A lookup that fails, or recipients who disagree,
-  leave the fact missing, and a missing fact never satisfies a mandate or lets a call
-  escape a prohibition.
+  only when it is the same for every one. On a tool with subjects, every looked-up fact is
+  looked up this way: a lookup whose input takes no subject would be made once, so a fact
+  about one recipient, or none, could stand for all of them, and the check refuses it. A
+  lookup that fails, or recipients who disagree, leave the fact missing, and a missing fact
+  never satisfies a mandate or lets a call escape a prohibition.
 - **Present items** come from the arguments, a fixed value, the number of subjects
   (`{"from": "count"}`) or a lookup, and each must be one the policy presents for that
   action. An item with no value is shown as missing.

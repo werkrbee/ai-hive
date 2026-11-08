@@ -89,6 +89,33 @@ class RegistrationTest(unittest.TestCase):
         self.refused(lambda reg: reg["tools"]["lineup/send_message"].pop("subjects"),
                      "needs the tool's subjects")
 
+    def test_a_fact_on_a_tool_with_subjects_is_looked_up_per_subject(self):
+        def once_for_all(reg):
+            reg["tools"]["lineup/send_message"]["facts"]["recipient.notifyOptIn"]["input"] = {
+                "member": {"from": "argument", "path": "recipients"}}
+        self.refused(once_for_all, "tools['lineup/send_message'].facts['recipient.notifyOptIn'] would be "
+                                   "looked up once for all of the tool's subjects")
+
+        def no_input(reg):
+            reg["tools"]["lineup/send_message"]["facts"]["recipient.notifyOptIn"]["input"] = {}
+        self.refused(no_input, "facts['recipient.notifyOptIn'] would be looked up once")
+
+        def subject_and_more(reg):
+            reg["tools"]["lineup/send_message"]["facts"]["recipient.notifyOptIn"]["input"]["channel"] = {
+                "from": "argument", "path": "channel"}
+        self.assertEqual(self.problems(subject_and_more), [])
+
+        def actor_fact(reg):
+            reg["tools"]["lineup/send_message"]["facts"]["actor.role"] = {"from": "request", "field": "actor.role"}
+        self.assertEqual(self.problems(actor_fact), [])
+
+    def test_a_tool_without_subjects_may_look_a_fact_up_once(self):
+        def change(reg):
+            reg["tools"]["lineup/cancel_event"]["facts"]["event.started"] = {
+                "from": "lookup", "tool": "lineup/get_member", "input": {"member": {"from": "argument", "path": "id"}},
+                "path": "started"}
+        self.assertEqual(self.problems(change), [])
+
     def test_a_present_item_the_policy_doesnt_present_is_refused(self):
         self.refused(lambda reg: reg["tools"]["lineup/send_message"]["present"].update(
             {"sender": {"from": "value", "value": "lineup"}}), "no mandate for 'message.send' presents it")
