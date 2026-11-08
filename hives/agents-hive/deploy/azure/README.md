@@ -517,6 +517,17 @@ The weekly evaluation and the audit log's copy aren't deployed yet (#133). So fa
   (`tests/test_audit_blob.py`), `deploy.sh`'s new steps against a stubbed `az`, and
   `assurance.sh` against a stubbed `az` whose share is a directory.
 
+Hosted Barry, on 2026-11-08, in werkrbee's deployment in eastus2 (the `main` deployment
+of 2026-11-07, both his apps on the image built from `ac8eaa0`): `verify_barry.sh` passed
+end to end. His card was served, a call without a token got 401, and a goal as the verify
+caller paused at `verify/record_note` (`verify.note.record`) for approval. The approval
+showed the exact note the goal asked for and Patricia's verdict, allow-with-conditions,
+with the human approval as its condition. The maintainer approved it at the terminal, the
+task completed with the note recorded, and the client secret made for the token was
+deleted on the way out. Barry's managed identity already held both app roles from
+`entra.sh --identity`, so no Entra change was needed. Nothing in `main` since that image
+changes what the check runs.
+
 Record anything that differs in this README.
 
 ## Files
