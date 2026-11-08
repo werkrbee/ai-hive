@@ -19,6 +19,12 @@
 # Usage: ./verify_barry.sh [--by ACTOR-ID] <resource-group>
 # Needs: az login, as an owner of verify-barry-client; Barry's managed identity granted
 # Patricia's and the verify server's roles (entra.sh --identity).
+#
+# For its test only (tests/verify_barry_test.sh): VERIFY_BARRY_LOGIN asks a stand-in on this
+# machine for the token, and VERIFY_BARRY_TTY reads the approval answer from a file instead
+# of the terminal. Each is refused unless what it talks to is on this machine, so neither
+# can send the secret elsewhere or approve a call to a real deployment, and the second says
+# so on stderr whenever it's used.
 set -euo pipefail
 
 by=${WORKFLOWS_HIVE_ACTOR:-}
@@ -31,6 +37,11 @@ if [ "$#" -ne 1 ] || [ -z "$by" ]; then
   exit 2
 fi
 rg=$1
+loopback='^http://(127\.0\.0\.1|localhost)(:[0-9]+)?(/.*)?$'
+if [ -n "${VERIFY_BARRY_LOGIN:-}" ] && ! [[ $VERIFY_BARRY_LOGIN =~ $loopback ]]; then
+  echo "error: VERIFY_BARRY_LOGIN is for the test's stand-in, on this machine; refusing $VERIFY_BARRY_LOGIN" >&2
+  exit 2
+fi
 
 outputs=$(az deployment group show --resource-group "$rg" --name main --query properties.outputs -o json)
 output() {
@@ -41,6 +52,13 @@ barry=$(output barryUrl)
 if [ -z "$barry" ]; then
   echo "error: the deployment in $rg has no hosted Barry (barry isn't set in its parameters)" >&2
   exit 1
+fi
+if [ -n "${VERIFY_BARRY_TTY:-}" ]; then
+  if [ -z "${VERIFY_BARRY_LOGIN:-}" ] || ! [[ $barry =~ $loopback ]]; then
+    echo "error: VERIFY_BARRY_TTY is for the test, against a stand-in on this machine; refusing to read the approval from $VERIFY_BARRY_TTY for $barry" >&2
+    exit 2
+  fi
+  echo "note: the approval answer is read from $VERIFY_BARRY_TTY, not a terminal (a test)" >&2
 fi
 tenant=$(az account show --query tenantId -o tsv)
 api=$(az ad app list --filter "displayName eq 'barry-a2a-api'" --query "[0].appId" -o tsv)
@@ -99,7 +117,8 @@ barry, tenant, client, api, by = sys.argv[1:]
 def token():
     form = urllib.parse.urlencode({"grant_type": "client_credentials", "client_id": client,
                                    "client_secret": os.environ["VERIFY_SECRET"], "scope": f"api://{api}/.default"})
-    url = f"https://login.microsoftonline.com/{tenant}/oauth2/v2.0/token"
+    login = os.environ.get("VERIFY_BARRY_LOGIN") or "https://login.microsoftonline.com"  # or the test's stand-in
+    url = f"{login}/{tenant}/oauth2/v2.0/token"
     for attempt in range(8):  # a new secret takes a little while to be accepted
         try:
             with urllib.request.urlopen(urllib.request.Request(url, data=form.encode()), timeout=60) as r:
@@ -169,9 +188,10 @@ print(f"  Patricia: {review.get('verdict')}" + (f", {review['reason']}" if revie
 if request["tool"] != "verify/record_note" or request["present"].get("note") != note:
     decide("deny", "not the note the check asked for")
     sys.exit("error: the approval isn't for the note the goal asked for; denied it")
-# This script's own source is on standard input, so the answer is read from the terminal.
+# This script's own source is on standard input, so the answer is read from the terminal
+# (VERIFY_BARRY_TTY points a test at a file instead).
 try:
-    with open("/dev/tty") as tty:
+    with open(os.environ.get("VERIFY_BARRY_TTY") or "/dev/tty") as tty:
         print(f"Approve this call as {by}? Type yes to approve, anything else denies it: ", end="", flush=True)
         answer = tty.readline().strip()
 except OSError:
