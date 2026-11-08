@@ -156,7 +156,10 @@ the task pauses, it shows the tool, the action, the note and Patricia's verdict,
 approves as `--by` only when you type yes again; any other answer denies it. Neither the
 secret nor the token is printed or written to disk. A check costs a few cents. Its
 secret handling and approval are tested against a stubbed `az` and a local stand-in for
-Barry and the token endpoint (`tests/verify_barry_test.sh`, run in CI).
+Barry and the token endpoint (`tests/verify_barry_test.sh`, run in CI). The two settings
+the test uses, `VERIFY_BARRY_LOGIN` and `VERIFY_BARRY_TTY`, are refused unless what they
+reach is on the same machine, so neither can send the secret elsewhere or approve a call
+to a real deployment.
 
 **His audit log.** His runs keep their engine records and audit log on his share. His
 server appends the log's new whole lines to his own append blob, `audit/barry.jsonl`, in

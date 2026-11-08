@@ -5,9 +5,10 @@
 # yes approves as --by, and any other answer, or a request for a different note, is denied
 # with a reason; a task that ends without pausing, or never completes, fails and names its
 # state. The answers come from files: the first on standard input, the second through
-# VERIFY_BARRY_TTY. Nothing leaves the machine: the script's Python can reach only loopback
-# addresses, and its sleeps only move a clock forward. Bash 3.2 safe; run it with /bin/bash
-# on macOS.
+# VERIFY_BARRY_TTY, which, like VERIFY_BARRY_LOGIN, is refused when what it would reach
+# isn't on this machine. Nothing leaves the machine: the script's Python can reach only
+# loopback addresses, and its sleeps only move a clock forward. Bash 3.2 safe; run it with
+# /bin/bash on macOS.
 #
 # Usage: tests/verify_barry_test.sh        (from hives/agents-hive/deploy/azure, or anywhere)
 set -u
@@ -21,7 +22,8 @@ export STUB="$work/stub"
 
 # The stub. Every call is appended to $STUB/calls; a call it doesn't know is recorded as
 # unexpected and fails, so none can fall through to a real az. $STUB/creds holds the label of
-# the client secret while it exists.
+# the client secret while it exists; $STUB/barry, when it exists, is Barry's URL in place of
+# the stand-in's.
 mkdir -p "$work/bin" "$work/py"
 cat > "$work/bin/az" <<'STUB'
 #!/usr/bin/env bash
@@ -29,7 +31,9 @@ args="$*"
 echo "$args" >> "$STUB/calls"
 arg() { printf '%s' "$args" | sed -n "s/.*$1 \([^ ]*\).*/\1/p"; }
 case "$args" in
-  "deployment group show"*) printf '{"barryUrl": {"value": "http://127.0.0.1:%s/"}}\n' "$(cat "$STUB/port")" ;;
+  "deployment group show"*)
+    if [ -f "$STUB/barry" ]; then url=$(cat "$STUB/barry"); else url="http://127.0.0.1:$(cat "$STUB/port")/"; fi
+    printf '{"barryUrl": {"value": "%s"}}\n' "$url" ;;
   "account show"*) echo "tenant-1" ;;
   "ad app list --filter displayName eq 'barry-a2a-api'"*) echo "api-app" ;;
   "ad app list --filter displayName eq 'verify-barry-client'"*) echo "client-app" ;;
@@ -198,13 +202,14 @@ setup() {  # MODE
   while [ ! -f "$STUB/port" ] && [ "$i" -lt 100 ]; do sleep 0.1; i=$((i + 1)); done
 }
 # The script's environment: only the stub's az first on PATH, no proxies, the network guard
-# and fake clock, and the stand-in's token URL unless login is set empty.
+# and fake clock, the stand-in's token URL (or login's, or none when it's set empty) and the
+# answer file (or none when tty is set empty).
 script_env() {
-  local url="http://127.0.0.1:$(cat "$STUB/port")/login"
-  [ "${login-unset}" != "" ] || url=
+  local url="${login-http://127.0.0.1:$(cat "$STUB/port")/login}" answer="${tty-$STUB/answer}"
   env -u http_proxy -u https_proxy -u HTTP_PROXY -u HTTPS_PROXY -u all_proxy -u ALL_PROXY \
-    -u VERIFY_BARRY_LOGIN no_proxy='*' PATH="$work/bin:$PATH" PYTHONPATH="$work/py" PYTHONDONTWRITEBYTECODE=1 \
-    ${url:+VERIFY_BARRY_LOGIN=$url} VERIFY_BARRY_TTY="$STUB/answer" WORKFLOWS_HIVE_ACTOR="${actor-}" "$@"
+    -u VERIFY_BARRY_LOGIN -u VERIFY_BARRY_TTY no_proxy='*' \
+    PATH="$work/bin:$PATH" PYTHONPATH="$work/py" PYTHONDONTWRITEBYTECODE=1 \
+    ${url:+VERIFY_BARRY_LOGIN=$url} ${answer:+VERIFY_BARRY_TTY=$answer} WORKFLOWS_HIVE_ACTOR="${actor-}" "$@"
 }
 # verify FIRST-ANSWER SECOND-ANSWER ARGS... — the first answer is the script's standard
 # input; the second is the file VERIFY_BARRY_TTY names.
@@ -250,7 +255,7 @@ setup pause
 verify yes yes --by usr_test rg-test
 check "a typed yes: approved as --by, completed, and the secret deleted" \
   eval '[ "$code" -eq 0 ] && has "OK  hosted Barry" && has "Approve this call as usr_test?" \
-   && decided approve && deleted'
+   && has "the approval answer is read from .*/answer, not a terminal (a test)" && decided approve && deleted'
 
 setup pause
 actor=usr_test verify yes yes rg-test
@@ -294,9 +299,32 @@ check "an interrupt while waiting on Barry: the secret deleted" \
 # Without the stand-in's token URL the script asks Microsoft's; the guard refuses it before
 # any lookup, so a test that forgot the seam fails here rather than reaching the network.
 setup pause
-login= verify yes yes --by usr_test rg-test
+login= tty= verify yes yes --by usr_test rg-test
 check "the real token endpoint is out of reach: refused, and the secret deleted" \
   eval '[ "$code" -ne 0 ] && has "no network, refused login.microsoftonline.com" && [ ! -s "$STUB/tokens" ] && deleted'
+
+# The seams talk only to this machine: each is refused, before anything is fetched or any
+# secret made, when what it would reach is elsewhere.
+for url in https://login.example.com http://localhost:1@login.example.com http://127.0.0.1.example.com; do
+  setup pause
+  login=$url verify yes yes --by usr_test rg-test
+  check "VERIFY_BARRY_LOGIN=$url: refused before any secret" \
+    eval '[ "$code" -eq 2 ] && has "VERIFY_BARRY_LOGIN is for the test.s stand-in, on this machine; refusing" \
+     && ! grep -q "^ad app\|^account" "$STUB/calls" && known'
+done
+
+setup pause
+echo "https://barry.example.com/" > "$STUB/barry"
+verify yes yes --by usr_test rg-test
+check "VERIFY_BARRY_TTY against a Barry elsewhere: refused before anything is fetched" \
+  eval '[ "$code" -eq 2 ] && has "VERIFY_BARRY_TTY is for the test" && ! has "card:" \
+   && ! grep -q credential "$STUB/calls" && known'
+
+setup pause
+login= verify yes yes --by usr_test rg-test
+check "VERIFY_BARRY_TTY without the stand-in's token URL: refused before anything is fetched" \
+  eval '[ "$code" -eq 2 ] && has "VERIFY_BARRY_TTY is for the test" && ! has "card:" \
+   && ! grep -q credential "$STUB/calls" && known'
 
 [ "$fail" -eq 0 ] && echo "OK  verify_barry.sh checks passed"
 exit "$fail"
