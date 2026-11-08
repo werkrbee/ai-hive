@@ -100,9 +100,12 @@ not just assembled from it. Both items have an open pull request.
   (#103) and decides each step's actions with the approval policy (#104). The design note
   is accepted (#105, `hives/agents-hive/design/hosted-barry.md`), and its seven
   implementation issues follow it in order (#114–#120). The first is done: the engine is
-  a library, and a run can grow and keep model turns (#114). Barry's deploy (#120) waits
-  for the assurance loop's passport, audit log and human review queue (P2.1), so he ships
-  with his controls.
+  a library, and a run can grow and keep model turns (#114). All seven are done. Barry
+  shipped with his controls, after the assurance loop's passport, audit log and human
+  review queue (P2.1), and is deployed beside Patricia (#120). On 2026-11-08 a live check
+  against werkrbee's deployment passed: his card is served, a call without a token is
+  refused, and a gated call paused for a person and ran once approved
+  (`hives/agents-hive/deploy/azure/README.md`).
 - **Public A2A access.** An option to open the hosted agents beyond werkrbee products.
   Callers outside werkrbee need to verify an agent's passport and eval results for
   themselves, so signing them comes first (`docs/frontier-ecosystem.md`).
