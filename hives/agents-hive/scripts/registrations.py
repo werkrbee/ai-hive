@@ -21,8 +21,9 @@ resolve() refuses it, and the call is denied.
 
 This checks each registration beyond its schema: its policy is the Charter or extends it
 and is itself valid, every action is in the policy's vocabulary, every present item is one
-the policy presents for that action, every lookup names a fact source, and no fact comes
-from the call's arguments. Then it runs the cases.json beside it: each case is a tool call,
+the policy presents for that action, every lookup names a fact source, no fact comes
+from the call's arguments, and on a tool with subjects every looked-up fact is looked up
+per subject. Then it runs the cases.json beside it: each case is a tool call,
 the caller's request and what lookups return, and the decision, rule and presented values
 the policy must reach for it.
 
@@ -248,6 +249,12 @@ def check(path):
                         err(f"{at}.facts['{name}'] is about the actor, so it comes from the caller's request")
                     if src.get("from") == "request" and src.get("field") != name:
                         err(f"{at}.facts['{name}'] must come from the request's own {name}")
+                    if subjects and src.get("from") == "lookup" and isinstance(src.get("input"), dict) \
+                            and not any(isinstance(i, dict) and i.get("from") == "subject"
+                                        for i in src["input"].values()):
+                        err(f"{at}.facts['{name}'] would be looked up once for all of the tool's subjects; "
+                            "its lookup's input must take {\"from\": \"subject\"}, so it holds only "
+                            "when it holds for each")
                 if section == "present" and isinstance(src, dict) and src.get("from") == "lookup" \
                         and any(isinstance(i, dict) and i.get("from") == "subject"
                                 for i in (src.get("input") or {}).values()):

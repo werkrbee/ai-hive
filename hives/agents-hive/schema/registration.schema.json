@@ -72,7 +72,7 @@
             "properties": {
               "action": { "description": "An action in the policy's vocabulary.", "type": "string" },
               "subjects": {
-                "description": "The call's subjects, such as a message's recipients: a list in its arguments. A fact looked up per subject holds only when it holds for each.",
+                "description": "The call's subjects, such as a message's recipients: a list in its arguments. Every fact the tool looks up is looked up per subject, its lookup's input taking {\"from\": \"subject\"}, and holds only when it holds for each.",
                 "$ref": "#/$defs/argument"
               },
               "scope": {
