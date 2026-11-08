@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.12.0](https://github.com/werkrbee/ai-hive/compare/v0.11.2...v0.12.0) (2026-11-08)
+
+
+### Features
+
+* **agents-hive:** require per-subject lookups for facts on tools with subjects ([#222](https://github.com/werkrbee/ai-hive/issues/222)) ([eb5b039](https://github.com/werkrbee/ai-hive/commit/eb5b039dc948e05b4ba41c96df7c659e7a011384)), closes [#169](https://github.com/werkrbee/ai-hive/issues/169) [#106](https://github.com/werkrbee/ai-hive/issues/106)
+
 ## [0.11.2](https://github.com/werkrbee/ai-hive/compare/v0.11.1...v0.11.2) (2026-11-07)
 
 
