@@ -99,7 +99,8 @@ barry, tenant, client, api, by = sys.argv[1:]
 def token():
     form = urllib.parse.urlencode({"grant_type": "client_credentials", "client_id": client,
                                    "client_secret": os.environ["VERIFY_SECRET"], "scope": f"api://{api}/.default"})
-    url = f"https://login.microsoftonline.com/{tenant}/oauth2/v2.0/token"
+    login = os.environ.get("VERIFY_BARRY_LOGIN", "https://login.microsoftonline.com")  # a test's stand-in
+    url = f"{login}/{tenant}/oauth2/v2.0/token"
     for attempt in range(8):  # a new secret takes a little while to be accepted
         try:
             with urllib.request.urlopen(urllib.request.Request(url, data=form.encode()), timeout=60) as r:
@@ -169,9 +170,10 @@ print(f"  Patricia: {review.get('verdict')}" + (f", {review['reason']}" if revie
 if request["tool"] != "verify/record_note" or request["present"].get("note") != note:
     decide("deny", "not the note the check asked for")
     sys.exit("error: the approval isn't for the note the goal asked for; denied it")
-# This script's own source is on standard input, so the answer is read from the terminal.
+# This script's own source is on standard input, so the answer is read from the terminal
+# (VERIFY_BARRY_TTY points a test at a file instead).
 try:
-    with open("/dev/tty") as tty:
+    with open(os.environ.get("VERIFY_BARRY_TTY", "/dev/tty")) as tty:
         print(f"Approve this call as {by}? Type yes to approve, anything else denies it: ", end="", flush=True)
         answer = tty.readline().strip()
 except OSError:

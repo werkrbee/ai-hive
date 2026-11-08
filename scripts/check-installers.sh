@@ -134,6 +134,11 @@ run "agents-hive deploy.sh promotion, role id, model and retention checks, and r
 run "agents-hive assurance.sh hosted queue answers (stubbed az)" \
   bash hives/agents-hive/deploy/azure/tests/assurance_test.sh
 
+# agents-hive: verify_barry.sh deletes its client secret however it exits and approves only
+# on a typed yes, against a stubbed az and a local stand-in for Barry and the token endpoint.
+run "agents-hive verify_barry.sh secret cleanup and approval (stubbed az, local Barry)" \
+  bash hives/agents-hive/deploy/azure/tests/verify_barry_test.sh
+
 # agents-hive: audit_blob.py copies the audit log to an append blob only while the log
 # still starts with the copy, render_config.py takes the prompt files the passport pins,
 # the image holds every file the deployed passports name, and each agent's audit role in the

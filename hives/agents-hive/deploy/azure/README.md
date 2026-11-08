@@ -154,7 +154,9 @@ goal as the verify caller, so it adds a client secret to `verify-barry-client` t
 expires within the hour, uses it for one token, and deletes it, after you type yes. When
 the task pauses, it shows the tool, the action, the note and Patricia's verdict, and
 approves as `--by` only when you type yes again; any other answer denies it. Neither the
-secret nor the token is printed or written to disk. A check costs a few cents.
+secret nor the token is printed or written to disk. A check costs a few cents. Its
+secret handling and approval are tested against a stubbed `az` and a local stand-in for
+Barry and the token endpoint (`tests/verify_barry_test.sh`, run in CI).
 
 **His audit log.** His runs keep their engine records and audit log on his share. His
 server appends the log's new whole lines to his own append blob, `audit/barry.jsonl`, in
@@ -532,6 +534,7 @@ deploy/azure/
 │   ├── entra_test.sh          # entra.sh's plan and refusals, against a stubbed az
 │   ├── deploy_test.sh         # deploy.sh's checks, steps and rollback, against a stubbed az
 │   ├── assurance_test.sh      # assurance.sh's answers, against a stubbed az and share
+│   ├── verify_barry_test.sh   # verify_barry.sh's secret and approval, against a stubbed az and Barry
 │   ├── test_audit_blob.py     # audit_blob.py, against a fake Blob service
 │   ├── test_render_config.py  # the config's pinned prompts and ledgers, and Barry's orchestration
 │   ├── test_image.py          # every file a deployed passport names is in the image
