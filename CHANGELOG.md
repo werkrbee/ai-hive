@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.12.1](https://github.com/werkrbee/ai-hive/compare/v0.12.0...v0.12.1) (2026-11-08)
+
+
+### Documentation
+
+* **agents-hive:** record hosted Barry's live check ([#225](https://github.com/werkrbee/ai-hive/issues/225)) ([41257a5](https://github.com/werkrbee/ai-hive/commit/41257a5a5e2dfc8d7776c84d0bc710239e8b9d83)), closes [#106](https://github.com/werkrbee/ai-hive/issues/106)
+
 ## [0.12.0](https://github.com/werkrbee/ai-hive/compare/v0.11.2...v0.12.0) (2026-11-08)
 
 
