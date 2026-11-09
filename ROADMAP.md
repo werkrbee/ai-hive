@@ -93,18 +93,18 @@ not just assembled from it. Both items have an open pull request.
 
 ## P2 — ecosystem & payments
 
-- **Hosted Barry over A2A.** Builds on the approval policy (done in P1): actions the
-  Charter gates pause the task for a human (A2A `input-required`) instead of running.
-  Tracked on the `P2 — hosted Barry` milestone (epic #106). Barry's runtime is done: the
-  workflows-hive engine pauses a run for approval (#102), holds each step to its budget
-  (#103) and decides each step's actions with the approval policy (#104). The design note
-  is accepted (#105, `hives/agents-hive/design/hosted-barry.md`), and its seven
-  implementation issues follow it in order (#114–#120). The first is done: the engine is
-  a library, and a run can grow and keep model turns (#114). All seven are done. Barry
-  shipped with his controls, after the assurance loop's passport, audit log and human
-  review queue (P2.1), and is deployed beside Patricia (#120). On 2026-11-08 a live check
-  against werkrbee's deployment passed: his card is served, a call without a token is
-  refused, and a gated call paused for a person and ran once approved
+- **Hosted Barry over A2A (agents-hive) (done).** Builds on the approval policy (done in
+  P1): actions the Charter gates pause the task for a human (A2A `input-required`) instead
+  of running. Tracked on the `P2 — hosted Barry` milestone (epic #106). Barry's runtime is
+  done: the workflows-hive engine pauses a run for approval (#102), holds each step to its
+  budget (#103) and decides each step's actions with the approval policy (#104). The
+  design note is accepted (#105, `hives/agents-hive/design/hosted-barry.md`), and its
+  seven implementation issues are done, in order (#114–#120), starting with the engine as
+  a library whose runs can grow and keep model turns (#114). Barry shipped with his
+  controls, after the assurance loop's passport, audit log and human review queue (P2.1),
+  and is deployed beside Patricia (#120). On 2026-11-08 a live check against werkrbee's
+  deployment passed: his card is served, a call without a token is refused, and a gated
+  call paused for a person and ran once approved
   (`hives/agents-hive/deploy/azure/README.md`).
 - **Public A2A access.** An option to open the hosted agents beyond werkrbee products.
   Callers outside werkrbee need to verify an agent's passport and eval results for
