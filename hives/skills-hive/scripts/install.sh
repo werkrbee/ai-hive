@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Install skills from this repo into one or more agent harnesses.
 # Usage:
-#   ./scripts/install.sh                    # interactive (defaults: barry -> cursor)
+#   ./scripts/install.sh                    # defaults: Barry + discovery -> Cursor
 #   ./scripts/install.sh --global --harness cursor --skill barry
 #   ./scripts/install.sh --all --global --harness cursor --harness claude-code
 #
@@ -43,7 +43,7 @@ Install skills-hive skills into agent harness directories.
 Options:
   --global          Install to user-global paths (default: project .agents/skills/)
   --all             Install every skill in skills/
-  --skill NAME      Install one skill (repeatable)
+  --skill NAME      Install one skill and its dependencies (repeatable)
   --harness NAME    Target harness (repeatable): claude-code, codex, cursor,
                     github-copilot, gemini-cli, goose, opencode, scout, kiro,
                     databricks-genie-code, snowflake-cortex-code, agents
@@ -56,6 +56,7 @@ Examples:
 
 Note: for Microsoft Scout on Windows, use scripts/install.ps1 (junctions +
 m-settings.json), not this script.
+Barry includes discover-outcomes for ambiguous product requests.
 EOF
 }
 
@@ -101,6 +102,29 @@ if [ ${#SKILL_NAMES[@]} -eq 0 ]; then
   SKILL_NAMES=(barry)
 fi
 
+# Barry's intake invokes discover-outcomes. Include it for default and explicit
+# Barry installs, without duplicating an explicit selection or --all entry.
+has_barry=false
+has_discovery=false
+for skill in "${SKILL_NAMES[@]}"; do
+  case "$skill" in
+    barry) has_barry=true ;;
+    discover-outcomes) has_discovery=true ;;
+  esac
+done
+if [ "$has_barry" = true ] && [ "$has_discovery" = false ]; then
+  SKILL_NAMES+=(discover-outcomes)
+fi
+
+# Validate the full selection before copying so a missing dependency cannot
+# leave an incomplete Barry install or be reported as a successful install.
+for skill in "${SKILL_NAMES[@]}"; do
+  if [ ! -f "${SKILLS_SRC}/${skill}/SKILL.md" ]; then
+    echo "error: ${skill} (no SKILL.md at ${SKILLS_SRC}/${skill})" >&2
+    exit 1
+  fi
+done
+
 for harness in "${TARGETS[@]}"; do
   gpath="$(harness_path "$harness")"
   if [ -z "$gpath" ]; then
@@ -122,7 +146,7 @@ for harness in "${TARGETS[@]}"; do
   fi
 
   for skill in "${SKILL_NAMES[@]}"; do
-    copy_skill "${skill}" "${dest_root}" || true
+    copy_skill "${skill}" "${dest_root}"
   done
 done
 

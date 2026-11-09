@@ -21,6 +21,7 @@ One repo. Install into Cursor, Claude Code, Codex, GitHub Copilot, Gemini CLI, G
 |-------|-------------|
 | [**barry**](skills/barry/) | The King Bee — chief of staff who decomposes goals, delegates to a fleet of agents, and synthesizes executive summaries |
 | [**patricia**](skills/patricia/) | The Queen Bee — governance guardian who reviews plans and actions against the charter and gates consequential operations |
+| [**discover-outcomes**](skills/discover-outcomes/) | Clarifies customer needs, compares interventions, and hands an outcome brief to planning |
 
 ## Harnesses
 
@@ -110,11 +111,11 @@ Requires [Node.js](https://nodejs.org/). Installs straight from this hive's fold
 # All skills → Cursor (global)
 npx skills add https://github.com/werkrbee/ai-hive/tree/main/hives/skills-hive --global -a cursor -y
 
-# Barry only → multiple harnesses
+# Barry + outcome discovery → multiple harnesses
 npx skills add https://github.com/werkrbee/ai-hive/tree/main/hives/skills-hive --global \
   -a cursor -a claude-code -a codex -a github-copilot -a goose -a gemini-cli \
   -a opencode -a kiro \
-  --skill barry -y
+  --skill barry --skill discover-outcomes -y
 
 # List the skills without installing
 npx skills add https://github.com/werkrbee/ai-hive/tree/main/hives/skills-hive --list
@@ -131,14 +132,15 @@ git clone https://github.com/werkrbee/ai-hive.git
 cd ai-hive/hives/skills-hive
 chmod +x scripts/install.sh
 
-# Barry → global Cursor skills dir
+# Barry + its discovery dependency → global Cursor skills dir
 ./scripts/install.sh --global --harness cursor --skill barry
 
 # All skills → Cursor + Claude Code (global)
 ./scripts/install.sh --global --all --harness cursor --harness claude-code
 ```
 
-The script is written for macOS's default Bash 3.2 (no associative arrays).
+The script installs Barry by default and includes `discover-outcomes` whenever
+Barry is selected. It is written for macOS's default Bash 3.2 (no associative arrays).
 
 ### Option 3 — install script (Windows / Scout)
 
@@ -157,8 +159,13 @@ Mode. For Scout, the script also enables `loadCopilotCliSkills` in
 ### Option 4 — manual copy
 
 ```bash
+mkdir -p ~/.cursor/skills
 cp -R skills/barry ~/.cursor/skills/barry
+cp -R skills/discover-outcomes ~/.cursor/skills/discover-outcomes
 ```
+
+Barry uses `discover-outcomes` for ambiguous product requests. Keep both skill
+directories together when copying them or selecting skills with the skills CLI.
 
 ## Harness paths
 
@@ -222,7 +229,9 @@ supplies its own equivalents (see [`skills/barry/references/fleet.md`](skills/ba
 While editing this repo, symlink for live reload:
 
 ```bash
+mkdir -p ~/.cursor/skills
 ln -sf "$(pwd)/skills/barry" ~/.cursor/skills/barry
+ln -sf "$(pwd)/skills/discover-outcomes" ~/.cursor/skills/discover-outcomes
 ```
 
 Or re-run install after changes.

@@ -61,13 +61,76 @@ run() {
   if out=$("$@" 2>&1); then pass "$label"; else flunk "$label"; printf '%s\n' "$out" | sed 's/^/      /'; fi
 }
 
-run "skills-hive install.sh" \
-  bash hives/skills-hive/scripts/install.sh --global --all --harness claude-code --harness cursor
-if [ -n "$(find "$HOME/.claude/skills" -name SKILL.md 2>/dev/null)" ]; then
-  pass "skills-hive installed SKILL.md files"
+# Verify complete skill directories and the exact selection, not just any SKILL.md.
+check_skills() {
+  local label="$1" dest="$2"; shift 2
+  local skill expected actual
+  expected=$(printf '%s\n' "$@" | sort)
+  actual=$(find "$dest" -mindepth 1 -maxdepth 1 -type d -exec basename {} \; 2>/dev/null | sort)
+  if [ "$actual" = "$expected" ]; then pass "$label selection"; else flunk "$label selection"; fi
+  for skill in "$@"; do
+    if diff -r "hives/skills-hive/skills/$skill" "$dest/$skill" >/dev/null 2>&1; then
+      pass "$label $skill contents"
+    else
+      flunk "$label $skill contents"
+    fi
+  done
+}
+
+# A copied hive keeps the no-argument/project install out of the real checkout.
+cp -R hives/skills-hive "$sandbox/skills-hive"
+skill_installer="$sandbox/skills-hive/scripts/install.sh"
+run "skills-hive default project install" bash "$skill_installer"
+check_skills "skills-hive default project" "$sandbox/skills-hive/.cursor/skills" barry discover-outcomes
+
+run "skills-hive default global install" bash "$skill_installer" --global --harness cursor --harness claude-code
+for dest in "$HOME/.cursor/skills" "$HOME/.claude/skills"; do
+  check_skills "skills-hive default global $dest" "$dest" barry discover-outcomes
+done
+
+run "skills-hive explicit Barry install" bash "$skill_installer" --global --harness codex --skill barry
+check_skills "skills-hive explicit Barry" "$HOME/.codex/skills" barry discover-outcomes
+
+# Selecting the dependency explicitly, in either order, must not install it twice.
+for first in barry discover-outcomes; do
+  second=barry
+  [ "$first" = barry ] && second=discover-outcomes
+  dest_home="$sandbox/explicit-$first"
+  out=$(HOME="$dest_home" bash "$skill_installer" --global --harness cursor --skill "$first" --skill "$second" 2>&1); code=$?
+  if [ "$code" -eq 0 ] && [ "$(printf '%s\n' "$out" | grep -c '^installed: discover-outcomes ->')" -eq 1 ]; then
+    pass "skills-hive explicit dependency after $first installed once"
+  else
+    flunk "skills-hive explicit dependency after $first installed once"
+    printf '%s\n' "$out" | sed 's/^/      /'
+  fi
+  check_skills "skills-hive explicit dependency after $first" "$dest_home/.cursor/skills" barry discover-outcomes
+done
+
+for skill in patricia discover-outcomes; do
+  dest_home="$sandbox/only-$skill"
+  run "skills-hive $skill only" env HOME="$dest_home" bash "$skill_installer" --global --harness cursor --skill "$skill"
+  check_skills "skills-hive $skill only" "$dest_home/.cursor/skills" "$skill"
+done
+
+# A damaged source must fail before installing Barry without its dependency.
+cp -R hives/skills-hive "$sandbox/missing-dependency"
+rm "$sandbox/missing-dependency/skills/discover-outcomes/SKILL.md"
+dest_home="$sandbox/missing-home"
+out=$(HOME="$dest_home" bash "$sandbox/missing-dependency/scripts/install.sh" --global --harness cursor --skill barry 2>&1); code=$?
+if [ "$code" -ne 0 ] && [ ! -e "$dest_home/.cursor/skills/barry" ] \
+  && printf '%s\n' "$out" | grep -q '^error: discover-outcomes '; then
+  pass "skills-hive missing dependency fails before copying"
 else
-  flunk "skills-hive installed no SKILL.md files"
+  flunk "skills-hive missing dependency fails before copying"
+  printf '%s\n' "$out" | sed 's/^/      /'
 fi
+
+all_home="$sandbox/all-home"
+run "skills-hive install.sh" \
+  env HOME="$all_home" bash hives/skills-hive/scripts/install.sh --global --all --harness claude-code --harness cursor
+for dest in "$all_home/.claude/skills" "$all_home/.cursor/skills"; do
+  check_skills "skills-hive all $dest" "$dest" barry discover-outcomes patricia
+done
 
 run "rules-hive install.sh" bash hives/rules-hive/scripts/install.sh --dir "$proj"
 if [ -s "$proj/AGENTS.md" ]; then pass "rules-hive wrote AGENTS.md"; else flunk "rules-hive wrote no AGENTS.md"; fi

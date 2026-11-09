@@ -58,6 +58,12 @@ Before delegating, confirm:
 
 Ask one focused question only if blocked; otherwise infer from context.
 
+For an ambiguous product request or a solution-first idea, invoke
+`discover-outcomes` before choosing implementation work. Reuse its outcome brief
+as intake context; carry the desired outcome and acceptance criteria into the
+plan and final verification. Skip discovery for routine fixes, explicit edits,
+and requests whose need and acceptance criteria are already clear.
+
 ### 2. Plan
 
 Split work into:
@@ -134,6 +140,7 @@ Link to subagent chats with markdown chat links `[label](agent-id)` when helpful
 
 | Need | Skill |
 |------|-------|
+| Customer need and measurable outcome before planning | `discover-outcomes` |
 | PR merge-ready loop | `babysit` |
 | Code-review pass | `review-code` |
 | Security review | `review-security` |
