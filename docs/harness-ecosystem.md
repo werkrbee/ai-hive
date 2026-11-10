@@ -160,6 +160,10 @@ Haiku 5.5 at $0.10 input and $0.50 output (Anthropic's model table, dated 2026-1
 The tables give input and output for space; each row's cached-input rate is the model's,
 listed above, wherever tokens are billed at list price.
 
+Each harness's row, with the source and date behind every value, is kept in
+`harnesses.json` and rendered as [`harness-matrix.md`](harness-matrix.md); the tables
+below summarize it as of 2026-11-10, and the matrix is the one to trust when they differ.
+
 ### Pro-code
 
 | Harness | Native unit and retail price | Tokens billed at | Effective $/1M in · out |
