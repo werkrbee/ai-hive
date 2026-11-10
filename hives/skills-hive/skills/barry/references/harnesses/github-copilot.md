@@ -17,22 +17,9 @@ cloud agent.
 
 **Models:** only when asked; use the model options Copilot exposes.
 
----
-
-## Sub-harness: Scout (Microsoft)
-
-Scout runs **on top of the GitHub Copilot harness**, which is why it lives under
-this file rather than as a peer harness.
-
-- **Skills load from:** `%USERPROFILE%\.scout\skills\` (Windows).
-- **Gate:** skill loading requires `"loadCopilotCliSkills": true` in
-  `%USERPROFILE%\.scout\m-settings.json`.
-- **Install:** use `scripts/install.ps1` — it creates directory junctions into
-  `.scout\skills` and sets the gate flag.
-- **Behavior:** Barry delegates exactly as on GitHub Copilot; Scout is the
-  Windows delivery/runtime surface, not a different delegation model.
-
 Note the distinction from Microsoft's other AI surfaces: **Microsoft Foundry
 agents** and **Copilot Studio** can run these same `SKILL.md` files but load them
 from a project/deployment `skills/` folder (you publish, not junction), and
-**Microsoft 365 Copilot** uses declarative agents rather than file-based skills.
+**Microsoft 365 Copilot** has used declarative agents rather than file-based skills.
+It is on the watch list as the likely home of Autopilot, formerly Scout (see
+[`scout.md`](scout.md)).

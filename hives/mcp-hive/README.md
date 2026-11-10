@@ -118,9 +118,9 @@ mcp-hive/
 │   └── huggingface/mcp.json      # remote, via its Server Card
 ├── adapters/                     # WHERE they run — harness taxonomy & overrides
 │   ├── claude-code/  cursor/  codex/  gemini-cli/  goose/  opencode/
-│   ├── kiro/  databricks-genie-code/  snowflake-cortex-code/
+│   ├── devin-desktop/  kiro/  cline/
+│   ├── databricks-genie-code/  snowflake-cortex-code/   # data workspaces
 │   └── github-copilot/
-│       └── scout/                # sub-harness (child of GitHub Copilot)
 ├── scripts/
 │   ├── install.py                # merge servers into each harness's MCP config
 │   └── server_card.py            # fetch, validate and resolve Server Cards

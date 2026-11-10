@@ -326,9 +326,9 @@ agents-hive/
 ├── tests/                        # passport, card-link, trust eval, rollback and registration tests
 ├── adapters/                     # WHERE they run — harness taxonomy & overrides
 │   ├── claude-code/  cursor/  codex/  gemini-cli/  goose/  opencode/
-│   ├── kiro/  databricks-genie-code/  snowflake-cortex-code/
+│   ├── devin-desktop/  kiro/  cline/
+│   ├── databricks-genie-code/  snowflake-cortex-code/   # data workspaces
 │   └── github-copilot/
-│       └── scout/                # sub-harness (child of GitHub Copilot)
 ├── scripts/
 │   ├── install.py                # render personas into each harness's agent format
 │   ├── validate_contracts.py     # check contracts against the schema

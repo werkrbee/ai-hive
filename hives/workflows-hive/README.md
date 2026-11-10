@@ -37,9 +37,9 @@ workflows-hive/
 │   └── budgeted-word-count/workflow.json
 ├── adapters/                     # WHERE they run — harness taxonomy & overrides
 │   ├── claude-code/  cursor/  codex/  gemini-cli/  goose/  opencode/
-│   ├── kiro/  databricks-genie-code/  snowflake-cortex-code/
+│   ├── devin-desktop/  kiro/  cline/
+│   ├── databricks-genie-code/  snowflake-cortex-code/   # data workspaces
 │   └── github-copilot/
-│       └── scout/                # sub-harness (child of GitHub Copilot)
 ├── scripts/
 │   ├── run.py                    # reference engine: run, checkpoint, resume, approve, budget, cancel
 │   ├── review_queue.py           # the human review queue: list, show and answer

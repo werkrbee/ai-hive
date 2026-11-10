@@ -1,0 +1,160 @@
+{
+  "$comment": "The harness registry: the only place a harness, its category and tier, and its install paths are written down. Read through scripts/harnesses.py. Ranking and categories: docs/harness-ecosystem.md. Paths use ~ for the home directory and {name} for the ruleset or agent name.",
+  "version": 1,
+  "categories": {
+    "pro-code": "Coding agents that read a repository; the House installs its artifacts into them.",
+    "low-code": "Visual agent builders; the House reaches them over MCP and A2A.",
+    "data-workspace": "Agents inside one data platform; installable, outside both tens.",
+    "standard": "An open standard many harnesses read, used as an install target of its own."
+  },
+  "tiers": {
+    "top-ten": "One of the ten its category commits to, held to the conformance check.",
+    "watch": "One quarter's evidence from its category's ten."
+  },
+  "harnesses": [
+    {
+      "id": "claude-code", "name": "Claude Code", "vendor": "Anthropic",
+      "category": "pro-code", "tier": "top-ten", "rank": 1, "adapter": "claude-code",
+      "surfaces": {
+        "skills": {"global": "~/.claude/skills", "project": ".claude/skills"},
+        "rules": {"global": "~/.claude/CLAUDE.md", "project": "CLAUDE.md"},
+        "agents": {"project": ".claude/agents/{name}.md", "keys": ["name", "description", "tools", "model"]}
+      }
+    },
+    {
+      "id": "github-copilot", "name": "GitHub Copilot", "vendor": "GitHub",
+      "category": "pro-code", "tier": "top-ten", "rank": 2, "adapter": "github-copilot",
+      "surfaces": {
+        "skills": {"global": "~/.copilot/skills", "project": ".agents/skills"},
+        "rules": {"project": ".github/copilot-instructions.md"},
+        "agents": {"project": ".github/chatmodes/{name}.chatmode.md", "keys": ["description", "tools", "model"]}
+      }
+    },
+    {
+      "id": "codex", "name": "Codex", "vendor": "OpenAI",
+      "category": "pro-code", "tier": "top-ten", "rank": 3, "adapter": "codex",
+      "surfaces": {
+        "skills": {"global": "~/.codex/skills", "project": ".agents/skills"},
+        "rules": {"global": "~/.codex/AGENTS.md", "project": "AGENTS.md"},
+        "agents": {"fallback": "agents"}
+      }
+    },
+    {
+      "id": "cursor", "name": "Cursor", "vendor": "Anysphere",
+      "category": "pro-code", "tier": "top-ten", "rank": 4, "adapter": "cursor",
+      "surfaces": {
+        "skills": {"global": "~/.cursor/skills", "project": ".cursor/skills"},
+        "rules": {"project": ".cursor/rules/{name}.mdc"},
+        "agents": {"project": ".cursor/agents/{name}.md", "keys": ["name", "description", "tools", "model"]}
+      }
+    },
+    {
+      "id": "gemini-cli", "name": "Gemini CLI", "vendor": "Google",
+      "category": "pro-code", "tier": "top-ten", "rank": 5, "adapter": "gemini-cli",
+      "surfaces": {
+        "skills": {"global": "~/.gemini/skills", "project": ".agents/skills"},
+        "rules": {"project": "GEMINI.md"},
+        "agents": {"fallback": "agents"}
+      }
+    },
+    {
+      "id": "devin-desktop", "name": "Devin Desktop", "vendor": "Cognition",
+      "category": "pro-code", "tier": "top-ten", "rank": 6, "adapter": "devin-desktop",
+      "surfaces": {}
+    },
+    {
+      "id": "kiro", "name": "Kiro", "vendor": "AWS",
+      "category": "pro-code", "tier": "top-ten", "rank": 7, "adapter": "kiro",
+      "surfaces": {
+        "skills": {"global": "~/.kiro/skills", "project": ".agents/skills"},
+        "rules": {"project": "AGENTS.md"},
+        "agents": {"fallback": "agents"}
+      }
+    },
+    {
+      "id": "cline", "name": "Cline", "vendor": "Cline",
+      "category": "pro-code", "tier": "top-ten", "rank": 8, "adapter": "cline",
+      "surfaces": {}
+    },
+    {
+      "id": "opencode", "name": "OpenCode", "vendor": "OpenCode",
+      "category": "pro-code", "tier": "top-ten", "rank": 9, "adapter": "opencode",
+      "surfaces": {
+        "skills": {"global": "~/.config/opencode/skills", "project": ".agents/skills"},
+        "rules": {"project": "AGENTS.md"},
+        "agents": {"fallback": "agents"}
+      }
+    },
+    {
+      "id": "goose", "name": "Goose", "vendor": "Linux Foundation",
+      "category": "pro-code", "tier": "top-ten", "rank": 10, "adapter": "goose",
+      "surfaces": {
+        "skills": {"global": "~/.config/goose/skills", "project": ".goose/skills"},
+        "rules": {"project": ".goosehints"},
+        "agents": {"fallback": "agents"}
+      }
+    },
+    {"id": "junie", "name": "Junie", "vendor": "JetBrains", "category": "pro-code", "tier": "watch", "rank": null, "adapter": null, "surfaces": {}},
+    {"id": "amp", "name": "Amp", "vendor": "Sourcegraph", "category": "pro-code", "tier": "watch", "rank": null, "adapter": null, "surfaces": {}},
+    {"id": "droid", "name": "Droid", "vendor": "Factory", "category": "pro-code", "tier": "watch", "rank": null, "adapter": null, "surfaces": {}},
+    {"id": "zed", "name": "Zed", "vendor": "Zed Industries", "category": "pro-code", "tier": "watch", "rank": null, "adapter": null, "surfaces": {}},
+    {
+      "id": "scout", "name": "Scout", "vendor": "Microsoft",
+      "category": "pro-code", "tier": "watch", "rank": null, "adapter": null,
+      "note": "In private and public preview; to be renamed Autopilot at Microsoft Ignite (November 2026). Which harness it belongs to is unconfirmed, likely Microsoft 365 Copilot rather than GitHub Copilot. Its skills path stays installable meanwhile.",
+      "surfaces": {
+        "skills": {"global": "~/.scout/skills", "project": ".agents/skills"}
+      }
+    },
+    {
+      "id": "m365-copilot", "name": "Microsoft 365 Copilot", "vendor": "Microsoft",
+      "category": "pro-code", "tier": "watch", "rank": null, "adapter": null,
+      "note": "Likely to become one harness spanning Home (chat and cowork), Code and Autopilot (formerly Scout). Its category settles once its surfaces are known.",
+      "surfaces": {}
+    },
+
+    {"id": "copilot-studio", "name": "Copilot Studio", "vendor": "Microsoft", "category": "low-code", "tier": "top-ten", "rank": 1, "adapter": null, "surfaces": {}},
+    {"id": "agentforce", "name": "Agentforce", "vendor": "Salesforce", "category": "low-code", "tier": "top-ten", "rank": 2, "adapter": null, "surfaces": {}},
+    {"id": "gemini-enterprise", "name": "Gemini Enterprise", "vendor": "Google", "category": "low-code", "tier": "top-ten", "rank": 3, "adapter": null, "surfaces": {}},
+    {"id": "servicenow-ai-agents", "name": "ServiceNow AI Agents", "vendor": "ServiceNow", "category": "low-code", "tier": "top-ten", "rank": 4, "adapter": null, "surfaces": {}},
+    {"id": "amazon-quick-suite", "name": "Amazon Quick Suite", "vendor": "AWS", "category": "low-code", "tier": "top-ten", "rank": 5, "adapter": null, "surfaces": {}},
+    {"id": "uipath-agent-builder", "name": "UiPath Agent Builder", "vendor": "UiPath", "category": "low-code", "tier": "top-ten", "rank": 6, "adapter": null, "surfaces": {}},
+    {"id": "workato-agent-studio", "name": "Workato Agent Studio", "vendor": "Workato", "category": "low-code", "tier": "top-ten", "rank": 7, "adapter": null, "surfaces": {}},
+    {"id": "n8n", "name": "n8n", "vendor": "n8n", "category": "low-code", "tier": "top-ten", "rank": 8, "adapter": null, "surfaces": {}},
+    {"id": "zapier-agents", "name": "Zapier Agents", "vendor": "Zapier", "category": "low-code", "tier": "top-ten", "rank": 9, "adapter": null, "surfaces": {}},
+    {"id": "dify", "name": "Dify", "vendor": "LangGenius", "category": "low-code", "tier": "top-ten", "rank": 10, "adapter": null, "surfaces": {}},
+    {"id": "make", "name": "Make", "vendor": "Make", "category": "low-code", "tier": "watch", "rank": null, "adapter": null, "surfaces": {}},
+    {"id": "botpress", "name": "Botpress", "vendor": "Botpress", "category": "low-code", "tier": "watch", "rank": null, "adapter": null, "surfaces": {}},
+    {"id": "langflow", "name": "Langflow", "vendor": "Langflow", "category": "low-code", "tier": "watch", "rank": null, "adapter": null, "surfaces": {}},
+    {"id": "watsonx-orchestrate", "name": "watsonx Orchestrate", "vendor": "IBM", "category": "low-code", "tier": "watch", "rank": null, "adapter": null, "surfaces": {}},
+
+    {
+      "id": "databricks-genie-code", "name": "Databricks Genie Code", "vendor": "Databricks",
+      "category": "data-workspace", "tier": null, "rank": null, "adapter": "databricks-genie-code",
+      "surfaces": {
+        "skills": {"global": "~/.databricks/skills", "project": ".agents/skills"},
+        "rules": {"project": "AGENTS.md"},
+        "agents": {"fallback": "agents"}
+      }
+    },
+    {
+      "id": "snowflake-cortex-code", "name": "Snowflake Cortex Code", "vendor": "Snowflake",
+      "category": "data-workspace", "tier": null, "rank": null, "adapter": "snowflake-cortex-code",
+      "surfaces": {
+        "skills": {"global": "~/.snowflake/skills", "project": ".agents/skills"},
+        "rules": {"project": "AGENTS.md"},
+        "agents": {"fallback": "agents"}
+      }
+    },
+
+    {
+      "id": "agents", "name": "AGENTS.md and .agents/", "vendor": null,
+      "category": "standard", "tier": null, "rank": null, "adapter": null,
+      "surfaces": {
+        "skills": {"global": "~/.agents/skills", "project": ".agents/skills"},
+        "rules": {"global": "~/.codex/AGENTS.md", "project": "AGENTS.md"},
+        "agents": {"project": ".agents/agents/{name}.md", "keys": ["name", "description", "tools", "model"]}
+      }
+    }
+  ]
+}

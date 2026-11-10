@@ -6,7 +6,7 @@
 
 > **Harness-agnostic by design.** Skills here are portable `SKILL.md` files with
 > no lock-in to any one agent — the same skill runs across Claude Code, Codex,
-> Gemini CLI, GitHub Copilot (and Scout), Cursor, Goose, OpenCode, Kiro,
+> Gemini CLI, GitHub Copilot, Cursor, Goose, OpenCode, Kiro,
 > Databricks Genie Code, and Snowflake Cortex Code.
 
 *Part of the **[ai-hive](https://github.com/werkrbee/ai-hive)** family — werkrbee's House of Hives (skills · rules · tools · agents · and more).*
@@ -32,8 +32,9 @@ skills-hive installs into every major agent harness that reads the `SKILL.md`
 standard. Barry is the king; each cell is a harness he orchestrates:
 
 - **Frontier labs** — Claude Code (Anthropic), Codex (OpenAI), Gemini CLI (Google)
-- **Hyperscalers** — GitHub Copilot (Microsoft), with **Scout** as a Windows
-  sub-harness; Kiro (AWS)
+- **Hyperscalers** — GitHub Copilot (Microsoft), Kiro (AWS), and Microsoft's
+  Scout (Windows, in preview; to be renamed Autopilot), on the watch list until
+  its harness is confirmed
 - **Data & analytics** — Databricks Genie Code, Snowflake Cortex Code
 - **Open source & independent** — Cursor, Goose (Block), OpenCode
 
@@ -58,7 +59,8 @@ skills-hive/
 │               ├── kiro.md
 │               ├── databricks-genie-code.md
 │               ├── snowflake-cortex-code.md
-│               └── github-copilot.md   # includes the Scout sub-harness
+│               ├── github-copilot.md
+│               └── scout.md            # watch list: becoming Autopilot
 ├── adapters/                     # WHERE skills run — harness taxonomy & overrides
 │   ├── README.md
 │   ├── claude-code/
@@ -67,11 +69,12 @@ skills-hive/
 │   ├── gemini-cli/
 │   ├── goose/
 │   ├── opencode/                 # open-source peer harness
+│   ├── devin-desktop/            # Cognition (formerly Windsurf)
 │   ├── kiro/                     # AWS (spec-driven; replaced Amazon Q)
-│   ├── databricks-genie-code/    # data / analytics
-│   ├── snowflake-cortex-code/    # data / analytics
+│   ├── cline/                    # open-source VS Code agent
+│   ├── databricks-genie-code/    # data workspace
+│   ├── snowflake-cortex-code/    # data workspace
 │   └── github-copilot/
-│       └── scout/                # sub-harness (child of GitHub Copilot)
 ├── scripts/
 │   ├── install.sh                # macOS/Linux: copy skills into harness dirs
 │   └── install.ps1               # Windows/Scout: junctions + m-settings.json
@@ -91,9 +94,6 @@ The repo separates two axes so the "king orchestrator" idea scales cleanly:
   for any behavior override tied to a specific harness:
   `adapters/<harness>/`, with a **sub-harness** nested one level deeper as
   `adapters/<harness>/<sub-harness>/`.
-- **Microsoft example:** Scout runs on the GitHub Copilot harness, so it sits at
-  `adapters/github-copilot/scout/` — a child of its parent — and Barry's notes for
-  it are a section inside `references/harnesses/github-copilot.md`.
 
 Why not nest harness folders inside `skills/barry/`? Because installing Barry
 copies that whole folder into each harness's skills dir — nested harness

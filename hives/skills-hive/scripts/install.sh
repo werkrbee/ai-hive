@@ -16,24 +16,14 @@ TARGETS=()
 INSTALL_ALL_SKILLS=false
 SKILL_NAMES=()
 
-# Bash-3.2-safe harness lookup (replaces `declare -A`). Returns the global
-# skills path for a harness label, or empty string if unknown.
+HOUSE_ROOT="$(cd "${REPO_ROOT}/../.." && pwd)"
+REGISTRY_PY="${HOUSE_ROOT}/scripts/harnesses.py"
+
+# Harness paths come from the House's registry (harnesses.json), read through
+# scripts/harnesses.py. $1 is the scope (global or project), $2 the harness; prints
+# its skills path, or nothing if the harness has none.
 harness_path() {
-  case "$1" in
-    claude-code)    printf '%s' "${HOME}/.claude/skills" ;;
-    codex)          printf '%s' "${HOME}/.codex/skills" ;;
-    cursor)         printf '%s' "${HOME}/.cursor/skills" ;;
-    github-copilot) printf '%s' "${HOME}/.copilot/skills" ;;
-    gemini-cli)     printf '%s' "${HOME}/.gemini/skills" ;;
-    goose)          printf '%s' "${HOME}/.config/goose/skills" ;;
-    opencode)       printf '%s' "${HOME}/.config/opencode/skills" ;;
-    scout)          printf '%s' "${HOME}/.scout/skills" ;;
-    kiro)                  printf '%s' "${HOME}/.kiro/skills" ;;          # AWS — verify path
-    databricks-genie-code) printf '%s' "${HOME}/.databricks/skills" ;;    # workspace-based; verify
-    snowflake-cortex-code) printf '%s' "${HOME}/.snowflake/skills" ;;     # workspace-based; verify
-    agents)                printf '%s' "${HOME}/.agents/skills" ;;
-    *)              printf '' ;;
-  esac
+  python3 "$REGISTRY_PY" path skills "$1" "$2" 2>/dev/null || true
 }
 
 usage() {
@@ -44,9 +34,7 @@ Options:
   --global          Install to user-global paths (default: project .agents/skills/)
   --all             Install every skill in skills/
   --skill NAME      Install one skill (repeatable)
-  --harness NAME    Target harness (repeatable): claude-code, codex, cursor,
-                    github-copilot, gemini-cli, goose, opencode, scout, kiro,
-                    databricks-genie-code, snowflake-cortex-code, agents
+  --harness NAME    Target harness (repeatable); see the list below
   -h, --help        Show this help
 
 Examples:
@@ -56,7 +44,10 @@ Examples:
 
 Note: for Microsoft Scout on Windows, use scripts/install.ps1 (junctions +
 m-settings.json), not this script.
+
+Harnesses with a skills path (from harnesses.json):
 EOF
+  python3 "$REGISTRY_PY" list --surface skills | sed 's/^/  /'
 }
 
 copy_skill() {
@@ -101,24 +92,21 @@ if [ ${#SKILL_NAMES[@]} -eq 0 ]; then
   SKILL_NAMES=(barry)
 fi
 
+if ! command -v python3 >/dev/null; then
+  echo "python3 is needed to read the harness registry (${HOUSE_ROOT}/harnesses.json)" >&2
+  exit 1
+fi
+
 for harness in "${TARGETS[@]}"; do
-  gpath="$(harness_path "$harness")"
-  if [ -z "$gpath" ]; then
+  if [ "$GLOBAL" = true ]; then
+    dest_root="$(harness_path global "$harness")"
+  else
+    rel="$(harness_path project "$harness")"
+    dest_root="${rel:+${REPO_ROOT}/${rel}}"
+  fi
+  if [ -z "$dest_root" ]; then
     echo "unknown harness: ${harness}" >&2
     exit 1
-  fi
-
-  if [ "$GLOBAL" = true ]; then
-    dest_root="$gpath"
-  else
-    dest_root="${REPO_ROOT}/.agents/skills"
-    if [ "$harness" = "cursor" ]; then
-      dest_root="${REPO_ROOT}/.cursor/skills"
-    elif [ "$harness" = "claude-code" ]; then
-      dest_root="${REPO_ROOT}/.claude/skills"
-    elif [ "$harness" = "goose" ]; then
-      dest_root="${REPO_ROOT}/.goose/skills"
-    fi
   fi
 
   for skill in "${SKILL_NAMES[@]}"; do

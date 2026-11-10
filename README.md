@@ -203,8 +203,8 @@ reference implementation):
 - **Harness-agnostic by design** — artifacts are portable; nothing is locked to one agent.
 - **Two axes** — a `<thing>/` tree for *what* the artifact is (portable source of
   truth) and an `adapters/<harness>/` tree for *where* it runs (harness taxonomy
-  and overrides). Sub-harnesses nest one level deeper (e.g. Scout under GitHub
-  Copilot).
+  and overrides). Sub-harnesses nest one level deeper
+  (`adapters/<harness>/<sub-harness>/`).
 - **Product-name directories** in kebab-case (`claude-code`, `github-copilot`,
   `databricks-genie-code`).
 - **Cross-platform install** — a Bash-3.2-safe `install.sh` and a Windows

@@ -50,7 +50,7 @@ first thing the quarterly check should revisit.
 1. **Claude Code** (Anthropic). The most used agent in both surveys, and the harness the
    House's own lifecycle runs on.
 2. **GitHub Copilot** (GitHub). Second in both surveys, across VS Code, the CLI and the
-   cloud agent. Scout runs on it as a sub-harness.
+   cloud agent.
 3. **Codex** (OpenAI). Third in both surveys; reads `AGENTS.md` natively.
 4. **Cursor** (Anysphere). Fourth in both surveys, with the subagent types closest to
    Barry's roles.
@@ -98,7 +98,12 @@ marked "verify". They stay installable and aren't held to the conformance check 
 product asks for them.
 
 Each category has a watch list, each harness on it one quarter's evidence away from its
-ten. For pro-code: JetBrains Junie, Amp, Factory's Droid and Zed. For low-code: Make,
+ten. For pro-code: JetBrains Junie, Amp, Factory's Droid and Zed, and two from Microsoft
+whose shape is still moving. Scout, in private and public preview, is due to be renamed
+Autopilot at Microsoft Ignite in November 2026, and which harness it belongs to isn't
+confirmed. Microsoft 365 Copilot is the likely answer: one harness spanning Home (chat
+and cowork), Code and Autopilot. Both stay on the watch list until Microsoft says what
+Autopilot is part of, and Scout's install path stays usable meanwhile. For low-code: Make,
 Botpress, Langflow and IBM watsonx Orchestrate. A harness on a watch list is promoted
 when it passes one already in its ten on the evidence above, and the one it passes moves
 to the watch list; nothing is dropped without a note saying why.
