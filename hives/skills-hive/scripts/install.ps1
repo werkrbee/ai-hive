@@ -48,7 +48,7 @@ $Harnesses = [ordered]@{
   copilot = Join-Path $env:USERPROFILE ".copilot\skills"
   claude  = Join-Path $env:USERPROFILE ".claude\skills"
   cursor  = Join-Path $env:USERPROFILE ".cursor\skills"
-  codex   = Join-Path $env:USERPROFILE ".codex\skills"
+  codex   = Join-Path $env:USERPROFILE ".agents\skills"
   gemini  = Join-Path $env:USERPROFILE ".gemini\skills"
   kiro    = Join-Path $env:USERPROFILE ".kiro\skills"
 }

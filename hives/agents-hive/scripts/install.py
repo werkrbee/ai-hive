@@ -68,10 +68,12 @@ def render(fm, body, keys, name):
 
 
 def toml_string(text):
-    """A TOML string: a multi-line literal string when it can be one, else a basic string."""
-    if "'''" not in text and "\r" not in text:
+    """A TOML string: a multi-line literal string when it can be one, else a basic string
+    with every control character escaped (TOML allows only tab and newline unescaped)."""
+    controls = [c for c in text if (ord(c) < 32 and c not in "\t\n") or ord(c) == 127]
+    if "'''" not in text and not controls:
         return "'''\n" + text + "'''"
-    return json.dumps(text, ensure_ascii=False)
+    return json.dumps(text, ensure_ascii=False).replace("\x7f", "\\u007f")
 
 
 def render_toml(fm, body, keys, name):

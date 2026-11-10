@@ -34,6 +34,11 @@ class CodexTomlTest(unittest.TestCase):
         line = install.render_toml({}, body, ["name"], "x").splitlines()[1]
         self.assertEqual(line, "developer_instructions = " + json.dumps(body))
 
+    def test_a_prompt_holding_control_characters_is_escaped(self):
+        body = "bell\x07 delete\x7f return\r\n"
+        value = install.toml_string(body)
+        self.assertEqual(value, '"bell\\u0007 delete\\u007f return\\r\\n"')
+
     def test_an_agent_whose_tools_codex_cannot_enforce_is_warned_about(self):
         warning = install.unenforced({"tools": "Read, Grep, Glob"}, "toml")
         self.assertIn("--sandbox read-only", warning)

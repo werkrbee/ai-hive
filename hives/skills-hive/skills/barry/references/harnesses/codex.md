@@ -35,9 +35,10 @@ tools list: a subagent inherits its parent's sandbox and approvals, and setting
 `sandbox_mode` in the file doesn't change that. So the installer can't carry an agent's
 `tools` list into Codex, and it warns for each agent that has one: a read-only agent
 such as `explore` or Patricia's `charter-review` is read-only in Codex only when the
-session runs with `--sandbox read-only`, as `codex exec` does by default. Its
-instructions alone don't enforce it, and the Charter doesn't let a delegate be wider than
-its caller.
+session runs with `--sandbox read-only`. Pass the flag explicitly, since a `sandbox_mode`
+in `config.toml` can change `codex exec`'s default. Its instructions alone don't enforce
+it: the Charter runs a delegate under the stricter of its own grant and its caller's, and
+Codex can't apply the agent's half.
 A custom agent named like a built-in one takes its place.
 
 **Delegation.** Map Barry's logical roles to Codex's agents:
