@@ -83,9 +83,11 @@ the answer, `--output-format json` for JSON lines, `--no-ask-user` so it never w
 question, and `--usage-output-file <file>` for the session's AI Credits and tokens.
 Barry's and Patricia's recorded runs were headless (`docs/harness-matrix.md`).
 
-**Models.** Only pass a model when the user asks. `--model auto` lets Copilot pick, and
-paid plans get 10% off model costs with it. Which models a person can choose depends on
-their plan; the Free plan has auto selection only.
+**Models.** Only pass a model when the user asks. `--model auto` lets Copilot pick. On paid
+plans, auto selection in Copilot Chat and the cloud agent gets 10% off model costs
+([billing](https://docs.github.com/en/copilot/concepts/billing/usage-based-billing-for-individuals));
+the CLI runs recorded in the matrix were charged the full per-token rates. Which models a
+person can choose depends on their plan; the Free plan has auto selection only.
 
 **Cost.** Since 2026-06-01 Copilot bills AI Credits, $0.01 each, spent per token (input,
 cached input, cache write and output) at the model's rate. Pro, Pro+ and Max include
