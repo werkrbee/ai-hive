@@ -50,6 +50,13 @@ read and its date to today, and run `python3 scripts/harnesses.py matrix` to red
 `docs/harness-matrix.md`. A field you can't confirm goes back to unknown; it isn't
 re-dated without being re-read.
 
+A row becomes verified in its harness's alignment issue. Every field is checked against
+the vendor's docs, none is left unknown, and for a pro-code harness Barry and Patricia
+are each run once in the real harness. Record each run under the row's `runs`: the agent,
+date, harness version, model, the command, the input, cache-write, cached and output
+tokens, the cost as the harness reports it, and the result. Claude Code's row is the
+example. `check` refuses a verified row that falls short of any of these.
+
 ## Using a coding agent
 
 `AGENTS.md` carries the repo's context for any coding agent that reads the open standard.

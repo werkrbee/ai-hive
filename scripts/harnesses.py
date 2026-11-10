@@ -5,8 +5,8 @@ The registry is the only place a harness, its category and tier, its install pat
 its capability and price row are written down (docs/harness-ecosystem.md). Python
 installers import this module; shell installers call it. `matrix` writes the readable
 table, docs/harness-matrix.md. `check` is what CI runs: the registry is well formed, every
-claim in a row names its source and the date it was checked, no row in either ten was
-checked more than 90 days ago, the table is current, each hive's adapters/ matches the
+claim in a row names its source and the date it was checked, a verified row has no
+unknowns and records its runs, no row in either ten was checked more than 90 days ago, the table is current, each hive's adapters/ matches the
 registry, and each README that draws an adapters/ tree names every adapter. `conformance`
 is what check-installers.sh runs: it installs the House for every harness with install
 paths into a sandbox and looks for each file where the registry says it lands.
@@ -57,6 +57,11 @@ DATE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 STALE_AFTER_DAYS = 90
 # What conformance installs, one of each, and what a file it writes is named.
 SKILL, RULESET, AGENT = "barry", "queen-charter", "explore"
+# Who a pro-code harness's recorded run is of: alignment runs each once in the real harness.
+RUN_AGENTS = ("barry", "patricia")
+# What a recorded run writes down, and the tokens it counts.
+RUN_FIELDS = ("agent", "date", "version", "model", "how", "tokens", "cost", "result")
+RUN_TOKENS = ("input", "cache_write", "cached", "output")
 
 
 def load(path=REGISTRY):
@@ -198,6 +203,19 @@ def render_matrix(registry=None):
                 cell = "<br>".join(f"{n}: {i} · {ca} · {o}{note}" for n, i, ca, o in eff)
             out.append(f"| {h['name']} | {c['unit']} | {cell} | {c['checked']} |")
         out.append("")
+        ran = [(h, r) for h in rows for r in h.get("runs", [])]
+        if ran:
+            out += ["### Recorded runs", "",
+                    "Barry and Patricia run once in the real harness when it's aligned. The run doubles "
+                    "as the reference task cost is compared on; its cost is the harness's own figure.", "",
+                    "| Harness | Agent | Date | Version | Model | Tokens: input · cache write · cached · output | Cost | How | Result |",
+                    "|---|---|---|---|---|---|---|---|---|"]
+            for h, r in ran:
+                t = " · ".join(f"{r['tokens'][k]:,}" for k in RUN_TOKENS)
+                model = reg["models"].get(r["model"], {}).get("name", r["model"])
+                out.append(f"| {h['name']} | {r['agent'].capitalize()} | {r['date']} | {r['version']} | "
+                           f"{model} | {t} | {r['cost']} | `{r['how']}` | {r['result']} |")
+            out.append("")
     out += ["## Model list prices", "",
             "The rates the effective prices start from, in dollars per million tokens.", "",
             "| Model | Input | Cached input | Output | Source | Checked |", "|---|---|---|---|---|---|"]
@@ -331,8 +349,25 @@ def check(registry=None, today=None):
                 problems.append(f"{where}: a cost note goes with the own-key basis")
             if t.get("basis") == "list" and not t.get("models"):
                 problems.append(f"{where}: a list-price basis names the models it's quoted for")
+        for i, r in enumerate(h.get("runs", [])):
+            missing = [k for k in RUN_FIELDS if k not in r]
+            if missing:
+                problems.append(f"{where}: run {i + 1} lacks {', '.join(missing)}")
+                continue
+            if not DATE.match(str(r["date"])):
+                problems.append(f"{where}: run {i + 1} has no date (YYYY-MM-DD)")
+            if not all(isinstance(r["tokens"].get(k), int) for k in RUN_TOKENS):
+                problems.append(f"{where}: run {i + 1} counts tokens as {', '.join(RUN_TOKENS)}")
         if not isinstance(h.get("verified"), bool):
             problems.append(f"{where}: its row says whether it's verified (true or false)")
+        elif h["verified"]:
+            unknown = sorted(k for k, c in caps.items() if c.get("supported") == "unknown")
+            if unknown:
+                problems.append(f"{where}: a verified row has no unknowns, found {', '.join(unknown)}")
+            ran = {r.get("agent") for r in h.get("runs", [])}
+            if h["category"] == "pro-code" and not set(RUN_AGENTS) <= ran:
+                problems.append(f"{where}: a verified pro-code row records a run of "
+                                f"{' and '.join(RUN_AGENTS)}")
 
     for name, oldest, days in stale(reg, today):
         problems.append(f"{name}: its row was last checked {oldest}, {days} days ago (over "

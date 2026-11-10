@@ -10,7 +10,7 @@ What works in each harness the House commits to, and what it costs, with the sou
 
 | Harness | Rules | Skills | Subagents | MCP servers | Hooks | Memory | Permissions | Headless | Row |
 |---|---|---|---|---|---|---|---|---|---|
-| Claude Code | yes<br>`CLAUDE.md`<br>`~/.claude/CLAUDE.md` | yes<br>`.claude/skills`<br>`~/.claude/skills` | yes<br>`.claude/agents/{name}.md` | yes<br>`.mcp.json` | unknown | unknown | unknown | unknown | unverified |
+| Claude Code | yes<br>`CLAUDE.md`<br>`~/.claude/CLAUDE.md` | yes<br>`.claude/skills`<br>`~/.claude/skills` | yes<br>`.claude/agents/{name}.md` | yes<br>`.mcp.json` | yes<br>`.claude/settings.json` | yes<br>`~/.claude/projects/<project>/memory/` | yes<br>`.claude/settings.json` | yes<br>`claude -p` | verified |
 | GitHub Copilot | yes<br>`.github/copilot-instructions.md` | yes<br>`.agents/skills`<br>`~/.copilot/skills` | unknown | yes<br>`.vscode/mcp.json` | unknown | unknown | unknown | unknown | unverified |
 | Codex | yes<br>`AGENTS.md`<br>`~/.codex/AGENTS.md` | yes<br>`.agents/skills`<br>`~/.codex/skills` | unknown | yes | unknown | unknown | unknown | unknown | unverified |
 | Cursor | yes<br>`.cursor/rules/{name}.mdc` | yes<br>`.cursor/skills`<br>`~/.cursor/skills` | yes<br>`.cursor/agents/{name}.md` | yes<br>`.cursor/mcp.json` | unknown | unknown | unknown | unknown | unverified |
@@ -25,8 +25,8 @@ What works in each harness the House commits to, and what it costs, with the sou
 
 | Harness | Billing unit and retail price | Effective $ per 1M tokens: input · cached input · output | Checked |
 |---|---|---|---|
-| Claude Code | Plan seat (Pro $20, Max $100 or $200 a month), or API tokens | Claude Sonnet 5.5: $2 · $0.20 · $10<br>Claude Opus 5.5: $4 · $0.20 · $20 | 2026-11-10 |
-| GitHub Copilot | AI Credit, $0.01, spent per token at the model's rate; plans $10, $39 and $100 a month include $15, $70 and $200 of credits | Claude Sonnet 5.5: $2 · $0.20 · $10 | 2026-11-10 |
+| Claude Code | Plan (Pro $20, Max $100, Ultra $200 a month; Team $25 or $125 a seat), or API tokens | Claude Sonnet 5.5: $2 · $0.10 · $10<br>Claude Opus 5.5: $4 · $0.20 · $20 | 2026-11-10 |
+| GitHub Copilot | AI Credit, $0.01, spent per token at the model's rate; plans $10, $39 and $100 a month include $15, $70 and $200 of credits | Claude Sonnet 5.5: $2 · $0.10 · $10 | 2026-11-10 |
 | Codex | ChatGPT plan ($20 or $200 a month), or API tokens since 2026-04-02 | GPT-5.5: $5 · $0.50 · $30 | 2026-11-10 |
 | Cursor | Plan allowance (Pro $20, Pro+ $60, Ultra $200, Teams $40 a user), then usage | Claude Sonnet 5.5: $2.25 · unknown · $10.25 (Teams and Enterprise, list + $0.25) | 2026-11-10 |
 | Gemini CLI | Free tier, Google AI Pro or Ultra plan, or API tokens | Gemini 3.1 Pro (prompts up to 200,000 tokens): $2 · $0.20 · $12 | 2026-11-10 |
@@ -35,6 +35,15 @@ What works in each harness the House commits to, and what it costs, with the sou
 | Cline | Free; your own key, or Cline's provider | The model's list price, on your own key; or Cline's provider, whose rate isn't recorded | 2026-11-10 |
 | OpenCode | Free; your own key | The model's list price, on your own key | 2026-11-10 |
 | Goose | Free; your own key | The model's list price, on your own key | 2026-11-10 |
+
+### Recorded runs
+
+Barry and Patricia run once in the real harness when it's aligned. The run doubles as the reference task cost is compared on; its cost is the harness's own figure.
+
+| Harness | Agent | Date | Version | Model | Tokens: input · cache write · cached · output | Cost | How | Result |
+|---|---|---|---|---|---|---|---|---|
+| Claude Code | Barry | 2026-11-10 | 2.1.322 | Claude Opus 5.5 | 8 · 27,089 · 106,063 · 2,553 | $0.29 at list price (Claude Code's own estimate) | `claude -p "/barry Plan issue #234 …" --permission-mode dontAsk` | planned #234 in eight steps, each with an agent role; edited nothing |
+| Claude Code | Patricia | 2026-11-10 | 2.1.322 | Claude Opus 5.5 | 12 · 17,819 · 68,779 · 2,235 | $0.20 at list price (Claude Code's own estimate) | `claude -p --agent patricia "Review the uncommitted diff …" --permission-mode dontAsk` | CONCERNS on the work in progress: the matrix wasn't redrawn; fixed before this commit |
 
 ## Low-code
 
@@ -74,16 +83,16 @@ The rates the effective prices start from, in dollars per million tokens.
 
 | Model | Input | Cached input | Output | Source | Checked |
 |---|---|---|---|---|---|
-| Claude Sonnet 5.5 | $2 | $0.20 | $10 | [platform.claude.com](https://platform.claude.com/docs/en/about-claude/pricing) | 2026-11-10 |
+| Claude Sonnet 5.5 | $2 | $0.10 | $10 | [platform.claude.com](https://platform.claude.com/docs/en/about-claude/pricing) | 2026-11-10 |
 | Claude Opus 5.5 | $4 | $0.20 | $20 | [platform.claude.com](https://platform.claude.com/docs/en/about-claude/pricing) | 2026-11-10 |
 | Claude Fable 5.1 | $10 | $0.25 | $50 | [platform.claude.com](https://platform.claude.com/docs/en/about-claude/pricing) | 2026-11-10 |
-| Claude Haiku 5.5 | $0.10 | unknown | $0.50 | [platform.claude.com](https://platform.claude.com/docs/en/about-claude/pricing) | 2026-11-10 |
+| Claude Haiku 5.5 (prompts up to 100,000 tokens) | $0.10 | $0.01 | $0.50 | [platform.claude.com](https://platform.claude.com/docs/en/about-claude/pricing) | 2026-11-10 |
 | GPT-5.5 | $5 | $0.50 | $30 | [developers.openai.com](https://developers.openai.com/api/docs/pricing) | 2026-11-10 |
 | Gemini 3.1 Pro (prompts up to 200,000 tokens) | $2 | $0.20 | $12 | [ai.google.dev](https://ai.google.dev/gemini-api/docs/pricing) | 2026-11-10 |
 
 ## Sources
 
-- **Claude Code.** Rules: [`hives/rules-hive/scripts/install.sh`](../hives/rules-hive/scripts/install.sh) (the House's installer, not the vendor's docs), 2026-11-10; Skills: [`hives/skills-hive/scripts/install.sh`](../hives/skills-hive/scripts/install.sh) (the House's installer, not the vendor's docs), 2026-11-10; Subagents: [`hives/agents-hive/scripts/install.py`](../hives/agents-hive/scripts/install.py) (the House's installer, not the vendor's docs), 2026-11-10; MCP servers: [`hives/mcp-hive/scripts/install.py`](../hives/mcp-hive/scripts/install.py) (the House's installer, not the vendor's docs), 2026-11-10; cost: [www.cloudzero.com](https://www.cloudzero.com/blog/ai-coding-tools-cost/), [dev.to](https://dev.to/tokely/claude-code-codex-copilot-and-cursor-plans-vs-api-break-even-and-the-cost-of-long-sessions-2026-53d6), [platform.claude.com](https://platform.claude.com/docs/en/about-claude/pricing), 2026-11-10.
+- **Claude Code.** Rules, Memory: [code.claude.com](https://code.claude.com/docs/en/memory), 2026-11-10; Skills: [code.claude.com](https://code.claude.com/docs/en/skills), 2026-11-10; Subagents: [code.claude.com](https://code.claude.com/docs/en/sub-agents), 2026-11-10; MCP servers: [code.claude.com](https://code.claude.com/docs/en/mcp), 2026-11-10; Hooks: [code.claude.com](https://code.claude.com/docs/en/hooks), 2026-11-10; Permissions: [code.claude.com](https://code.claude.com/docs/en/permissions), 2026-11-10; Headless: [code.claude.com](https://code.claude.com/docs/en/headless), 2026-11-10; cost: [claude.com](https://claude.com/pricing), [platform.claude.com](https://platform.claude.com/docs/en/about-claude/pricing), 2026-11-10.
 - **GitHub Copilot.** Rules: [`hives/rules-hive/scripts/install.sh`](../hives/rules-hive/scripts/install.sh) (the House's installer, not the vendor's docs), 2026-11-10; Skills: [`hives/skills-hive/scripts/install.sh`](../hives/skills-hive/scripts/install.sh) (the House's installer, not the vendor's docs), 2026-11-10; MCP servers: [`hives/mcp-hive/scripts/install.py`](../hives/mcp-hive/scripts/install.py) (the House's installer, not the vendor's docs), 2026-11-10; cost: [www.cloudzero.com](https://www.cloudzero.com/blog/ai-coding-tools-cost/), [dev.to](https://dev.to/tokely/claude-code-codex-copilot-and-cursor-plans-vs-api-break-even-and-the-cost-of-long-sessions-2026-53d6), 2026-11-10.
 - **Codex.** Rules: [`hives/rules-hive/scripts/install.sh`](../hives/rules-hive/scripts/install.sh) (the House's installer, not the vendor's docs), 2026-11-10; Skills: [`hives/skills-hive/scripts/install.sh`](../hives/skills-hive/scripts/install.sh) (the House's installer, not the vendor's docs), 2026-11-10; MCP servers: [`hives/mcp-hive/scripts/install.py`](../hives/mcp-hive/scripts/install.py) (the House's installer, not the vendor's docs), 2026-11-10; cost: [www.cloudzero.com](https://www.cloudzero.com/blog/ai-coding-tools-cost/), [apidog.com](https://apidog.com/blog/gpt-5-5-pricing/), 2026-11-10.
 - **Cursor.** Rules: [`hives/rules-hive/scripts/install.sh`](../hives/rules-hive/scripts/install.sh) (the House's installer, not the vendor's docs), 2026-11-10; Skills: [`hives/skills-hive/scripts/install.sh`](../hives/skills-hive/scripts/install.sh) (the House's installer, not the vendor's docs), 2026-11-10; Subagents: [`hives/agents-hive/scripts/install.py`](../hives/agents-hive/scripts/install.py) (the House's installer, not the vendor's docs), 2026-11-10; MCP servers: [`hives/mcp-hive/scripts/install.py`](../hives/mcp-hive/scripts/install.py) (the House's installer, not the vendor's docs), 2026-11-10; cost: [www.cloudzero.com](https://www.cloudzero.com/blog/ai-coding-tools-cost/), 2026-11-10.

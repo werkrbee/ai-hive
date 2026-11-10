@@ -152,9 +152,10 @@ task, and the native units it consumed, at retail, are its cost. The measure tha
 anything is still cost per accepted outcome (#142); the two units here are inputs to it.
 
 The reference models below are what the House deploys or a harness defaults to. List
-prices per million tokens, input · cached input · output: Claude Sonnet 5.5 $2 · $0.20 ·
-$10, Claude Opus 5.5 $4 · $0.20 · $20 and Claude Fable 5.1 $10 · $0.25 · $50, with Claude
-Haiku 5.5 at $0.10 input and $0.50 output (Anthropic's model table, dated 2026-10-06 and current on 2026-11-10; no cached-input price is listed for Haiku 5.5); GPT-5.5 $5 · $0.50 · $30
+prices per million tokens, input · cached input · output: Claude Sonnet 5.5 $2 · $0.10 ·
+$10, Claude Opus 5.5 $4 · $0.20 · $20, Claude Fable 5.1 $10 · $0.25 · $50 and Claude
+Haiku 5.5 $0.10 · $0.01 · $0.50 for prompts up to 100,000 tokens (Anthropic's model table,
+checked 2026-11-10); GPT-5.5 $5 · $0.50 · $30
 (OpenAI); Gemini 3.1 Pro $2 · $0.20 · $12 for prompts up to 200,000 tokens (Google).
 
 The tables give input and output for space; each row's cached-input rate is the model's,
@@ -168,7 +169,7 @@ below summarize it as of 2026-11-10, and the matrix is the one to trust when the
 
 | Harness | Native unit and retail price | Tokens billed at | Effective $/1M in · out |
 |---|---|---|---|
-| Claude Code | Plan seat (Pro $20, Max $100 or $200 a month), or API tokens | List | Sonnet 5.5: $2 · $10; Opus 5.5: $4 · $20 |
+| Claude Code | Plan (Pro $20, Max $100, Ultra $200 a month; Team $25 or $125 a seat), or API tokens | List | Sonnet 5.5: $2 · $10; Opus 5.5: $4 · $20 |
 | GitHub Copilot | AI Credit, $0.01, spent per token at the model's rate; plans $10, $39 and $100 a month include $15, $70 and $200 of credits | List | Sonnet 5.5: $2 · $10 |
 | Codex | ChatGPT plan ($20 or $200 a month), or API tokens since 2026-04-02 | List | GPT-5.5: $5 · $30 |
 | Cursor | Plan allowance (Pro $20, Pro+ $60, Ultra $200, Teams $40 a user), then usage; Teams and Enterprise add a $0.25 per 1M token rate | List + $0.25 (Teams) | Sonnet 5.5: $2.25 · $10.25 (Teams) |
