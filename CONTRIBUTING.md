@@ -27,6 +27,29 @@ The release PR stamps the new version into it. Before merging a release PR, chec
 diagram's words still hold for what the changelog says is shipping; if they don't, fix the
 script in its own PR first.
 
+## Harness rows
+
+`harnesses.json` is the harness registry: every harness, its install paths and, for each
+one in the pro-code and low-code tens, a row saying what works in it and what it costs
+(`docs/harness-ecosystem.md`). CI holds the registry to two checks, and both name what to
+fix.
+
+The conformance check, in `scripts/check-installers.sh`, installs the House for each
+harness into a sandbox and fails when a pro-code harness in the ten has a file missing
+from where its row says it lands. Either the installer or the row is wrong. If the
+harness has moved a path, confirm the new one in the vendor's docs, change the path in
+`harnesses.json`, and update the capability's source and date. If the installer is wrong,
+fix it; installers read their paths from the registry, so they shouldn't need a path of
+their own. A harness outside the tens is only reported.
+
+A row in either ten goes stale 90 days after the oldest date it rests on, counting its
+capabilities, its cost and the list prices of the models its cost is quoted for, and
+`python3 scripts/harnesses.py check` then fails. Re-verify each stale field against the
+vendor's own docs or price page. Change what has changed, set its source to the page you
+read and its date to today, and run `python3 scripts/harnesses.py matrix` to redraw
+`docs/harness-matrix.md`. A field you can't confirm goes back to unknown; it isn't
+re-dated without being re-read.
+
 ## Using a coding agent
 
 `AGENTS.md` carries the repo's context for any coding agent that reads the open standard.
