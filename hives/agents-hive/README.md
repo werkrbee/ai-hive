@@ -6,7 +6,7 @@
 
 > **Harness-agnostic by design.** Agent/subagent personas written once in a
 > neutral form and rendered into each harness's native agent format — Claude Code
-> subagents, GitHub Copilot chatmodes, the `.agents/` ecosystem, and more.
+> subagents, GitHub Copilot custom agents, the `.agents/` ecosystem, and more.
 
 *Part of the **[ai-hive](https://github.com/werkrbee/ai-hive)** family — werkrbee's House of Hives (skills · rules · tools · agents · and more).*
 
@@ -366,7 +366,7 @@ python3 scripts/install.py --dry-run
 | Harness | Agent file |
 |---------|-----------|
 | Claude Code | `.claude/agents/<name>.md` |
-| GitHub Copilot | `.github/chatmodes/<name>.chatmode.md` |
+| GitHub Copilot | `.github/agents/<name>.agent.md` (custom agents, which replaced chat modes) |
 | Cursor | `.cursor/agents/<name>.md` † |
 | AGENTS.md ecosystem | `.agents/agents/<name>.md` |
 

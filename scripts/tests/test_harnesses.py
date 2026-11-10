@@ -88,6 +88,10 @@ class CheckTest(unittest.TestCase):
         self.assertRefused(lambda r: self.harness(r, "claude-code")["runs"][1].pop("version"),
                            "run 2 lacks version")
 
+    def test_a_run_names_a_known_model(self):
+        self.assertRefused(lambda r: self.harness(r, "github-copilot")["runs"][0].update(model="gpt-9"),
+                           "run 1 names model 'gpt-9', which isn't in models")
+
     def test_an_unverified_row_needs_no_run(self):
         def unverify(r):
             h = self.harness(r, "claude-code")

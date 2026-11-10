@@ -2,7 +2,7 @@
 """Render agents-hive personas into each harness's native agent format.
 
 Agent formats are fragmented across harnesses (Claude Code subagents, Copilot
-chatmodes, the AGENTS.md ecosystem, …), so each canonical agent is stored once in
+custom agents, the AGENTS.md ecosystem, …), so each canonical agent is stored once in
 a neutral form (frontmatter + system prompt) and rendered per harness. Each agent
 is its own file, so writes are non-destructive by construction.
 

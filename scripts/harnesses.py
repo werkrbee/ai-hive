@@ -4,12 +4,13 @@
 The registry is the only place a harness, its category and tier, its install paths, and
 its capability and price row are written down (docs/harness-ecosystem.md). Python
 installers import this module; shell installers call it. `matrix` writes the readable
-table, docs/harness-matrix.md. `check` is what CI runs: the registry is well formed, every
-claim in a row names its source and the date it was checked, a verified row has no
-unknowns and records its runs, no row in either ten was checked more than 90 days ago, the table is current, each hive's adapters/ matches the
-registry, and each README that draws an adapters/ tree names every adapter. `conformance`
-is what check-installers.sh runs: it installs the House for every harness with install
-paths into a sandbox and looks for each file where the registry says it lands.
+table, docs/harness-matrix.md. `check` is what CI runs: the registry is well formed,
+every claim in a row names its source and the date it was checked, a verified row has no
+unknowns and records its runs, no row in either ten was checked more than 90 days ago,
+the table is current, each hive's adapters/ matches the registry, and each README that
+draws an adapters/ tree names every adapter. `conformance` is what check-installers.sh
+runs: it installs the House for every harness with install paths into a sandbox and
+looks for each file where the registry says it lands.
 
 Standard library only.
 
@@ -207,7 +208,7 @@ def render_matrix(registry=None):
         if ran:
             out += ["### Recorded runs", "",
                     "Barry and Patricia run once in the real harness when it's aligned. The run doubles "
-                    "as the reference task cost is compared on; its cost is the harness's own figure.", "",
+                    "as the reference task that cost is compared on; its cost is the harness's own figure.", "",
                     "| Harness | Agent | Date | Version | Model | Tokens: input · cache write · cached · output | Cost | How | Result |",
                     "|---|---|---|---|---|---|---|---|---|"]
             for h, r in ran:
@@ -356,6 +357,8 @@ def check(registry=None, today=None):
                 continue
             if not DATE.match(str(r["date"])):
                 problems.append(f"{where}: run {i + 1} has no date (YYYY-MM-DD)")
+            if r["model"] not in reg.get("models", {}):
+                problems.append(f"{where}: run {i + 1} names model {r['model']!r}, which isn't in models")
             if not all(isinstance(r["tokens"].get(k), int) for k in RUN_TOKENS):
                 problems.append(f"{where}: run {i + 1} counts tokens as {', '.join(RUN_TOKENS)}")
         if not isinstance(h.get("verified"), bool):

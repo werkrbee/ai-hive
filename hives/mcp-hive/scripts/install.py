@@ -15,6 +15,7 @@ Usage:
   python3 scripts/install.py --dir /path/to/project
   python3 scripts/install.py --harness cursor --server filesystem --server git
   python3 scripts/install.py --global --harness claude-code
+  python3 scripts/install.py --global --harness github-copilot   # Copilot CLI and VS Code's Copilot Global
   python3 scripts/install.py --server huggingface --dry-run
 """
 import argparse
@@ -29,16 +30,21 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 SERVERS_DIR = REPO_ROOT / "servers"
 TARGET_SPEC = "2026-07-28"
 
-# harness -> where its JSON MCP config lives and which key holds the servers
+# harness -> where its JSON MCP config lives at each scope and which key holds the servers.
+# GitHub Copilot's project file is VS Code's; its user file is the Copilot CLI's, which VS Code
+# also reads as Copilot Global.
 JSON_TARGETS = {
-    "claude-code":    {"project": ".mcp.json",         "global": "~/.claude.json",     "key": "mcpServers"},
-    "cursor":         {"project": ".cursor/mcp.json",  "global": "~/.cursor/mcp.json", "key": "mcpServers"},
-    "github-copilot": {"project": ".vscode/mcp.json",  "global": None,                 "key": "servers"},
+    "claude-code":    {"project": (".mcp.json", "mcpServers"), "global": ("~/.claude.json", "mcpServers")},
+    "cursor":         {"project": (".cursor/mcp.json", "mcpServers"), "global": ("~/.cursor/mcp.json", "mcpServers")},
+    "github-copilot": {"project": (".vscode/mcp.json", "servers"), "global": ("~/.copilot/mcp-config.json", "mcpServers")},
 }
 # harnesses whose config isn't JSON — we print a snippet instead
 SNIPPET_TARGETS = {"codex": "toml", "goose": "yaml"}
-# how each JSON harness reads a value from the environment (VS Code prompts via inputs)
-ENV_REF = {"claude-code": "${%s}", "cursor": "${env:%s}", "github-copilot": "${input:%s}"}
+# how each JSON harness reads a value from the environment at each scope (VS Code prompts via
+# inputs). None: the format documents no way to, so such a header is left for the person to set.
+ENV_REF = {("claude-code", "project"): "${%s}", ("claude-code", "global"): "${%s}",
+           ("cursor", "project"): "${env:%s}", ("cursor", "global"): "${env:%s}",
+           ("github-copilot", "project"): "${input:%s}", ("github-copilot", "global"): None}
 
 
 def load_servers(servers_dir, names):
@@ -98,18 +104,22 @@ def substitute(obj, workspace):
     return obj
 
 
-def json_config(harness, name, spec, workspace):
-    """Return (config, VS Code inputs) for one server in one JSON harness."""
+def json_config(harness, scope, name, spec, workspace):
+    """Return (config, VS Code inputs) for one server in one JSON harness at one scope."""
     if "remote" not in spec:
         return substitute(spec["config"], workspace), []
     r = spec["remote"]
     config = {"url": r["url"]} if harness == "cursor" else {"type": "http", "url": r["url"]}
     headers, inputs = {}, []
+    ref = ENV_REF[(harness, scope)]
     for h in r["headers"]:
+        if ref is None and any(kind == "env" for kind, _ in h["parts"]):
+            print(f"  {name}: set header {h['name']} by hand in this file; it needs a value from the environment")
+            continue
         value = ""
         for kind, text in h["parts"]:
-            value += ENV_REF[harness] % text if kind == "env" else text
-            if kind == "env" and harness == "github-copilot":
+            value += ref % text if kind == "env" else text
+            if kind == "env" and (harness, scope) == ("github-copilot", "project"):
                 inputs.append({"type": "promptString", "id": text,
                                "description": f"{h['name']} for {name}", "password": h["secret"]})
         headers[h["name"]] = value
@@ -118,7 +128,7 @@ def json_config(harness, name, spec, workspace):
     return config, inputs
 
 
-def merge_json(harness, path, key, servers, workspace, dry):
+def merge_json(harness, scope, path, key, servers, workspace, dry):
     path = Path(os.path.expanduser(path))
     data = {}
     if path.exists():
@@ -129,7 +139,7 @@ def merge_json(harness, path, key, servers, workspace, dry):
             return
     data.setdefault(key, {})
     for name, spec in servers.items():
-        config, inputs = json_config(harness, name, spec, workspace)
+        config, inputs = json_config(harness, scope, name, spec, workspace)
         data[key][name] = config
         if inputs:
             existing = {i.get("id") for i in data.setdefault("inputs", [])}
@@ -229,15 +239,11 @@ def main():
 
     for h in harnesses:
         if h in JSON_TARGETS:
-            t = JSON_TARGETS[h]
-            if args.glob:
-                if not t["global"]:
-                    print(f"skip: {h} has no global MCP config; use project scope", file=sys.stderr)
-                    continue
-                target = t["global"]
-            else:
-                target = os.path.join(args.dir, t["project"])
-            merge_json(h, target, t["key"], servers, workspace, args.dry_run)
+            scope = "global" if args.glob else "project"
+            target, key = JSON_TARGETS[h][scope]
+            if scope == "project":
+                target = os.path.join(args.dir, target)
+            merge_json(h, scope, target, key, servers, workspace, args.dry_run)
         elif h in SNIPPET_TARGETS:
             print_snippet(SNIPPET_TARGETS[h], servers, workspace)
         else:
