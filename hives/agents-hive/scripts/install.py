@@ -19,17 +19,21 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 AGENTS_DIR = REPO_ROOT / "agents"
+sys.path.insert(0, str(REPO_ROOT.parent.parent / "scripts"))
+import harnesses  # noqa: E402  the House's harness registry, harnesses.json
 
-# harness -> (path template, frontmatter keys to keep). {name} is the agent name.
-MD_TARGETS = {
-    "claude-code":    (".claude/agents/{name}.md",              ["name", "description", "tools", "model"]),
-    "cursor":         (".cursor/agents/{name}.md",              ["name", "description", "tools", "model"]),
-    "agents":         (".agents/agents/{name}.md",              ["name", "description", "tools", "model"]),
-    "github-copilot": (".github/chatmodes/{name}.chatmode.md",  ["description", "tools", "model"]),
-}
-# Harnesses whose agent format isn't settled — fall back to the shared .agents dir.
-FALLBACK = {"codex", "gemini-cli", "goose", "opencode", "kiro",
-            "databricks-genie-code", "snowflake-cortex-code"}
+
+def agent_target(harness):
+    """(path template, frontmatter keys to keep, harness it falls back to or None) for a
+    harness's agents, from the registry; None if it has no agent format. {name} is the
+    agent name. A harness whose agent format isn't settled falls back to another's."""
+    s = harnesses.surface(harness, "agents")
+    if not s:
+        return None
+    fallback = s.get("fallback")
+    if fallback:
+        s = harnesses.surface(fallback, "agents")
+    return s["project"], s["keys"], fallback
 
 
 def parse_agent(path):
@@ -86,21 +90,20 @@ def main():
     ap.add_argument("--dry-run", action="store_true")
     args = ap.parse_args()
 
-    harnesses = args.harness or ["claude-code", "github-copilot", "agents"]
+    targets = args.harness or ["claude-code", "github-copilot", "agents"]
     agents = load_agents(args.agent)
     if not agents:
         print("no agents to install", file=sys.stderr)
         sys.exit(1)
 
-    for h in harnesses:
-        if h in FALLBACK:
-            print(f"note: {h} agent format varies — using the shared .agents/agents/ fallback (verify vs its docs)", file=sys.stderr)
-            tmpl, keys = MD_TARGETS["agents"]
-        elif h in MD_TARGETS:
-            tmpl, keys = MD_TARGETS[h]
-        else:
+    for h in targets:
+        found = agent_target(h)
+        if found is None:
             print(f"unknown harness: {h}", file=sys.stderr)
             sys.exit(1)
+        tmpl, keys, fallback = found
+        if fallback:
+            print(f"note: {h} agent format varies — using the shared {Path(tmpl).parent}/ fallback (verify vs its docs)", file=sys.stderr)
 
         for name, (fm, body) in agents.items():
             rel = tmpl.format(name=name)

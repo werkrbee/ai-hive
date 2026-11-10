@@ -115,9 +115,9 @@ recorded no costs, so its ledger is empty; the first entries will come from mete
 knowledge-hive/
 ├── adapters/                     # WHERE it's read — harness taxonomy & overrides
 │   ├── claude-code/  cursor/  codex/  gemini-cli/  goose/  opencode/
-│   ├── kiro/  databricks-genie-code/  snowflake-cortex-code/
+│   ├── devin-desktop/  kiro/  cline/
+│   ├── databricks-genie-code/  snowflake-cortex-code/   # data workspaces
 │   └── github-copilot/
-│       └── scout/                # sub-harness (child of GitHub Copilot)
 ├── templates/
 │   └── knowledge/                # copy into a product: STATE.md, memory/, results, ledger, audit
 ├── examples/

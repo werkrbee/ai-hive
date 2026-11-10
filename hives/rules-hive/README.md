@@ -142,9 +142,9 @@ rules-hive/
 │   └── lineup-etiquette/         # a product policy that extends the Charter's
 ├── adapters/                     # WHERE they apply — harness taxonomy & overrides
 │   ├── claude-code/  cursor/  codex/  gemini-cli/  goose/  opencode/
-│   ├── kiro/  databricks-genie-code/  snowflake-cortex-code/
+│   ├── devin-desktop/  kiro/  cline/
+│   ├── databricks-genie-code/  snowflake-cortex-code/   # data workspaces
 │   └── github-copilot/
-│       └── scout/                # sub-harness (child of GitHub Copilot)
 ├── scripts/
 │   ├── install.sh                # render a ruleset into per-harness instruction files
 │   ├── install.ps1               # Windows equivalent
@@ -154,7 +154,7 @@ rules-hive/
 ```
 
 Same two-axis model as skills-hive: `rules/` is the portable content; `adapters/`
-is the harness taxonomy (Scout nests under GitHub Copilot).
+is the harness taxonomy (`harnesses.json` lists it).
 
 ## Install
 

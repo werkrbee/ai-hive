@@ -26,6 +26,8 @@ import sys
 from pathlib import Path
 from xml.sax.saxutils import escape
 
+import harnesses as harness_registry  # scripts/harnesses.py, beside this script
+
 ROOT = Path(__file__).resolve().parent.parent
 OUT = ROOT / "assets" / "architecture.svg"
 REL = OUT.relative_to(ROOT)
@@ -49,19 +51,9 @@ ARTIFACT_HIVES = [
 ]
 COMPOSITION_HIVES = ["plugins-hive", "projects-hive"]
 
-# Each adapter directory under hives/*/adapters/ and the harness's name, in drawing order.
-HARNESSES = {
-    "claude-code": "Claude Code",
-    "codex": "Codex",
-    "cursor": "Cursor",
-    "github-copilot": "GitHub Copilot",
-    "gemini-cli": "Gemini CLI",
-    "goose": "Goose",
-    "opencode": "OpenCode",
-    "kiro": "Kiro",
-    "databricks-genie-code": "Databricks Genie Code",
-    "snowflake-cortex-code": "Snowflake Cortex Code",
-}
+# Each adapter directory under hives/*/adapters/ and the harness's name, in drawing order:
+# the order of harnesses.json, the harness registry.
+HARNESSES = harness_registry.adapters()
 
 # Each resource type main.bicep declares and the tile that shows it; None where its parent's
 # tile covers it (role assignments are drawn as what they let each identity do).

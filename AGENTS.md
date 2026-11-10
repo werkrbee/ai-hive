@@ -38,6 +38,7 @@ docs/              factory-thesis, interface-independence, product-adoption, pro
 .claude/           Claude Code adapter: commands, subagents, settings (see CLAUDE.md)
 .github/           OSS health, issue/PR templates, CI
 ROADMAP.md         P0–P2 refactor plan; sprints draw from here
+harnesses.json     the harness registry: every harness, its category, tier and install paths
 ```
 
 ## Conventions (do not break)
@@ -47,6 +48,10 @@ ROADMAP.md         P0–P2 refactor plan; sprints draw from here
 - **Two axes.** `<thing>/` is *what* an artifact is (portable source of truth);
   `adapters/<harness>/` is *where* it runs. Sub-harnesses nest one level deeper.
 - **Naming.** kebab-case product directories (`claude-code`, `github-copilot`).
+- **One harness registry.** A harness, its adapter folder and its install paths are
+  written down in `harnesses.json`. The rules, skills and agents installers and the
+  architecture diagram read it through `scripts/harnesses.py`; the Windows and MCP
+  installers still keep their own lists until they move onto it.
 - **Docs voice.** Plain prose, sentence case, minimal bullets, two weights. Match the
   existing docs. No hype.
 

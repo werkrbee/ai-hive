@@ -15,28 +15,16 @@ TARGET_DIR="."
 GLOBAL=false
 HARNESSES=""
 
-# Per-harness PROJECT-relative instruction file. Many harnesses share the open
-# AGENTS.md standard; the rest use their own filename.
-harness_relpath() {
-  case "$1" in
-    agents|opencode|codex|kiro|databricks-genie-code|snowflake-cortex-code)
-                    printf '%s' "AGENTS.md" ;;
-    claude-code)    printf '%s' "CLAUDE.md" ;;
-    cursor)         printf '%s' ".cursor/rules/RULESET.mdc" ;;
-    github-copilot) printf '%s' ".github/copilot-instructions.md" ;;
-    gemini-cli)     printf '%s' "GEMINI.md" ;;
-    goose)          printf '%s' ".goosehints" ;;
-    *)              printf '' ;;
-  esac
-}
+HOUSE_ROOT="$(cd "${REPO_ROOT}/../.." && pwd)"
+REGISTRY_PY="${HOUSE_ROOT}/scripts/harnesses.py"
 
-# Per-harness GLOBAL (user-level) instruction file, where one exists.
-harness_global() {
-  case "$1" in
-    claude-code) printf '%s' "${HOME}/.claude/CLAUDE.md" ;;
-    codex|agents) printf '%s' "${HOME}/.codex/AGENTS.md" ;;
-    *)           printf '' ;;
-  esac
+# Instruction-file paths come from the House's registry (harnesses.json), read
+# through scripts/harnesses.py. Many harnesses share the open AGENTS.md standard;
+# the rest use their own filename. $1 is the scope (project, relative to the
+# project dir, or global, the user-level file), $2 the harness; prints the path
+# with the ruleset filled in, or nothing if the harness has none at that scope.
+harness_rules_path() {
+  python3 "$REGISTRY_PY" path rules "$1" "$2" --name "$RULESET" 2>/dev/null || true
 }
 
 usage() {
@@ -45,15 +33,16 @@ Render a rules-hive ruleset into agent instruction files.
 
 Options:
   --ruleset NAME    Ruleset under rules/ (default: queen-charter)
-  --harness NAME    Target harness (repeatable): agents, claude-code, cursor,
-                    codex, gemini-cli, goose, opencode, kiro, github-copilot,
-                    databricks-genie-code, snowflake-cortex-code
+  --harness NAME    Target harness (repeatable); see the list below
   --dir PATH        Project directory to write into (default: current dir)
   --global          Write to the user-level file where supported
   -h, --help        Show this help
 
 Default harnesses (if none given): agents claude-code cursor github-copilot gemini-cli
+
+Harnesses with an instruction file (from harnesses.json):
 EOF
+  python3 "$REGISTRY_PY" list --surface rules | sed 's/^/  /'
 }
 
 while [ $# -gt 0 ]; do
@@ -66,6 +55,11 @@ while [ $# -gt 0 ]; do
     *) echo "unknown option: $1" >&2; usage; exit 1 ;;
   esac
 done
+
+if ! command -v python3 >/dev/null; then
+  echo "python3 is needed to read the harness registry (${HOUSE_ROOT}/harnesses.json)" >&2
+  exit 1
+fi
 
 SRC="${REPO_ROOT}/rules/${RULESET}/AGENTS.md"
 if [ ! -f "$SRC" ]; then
@@ -94,19 +88,18 @@ write_file() {
 
 for harness in $HARNESSES; do
   if [ "$GLOBAL" = true ]; then
-    gpath="$(harness_global "$harness")"
+    gpath="$(harness_rules_path global "$harness")"
     if [ -z "$gpath" ]; then
       echo "skip: $harness has no user-level instruction file (use project scope)" >&2
       continue
     fi
     write_file "$gpath" "$harness"
   else
-    rel="$(harness_relpath "$harness")"
+    rel="$(harness_rules_path project "$harness")"
     if [ -z "$rel" ]; then
       echo "unknown harness: $harness" >&2
       exit 1
     fi
-    rel="$(printf '%s' "$rel" | sed "s/RULESET/${RULESET}/")"
     write_file "${TARGET_DIR%/}/$rel" "$harness"
   fi
 done

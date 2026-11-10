@@ -19,6 +19,9 @@ jobs:
       - name: Validate SKILL.md / AGENTS.md artifacts
         run: ./scripts/validate-artifacts.sh
 
+      - name: Harness registry and adapters agree
+        run: python3 -B scripts/harnesses.py check
+
       - name: Architecture diagram is current
         run: python3 scripts/architecture.py --check
 
