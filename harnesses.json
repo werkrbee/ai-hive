@@ -1,5 +1,5 @@
 {
-  "$comment": "The harness registry: the only place a harness, its category and tier, and its install paths are written down. Read through scripts/harnesses.py. Ranking and categories: docs/harness-ecosystem.md. Paths use ~ for the home directory and {name} for the ruleset or agent name.",
+  "$comment": "The harness registry: the only place a harness, its category and tier, its install paths, and its capability and price row are written down. Read through scripts/harnesses.py, which renders the row as docs/harness-matrix.md. Ranking, categories and the cost unit: docs/harness-ecosystem.md. Paths use ~ for the home directory and {name} for the ruleset or agent name. A capability is supported true, false or \"unknown\"; anything but unknown names its source and the date checked. Model prices are dollars per million tokens.",
   "version": 1,
   "categories": {
     "pro-code": "Coding agents that read a repository; the House installs its artifacts into them.",
@@ -11,126 +11,725 @@
     "top-ten": "One of the ten its category commits to, held to the conformance check.",
     "watch": "One quarter's evidence from its category's ten."
   },
+  "models": {
+    "claude-sonnet-5-5": {
+      "name": "Claude Sonnet 5.5",
+      "input": 2,
+      "cached": 0.2,
+      "output": 10,
+      "source": "https://platform.claude.com/docs/en/about-claude/pricing",
+      "checked": "2026-11-10"
+    },
+    "claude-opus-5-5": {
+      "name": "Claude Opus 5.5",
+      "input": 4,
+      "cached": 0.2,
+      "output": 20,
+      "source": "https://platform.claude.com/docs/en/about-claude/pricing",
+      "checked": "2026-11-10"
+    },
+    "claude-fable-5-1": {
+      "name": "Claude Fable 5.1",
+      "input": 10,
+      "cached": 0.25,
+      "output": 50,
+      "source": "https://platform.claude.com/docs/en/about-claude/pricing",
+      "checked": "2026-11-10"
+    },
+    "claude-haiku-5-5": {
+      "name": "Claude Haiku 5.5",
+      "input": 0.1,
+      "cached": null,
+      "output": 0.5,
+      "source": "https://platform.claude.com/docs/en/about-claude/pricing",
+      "checked": "2026-11-10"
+    },
+    "gpt-5-5": {
+      "name": "GPT-5.5",
+      "input": 5,
+      "cached": 0.5,
+      "output": 30,
+      "source": "https://developers.openai.com/api/docs/pricing",
+      "checked": "2026-11-10"
+    },
+    "gemini-3-1-pro": {
+      "name": "Gemini 3.1 Pro (prompts up to 200,000 tokens)",
+      "input": 2,
+      "cached": 0.2,
+      "output": 12,
+      "source": "https://ai.google.dev/gemini-api/docs/pricing",
+      "checked": "2026-11-10"
+    }
+  },
   "harnesses": [
     {
-      "id": "claude-code", "name": "Claude Code", "vendor": "Anthropic",
-      "category": "pro-code", "tier": "top-ten", "rank": 1, "adapter": "claude-code",
+      "id": "claude-code",
+      "name": "Claude Code",
+      "vendor": "Anthropic",
+      "category": "pro-code",
+      "tier": "top-ten",
+      "rank": 1,
+      "adapter": "claude-code",
       "surfaces": {
         "skills": {"global": "~/.claude/skills", "project": ".claude/skills"},
         "rules": {"global": "~/.claude/CLAUDE.md", "project": "CLAUDE.md"},
         "agents": {"project": ".claude/agents/{name}.md", "keys": ["name", "description", "tools", "model"]}
-      }
+      },
+      "capabilities": {
+        "rules": {"supported": true, "source": "hives/rules-hive/scripts/install.sh", "checked": "2026-11-10"},
+        "skills": {"supported": true, "source": "hives/skills-hive/scripts/install.sh", "checked": "2026-11-10"},
+        "subagents": {"supported": true, "source": "hives/agents-hive/scripts/install.py", "checked": "2026-11-10"},
+        "mcp": {"supported": true, "path": ".mcp.json", "source": "hives/mcp-hive/scripts/install.py", "checked": "2026-11-10"},
+        "hooks": {"supported": "unknown"},
+        "memory": {"supported": "unknown"},
+        "permissions": {"supported": "unknown"},
+        "headless": {"supported": "unknown"}
+      },
+      "cost": {
+        "unit": "Plan seat (Pro $20, Max $100 or $200 a month), or API tokens",
+        "tokens": {"basis": "list", "models": ["claude-sonnet-5-5", "claude-opus-5-5"]},
+        "sources": [
+          "https://www.cloudzero.com/blog/ai-coding-tools-cost/",
+          "https://dev.to/tokely/claude-code-codex-copilot-and-cursor-plans-vs-api-break-even-and-the-cost-of-long-sessions-2026-53d6",
+          "https://platform.claude.com/docs/en/about-claude/pricing"
+        ],
+        "checked": "2026-11-10"
+      },
+      "verified": false
     },
     {
-      "id": "github-copilot", "name": "GitHub Copilot", "vendor": "GitHub",
-      "category": "pro-code", "tier": "top-ten", "rank": 2, "adapter": "github-copilot",
+      "id": "github-copilot",
+      "name": "GitHub Copilot",
+      "vendor": "GitHub",
+      "category": "pro-code",
+      "tier": "top-ten",
+      "rank": 2,
+      "adapter": "github-copilot",
       "surfaces": {
         "skills": {"global": "~/.copilot/skills", "project": ".agents/skills"},
         "rules": {"project": ".github/copilot-instructions.md"},
         "agents": {"project": ".github/chatmodes/{name}.chatmode.md", "keys": ["description", "tools", "model"]}
-      }
+      },
+      "capabilities": {
+        "rules": {"supported": true, "source": "hives/rules-hive/scripts/install.sh", "checked": "2026-11-10"},
+        "skills": {"supported": true, "source": "hives/skills-hive/scripts/install.sh", "checked": "2026-11-10"},
+        "subagents": {"supported": true, "source": "hives/agents-hive/scripts/install.py", "checked": "2026-11-10"},
+        "mcp": {
+          "supported": true,
+          "path": ".vscode/mcp.json",
+          "source": "hives/mcp-hive/scripts/install.py",
+          "checked": "2026-11-10"
+        },
+        "hooks": {"supported": "unknown"},
+        "memory": {"supported": "unknown"},
+        "permissions": {"supported": "unknown"},
+        "headless": {"supported": "unknown"}
+      },
+      "cost": {
+        "unit": "AI Credit, $0.01, spent per token at the model's rate; plans $10, $39 and $100 a month include $15, $70 and $200 of credits",
+        "tokens": {"basis": "list", "models": ["claude-sonnet-5-5"]},
+        "sources": [
+          "https://www.cloudzero.com/blog/ai-coding-tools-cost/",
+          "https://dev.to/tokely/claude-code-codex-copilot-and-cursor-plans-vs-api-break-even-and-the-cost-of-long-sessions-2026-53d6"
+        ],
+        "checked": "2026-11-10"
+      },
+      "verified": false
     },
     {
-      "id": "codex", "name": "Codex", "vendor": "OpenAI",
-      "category": "pro-code", "tier": "top-ten", "rank": 3, "adapter": "codex",
+      "id": "codex",
+      "name": "Codex",
+      "vendor": "OpenAI",
+      "category": "pro-code",
+      "tier": "top-ten",
+      "rank": 3,
+      "adapter": "codex",
       "surfaces": {
         "skills": {"global": "~/.codex/skills", "project": ".agents/skills"},
         "rules": {"global": "~/.codex/AGENTS.md", "project": "AGENTS.md"},
         "agents": {"fallback": "agents"}
-      }
+      },
+      "capabilities": {
+        "rules": {"supported": true, "source": "hives/rules-hive/scripts/install.sh", "checked": "2026-11-10"},
+        "skills": {"supported": true, "source": "hives/skills-hive/scripts/install.sh", "checked": "2026-11-10"},
+        "subagents": {"supported": "unknown"},
+        "mcp": {"supported": true, "source": "hives/mcp-hive/scripts/install.py", "checked": "2026-11-10"},
+        "hooks": {"supported": "unknown"},
+        "memory": {"supported": "unknown"},
+        "permissions": {"supported": "unknown"},
+        "headless": {"supported": "unknown"}
+      },
+      "cost": {
+        "unit": "ChatGPT plan ($20 or $200 a month), or API tokens since 2026-04-02",
+        "tokens": {"basis": "list", "models": ["gpt-5-5"]},
+        "sources": ["https://www.cloudzero.com/blog/ai-coding-tools-cost/", "https://apidog.com/blog/gpt-5-5-pricing/"],
+        "checked": "2026-11-10"
+      },
+      "verified": false
     },
     {
-      "id": "cursor", "name": "Cursor", "vendor": "Anysphere",
-      "category": "pro-code", "tier": "top-ten", "rank": 4, "adapter": "cursor",
+      "id": "cursor",
+      "name": "Cursor",
+      "vendor": "Anysphere",
+      "category": "pro-code",
+      "tier": "top-ten",
+      "rank": 4,
+      "adapter": "cursor",
       "surfaces": {
         "skills": {"global": "~/.cursor/skills", "project": ".cursor/skills"},
         "rules": {"project": ".cursor/rules/{name}.mdc"},
         "agents": {"project": ".cursor/agents/{name}.md", "keys": ["name", "description", "tools", "model"]}
-      }
+      },
+      "capabilities": {
+        "rules": {"supported": true, "source": "hives/rules-hive/scripts/install.sh", "checked": "2026-11-10"},
+        "skills": {"supported": true, "source": "hives/skills-hive/scripts/install.sh", "checked": "2026-11-10"},
+        "subagents": {"supported": true, "source": "hives/agents-hive/scripts/install.py", "checked": "2026-11-10"},
+        "mcp": {
+          "supported": true,
+          "path": ".cursor/mcp.json",
+          "source": "hives/mcp-hive/scripts/install.py",
+          "checked": "2026-11-10"
+        },
+        "hooks": {"supported": "unknown"},
+        "memory": {"supported": "unknown"},
+        "permissions": {"supported": "unknown"},
+        "headless": {"supported": "unknown"}
+      },
+      "cost": {
+        "unit": "Plan allowance (Pro $20, Pro+ $60, Ultra $200, Teams $40 a user), then usage",
+        "tokens": {"basis": "list", "fee": 0.25, "fee_applies": "Teams and Enterprise", "models": ["claude-sonnet-5-5"]},
+        "sources": ["https://www.cloudzero.com/blog/ai-coding-tools-cost/"],
+        "checked": "2026-11-10"
+      },
+      "verified": false
     },
     {
-      "id": "gemini-cli", "name": "Gemini CLI", "vendor": "Google",
-      "category": "pro-code", "tier": "top-ten", "rank": 5, "adapter": "gemini-cli",
+      "id": "gemini-cli",
+      "name": "Gemini CLI",
+      "vendor": "Google",
+      "category": "pro-code",
+      "tier": "top-ten",
+      "rank": 5,
+      "adapter": "gemini-cli",
       "surfaces": {
         "skills": {"global": "~/.gemini/skills", "project": ".agents/skills"},
         "rules": {"project": "GEMINI.md"},
         "agents": {"fallback": "agents"}
-      }
+      },
+      "capabilities": {
+        "rules": {"supported": true, "source": "hives/rules-hive/scripts/install.sh", "checked": "2026-11-10"},
+        "skills": {"supported": true, "source": "hives/skills-hive/scripts/install.sh", "checked": "2026-11-10"},
+        "subagents": {"supported": "unknown"},
+        "mcp": {"supported": "unknown"},
+        "hooks": {"supported": "unknown"},
+        "memory": {"supported": "unknown"},
+        "permissions": {"supported": "unknown"},
+        "headless": {"supported": "unknown"}
+      },
+      "cost": {
+        "unit": "Free tier, Google AI Pro or Ultra plan, or API tokens",
+        "tokens": {"basis": "list", "models": ["gemini-3-1-pro"]},
+        "sources": [
+          "https://www.developersdigest.tech/blog/ai-coding-tools-pricing-2026",
+          "https://ai.google.dev/gemini-api/docs/pricing"
+        ],
+        "checked": "2026-11-10"
+      },
+      "verified": false
     },
     {
-      "id": "devin-desktop", "name": "Devin Desktop", "vendor": "Cognition",
-      "category": "pro-code", "tier": "top-ten", "rank": 6, "adapter": "devin-desktop",
-      "surfaces": {}
+      "id": "devin-desktop",
+      "name": "Devin Desktop",
+      "vendor": "Cognition",
+      "category": "pro-code",
+      "tier": "top-ten",
+      "rank": 6,
+      "adapter": "devin-desktop",
+      "surfaces": {},
+      "capabilities": {
+        "rules": {"supported": "unknown"},
+        "skills": {"supported": "unknown"},
+        "subagents": {"supported": "unknown"},
+        "mcp": {"supported": "unknown"},
+        "hooks": {"supported": "unknown"},
+        "memory": {"supported": "unknown"},
+        "permissions": {"supported": "unknown"},
+        "headless": {"supported": "unknown"}
+      },
+      "cost": {
+        "unit": "Plan (Pro $20, Max $200 a month; Teams $80 plus $40 a seat)",
+        "tokens": {"basis": "not-published"},
+        "sources": ["https://www.developersdigest.tech/blog/ai-coding-tools-pricing-2026"],
+        "checked": "2026-11-10"
+      },
+      "verified": false
     },
     {
-      "id": "kiro", "name": "Kiro", "vendor": "AWS",
-      "category": "pro-code", "tier": "top-ten", "rank": 7, "adapter": "kiro",
+      "id": "kiro",
+      "name": "Kiro",
+      "vendor": "AWS",
+      "category": "pro-code",
+      "tier": "top-ten",
+      "rank": 7,
+      "adapter": "kiro",
       "surfaces": {
         "skills": {"global": "~/.kiro/skills", "project": ".agents/skills"},
         "rules": {"project": "AGENTS.md"},
         "agents": {"fallback": "agents"}
-      }
+      },
+      "capabilities": {
+        "rules": {"supported": true, "source": "hives/rules-hive/scripts/install.sh", "checked": "2026-11-10"},
+        "skills": {"supported": true, "source": "hives/skills-hive/scripts/install.sh", "checked": "2026-11-10"},
+        "subagents": {"supported": "unknown"},
+        "mcp": {"supported": "unknown"},
+        "hooks": {"supported": "unknown"},
+        "memory": {"supported": "unknown"},
+        "permissions": {"supported": "unknown"},
+        "headless": {"supported": "unknown"}
+      },
+      "cost": {
+        "unit": "Credit (Pro $20 for 1,000 a month; more at $0.04); credits per request vary by model",
+        "tokens": {"basis": "not-published"},
+        "sources": ["https://www.developersdigest.tech/blog/ai-coding-tools-pricing-2026"],
+        "checked": "2026-11-10"
+      },
+      "verified": false
     },
     {
-      "id": "cline", "name": "Cline", "vendor": "Cline",
-      "category": "pro-code", "tier": "top-ten", "rank": 8, "adapter": "cline",
-      "surfaces": {}
+      "id": "cline",
+      "name": "Cline",
+      "vendor": "Cline",
+      "category": "pro-code",
+      "tier": "top-ten",
+      "rank": 8,
+      "adapter": "cline",
+      "surfaces": {},
+      "capabilities": {
+        "rules": {"supported": "unknown"},
+        "skills": {"supported": "unknown"},
+        "subagents": {"supported": "unknown"},
+        "mcp": {"supported": "unknown"},
+        "hooks": {"supported": "unknown"},
+        "memory": {"supported": "unknown"},
+        "permissions": {"supported": "unknown"},
+        "headless": {"supported": "unknown"}
+      },
+      "cost": {
+        "unit": "Free; your own key, or Cline's provider",
+        "tokens": {"basis": "own-key"},
+        "sources": ["https://www.developersdigest.tech/blog/ai-coding-tools-pricing-2026"],
+        "checked": "2026-11-10"
+      },
+      "verified": false
     },
     {
-      "id": "opencode", "name": "OpenCode", "vendor": "OpenCode",
-      "category": "pro-code", "tier": "top-ten", "rank": 9, "adapter": "opencode",
+      "id": "opencode",
+      "name": "OpenCode",
+      "vendor": "OpenCode",
+      "category": "pro-code",
+      "tier": "top-ten",
+      "rank": 9,
+      "adapter": "opencode",
       "surfaces": {
         "skills": {"global": "~/.config/opencode/skills", "project": ".agents/skills"},
         "rules": {"project": "AGENTS.md"},
         "agents": {"fallback": "agents"}
-      }
+      },
+      "capabilities": {
+        "rules": {"supported": true, "source": "hives/rules-hive/scripts/install.sh", "checked": "2026-11-10"},
+        "skills": {"supported": true, "source": "hives/skills-hive/scripts/install.sh", "checked": "2026-11-10"},
+        "subagents": {"supported": "unknown"},
+        "mcp": {"supported": "unknown"},
+        "hooks": {"supported": "unknown"},
+        "memory": {"supported": "unknown"},
+        "permissions": {"supported": "unknown"},
+        "headless": {"supported": "unknown"}
+      },
+      "cost": {
+        "unit": "Free; your own key",
+        "tokens": {"basis": "own-key"},
+        "sources": ["https://www.morphllm.com/comparisons/opencode-vs-gemini-cli"],
+        "checked": "2026-11-10"
+      },
+      "verified": false
     },
     {
-      "id": "goose", "name": "Goose", "vendor": "Linux Foundation",
-      "category": "pro-code", "tier": "top-ten", "rank": 10, "adapter": "goose",
+      "id": "goose",
+      "name": "Goose",
+      "vendor": "Linux Foundation",
+      "category": "pro-code",
+      "tier": "top-ten",
+      "rank": 10,
+      "adapter": "goose",
       "surfaces": {
         "skills": {"global": "~/.config/goose/skills", "project": ".goose/skills"},
         "rules": {"project": ".goosehints"},
         "agents": {"fallback": "agents"}
-      }
+      },
+      "capabilities": {
+        "rules": {"supported": true, "source": "hives/rules-hive/scripts/install.sh", "checked": "2026-11-10"},
+        "skills": {"supported": true, "source": "hives/skills-hive/scripts/install.sh", "checked": "2026-11-10"},
+        "subagents": {"supported": "unknown"},
+        "mcp": {"supported": true, "source": "hives/mcp-hive/scripts/install.py", "checked": "2026-11-10"},
+        "hooks": {"supported": "unknown"},
+        "memory": {"supported": "unknown"},
+        "permissions": {"supported": "unknown"},
+        "headless": {"supported": "unknown"}
+      },
+      "cost": {
+        "unit": "Free; your own key",
+        "tokens": {"basis": "own-key"},
+        "sources": ["https://github.com/block/goose"],
+        "checked": "2026-11-10"
+      },
+      "verified": false
     },
-    {"id": "junie", "name": "Junie", "vendor": "JetBrains", "category": "pro-code", "tier": "watch", "rank": null, "adapter": null, "surfaces": {}},
-    {"id": "amp", "name": "Amp", "vendor": "Sourcegraph", "category": "pro-code", "tier": "watch", "rank": null, "adapter": null, "surfaces": {}},
-    {"id": "droid", "name": "Droid", "vendor": "Factory", "category": "pro-code", "tier": "watch", "rank": null, "adapter": null, "surfaces": {}},
-    {"id": "zed", "name": "Zed", "vendor": "Zed Industries", "category": "pro-code", "tier": "watch", "rank": null, "adapter": null, "surfaces": {}},
     {
-      "id": "scout", "name": "Scout", "vendor": "Microsoft",
-      "category": "pro-code", "tier": "watch", "rank": null, "adapter": null,
+      "id": "junie",
+      "name": "Junie",
+      "vendor": "JetBrains",
+      "category": "pro-code",
+      "tier": "watch",
+      "rank": null,
+      "adapter": null,
+      "surfaces": {}
+    },
+    {
+      "id": "amp",
+      "name": "Amp",
+      "vendor": "Sourcegraph",
+      "category": "pro-code",
+      "tier": "watch",
+      "rank": null,
+      "adapter": null,
+      "surfaces": {}
+    },
+    {
+      "id": "droid",
+      "name": "Droid",
+      "vendor": "Factory",
+      "category": "pro-code",
+      "tier": "watch",
+      "rank": null,
+      "adapter": null,
+      "surfaces": {}
+    },
+    {
+      "id": "zed",
+      "name": "Zed",
+      "vendor": "Zed Industries",
+      "category": "pro-code",
+      "tier": "watch",
+      "rank": null,
+      "adapter": null,
+      "surfaces": {}
+    },
+    {
+      "id": "scout",
+      "name": "Scout",
+      "vendor": "Microsoft",
+      "category": "pro-code",
+      "tier": "watch",
+      "rank": null,
+      "adapter": null,
       "note": "In private and public preview; to be renamed Autopilot at Microsoft Ignite (November 2026). Which harness it belongs to is unconfirmed, likely Microsoft 365 Copilot rather than GitHub Copilot. Its skills path stays installable meanwhile.",
-      "surfaces": {
-        "skills": {"global": "~/.scout/skills", "project": ".agents/skills"}
-      }
+      "surfaces": {"skills": {"global": "~/.scout/skills", "project": ".agents/skills"}}
     },
     {
-      "id": "m365-copilot", "name": "Microsoft 365 Copilot", "vendor": "Microsoft",
-      "category": "pro-code", "tier": "watch", "rank": null, "adapter": null,
+      "id": "m365-copilot",
+      "name": "Microsoft 365 Copilot",
+      "vendor": "Microsoft",
+      "category": "pro-code",
+      "tier": "watch",
+      "rank": null,
+      "adapter": null,
       "note": "Likely to become one harness spanning Home (chat and cowork), Code and Autopilot (formerly Scout). Its category settles once its surfaces are known.",
       "surfaces": {}
     },
-
-    {"id": "copilot-studio", "name": "Copilot Studio", "vendor": "Microsoft", "category": "low-code", "tier": "top-ten", "rank": 1, "adapter": null, "surfaces": {}},
-    {"id": "agentforce", "name": "Agentforce", "vendor": "Salesforce", "category": "low-code", "tier": "top-ten", "rank": 2, "adapter": null, "surfaces": {}},
-    {"id": "gemini-enterprise", "name": "Gemini Enterprise", "vendor": "Google", "category": "low-code", "tier": "top-ten", "rank": 3, "adapter": null, "surfaces": {}},
-    {"id": "servicenow-ai-agents", "name": "ServiceNow AI Agents", "vendor": "ServiceNow", "category": "low-code", "tier": "top-ten", "rank": 4, "adapter": null, "surfaces": {}},
-    {"id": "amazon-quick-suite", "name": "Amazon Quick Suite", "vendor": "AWS", "category": "low-code", "tier": "top-ten", "rank": 5, "adapter": null, "surfaces": {}},
-    {"id": "uipath-agent-builder", "name": "UiPath Agent Builder", "vendor": "UiPath", "category": "low-code", "tier": "top-ten", "rank": 6, "adapter": null, "surfaces": {}},
-    {"id": "workato-agent-studio", "name": "Workato Agent Studio", "vendor": "Workato", "category": "low-code", "tier": "top-ten", "rank": 7, "adapter": null, "surfaces": {}},
-    {"id": "n8n", "name": "n8n", "vendor": "n8n", "category": "low-code", "tier": "top-ten", "rank": 8, "adapter": null, "surfaces": {}},
-    {"id": "zapier-agents", "name": "Zapier Agents", "vendor": "Zapier", "category": "low-code", "tier": "top-ten", "rank": 9, "adapter": null, "surfaces": {}},
-    {"id": "dify", "name": "Dify", "vendor": "LangGenius", "category": "low-code", "tier": "top-ten", "rank": 10, "adapter": null, "surfaces": {}},
-    {"id": "make", "name": "Make", "vendor": "Make", "category": "low-code", "tier": "watch", "rank": null, "adapter": null, "surfaces": {}},
-    {"id": "botpress", "name": "Botpress", "vendor": "Botpress", "category": "low-code", "tier": "watch", "rank": null, "adapter": null, "surfaces": {}},
-    {"id": "langflow", "name": "Langflow", "vendor": "Langflow", "category": "low-code", "tier": "watch", "rank": null, "adapter": null, "surfaces": {}},
-    {"id": "watsonx-orchestrate", "name": "watsonx Orchestrate", "vendor": "IBM", "category": "low-code", "tier": "watch", "rank": null, "adapter": null, "surfaces": {}},
-
     {
-      "id": "databricks-genie-code", "name": "Databricks Genie Code", "vendor": "Databricks",
-      "category": "data-workspace", "tier": null, "rank": null, "adapter": "databricks-genie-code",
+      "id": "copilot-studio",
+      "name": "Copilot Studio",
+      "vendor": "Microsoft",
+      "category": "low-code",
+      "tier": "top-ten",
+      "rank": 1,
+      "adapter": null,
+      "surfaces": {},
+      "capabilities": {
+        "mcp": {"supported": "unknown"},
+        "a2a": {"supported": "unknown"},
+        "openapi": {"supported": "unknown"},
+        "auth": {"supported": "unknown"}
+      },
+      "cost": {
+        "unit": "Copilot Credit, $0.01 pay-as-you-go or $0.008 in a $200 pack of 25,000; a reasoning response can take 100 credits; internal use included with a $30 Microsoft 365 Copilot seat",
+        "tokens": {"basis": "not-published"},
+        "sources": [
+          "https://cdn-dynmedia-1.microsoft.com/is/content/microsoftcorp/microsoft/bade/documents/products-and-services/en-us/ai/CopilotCreditsGuideSeptember2026.pdf",
+          "https://www.cloudzero.com/blog/copilot-studio-pricing/"
+        ],
+        "checked": "2026-11-10"
+      },
+      "verified": false
+    },
+    {
+      "id": "agentforce",
+      "name": "Agentforce",
+      "vendor": "Salesforce",
+      "category": "low-code",
+      "tier": "top-ten",
+      "rank": 2,
+      "adapter": null,
+      "surfaces": {},
+      "capabilities": {
+        "mcp": {"supported": "unknown"},
+        "a2a": {"supported": "unknown"},
+        "openapi": {"supported": "unknown"},
+        "auth": {"supported": "unknown"}
+      },
+      "cost": {
+        "unit": "Flex Credit, $0.005 ($500 for 100,000); a standard action is 20 credits ($0.10), a voice action 30; or $2 a conversation",
+        "tokens": {"basis": "not-published"},
+        "sources": ["https://www.supered.io/blog/agentforce-pricing/"],
+        "checked": "2026-11-10"
+      },
+      "verified": false
+    },
+    {
+      "id": "gemini-enterprise",
+      "name": "Gemini Enterprise",
+      "vendor": "Google",
+      "category": "low-code",
+      "tier": "top-ten",
+      "rank": 3,
+      "adapter": null,
+      "surfaces": {},
+      "capabilities": {
+        "mcp": {"supported": "unknown"},
+        "a2a": {"supported": "unknown"},
+        "openapi": {"supported": "unknown"},
+        "auth": {"supported": "unknown"}
+      },
+      "cost": {
+        "unit": "Seat, $21 to $50 a month; agent usage billed separately",
+        "tokens": {"basis": "not-published"},
+        "sources": ["https://dupple.com/learn/gemini-enterprise-pricing"],
+        "checked": "2026-11-10"
+      },
+      "verified": false
+    },
+    {
+      "id": "servicenow-ai-agents",
+      "name": "ServiceNow AI Agents",
+      "vendor": "ServiceNow",
+      "category": "low-code",
+      "tier": "top-ten",
+      "rank": 4,
+      "adapter": null,
+      "surfaces": {},
+      "capabilities": {
+        "mcp": {"supported": "unknown"},
+        "a2a": {"supported": "unknown"},
+        "openapi": {"supported": "unknown"},
+        "auth": {"supported": "unknown"}
+      },
+      "cost": {
+        "unit": "Assist, from a pool per seat; about 25 for a summary, 150 for an agentic action; no dollar price published",
+        "tokens": {"basis": "not-published"},
+        "sources": ["https://www.getmacha.com/blog/servicenow-ai-agents-complete-guide"],
+        "checked": "2026-11-10"
+      },
+      "verified": false
+    },
+    {
+      "id": "amazon-quick-suite",
+      "name": "Amazon Quick Suite",
+      "vendor": "AWS",
+      "category": "low-code",
+      "tier": "top-ten",
+      "rank": 5,
+      "adapter": null,
+      "surfaces": {},
+      "capabilities": {
+        "mcp": {"supported": "unknown"},
+        "a2a": {"supported": "unknown"},
+        "openapi": {"supported": "unknown"},
+        "auth": {"supported": "unknown"}
+      },
+      "cost": {
+        "unit": "Seat, $20 or $40 a month plus $250 an account; extra agent hours $3 (Flows, Automate) or $6 (Research)",
+        "tokens": {"basis": "not-published"},
+        "sources": ["https://aws.amazon.com/quick/pricing"],
+        "checked": "2026-11-10"
+      },
+      "verified": false
+    },
+    {
+      "id": "uipath-agent-builder",
+      "name": "UiPath Agent Builder",
+      "vendor": "UiPath",
+      "category": "low-code",
+      "tier": "top-ten",
+      "rank": 6,
+      "adapter": null,
+      "surfaces": {},
+      "capabilities": {
+        "mcp": {"supported": "unknown"},
+        "a2a": {"supported": "unknown"},
+        "openapi": {"supported": "unknown"},
+        "auth": {"supported": "unknown"}
+      },
+      "cost": {
+        "unit": "Platform Unit per model call: 0.16 basic, 0.2 standard, 0.4 premium; dollar price by contract",
+        "tokens": {"basis": "not-published"},
+        "sources": ["https://docs.uipath.com/agents/automation-cloud/latest/user-guide/licensing"],
+        "checked": "2026-11-10"
+      },
+      "verified": false
+    },
+    {
+      "id": "workato-agent-studio",
+      "name": "Workato Agent Studio",
+      "vendor": "Workato",
+      "category": "low-code",
+      "tier": "top-ten",
+      "rank": 7,
+      "adapter": null,
+      "surfaces": {},
+      "capabilities": {
+        "mcp": {"supported": "unknown"},
+        "a2a": {"supported": "unknown"},
+        "openapi": {"supported": "unknown"},
+        "auth": {"supported": "unknown"}
+      },
+      "cost": {
+        "unit": "Genie action, one per prompt; price by quote",
+        "tokens": {"basis": "not-published"},
+        "sources": ["https://docs.workato.com/en/pricing/usage-metrics/agent-studio.html"],
+        "checked": "2026-11-10"
+      },
+      "verified": false
+    },
+    {
+      "id": "n8n",
+      "name": "n8n",
+      "vendor": "n8n",
+      "category": "low-code",
+      "tier": "top-ten",
+      "rank": 8,
+      "adapter": null,
+      "surfaces": {},
+      "capabilities": {
+        "mcp": {"supported": "unknown"},
+        "a2a": {"supported": "unknown"},
+        "openapi": {"supported": "unknown"},
+        "auth": {"supported": "unknown"}
+      },
+      "cost": {
+        "unit": "Execution, €0.008 (Starter, €20 for 2,500) to €0.005 (Pro); models on your own key",
+        "tokens": {"basis": "own-key"},
+        "sources": ["https://coworker.ai/blog/n8n-pricing"],
+        "checked": "2026-11-10"
+      },
+      "verified": false
+    },
+    {
+      "id": "zapier-agents",
+      "name": "Zapier Agents",
+      "vendor": "Zapier",
+      "category": "low-code",
+      "tier": "top-ten",
+      "rank": 9,
+      "adapter": null,
+      "surfaces": {},
+      "capabilities": {
+        "mcp": {"supported": "unknown"},
+        "a2a": {"supported": "unknown"},
+        "openapi": {"supported": "unknown"},
+        "auth": {"supported": "unknown"}
+      },
+      "cost": {
+        "unit": "Activity, about $0.022 (Pro, about $33 a month for 1,500)",
+        "tokens": {"basis": "not-published"},
+        "sources": [
+          "https://www.jahanzaib.ai/blog/zapier-agents-vs-n8n-ai-agents-2026",
+          "https://logicballs.com/blog/best-no-code-ai-agent-builder"
+        ],
+        "checked": "2026-11-10"
+      },
+      "verified": false
+    },
+    {
+      "id": "dify",
+      "name": "Dify",
+      "vendor": "LangGenius",
+      "category": "low-code",
+      "tier": "top-ten",
+      "rank": 10,
+      "adapter": null,
+      "surfaces": {},
+      "capabilities": {
+        "mcp": {"supported": "unknown"},
+        "a2a": {"supported": "unknown"},
+        "openapi": {"supported": "unknown"},
+        "auth": {"supported": "unknown"}
+      },
+      "cost": {
+        "unit": "Message credit, about $0.01 (Professional, $590 a year for 5,000 a month), or your own key",
+        "tokens": {"basis": "own-key"},
+        "sources": ["https://logicballs.com/blog/best-no-code-ai-agent-builder"],
+        "checked": "2026-11-10"
+      },
+      "verified": false
+    },
+    {
+      "id": "make",
+      "name": "Make",
+      "vendor": "Make",
+      "category": "low-code",
+      "tier": "watch",
+      "rank": null,
+      "adapter": null,
+      "surfaces": {}
+    },
+    {
+      "id": "botpress",
+      "name": "Botpress",
+      "vendor": "Botpress",
+      "category": "low-code",
+      "tier": "watch",
+      "rank": null,
+      "adapter": null,
+      "surfaces": {}
+    },
+    {
+      "id": "langflow",
+      "name": "Langflow",
+      "vendor": "Langflow",
+      "category": "low-code",
+      "tier": "watch",
+      "rank": null,
+      "adapter": null,
+      "surfaces": {}
+    },
+    {
+      "id": "watsonx-orchestrate",
+      "name": "watsonx Orchestrate",
+      "vendor": "IBM",
+      "category": "low-code",
+      "tier": "watch",
+      "rank": null,
+      "adapter": null,
+      "surfaces": {}
+    },
+    {
+      "id": "databricks-genie-code",
+      "name": "Databricks Genie Code",
+      "vendor": "Databricks",
+      "category": "data-workspace",
+      "tier": null,
+      "rank": null,
+      "adapter": "databricks-genie-code",
       "surfaces": {
         "skills": {"global": "~/.databricks/skills", "project": ".agents/skills"},
         "rules": {"project": "AGENTS.md"},
@@ -138,18 +737,27 @@
       }
     },
     {
-      "id": "snowflake-cortex-code", "name": "Snowflake Cortex Code", "vendor": "Snowflake",
-      "category": "data-workspace", "tier": null, "rank": null, "adapter": "snowflake-cortex-code",
+      "id": "snowflake-cortex-code",
+      "name": "Snowflake Cortex Code",
+      "vendor": "Snowflake",
+      "category": "data-workspace",
+      "tier": null,
+      "rank": null,
+      "adapter": "snowflake-cortex-code",
       "surfaces": {
         "skills": {"global": "~/.snowflake/skills", "project": ".agents/skills"},
         "rules": {"project": "AGENTS.md"},
         "agents": {"fallback": "agents"}
       }
     },
-
     {
-      "id": "agents", "name": "AGENTS.md and .agents/", "vendor": null,
-      "category": "standard", "tier": null, "rank": null, "adapter": null,
+      "id": "agents",
+      "name": "AGENTS.md and .agents/",
+      "vendor": null,
+      "category": "standard",
+      "tier": null,
+      "rank": null,
+      "adapter": null,
       "surfaces": {
         "skills": {"global": "~/.agents/skills", "project": ".agents/skills"},
         "rules": {"global": "~/.codex/AGENTS.md", "project": "AGENTS.md"},

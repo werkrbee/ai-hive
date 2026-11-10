@@ -371,6 +371,8 @@ run "workflows-hive engine library tests" python3 -B -m unittest discover -s hiv
 # agents-hive: passports only narrow their contracts, pins match, cards link them, and the
 # trust evaluation judges drift and gates promotion.
 run "agents-hive passport and trust evaluation tests" python3 -B -m unittest discover -s hives/agents-hive/tests
+# The harness registry: a matrix row's claims name their evidence, and the table is current.
+run "harness registry tests" python3 -B -m unittest discover -s scripts/tests
 # knowledge-hive: the audit log's hash rules, and the verifier's reports and anchors.
 run "knowledge-hive audit log tests" python3 -B -m unittest discover -s hives/knowledge-hive/tests
 
