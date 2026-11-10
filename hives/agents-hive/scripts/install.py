@@ -2,7 +2,7 @@
 """Render agents-hive personas into each harness's native agent format.
 
 Agent formats are fragmented across harnesses (Claude Code subagents, Copilot
-custom agents, the AGENTS.md ecosystem, …), so each canonical agent is stored once in
+custom agents, Codex's TOML agents, the AGENTS.md ecosystem, …), so each canonical agent is stored once in
 a neutral form (frontmatter + system prompt) and rendered per harness. Each agent
 is its own file, so writes are non-destructive by construction.
 
@@ -12,6 +12,7 @@ Usage:
   python3 scripts/install.py --dry-run
 """
 import argparse
+import json
 import os
 import re
 import sys
@@ -24,16 +25,17 @@ import harnesses  # noqa: E402  the House's harness registry, harnesses.json
 
 
 def agent_target(harness):
-    """(path template, frontmatter keys to keep, harness it falls back to or None) for a
+    """(path template, keys to keep, harness it falls back to or None, file format) for a
     harness's agents, from the registry; None if it has no agent format. {name} is the
-    agent name. A harness whose agent format isn't settled falls back to another's."""
+    agent name. The format is markdown (frontmatter and a body) unless the registry says
+    toml. A harness whose agent format isn't settled falls back to another's."""
     s = harnesses.surface(harness, "agents")
     if not s:
         return None
     fallback = s.get("fallback")
     if fallback:
         s = harnesses.surface(fallback, "agents")
-    return s["project"], s["keys"], fallback
+    return s["project"], s["keys"], fallback, s.get("format", "markdown")
 
 
 def parse_agent(path):
@@ -63,6 +65,39 @@ def render(fm, body, keys, name):
     out.append("")
     out.append(body.rstrip() + "\n")
     return "\n".join(out)
+
+
+def toml_string(text):
+    """A TOML string: a multi-line literal string when it can be one, else a basic string
+    with every control character escaped (TOML allows only tab and newline unescaped)."""
+    controls = [c for c in text if (ord(c) < 32 and c not in "\t\n") or ord(c) == 127]
+    if "'''" not in text and not controls:
+        return "'''\n" + text + "'''"
+    return json.dumps(text, ensure_ascii=False).replace("\x7f", "\\u007f")
+
+
+def render_toml(fm, body, keys, name):
+    """A Codex custom agent: one TOML file, with the system prompt as developer_instructions.
+    Codex has no tools list (a subagent inherits its parent's sandbox), so tools is dropped;
+    see unenforced()."""
+    out = []
+    for k in keys:
+        val = fm.get(k) if k != "name" else name
+        if val:
+            out.append(f"{k} = {json.dumps(val, ensure_ascii=False)}")
+    out.append("developer_instructions = " + toml_string(body.rstrip() + "\n"))
+    return "\n".join(out) + "\n"
+
+
+def unenforced(fm, fmt):
+    """The warning for an agent whose tools list the format can't carry, or None. Codex
+    can't narrow a subagent below its parent's sandbox, so an agent limited to reading is
+    read-only there only if the session is."""
+    tools = fm.get("tools")
+    if fmt != "toml" or not tools:
+        return None
+    return (f"tools ({tools}) can't be enforced in a Codex agent file; it inherits the session's "
+            "sandbox, so run that session with --sandbox read-only to keep this agent from editing")
 
 
 def load_agents(names):
@@ -101,14 +136,17 @@ def main():
         if found is None:
             print(f"unknown harness: {h}", file=sys.stderr)
             sys.exit(1)
-        tmpl, keys, fallback = found
+        tmpl, keys, fallback, fmt = found
         if fallback:
             print(f"note: {h} agent format varies — using the shared {Path(tmpl).parent}/ fallback (verify vs its docs)", file=sys.stderr)
 
         for name, (fm, body) in agents.items():
             rel = tmpl.format(name=name)
             target = Path(args.dir) / rel
-            content = render(fm, body, keys, name)
+            content = (render_toml if fmt == "toml" else render)(fm, body, keys, name)
+            warning = unenforced(fm, fmt)
+            if warning:
+                print(f"warning: {h}: {name}: {warning}", file=sys.stderr)
             if args.dry_run:
                 print(f"[dry-run] would write {target}")
                 continue

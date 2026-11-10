@@ -168,7 +168,7 @@ cp -R skills/barry ~/.cursor/skills/barry
 |---------|-------------|--------------|
 | Cursor | `~/.cursor/skills/` | `.cursor/skills/` or `.agents/skills/` |
 | Claude Code | `~/.claude/skills/` | `.claude/skills/` |
-| OpenAI Codex | `~/.codex/skills/` | `.agents/skills/` |
+| OpenAI Codex | `~/.agents/skills/` | `.agents/skills/` |
 | GitHub Copilot | `~/.copilot/skills/` | `.agents/skills/` |
 | Gemini CLI | `~/.gemini/skills/` | `.agents/skills/` |
 | Goose | `~/.config/goose/skills/` | `.goose/skills/` |

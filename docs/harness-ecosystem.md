@@ -171,7 +171,7 @@ below summarize it as of 2026-11-10, and the matrix is the one to trust when the
 |---|---|---|---|
 | Claude Code | Plan (Pro $20, Max $100, Ultra $200 a month; Team $25 or $125 a seat), or API tokens | List | Sonnet 5.5: $2 · $10; Opus 5.5: $4 · $20 |
 | GitHub Copilot | AI Credit, $0.01, spent per token at the model's rate; Pro $10, Pro+ $39 and Max $100 a month include 1,500, 7,000 and 20,000 credits | List | Sonnet 5.5: $2 · $10; Opus 5.5: $4 · $20 |
-| Codex | ChatGPT plan ($20 or $200 a month), or API tokens since 2026-04-02 | List | GPT-5.5: $5 · $30 |
+| Codex | ChatGPT plan (Plus $20; Pro $100, $200 or $500; Business $25 a user), priced per token since 2026-04-02; or API tokens | List (API key) | GPT-6.1 Sol: $2 · $10 |
 | Cursor | Plan allowance (Pro $20, Pro+ $60, Ultra $200, Teams $40 a user), then usage; Teams and Enterprise add a $0.25 per 1M token rate | List + $0.25 (Teams) | Sonnet 5.5: $2.25 · $10.25 (Teams) |
 | Gemini CLI and Antigravity | Free tier, Google AI Pro or Ultra plan, or API tokens | List | Gemini 3.1 Pro: $2 · $12 |
 | Devin Desktop | Plan (Pro $20, Max $200 a month; Teams $80 plus $40 a seat) | Not published | Not published |

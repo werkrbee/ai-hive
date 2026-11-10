@@ -75,6 +75,14 @@
       "output": 1.2,
       "source": "https://docs.github.com/en/copilot/reference/copilot-billing/models-and-pricing",
       "checked": "2026-11-10"
+    },
+    "gpt-6-1-sol": {
+      "name": "GPT-6.1 Sol (prompts up to 272,000 tokens)",
+      "input": 2,
+      "cached": 0.1,
+      "output": 10,
+      "source": "https://developers.openai.com/api/docs/pricing",
+      "checked": "2026-11-10"
     }
   },
   "harnesses": [
@@ -256,27 +264,77 @@
       "rank": 3,
       "adapter": "codex",
       "surfaces": {
-        "skills": {"global": "~/.codex/skills", "project": ".agents/skills"},
+        "skills": {"global": "~/.agents/skills", "project": ".agents/skills"},
         "rules": {"global": "~/.codex/AGENTS.md", "project": "AGENTS.md"},
-        "agents": {"fallback": "agents"}
+        "agents": {"project": ".codex/agents/{name}.toml", "format": "toml", "keys": ["name", "description", "model"]}
       },
       "capabilities": {
-        "rules": {"supported": true, "source": "hives/rules-hive/scripts/install.sh", "checked": "2026-11-10"},
-        "skills": {"supported": true, "source": "hives/skills-hive/scripts/install.sh", "checked": "2026-11-10"},
-        "subagents": {"supported": "unknown"},
-        "mcp": {"supported": true, "source": "hives/mcp-hive/scripts/install.py", "checked": "2026-11-10"},
-        "hooks": {"supported": "unknown"},
-        "memory": {"supported": "unknown"},
-        "permissions": {"supported": "unknown"},
-        "headless": {"supported": "unknown"}
+        "rules": {
+          "supported": true,
+          "source": "https://learn.chatgpt.com/docs/agent-configuration/agents-md",
+          "checked": "2026-11-10"
+        },
+        "skills": {"supported": true, "source": "https://learn.chatgpt.com/docs/build-skills", "checked": "2026-11-10"},
+        "subagents": {
+          "supported": true,
+          "source": "https://learn.chatgpt.com/docs/agent-configuration/subagents",
+          "checked": "2026-11-10"
+        },
+        "mcp": {
+          "supported": true,
+          "path": "~/.codex/config.toml",
+          "source": "https://learn.chatgpt.com/docs/extend/mcp",
+          "checked": "2026-11-10"
+        },
+        "hooks": {
+          "supported": true,
+          "path": ".codex/hooks.json",
+          "source": "https://learn.chatgpt.com/docs/hooks",
+          "checked": "2026-11-10"
+        },
+        "memory": {"supported": true, "source": "https://learn.chatgpt.com/docs/customization/memories", "checked": "2026-11-10"},
+        "permissions": {
+          "supported": true,
+          "path": "~/.codex/config.toml",
+          "source": "https://learn.chatgpt.com/docs/agent-approvals-security",
+          "checked": "2026-11-10"
+        },
+        "headless": {
+          "supported": true,
+          "path": "codex exec",
+          "source": "https://learn.chatgpt.com/docs/non-interactive-mode",
+          "checked": "2026-11-10"
+        }
       },
       "cost": {
-        "unit": "ChatGPT plan ($20 or $200 a month), or API tokens since 2026-04-02",
-        "tokens": {"basis": "list", "models": ["gpt-5-5"]},
-        "sources": ["https://www.cloudzero.com/blog/ai-coding-tools-cost/", "https://apidog.com/blog/gpt-5-5-pricing/"],
+        "unit": "ChatGPT plan (Plus $20; Pro $100, $200 or $500; Business $25 a user), then credits per token at Codex's rate card; or API tokens at list price",
+        "tokens": {"basis": "list", "models": ["gpt-6-1-sol"]},
+        "sources": ["https://learn.chatgpt.com/docs/pricing", "https://developers.openai.com/api/docs/pricing"],
         "checked": "2026-11-10"
       },
-      "verified": false
+      "runs": [
+        {
+          "agent": "barry",
+          "date": "2026-11-10",
+          "version": "0.167.0",
+          "model": "gpt-6-1-sol",
+          "how": "codex exec \"Use the barry skill. Plan issue #236 …\" --sandbox read-only",
+          "tokens": {"input": 29198, "cache_write": 0, "cached": 191360, "output": 1098},
+          "cost": "not reported by Codex; 2.21 credits at its rate card, $0.09 at API list price",
+          "result": "planned #236 in steps, each with an agent role; edited nothing (gh was blocked by the sandbox, so it read the issue another way)"
+        },
+        {
+          "agent": "patricia",
+          "date": "2026-11-10",
+          "version": "0.167.0",
+          "model": "gpt-6-1-sol",
+          "how": "codex exec \"Use the patricia skill. Review the staged diff …\" --sandbox read-only",
+          "tokens": {"input": 25112, "cache_write": 0, "cached": 135168, "output": 608},
+          "cost": "not reported by Codex; 1.75 credits at its rate card, $0.07 at API list price",
+          "result": "CONCERNS: Codex agent files drop the tools restriction; answered with an install warning and a guide note"
+        }
+      ],
+      "verified": true
     },
     {
       "id": "cursor",

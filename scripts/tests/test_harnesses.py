@@ -121,9 +121,13 @@ class StaleTest(unittest.TestCase):
         self.assertIn(("Claude Code", "2026-01-01", 91), stale)
 
     def test_a_stale_model_price_makes_its_rows_stale(self):
-        self.registry["models"]["gpt-5-5"]["checked"] = "2025-12-01"
+        model = harnesses.get("codex", self.registry)["cost"]["tokens"]["models"][0]
+        quoting = {h["name"] for h in self.registry["harnesses"]
+                   if model in h.get("cost", {}).get("tokens", {}).get("models", [])}
+        self.registry["models"][model]["checked"] = "2025-12-01"
         stale = {name for name, _, _ in harnesses.stale(self.registry, datetime.date(2026, 3, 15))}
-        self.assertEqual(stale, {"Codex"})
+        self.assertIn("Codex", stale)
+        self.assertEqual(stale, quoting)
 
     def test_check_fails_a_stale_row(self):
         problems = harnesses.check(self.registry, datetime.date(2026, 4, 2))
