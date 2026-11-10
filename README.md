@@ -207,7 +207,8 @@ reference implementation):
   (`adapters/<harness>/<sub-harness>/`).
 - **Product-name directories** in kebab-case (`claude-code`, `github-copilot`,
   `databricks-genie-code`).
-- **Cross-platform install** — a Bash-3.2-safe `install.sh` and a Windows
+- **Cross-platform install** — a Bash-3.2-safe `install.sh` (it reads the harness
+  registry with `python3`) and a Windows
   `install.ps1` (junctions + settings) fan the artifacts into each harness.
 - **Naming** — `<thing>-hive`, all under the `werkrbee` org.
 

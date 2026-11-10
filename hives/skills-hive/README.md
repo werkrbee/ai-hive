@@ -138,7 +138,9 @@ chmod +x scripts/install.sh
 ./scripts/install.sh --global --all --harness cursor --harness claude-code
 ```
 
-The script is written for macOS's default Bash 3.2 (no associative arrays).
+The script is written for macOS's default Bash 3.2 (no associative arrays). It reads
+the House's harness registry (`harnesses.json`) with `python3`, which ships with git on
+macOS and with most Linux distributions.
 
 ### Option 3 — install script (Windows / Scout)
 
