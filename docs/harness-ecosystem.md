@@ -5,9 +5,9 @@ means._
 
 ai-hive is harness-agnostic: its artifacts ride open standards (`AGENTS.md`, `SKILL.md`,
 MCP, A2A) and `adapters/<harness>/` says where they run. Today that axis is a list of
-names, not a promise. Every hive has ten adapter folders, and all of them are empty. The
+names, not a promise. Six hives have ten adapter folders each, and all of them are empty. The
 harness list is written out by hand in each installer, in `scripts/architecture.py` and in
-seven READMEs, and several install paths carry a "verify" comment that nobody has acted
+eight READMEs, and several install paths carry a "verify" comment that nobody has acted
 on. A product adopting the House can't tell which harnesses actually work, or what running
 an agent in one costs compared with another.
 
@@ -149,8 +149,11 @@ anything is still cost per accepted outcome (#142); the two units here are input
 The reference models below are what the House deploys or a harness defaults to. List
 prices per million tokens, input · cached input · output: Claude Sonnet 5.5 $2 · $0.20 ·
 $10, Claude Opus 5.5 $4 · $0.20 · $20 and Claude Fable 5.1 $10 · $0.25 · $50, with Claude
-Haiku 5.5 at $0.10 input and $0.50 output (Anthropic, cached 2026-10-06); GPT-5.5 $5 · $0.50 · $30
+Haiku 5.5 at $0.10 input and $0.50 output (Anthropic's model table, dated 2026-10-06 and current on 2026-11-10; no cached-input price is listed for Haiku 5.5); GPT-5.5 $5 · $0.50 · $30
 (OpenAI); Gemini 3.1 Pro $2 · $0.20 · $12 for prompts up to 200,000 tokens (Google).
+
+The tables give input and output for space; each row's cached-input rate is the model's,
+listed above, wherever tokens are billed at list price.
 
 ### Pro-code
 
@@ -198,7 +201,7 @@ to this note. A price is re-checked before any decision rests on it, whatever it
 
 ## Sources
 
-Checked on 2026-11-10. Anthropic's prices come from Anthropic's current model table. The
+Checked on 2026-11-10. Anthropic's prices come from Anthropic's model table, dated 2026-10-06 and current on 2026-11-10. The
 survey figures and every other price were read from secondary reports, many of which
 disagree with one another, and must be confirmed against the vendor's own page when each
 harness's row is filled in.
