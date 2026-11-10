@@ -184,6 +184,40 @@ shareholder letter against the repo (`docs/frontier-ecosystem.md`).
 - **Lessons that outlive the model (knowledge-hive).** Plain-text lessons pinned in the
   passport; a model swap must pass the eval with them. (#147)
 
+## P2.3 — harness alignment
+
+Tracked on the `P2.3 — harness alignment` milestone (epic #229, issues #230–#257),
+worked in the order set in `docs/sprints/p2.3.md`. ai-hive is
+harness-agnostic, but its harness axis is a list of names: every adapter folder is empty,
+the list is copied by hand into each installer, several install paths are guesses marked
+"verify", and nothing says what running an agent in one harness costs against another.
+This milestone commits the House to twenty harnesses in two categories and makes each one
+verifiable (`docs/harness-ecosystem.md`). The pro-code ten install the House's artifacts:
+Claude Code, GitHub Copilot, Codex, Cursor, Gemini CLI and Antigravity, Devin Desktop
+(formerly Windsurf), Kiro, Cline, OpenCode and Goose. The low-code ten call its agents and
+tools over MCP and A2A: Copilot Studio, Agentforce, Gemini Enterprise, ServiceNow AI
+Agents, Amazon Quick Suite, UiPath Agent Builder, Workato Agent Studio, n8n, Zapier Agents
+and Dify. Databricks Genie Code and Snowflake Cortex Code stay as data workspaces, and
+each category has a watch list. Cost is compared in effective dollars per million input,
+cached input and output tokens for a named model, beside each harness's native billing
+unit and retail price.
+
+- **The harness ecosystem (docs).** The two tens, the watch lists, what aligned means and
+  the cost unit.
+- **One harness registry (all hives).** One file every installer and page reads.
+- **Capability and price matrix (skills-hive).** A dated, sourced row per harness, with
+  its billing unit, retail price and effective rate per million tokens.
+- **Conformance check (ci).** Install into a sandbox per pro-code harness, check every
+  path, and fail on stale rows.
+- **Align the pro-code ten.** One issue per harness, in three sprints by reach: verified
+  row, fixed installers, MCP configuration, a full harness guide and a recorded run of
+  Barry and Patricia.
+- **Align the low-code ten.** A design note for the pattern, then one issue per platform
+  in two sprints: verified row, a no-code guide and a recorded call to hosted Patricia or
+  an mcp-hive server.
+- **Keep it current (docs).** Cost per reference task, a quarterly check of rankings and
+  prices, and one index of the harness guides.
+
 ## P3 — how to use AI
 
 Proposed; not yet a milestone or issues. ai-hive becomes an expert in how to use AI and
@@ -196,7 +230,7 @@ last checked.
   is good and bad at, context, caching, tool use and price, linked to its eval results.
 - **Harness guides (skills-hive).** Grow Barry's harness references into a guide per
   harness: skills, rules, memory, sub-agents, hooks and MCP, and how to get the most from
-  each.
+  each. P2.3 delivers them for its twenty harnesses.
 - **Memory (knowledge-hive).** What an agent remembers, where, for how long and for whom;
   how memory is consolidated, corrected and forgotten; and how it stays inside its trust
   boundary. Builds on lessons in the passport (#147) and the sub-agent boundary (#130).
