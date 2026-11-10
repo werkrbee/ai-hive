@@ -26,7 +26,7 @@ The charter, tools, and agents are already installed for the project. Skills
 {{PROJECT_SLUG}}/
 ├── AGENTS.md / CLAUDE.md / .cursor/rules/   # the law (Patricia)
 ├── .mcp.json / .cursor/mcp.json / .vscode/  # tools
-├── .claude/agents/ · .github/chatmodes/     # the review fleet
+├── .claude/agents/ · .github/agents/        # the review fleet
 ├── docs/                                     # your working docs
 └── README.md
 ```

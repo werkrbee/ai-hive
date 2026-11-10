@@ -79,7 +79,7 @@ One run installs, for each harness in the pack:
 - **skills** → global skills dirs (`~/.claude/skills`, …)
 - **rules** → the project's instruction files (`CLAUDE.md`, `.cursor/rules/…`, …)
 - **mcp** → the project's MCP configs (`.mcp.json`, `.cursor/mcp.json`, …)
-- **agents** → the project's agent files (`.claude/agents/…`, chatmodes, …)
+- **agents** → the project's agent files (`.claude/agents/…`, `.github/agents/…`, …)
 
 Skills install globally (they're reusable capabilities); rules, tools, and agents
 install into the target project — matching how each hive is normally scoped.

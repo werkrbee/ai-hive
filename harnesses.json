@@ -59,6 +59,22 @@
       "output": 12,
       "source": "https://ai.google.dev/gemini-api/docs/pricing",
       "checked": "2026-11-10"
+    },
+    "gpt-6-luna": {
+      "name": "GPT-6 Luna (prompts up to 272,000 tokens)",
+      "input": 0.1,
+      "cached": 0.01,
+      "output": 0.5,
+      "source": "https://docs.github.com/en/copilot/reference/copilot-billing/models-and-pricing",
+      "checked": "2026-11-10"
+    },
+    "mai-code-1-1-flash": {
+      "name": "MAI-Code-1.1-Flash",
+      "input": 0.2,
+      "cached": 0.02,
+      "output": 1.2,
+      "source": "https://docs.github.com/en/copilot/reference/copilot-billing/models-and-pricing",
+      "checked": "2026-11-10"
     }
   },
   "harnesses": [
@@ -150,34 +166,86 @@
       "adapter": "github-copilot",
       "surfaces": {
         "skills": {"global": "~/.copilot/skills", "project": ".agents/skills"},
-        "rules": {"project": ".github/copilot-instructions.md"},
-        "agents": {"project": ".github/chatmodes/{name}.chatmode.md", "keys": ["description", "tools", "model"]}
+        "rules": {"global": "~/.copilot/copilot-instructions.md", "project": ".github/copilot-instructions.md"},
+        "agents": {"project": ".github/agents/{name}.agent.md", "keys": ["name", "description", "tools", "model"]}
       },
       "capabilities": {
-        "rules": {"supported": true, "source": "hives/rules-hive/scripts/install.sh", "checked": "2026-11-10"},
-        "skills": {"supported": true, "source": "hives/skills-hive/scripts/install.sh", "checked": "2026-11-10"},
-        "subagents": {"supported": "unknown"},
-        "mcp": {
+        "rules": {
           "supported": true,
-          "path": ".vscode/mcp.json",
-          "source": "hives/mcp-hive/scripts/install.py",
+          "source": "https://docs.github.com/en/copilot/how-tos/copilot-cli/customize-copilot/add-custom-instructions",
           "checked": "2026-11-10"
         },
-        "hooks": {"supported": "unknown"},
-        "memory": {"supported": "unknown"},
-        "permissions": {"supported": "unknown"},
-        "headless": {"supported": "unknown"}
+        "skills": {
+          "supported": true,
+          "source": "https://docs.github.com/en/copilot/concepts/agents/about-agent-skills",
+          "checked": "2026-11-10"
+        },
+        "subagents": {
+          "supported": true,
+          "source": "https://docs.github.com/en/copilot/reference/custom-agents-configuration",
+          "checked": "2026-11-10"
+        },
+        "mcp": {
+          "supported": true,
+          "path": "~/.copilot/mcp-config.json",
+          "source": "https://docs.github.com/en/copilot/how-tos/copilot-cli/customize-copilot/add-mcp-servers",
+          "checked": "2026-11-10"
+        },
+        "hooks": {
+          "supported": true,
+          "path": ".github/hooks/",
+          "source": "https://docs.github.com/en/copilot/how-tos/copilot-cli/customize-copilot/use-hooks",
+          "checked": "2026-11-10"
+        },
+        "memory": {
+          "supported": true,
+          "source": "https://docs.github.com/en/copilot/concepts/agents/copilot-memory",
+          "checked": "2026-11-10"
+        },
+        "permissions": {
+          "supported": true,
+          "source": "https://docs.github.com/en/copilot/how-tos/copilot-cli/use-copilot-cli/allowing-tools",
+          "checked": "2026-11-10"
+        },
+        "headless": {
+          "supported": true,
+          "path": "copilot -p",
+          "source": "https://docs.github.com/en/copilot/how-tos/copilot-cli/use-copilot-cli/overview",
+          "checked": "2026-11-10"
+        }
       },
       "cost": {
-        "unit": "AI Credit, $0.01, spent per token at the model's rate; plans $10, $39 and $100 a month include $15, $70 and $200 of credits",
-        "tokens": {"basis": "list", "models": ["claude-sonnet-5-5"]},
+        "unit": "AI Credit, $0.01, spent per token at the model's rate; Pro $10, Pro+ $39 and Max $100 a month include 1,500, 7,000 and 20,000 credits",
+        "tokens": {"basis": "list", "models": ["claude-sonnet-5-5", "claude-opus-5-5"]},
         "sources": [
-          "https://www.cloudzero.com/blog/ai-coding-tools-cost/",
-          "https://dev.to/tokely/claude-code-codex-copilot-and-cursor-plans-vs-api-break-even-and-the-cost-of-long-sessions-2026-53d6"
+          "https://docs.github.com/en/copilot/concepts/billing/usage-based-billing-for-individuals",
+          "https://docs.github.com/en/copilot/reference/copilot-billing/models-and-pricing"
         ],
         "checked": "2026-11-10"
       },
-      "verified": false
+      "runs": [
+        {
+          "agent": "barry",
+          "date": "2026-11-10",
+          "version": "1.0.108",
+          "model": "gpt-6-luna",
+          "how": "copilot -p \"/barry Plan issue #235 …\" --no-ask-user",
+          "tokens": {"input": 24, "cache_write": 43306, "cached": 203647, "output": 3437},
+          "cost": "0.92 AI credits ($0.009), as Copilot reports it",
+          "result": "planned #235 in steps, each with an agent role; auto model selection; edited nothing"
+        },
+        {
+          "agent": "patricia",
+          "date": "2026-11-10",
+          "version": "1.0.108",
+          "model": "mai-code-1-1-flash",
+          "how": "copilot -p \"/patricia Review the staged diff …\" --no-ask-user",
+          "tokens": {"input": 38536, "cache_write": 0, "cached": 134784, "output": 3787},
+          "cost": "1.49 AI credits ($0.015), as Copilot reports it",
+          "result": "PASS on the staged diff, with a short review; auto model selection; edited nothing"
+        }
+      ],
+      "verified": true
     },
     {
       "id": "codex",
