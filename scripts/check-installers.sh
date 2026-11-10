@@ -373,6 +373,12 @@ run "workflows-hive engine library tests" python3 -B -m unittest discover -s hiv
 run "agents-hive passport and trust evaluation tests" python3 -B -m unittest discover -s hives/agents-hive/tests
 # The harness registry: a matrix row's claims name their evidence, and the table is current.
 run "harness registry tests" python3 -B -m unittest discover -s scripts/tests
+# Harness conformance: install the House for every harness with install paths, from a copy
+# in the sandbox, and find each file where harnesses.json says it lands. A missing file fails
+# a pro-code harness in the ten; for any other harness it's a note.
+out=$(python3 -B scripts/harnesses.py conformance "$sandbox/conformance" 2>&1); code=$?
+if [ "$code" -eq 0 ]; then pass "harness conformance"; else flunk "harness conformance"; fi
+printf '%s\n' "$out" | sed 's/^/      /'
 # knowledge-hive: the audit log's hash rules, and the verifier's reports and anchors.
 run "knowledge-hive audit log tests" python3 -B -m unittest discover -s hives/knowledge-hive/tests
 

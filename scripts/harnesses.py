@@ -5,9 +5,11 @@ The registry is the only place a harness, its category and tier, its install pat
 its capability and price row are written down (docs/harness-ecosystem.md). Python
 installers import this module; shell installers call it. `matrix` writes the readable
 table, docs/harness-matrix.md. `check` is what CI runs: the registry is well formed, every
-claim in a row names its source and the date it was checked, the table is current, each
-hive's adapters/ matches the registry, and each README that draws an adapters/ tree names
-every adapter.
+claim in a row names its source and the date it was checked, no row in either ten was
+checked more than 90 days ago, the table is current, each hive's adapters/ matches the
+registry, and each README that draws an adapters/ tree names every adapter. `conformance`
+is what check-installers.sh runs: it installs the House for every harness with install
+paths into a sandbox and looks for each file where the registry says it lands.
 
 Standard library only.
 
@@ -20,10 +22,16 @@ Usage:
   python3 scripts/harnesses.py matrix
       rewrite docs/harness-matrix.md from the registry
   python3 scripts/harnesses.py check
+  python3 scripts/harnesses.py conformance SANDBOX
+      install into SANDBOX for every harness with install paths; fail if a top-ten
+      harness's file is missing, and report the rest
 """
+import datetime
 import json
 import os
 import re
+import shutil
+import subprocess
 import sys
 from pathlib import Path
 
@@ -45,6 +53,10 @@ CAPABILITY_SURFACE = {"rules": "rules", "skills": "skills", "subagents": "agents
 # key at list price, or at a rate it doesn't publish.
 BASES = ("list", "own-key", "not-published")
 DATE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+# A row in either ten checked longer ago than this is stale: CI fails until it's re-verified.
+STALE_AFTER_DAYS = 90
+# What conformance installs, one of each, and what a file it writes is named.
+SKILL, RULESET, AGENT = "barry", "queen-charter", "explore"
 
 
 def load(path=REGISTRY):
@@ -213,7 +225,38 @@ def adapters(registry=None):
             if h.get("adapter") and "/" not in h["adapter"]}
 
 
-def check(registry=None):
+def row_dates(h, registry):
+    """Every date checked that a top-ten harness's row rests on: its capabilities, its cost,
+    and the list prices of the models its cost is quoted for."""
+    dates = [c["checked"] for c in h.get("capabilities", {}).values() if "checked" in c]
+    cost = h.get("cost", {})
+    if "checked" in cost:
+        dates.append(cost["checked"])
+    for mid in cost.get("tokens", {}).get("models", []):
+        m = registry.get("models", {}).get(mid)
+        if m and "checked" in m:
+            dates.append(m["checked"])
+    return [d for d in dates if DATE.match(str(d))]
+
+
+def stale(registry, today=None):
+    """[(harness name, oldest date, days ago)] for each top-ten row checked more than
+    STALE_AFTER_DAYS ago."""
+    today = today or datetime.date.today()
+    out = []
+    for h in registry["harnesses"]:
+        if h["tier"] != "top-ten":
+            continue
+        dates = row_dates(h, registry)
+        if dates:
+            oldest = min(dates)
+            days = (today - datetime.date.fromisoformat(oldest)).days
+            if days > STALE_AFTER_DAYS:
+                out.append((h["name"], oldest, days))
+    return out
+
+
+def check(registry=None, today=None):
     """Problems with the registry and what must agree with it; empty when all is well."""
     reg = registry or load()
     problems = []
@@ -291,6 +334,10 @@ def check(registry=None):
         if not isinstance(h.get("verified"), bool):
             problems.append(f"{where}: its row says whether it's verified (true or false)")
 
+    for name, oldest, days in stale(reg, today):
+        problems.append(f"{name}: its row was last checked {oldest}, {days} days ago (over "
+                        f"{STALE_AFTER_DAYS}); re-verify it, as CONTRIBUTING.md describes")
+
     if not problems:
         if not MATRIX.is_file() or MATRIX.read_text() != render_matrix(reg):
             problems.append(f"{MATRIX.relative_to(ROOT)} is out of date: run python3 scripts/harnesses.py matrix")
@@ -320,6 +367,90 @@ def check(registry=None):
             if f"{name}/" not in text:
                 problems.append(f"{taxonomy.relative_to(ROOT)}: doesn't name {name}/")
     return problems
+
+
+def conformance(sandbox, registry=None, prepare=None):
+    """Install the House into SANDBOX for every harness with install paths, and look for each
+    file where the registry says it lands. Returns (failures, reports, checked): a missing file is a
+    failure for a top-ten harness and a report for any other, and a top-ten harness without
+    install paths yet is a report. Also returns what was checked, as (harness, surface,
+    scope) triples. The repo is never written to: the installers run from a
+    copy of the House inside SANDBOX, reading a copy of the registry. PREPARE, if given, is
+    called with the copy's root before anything runs (tests use it)."""
+    reg = registry or load()
+    sandbox = Path(sandbox)
+    house = sandbox / "house"
+    if house.exists():
+        shutil.rmtree(house)
+    skip = shutil.ignore_patterns("__pycache__", ".DS_Store")
+    for hive in ("skills-hive", "rules-hive", "agents-hive"):
+        shutil.copytree(ROOT / "hives" / hive, house / "hives" / hive, ignore=skip)
+    (house / "scripts").mkdir(parents=True)
+    shutil.copy2(Path(__file__), house / "scripts" / "harnesses.py")
+    (house / "harnesses.json").write_text(dumps(reg))
+    if prepare:
+        prepare(house)
+
+    failures, reports, checked = [], [], []
+    for h in reg["harnesses"]:
+        held = h["tier"] == "top-ten" and h["category"] == "pro-code"
+        if h["tier"] == "top-ten" and h["category"] != "pro-code":
+            continue  # low-code harnesses are reached over the wire, not installed into
+        if not h["surfaces"]:
+            if held:
+                reports.append(f"{h['id']}: no install paths yet")
+            continue
+        home, proj = sandbox / "home" / h["id"], sandbox / "proj" / h["id"]
+        for d in (home, proj):
+            if d.exists():
+                shutil.rmtree(d)
+            d.mkdir(parents=True)
+        env = dict(os.environ, HOME=str(home))
+        skills_hive = house / "hives" / "skills-hive"
+
+        def expect(surface_name, scope, cmd, where):
+            result = subprocess.run(cmd, env=env, capture_output=True, text=True)
+            checked.append((h["id"], surface_name, scope))
+            if result.returncode == 0 and where.is_file():
+                return
+            rel = os.path.relpath(where, sandbox)
+            why = f"exit {result.returncode}" if result.returncode else "nothing written there"
+            msg = f"{h['id']}: {surface_name} ({scope}) didn't land at {rel} ({why})"
+            (failures if held else reports).append(msg)
+
+        def under(base, template, fill):
+            """A registry path inside the sandbox: ~ is the sandbox home, anything else is
+            relative to BASE."""
+            p = template.replace("{name}", fill)
+            return home / p[2:] if p.startswith("~/") else base / p
+
+        skills = h["surfaces"].get("skills", {})
+        script = str(skills_hive / "scripts" / "install.sh")
+        if "global" in skills:
+            expect("skills", "global", ["bash", script, "--global", "--harness", h["id"], "--skill", SKILL],
+                   under(home, skills["global"], "") / SKILL / "SKILL.md")
+        if "project" in skills:
+            expect("skills", "project", ["bash", script, "--harness", h["id"], "--skill", SKILL],
+                   skills_hive / skills["project"] / SKILL / "SKILL.md")
+            shutil.rmtree(skills_hive / skills["project"].split("/")[0], ignore_errors=True)
+
+        rules = h["surfaces"].get("rules", {})
+        script = str(house / "hives" / "rules-hive" / "scripts" / "install.sh")
+        if "project" in rules:
+            expect("rules", "project", ["bash", script, "--harness", h["id"], "--dir", str(proj)],
+                   under(proj, rules["project"], RULESET))
+        if "global" in rules:
+            expect("rules", "global", ["bash", script, "--global", "--harness", h["id"]],
+                   under(home, rules["global"], RULESET))
+
+        agents = h["surfaces"].get("agents", {})
+        if agents:
+            target = surface(agents["fallback"], "agents", reg) if "fallback" in agents else agents
+            script = str(house / "hives" / "agents-hive" / "scripts" / "install.py")
+            expect("agents", "project", [sys.executable, "-B", script, "--harness", h["id"], "--agent", AGENT,
+                                         "--dir", str(proj)],
+                   under(proj, target["project"], AGENT))
+    return failures, reports, checked
 
 
 def main(argv):
@@ -354,6 +485,17 @@ def main(argv):
     if cmd == "matrix" and not rest:
         MATRIX.write_text(render_matrix())
         print(f"wrote {MATRIX.relative_to(ROOT)}")
+        return 0
+    if cmd == "conformance" and len(rest) == 1:
+        failures, reports, checked = conformance(rest[0])
+        for f in failures:
+            print(f"FAIL  {f}")
+        for r in reports:
+            print(f"note  {r}")
+        if failures:
+            return 1
+        print(f"OK  {len(checked)} installs across {len({c[0] for c in checked})} harnesses landed "
+              f"where the registry says")
         return 0
     if cmd == "check" and not rest:
         problems = check()
