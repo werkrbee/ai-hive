@@ -115,7 +115,7 @@ def effective(h, registry):
     if t["basis"] == "not-published":
         return "Not published"
     if t["basis"] == "own-key":
-        return "As the model, at its list price; no harness fee"
+        return "The model's list price, on your own key" + (f"; {t['note']}" if t.get("note") else "")
     fee = t.get("fee", 0)
     rows = []
     for mid in t["models"]:
@@ -131,7 +131,7 @@ def link(source):
     """A source as a Markdown link: URLs as they are, repo paths relative to docs/."""
     if source.startswith("http"):
         return f"[{source.split('//', 1)[1].split('/', 1)[0]}]({source})"
-    return f"[`{source}`](../{source})"
+    return f"[`{source}`](../{source}) (the House's installer, not the vendor's docs)"
 
 
 def render_matrix(registry=None):
@@ -284,6 +284,8 @@ def check(registry=None):
             for mid in t.get("models", []):
                 if mid not in reg.get("models", {}):
                     problems.append(f"{where}: cost names model {mid!r}, which isn't in models")
+            if t.get("note") is not None and t.get("basis") != "own-key":
+                problems.append(f"{where}: a cost note goes with the own-key basis")
             if t.get("basis") == "list" and not t.get("models"):
                 problems.append(f"{where}: a list-price basis names the models it's quoted for")
         if not isinstance(h.get("verified"), bool):

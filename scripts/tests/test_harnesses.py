@@ -59,6 +59,11 @@ class CheckTest(unittest.TestCase):
     def test_the_table_is_current(self):
         self.assertRefused(lambda r: r["models"]["gpt-5-5"].update(output=31), "harness-matrix.md is out of date")
 
+    def test_an_own_key_row_states_no_fee_it_cannot_source(self):
+        text = harnesses.effective(self.harness(self.registry, "n8n"), self.registry)
+        self.assertNotIn("no harness fee", text)
+        self.assertIn("plus each execution", text)
+
     def test_a_fee_makes_the_effective_rate_list_plus_fee(self):
         [(name, inp, cached, out)] = harnesses.effective(self.harness(self.registry, "cursor"), self.registry)
         self.assertEqual((inp, cached, out), ("$2.25", "unknown", "$10.25"))

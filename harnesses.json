@@ -113,7 +113,7 @@
       "capabilities": {
         "rules": {"supported": true, "source": "hives/rules-hive/scripts/install.sh", "checked": "2026-11-10"},
         "skills": {"supported": true, "source": "hives/skills-hive/scripts/install.sh", "checked": "2026-11-10"},
-        "subagents": {"supported": true, "source": "hives/agents-hive/scripts/install.py", "checked": "2026-11-10"},
+        "subagents": {"supported": "unknown"},
         "mcp": {
           "supported": true,
           "path": ".vscode/mcp.json",
@@ -316,7 +316,7 @@
       },
       "cost": {
         "unit": "Free; your own key, or Cline's provider",
-        "tokens": {"basis": "own-key"},
+        "tokens": {"basis": "own-key", "note": "or Cline's provider, whose rate isn't recorded"},
         "sources": ["https://www.developersdigest.tech/blog/ai-coding-tools-pricing-2026"],
         "checked": "2026-11-10"
       },
@@ -627,7 +627,7 @@
       },
       "cost": {
         "unit": "Execution, €0.008 (Starter, €20 for 2,500) to €0.005 (Pro); models on your own key",
-        "tokens": {"basis": "own-key"},
+        "tokens": {"basis": "own-key", "note": "plus each execution"},
         "sources": ["https://coworker.ai/blog/n8n-pricing"],
         "checked": "2026-11-10"
       },
@@ -676,7 +676,7 @@
       },
       "cost": {
         "unit": "Message credit, about $0.01 (Professional, $590 a year for 5,000 a month), or your own key",
-        "tokens": {"basis": "own-key"},
+        "tokens": {"basis": "own-key", "note": "or message credits on Dify's plans"},
         "sources": ["https://logicballs.com/blog/best-no-code-ai-agent-builder"],
         "checked": "2026-11-10"
       },
