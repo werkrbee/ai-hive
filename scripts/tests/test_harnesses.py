@@ -74,6 +74,28 @@ class CheckTest(unittest.TestCase):
         [(name, inp, cached, out)] = harnesses.effective(self.harness(self.registry, "cursor"), self.registry)
         self.assertEqual((inp, cached, out), ("$2.25", "unknown", "$10.25"))
 
+    def test_a_verified_row_has_no_unknowns(self):
+        self.assertRefused(lambda r: self.harness(r, "claude-code")["capabilities"]["hooks"].update(
+            supported="unknown"), "a verified row has no unknowns, found hooks")
+
+    def test_a_verified_pro_code_row_records_both_runs(self):
+        self.assertRefused(lambda r: self.harness(r, "claude-code")["runs"].pop(),
+                           "records a run of barry and patricia")
+
+    def test_a_run_counts_its_tokens(self):
+        self.assertRefused(lambda r: self.harness(r, "claude-code")["runs"][0]["tokens"].pop("cached"),
+                           "run 1 counts tokens as")
+        self.assertRefused(lambda r: self.harness(r, "claude-code")["runs"][1].pop("version"),
+                           "run 2 lacks version")
+
+    def test_an_unverified_row_needs_no_run(self):
+        def unverify(r):
+            h = self.harness(r, "claude-code")
+            h["verified"] = False
+            h.pop("runs")
+        problems = self.problems(unverify)
+        self.assertFalse([p for p in problems if "claude-code" in p], problems)
+
 
 
 class StaleTest(unittest.TestCase):

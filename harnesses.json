@@ -1,5 +1,5 @@
 {
-  "$comment": "The harness registry: the only place a harness, its category and tier, its install paths, and its capability and price row are written down. Read through scripts/harnesses.py, which renders the row as docs/harness-matrix.md. Ranking, categories and the cost unit: docs/harness-ecosystem.md. Paths use ~ for the home directory and {name} for the ruleset or agent name. A capability is supported true, false or \"unknown\"; anything but unknown names its source and the date checked. Model prices are dollars per million tokens.",
+  "$comment": "The harness registry: the only place a harness, its category and tier, its install paths, and its capability and price row are written down. Read through scripts/harnesses.py, which renders the row as docs/harness-matrix.md. Ranking, categories and the cost unit: docs/harness-ecosystem.md. Paths use ~ for the home directory and {name} for the ruleset or agent name; a capability's path is where the harness reads it, in the harness's own placeholders such as <project>, or for headless the command that runs it. A capability is supported true, false or \"unknown\"; anything but unknown names its source and the date checked. Model prices are dollars per million tokens. A row is verified once every field is checked against the vendor's docs; a verified pro-code row records one run each of Barry and Patricia in the harness.",
   "version": 1,
   "categories": {
     "pro-code": "Coding agents that read a repository; the House installs its artifacts into them.",
@@ -15,7 +15,7 @@
     "claude-sonnet-5-5": {
       "name": "Claude Sonnet 5.5",
       "input": 2,
-      "cached": 0.2,
+      "cached": 0.1,
       "output": 10,
       "source": "https://platform.claude.com/docs/en/about-claude/pricing",
       "checked": "2026-11-10"
@@ -37,9 +37,9 @@
       "checked": "2026-11-10"
     },
     "claude-haiku-5-5": {
-      "name": "Claude Haiku 5.5",
+      "name": "Claude Haiku 5.5 (prompts up to 100,000 tokens)",
       "input": 0.1,
-      "cached": null,
+      "cached": 0.01,
       "output": 0.5,
       "source": "https://platform.claude.com/docs/en/about-claude/pricing",
       "checked": "2026-11-10"
@@ -76,26 +76,69 @@
         "agents": {"project": ".claude/agents/{name}.md", "keys": ["name", "description", "tools", "model"]}
       },
       "capabilities": {
-        "rules": {"supported": true, "source": "hives/rules-hive/scripts/install.sh", "checked": "2026-11-10"},
-        "skills": {"supported": true, "source": "hives/skills-hive/scripts/install.sh", "checked": "2026-11-10"},
-        "subagents": {"supported": true, "source": "hives/agents-hive/scripts/install.py", "checked": "2026-11-10"},
-        "mcp": {"supported": true, "path": ".mcp.json", "source": "hives/mcp-hive/scripts/install.py", "checked": "2026-11-10"},
-        "hooks": {"supported": "unknown"},
-        "memory": {"supported": "unknown"},
-        "permissions": {"supported": "unknown"},
-        "headless": {"supported": "unknown"}
+        "rules": {"supported": true, "source": "https://code.claude.com/docs/en/memory", "checked": "2026-11-10"},
+        "skills": {"supported": true, "source": "https://code.claude.com/docs/en/skills", "checked": "2026-11-10"},
+        "subagents": {"supported": true, "source": "https://code.claude.com/docs/en/sub-agents", "checked": "2026-11-10"},
+        "mcp": {
+          "supported": true,
+          "path": ".mcp.json",
+          "source": "https://code.claude.com/docs/en/mcp",
+          "checked": "2026-11-10"
+        },
+        "hooks": {
+          "supported": true,
+          "path": ".claude/settings.json",
+          "source": "https://code.claude.com/docs/en/hooks",
+          "checked": "2026-11-10"
+        },
+        "memory": {
+          "supported": true,
+          "path": "~/.claude/projects/<project>/memory/",
+          "source": "https://code.claude.com/docs/en/memory",
+          "checked": "2026-11-10"
+        },
+        "permissions": {
+          "supported": true,
+          "path": ".claude/settings.json",
+          "source": "https://code.claude.com/docs/en/permissions",
+          "checked": "2026-11-10"
+        },
+        "headless": {
+          "supported": true,
+          "path": "claude -p",
+          "source": "https://code.claude.com/docs/en/headless",
+          "checked": "2026-11-10"
+        }
       },
       "cost": {
-        "unit": "Plan seat (Pro $20, Max $100 or $200 a month), or API tokens",
+        "unit": "Plan (Pro $20, Max $100, Ultra $200 a month; Team $25 or $125 a seat), or API tokens",
         "tokens": {"basis": "list", "models": ["claude-sonnet-5-5", "claude-opus-5-5"]},
-        "sources": [
-          "https://www.cloudzero.com/blog/ai-coding-tools-cost/",
-          "https://dev.to/tokely/claude-code-codex-copilot-and-cursor-plans-vs-api-break-even-and-the-cost-of-long-sessions-2026-53d6",
-          "https://platform.claude.com/docs/en/about-claude/pricing"
-        ],
+        "sources": ["https://claude.com/pricing", "https://platform.claude.com/docs/en/about-claude/pricing"],
         "checked": "2026-11-10"
       },
-      "verified": false
+      "runs": [
+        {
+          "agent": "barry",
+          "date": "2026-11-10",
+          "version": "2.1.322",
+          "model": "claude-opus-5-5",
+          "how": "claude -p \"/barry Plan issue #234 …\" --permission-mode dontAsk",
+          "tokens": {"input": 8, "cache_write": 27089, "cached": 106063, "output": 2553},
+          "cost": "$0.29 at list price (Claude Code's own estimate)",
+          "result": "planned #234 in eight steps, each with an agent role; edited nothing"
+        },
+        {
+          "agent": "patricia",
+          "date": "2026-11-10",
+          "version": "2.1.322",
+          "model": "claude-opus-5-5",
+          "how": "claude -p --agent patricia \"Review the uncommitted diff …\" --permission-mode dontAsk",
+          "tokens": {"input": 12, "cache_write": 17819, "cached": 68779, "output": 2235},
+          "cost": "$0.20 at list price (Claude Code's own estimate)",
+          "result": "CONCERNS on the work in progress: the matrix wasn't redrawn; fixed before this commit"
+        }
+      ],
+      "verified": true
     },
     {
       "id": "github-copilot",
