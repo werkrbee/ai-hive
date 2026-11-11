@@ -72,7 +72,13 @@ class CheckTest(unittest.TestCase):
 
     def test_a_fee_makes_the_effective_rate_list_plus_fee(self):
         [(name, inp, cached, out)] = harnesses.effective(self.harness(self.registry, "cursor"), self.registry)
-        self.assertEqual((inp, cached, out), ("$2.25", "unknown", "$10.25"))
+        self.assertEqual((inp, cached, out), ("$2.25", "$0.35", "$10.25"))
+
+    def test_a_fee_leaves_cached_unknown_unless_the_row_says_it_covers_it(self):
+        registry = copy.deepcopy(self.registry)
+        self.harness(registry, "cursor")["cost"]["tokens"].pop("fee_cached")
+        [(_, _, cached, _)] = harnesses.effective(self.harness(registry, "cursor"), registry)
+        self.assertEqual(cached, "unknown")
 
     def test_a_verified_row_has_no_unknowns(self):
         self.assertRefused(lambda r: self.harness(r, "claude-code")["capabilities"]["hooks"].update(

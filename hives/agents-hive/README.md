@@ -367,11 +367,10 @@ python3 scripts/install.py --dry-run
 |---------|-----------|
 | Claude Code | `.claude/agents/<name>.md` |
 | GitHub Copilot | `.github/agents/<name>.agent.md` (custom agents, which replaced chat modes) |
-| Cursor | `.cursor/agents/<name>.md` † |
+| Cursor | `.cursor/agents/<name>.md` (`readonly: true` when the agent's tools can't write) |
 | Codex | `.codex/agents/<name>.toml` (TOML, the prompt as `developer_instructions`) |
 | AGENTS.md ecosystem | `.agents/agents/<name>.md` |
 
-† Cursor's agent path/format is best-effort — confirm against current docs.
 Gemini CLI, Goose, Kiro, and the data-cloud harnesses fall back to `.agents/agents/`.
 
 ## Adding an agent

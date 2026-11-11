@@ -83,6 +83,14 @@
       "output": 10,
       "source": "https://developers.openai.com/api/docs/pricing",
       "checked": "2026-11-10"
+    },
+    "grok-4-7": {
+      "name": "Grok 4.7 (prompts up to 256,000 tokens)",
+      "input": 2,
+      "cached": 0.5,
+      "output": 6,
+      "source": "https://cursor.com/docs/models-and-pricing",
+      "checked": "2026-11-10"
     }
   },
   "harnesses": [
@@ -347,29 +355,62 @@
       "surfaces": {
         "skills": {"global": "~/.cursor/skills", "project": ".cursor/skills"},
         "rules": {"project": ".cursor/rules/{name}.mdc"},
-        "agents": {"project": ".cursor/agents/{name}.md", "keys": ["name", "description", "tools", "model"]}
+        "agents": {"project": ".cursor/agents/{name}.md", "keys": ["name", "description", "readonly", "model"]}
       },
       "capabilities": {
-        "rules": {"supported": true, "source": "hives/rules-hive/scripts/install.sh", "checked": "2026-11-10"},
-        "skills": {"supported": true, "source": "hives/skills-hive/scripts/install.sh", "checked": "2026-11-10"},
-        "subagents": {"supported": true, "source": "hives/agents-hive/scripts/install.py", "checked": "2026-11-10"},
+        "rules": {"supported": true, "source": "https://cursor.com/docs/rules", "checked": "2026-11-10"},
+        "skills": {"supported": true, "source": "https://cursor.com/docs/skills", "checked": "2026-11-10"},
+        "subagents": {"supported": true, "source": "https://cursor.com/docs/subagents", "checked": "2026-11-10"},
         "mcp": {
           "supported": true,
           "path": ".cursor/mcp.json",
-          "source": "hives/mcp-hive/scripts/install.py",
+          "source": "https://cursor.com/docs/mcp",
           "checked": "2026-11-10"
         },
-        "hooks": {"supported": "unknown"},
-        "memory": {"supported": "unknown"},
-        "permissions": {"supported": "unknown"},
-        "headless": {"supported": "unknown"}
+        "hooks": {
+          "supported": true,
+          "path": ".cursor/hooks.json",
+          "source": "https://cursor.com/docs/hooks",
+          "checked": "2026-11-10"
+        },
+        "memory": {"supported": false, "source": "https://cursor.com/docs/rules", "checked": "2026-11-10"},
+        "permissions": {
+          "supported": true,
+          "path": ".cursor/cli.json",
+          "source": "https://cursor.com/docs/cli/reference/permissions",
+          "checked": "2026-11-10"
+        },
+        "headless": {
+          "supported": true,
+          "path": "agent -p",
+          "source": "https://cursor.com/docs/cli/headless",
+          "checked": "2026-11-10"
+        }
       },
       "cost": {
-        "unit": "Plan allowance (Pro $20, Pro+ $60, Ultra $200, Teams $40 a user), then usage",
-        "tokens": {"basis": "list", "fee": 0.25, "fee_applies": "Teams and Enterprise", "models": ["claude-sonnet-5-5"]},
-        "sources": ["https://www.cloudzero.com/blog/ai-coding-tools-cost/"],
+        "unit": "The X Subscription: Plus $8, Premium $30, Super $100, Ultra $200 a month, with a weekly pool for Cursor's models; third-party models at API list price from prepaid credit (Premium and up); Teams $30, $100 or $200 a seat",
+        "tokens": {
+          "basis": "list",
+          "fee": 0.25,
+          "fee_applies": "Teams and Enterprise",
+          "fee_cached": true,
+          "models": ["claude-sonnet-5-5"]
+        },
+        "sources": ["https://cursor.com/docs/models-and-pricing", "https://cursor.com/docs/account/teams/pricing"],
         "checked": "2026-11-10"
       },
+      "runs": [
+        {
+          "agent": "barry",
+          "date": "2026-11-10",
+          "version": "2026.11.10-731fb78",
+          "model": "grok-4-7",
+          "how": "agent -p \"Use the barry skill. Plan issue #237 …\" --model grok-4.7-medium --trust",
+          "tokens": {"input": 38264, "cache_write": 0, "cached": 292864, "output": 7401},
+          "cost": "from the Free plan's pool; $0.27 at Grok 4.7's per-token rate",
+          "result": "planned #237 in steps, each with an agent role; edited nothing (print mode without --force blocked gh, so it worked from the repo)"
+        }
+      ],
       "verified": false
     },
     {

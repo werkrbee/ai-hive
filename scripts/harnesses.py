@@ -138,9 +138,13 @@ def effective(h, registry):
     rows = []
     for mid in t["models"]:
         m = registry["models"][mid]
-        # Unknown, not "not published": whether a fee applies to cached tokens, or a cached
-        # rate nobody has recorded yet, is a gap in the row, not a claim about the vendor.
-        cached = "unknown" if m["cached"] is None or fee else money(m["cached"])
+        # Unknown, not "not published": a fee the row doesn't say covers cached tokens
+        # (fee_cached), or a cached rate nobody has recorded yet, is a gap in the row, not a
+        # claim about the vendor.
+        if m["cached"] is None or (fee and not t.get("fee_cached")):
+            cached = "unknown"
+        else:
+            cached = money(m["cached"] + fee)
         rows.append((m["name"], money(m["input"] + fee), cached, money(m["output"] + fee)))
     return rows
 
@@ -348,6 +352,8 @@ def check(registry=None, today=None):
                     problems.append(f"{where}: cost names model {mid!r}, which isn't in models")
             if t.get("note") is not None and t.get("basis") != "own-key":
                 problems.append(f"{where}: a cost note goes with the own-key basis")
+            if "fee_cached" in t and (not isinstance(t["fee_cached"], bool) or not t.get("fee")):
+                problems.append(f"{where}: fee_cached is true or false, and goes with a fee")
             if t.get("basis") == "list" and not t.get("models"):
                 problems.append(f"{where}: a list-price basis names the models it's quoted for")
         for i, r in enumerate(h.get("runs", [])):

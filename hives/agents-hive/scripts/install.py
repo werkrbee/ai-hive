@@ -55,10 +55,22 @@ def parse_agent(path):
     return fm, body
 
 
+# Tools that change files or run commands. An agent whose tools list has none of them is
+# read-only, which a harness with a readonly flag (Cursor) can enforce.
+WRITE_TOOLS = {"edit", "write", "multiedit", "notebookedit", "bash", "shell", "execute"}
+
+
+def readonly(fm):
+    """"true" when the agent's tools list holds no tool that writes, else None."""
+    tools = [t.strip().lower() for t in fm.get("tools", "").split(",") if t.strip()]
+    return "true" if tools and not set(tools) & WRITE_TOOLS else None
+
+
 def render(fm, body, keys, name):
     out = ["---"]
     for k in keys:
-        val = fm.get(k) if k != "name" else name
+        derived = {"name": name, "readonly": readonly(fm)}
+        val = derived[k] if k in derived else fm.get(k)
         if val:
             out.append(f"{k}: {val}")
     out.append("---")
