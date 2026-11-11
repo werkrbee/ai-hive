@@ -187,7 +187,7 @@ On Windows: `.\scripts\install.ps1 -Dir C:\path\to\project`.
 | Claude Code | `CLAUDE.md` (or `~/.claude/CLAUDE.md`) |
 | Cursor | `.cursor/rules/<ruleset>.mdc` |
 | GitHub Copilot | `.github/copilot-instructions.md` |
-| Gemini CLI | `GEMINI.md` |
+| Gemini CLI and Antigravity | `GEMINI.md` (or `~/.gemini/GEMINI.md`) |
 | Goose | `.goosehints` |
 
 Filenames evolve — confirm against each harness's current docs. When in doubt,

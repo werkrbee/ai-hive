@@ -1,6 +1,7 @@
 """Tests for install.py's per-harness rendering: for Codex an agent becomes one TOML file
 whose prompt is developer_instructions, whatever characters the prompt holds; for Cursor a
-read-only agent gets readonly: true.
+read-only agent gets readonly: true; for Antigravity an agent carries no tools list, and an
+agent with one is warned about, as for Codex.
 
 Standard library only (Python 3.9 has no TOML parser, so the strings are checked by hand).
 Run from the repo root:
@@ -41,10 +42,19 @@ class CodexTomlTest(unittest.TestCase):
         self.assertEqual(value, '"bell\\u0007 delete\\u007f return\\r\\n"')
 
     def test_an_agent_whose_tools_codex_cannot_enforce_is_warned_about(self):
-        warning = install.unenforced({"tools": "Read, Grep, Glob"}, "toml")
+        warning = install.unenforced({"tools": "Read, Grep, Glob"}, "codex")
         self.assertIn("--sandbox read-only", warning)
-        self.assertIsNone(install.unenforced({"tools": "Read, Grep, Glob"}, "markdown"))
-        self.assertIsNone(install.unenforced({}, "toml"))
+        self.assertIsNone(install.unenforced({"tools": "Read, Grep, Glob"}, "claude-code"))
+        self.assertIsNone(install.unenforced({}, "codex"))
+
+    def test_antigravity_agents_carry_no_tools_and_are_warned_about(self):
+        tmpl, keys, fallback, fmt = install.agent_target("gemini-cli")
+        self.assertEqual((tmpl, fmt, fallback), (".agents/agents/{name}.md", "markdown", None))
+        out = install.render({"description": "d", "tools": "Read, Grep, Glob", "model": "sonnet"},
+                             "Body.\n", keys, "explore")
+        self.assertEqual(out, "---\nname: explore\ndescription: d\n---\n\nBody.\n")
+        warning = install.unenforced({"tools": "Read, Grep, Glob"}, "gemini-cli")
+        self.assertIn("write_file(*) and command(*)", warning)
 
     def test_cursor_agents_are_readonly_when_their_tools_cannot_write(self):
         tmpl, keys, fallback, fmt = install.agent_target("cursor")

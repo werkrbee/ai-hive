@@ -369,9 +369,12 @@ python3 scripts/install.py --dry-run
 | GitHub Copilot | `.github/agents/<name>.agent.md` (custom agents, which replaced chat modes) |
 | Cursor | `.cursor/agents/<name>.md` (`readonly: true` when the agent's tools can't write) |
 | Codex | `.codex/agents/<name>.toml` (TOML, the prompt as `developer_instructions`) |
+| Gemini CLI and Antigravity | `.agents/agents/<name>.md` (Antigravity's; `name` and `description` only) |
 | AGENTS.md ecosystem | `.agents/agents/<name>.md` |
 
-Gemini CLI, Goose, Kiro, and the data-cloud harnesses fall back to `.agents/agents/`.
+Goose, Kiro, and the data-cloud harnesses fall back to `.agents/agents/`. Codex and
+Antigravity can't take an agent's `tools` list, so the installer warns for each agent that
+has one and says how to keep the session read-only.
 
 ## Adding an agent
 

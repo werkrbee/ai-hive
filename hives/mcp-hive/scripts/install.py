@@ -16,6 +16,7 @@ Usage:
   python3 scripts/install.py --harness cursor --server filesystem --server git
   python3 scripts/install.py --global --harness claude-code
   python3 scripts/install.py --global --harness github-copilot   # Copilot CLI and VS Code's Copilot Global
+  python3 scripts/install.py --harness gemini-cli                 # Antigravity's .agents/mcp_config.json
   python3 scripts/install.py --server huggingface --dry-run
 """
 import argparse
@@ -32,11 +33,14 @@ TARGET_SPEC = "2026-07-28"
 
 # harness -> where its JSON MCP config lives at each scope and which key holds the servers.
 # GitHub Copilot's project file is VS Code's; its user file is the Copilot CLI's, which VS Code
-# also reads as Copilot Global.
+# also reads as Copilot Global. Gemini CLI and Antigravity's files are Antigravity's; Gemini CLI
+# keeps its servers in .gemini/settings.json instead.
 JSON_TARGETS = {
     "claude-code":    {"project": (".mcp.json", "mcpServers"), "global": ("~/.claude.json", "mcpServers")},
     "cursor":         {"project": (".cursor/mcp.json", "mcpServers"), "global": ("~/.cursor/mcp.json", "mcpServers")},
     "github-copilot": {"project": (".vscode/mcp.json", "servers"), "global": ("~/.copilot/mcp-config.json", "mcpServers")},
+    "gemini-cli":     {"project": (".agents/mcp_config.json", "mcpServers"),
+                       "global": ("~/.gemini/config/mcp_config.json", "mcpServers")},
 }
 # harnesses whose config isn't JSON — we print a snippet instead
 SNIPPET_TARGETS = {"codex": "toml", "goose": "yaml"}
@@ -44,7 +48,8 @@ SNIPPET_TARGETS = {"codex": "toml", "goose": "yaml"}
 # inputs). None: the format documents no way to, so such a header is left for the person to set.
 ENV_REF = {("claude-code", "project"): "${%s}", ("claude-code", "global"): "${%s}",
            ("cursor", "project"): "${env:%s}", ("cursor", "global"): "${env:%s}",
-           ("github-copilot", "project"): "${input:%s}", ("github-copilot", "global"): None}
+           ("github-copilot", "project"): "${input:%s}", ("github-copilot", "global"): None,
+           ("gemini-cli", "project"): None, ("gemini-cli", "global"): None}
 
 
 def load_servers(servers_dir, names):
@@ -109,7 +114,12 @@ def json_config(harness, scope, name, spec, workspace):
     if "remote" not in spec:
         return substitute(spec["config"], workspace), []
     r = spec["remote"]
-    config = {"url": r["url"]} if harness == "cursor" else {"type": "http", "url": r["url"]}
+    if harness == "cursor":
+        config = {"url": r["url"]}
+    elif harness == "gemini-cli":
+        config = {"serverUrl": r["url"]}  # Antigravity's key; it takes Streamable HTTP only
+    else:
+        config = {"type": "http", "url": r["url"]}
     headers, inputs = {}, []
     ref = ENV_REF[(harness, scope)]
     for h in r["headers"]:
