@@ -66,10 +66,25 @@ def readonly(fm):
     return "true" if tools and not set(tools) & WRITE_TOOLS else None
 
 
+# Claude Code's tool names -> Devin's (Devin CLI's permissions reference). Devin doesn't check a
+# subagent's tool names, so an agent with a tool outside this map gets no list, and a warning.
+DEVIN_TOOLS = {"read": "read", "grep": "grep", "glob": "glob", "edit": "edit", "write": "edit",
+               "multiedit": "edit", "bash": "exec"}
+
+
+def devin_tools(fm):
+    """The agent's tools as a Devin allowed-tools list, or None if it has none or one Devin's
+    names don't cover."""
+    tools = [t.strip().lower() for t in fm.get("tools", "").split(",") if t.strip()]
+    if not tools or any(t not in DEVIN_TOOLS for t in tools):
+        return None
+    return "[" + ", ".join(dict.fromkeys(DEVIN_TOOLS[t] for t in tools)) + "]"
+
+
 def render(fm, body, keys, name):
     out = ["---"]
     for k in keys:
-        derived = {"name": name, "readonly": readonly(fm)}
+        derived = {"name": name, "readonly": readonly(fm), "allowed-tools": devin_tools(fm)}
         val = derived[k] if k in derived else fm.get(k)
         if val:
             out.append(f"{k}: {val}")
@@ -116,11 +131,18 @@ UNENFORCED["agents"] = ("the shared .agents/agents/ folder, which Antigravity re
                         UNENFORCED["gemini-cli"][1])
 
 
+UNENFORCED["devin-desktop"] = ("a Devin agent file, since Devin has no name for one of them",
+                               "deny edit and exec in .devin/config.json's permissions "
+                               "to keep this agent from editing")
+
+
 def unenforced(fm, harness):
     """The warning for an agent whose tools list the harness's agent files can't carry, or
     None. Such an agent is read-only there only if the session is."""
     tools = fm.get("tools")
     if harness not in UNENFORCED or not tools:
+        return None
+    if harness == "devin-desktop" and devin_tools(fm):
         return None
     where, advice = UNENFORCED[harness]
     return f"tools ({tools}) can't be enforced in {where}; {advice}"

@@ -59,8 +59,10 @@ first thing the quarterly check should revisit.
    (free, Google AI Pro and Ultra) use Antigravity and its CLI, `agy`; Gemini CLI still
    ships for paid Gemini API keys and Gemini Code Assist Standard and Enterprise (Google's
    announcement of 2026-05-19). The House installs where Antigravity reads.
-6. **Devin Desktop** (Cognition), formerly Windsurf, renamed in June 2026 with its rules
-   moving from `.windsurf/` to `.devin/`. A new adapter.
+6. **Devin Desktop** (Cognition), formerly Windsurf, renamed on 2026-06-02 with its rules
+   moving from `.windsurf/` to `.devin/`; it still reads the `.windsurf/` paths. Its agent,
+   Devin Local, is the harness Devin CLI runs, so the CLI is its headless surface. A new
+   adapter.
 7. **Kiro** (AWS). Spec-driven, and the successor to Amazon Q Developer.
 8. **Cline**. The most installed open-source agent inside VS Code, and a common way into
    agents for teams that bring their own model. A new adapter.
@@ -175,7 +177,7 @@ below summarize it as of 2026-11-10, and the matrix is the one to trust when the
 | Codex | ChatGPT plan (Plus $20; Pro $100, $200 or $500; Business $25 a user), priced per token since 2026-04-02; or API tokens | List (API key) | GPT-6.1 Sol: $2 · $10 |
 | Cursor | The X Subscription (Plus $8, Premium $30, Super $100, Ultra $200; Teams $30, $100 or $200 a seat), with third-party models at API list price; Teams and Enterprise add the $0.25 per 1M Cursor Token Rate | List + $0.25 (Teams) | Sonnet 5.5: $2.25 · $10.25 (Teams) |
 | Gemini CLI and Antigravity | Antigravity: free with a weekly limit, or Google AI Pro $19.99 or Ultra $99.99 or $199.99 a month, AI credits beyond the limits; Gemini CLI: a paid API key, or Code Assist Standard or Enterprise | List (API key) | Gemini 4 Argon: $2 · $10 to 2026-11-30, then $4 · $20 |
-| Devin Desktop | Plan (Pro $20, Max $200 a month; Teams $80 plus $40 a seat) | Not published | Not published |
+| Devin Desktop | Plan with a daily and weekly token quota (Free; Pro $20, Max $200 a month; Teams $80 plus $40 a seat), then extra usage at API list price | List | SWE-2: $3 · $15 (free on self-serve to 2026-11-30) |
 | Kiro | Credit (Pro $20 for 1,000 a month; more at $0.04); credits per request vary by model | Not published | Not published |
 | Cline | Free; your own key, or Cline's provider | List, no fee | As the model |
 | OpenCode | Free; your own key | List, no fee | As the model |

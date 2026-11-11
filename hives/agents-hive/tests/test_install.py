@@ -1,7 +1,8 @@
 """Tests for install.py's per-harness rendering: for Codex an agent becomes one TOML file
 whose prompt is developer_instructions, whatever characters the prompt holds; for Cursor a
 read-only agent gets readonly: true; for Antigravity an agent carries no tools list, and an
-agent with one is warned about, as for Codex.
+agent with one is warned about, as for Codex; for Devin an agent's tools carry over under
+Devin's names.
 
 Standard library only (Python 3.9 has no TOML parser, so the strings are checked by hand).
 Run from the repo root:
@@ -75,6 +76,20 @@ class CodexTomlTest(unittest.TestCase):
         writer = install.render({"description": "d", "tools": "Read, Edit, Bash"}, "Body.\n", keys, "fixer")
         self.assertNotIn("readonly", writer)
         self.assertIsNone(install.readonly({"description": "no tools list"}))
+
+    def test_devin_agents_carry_claude_code_tools_under_devin_names(self):
+        tmpl, keys, fallback, fmt = install.agent_target("devin-desktop")
+        self.assertEqual((tmpl, fmt, fallback), (".devin/agents/{name}.md", "markdown", None))
+        out = install.render({"description": "d", "tools": "Read, Grep, Glob"}, "Body.\n", keys, "explore")
+        self.assertEqual(out, "---\nname: explore\ndescription: d\nallowed-tools: [read, grep, glob]\n---\n\nBody.\n")
+        self.assertEqual(install.devin_tools({"tools": "Read, Edit, Write, Bash"}), "[read, edit, exec]")
+        self.assertIsNone(install.unenforced({"tools": "Read, Grep, Glob"}, "devin-desktop"))
+
+    def test_a_tool_devin_has_no_name_for_drops_the_list_and_warns(self):
+        fm = {"description": "d", "tools": "Read, WebFetch"}
+        self.assertIsNone(install.devin_tools(fm))
+        self.assertNotIn("allowed-tools", install.render(fm, "Body.\n", install.agent_target("devin-desktop")[1], "x"))
+        self.assertIn("deny edit and exec", install.unenforced(fm, "devin-desktop"))
 
     def test_every_canonical_agent_renders(self):
         for name, (fm, body) in install.load_agents([]).items():

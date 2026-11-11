@@ -30,6 +30,7 @@ function Rel($h) {
     "cursor"         { ".cursor\rules\$Ruleset.mdc" }
     "github-copilot" { ".github\copilot-instructions.md" }
     "gemini-cli"     { "GEMINI.md" }
+    "devin-desktop"  { ".devin\rules\$Ruleset.md" }
     "goose"          { ".goosehints" }
     default          { $null }
   }
@@ -42,6 +43,8 @@ foreach ($h in $Harness) {
   New-Item -ItemType Directory -Force -Path (Split-Path -Parent $target) | Out-Null
   if ($h -eq "cursor") {
     "---`ndescription: $Ruleset`nalwaysApply: true`n---`n`n$content" | Set-Content -Path $target -Encoding UTF8
+  } elseif ($h -eq "devin-desktop") {
+    "---`ntrigger: always_on`n---`n`n$content" | Set-Content -Path $target -Encoding UTF8
   } else {
     $content | Set-Content -Path $target -Encoding UTF8
   }

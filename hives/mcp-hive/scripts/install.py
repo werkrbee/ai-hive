@@ -17,6 +17,7 @@ Usage:
   python3 scripts/install.py --global --harness claude-code
   python3 scripts/install.py --global --harness github-copilot   # Copilot CLI and VS Code's Copilot Global
   python3 scripts/install.py --harness gemini-cli                 # Antigravity's .agents/mcp_config.json
+  python3 scripts/install.py --harness devin-desktop              # .devin/mcp_config.json
   python3 scripts/install.py --server huggingface --dry-run
 """
 import argparse
@@ -41,15 +42,19 @@ JSON_TARGETS = {
     "github-copilot": {"project": (".vscode/mcp.json", "servers"), "global": ("~/.copilot/mcp-config.json", "mcpServers")},
     "gemini-cli":     {"project": (".agents/mcp_config.json", "mcpServers"),
                        "global": ("~/.gemini/config/mcp_config.json", "mcpServers")},
+    "devin-desktop":  {"project": (".devin/mcp_config.json", "mcpServers"),
+                       "global": ("~/.config/devin/mcp_config.json", "mcpServers")},
 }
 # harnesses whose config isn't JSON — we print a snippet instead
 SNIPPET_TARGETS = {"codex": "toml", "goose": "yaml"}
 # how each JSON harness reads a value from the environment at each scope (VS Code prompts via
 # inputs). None: the format documents no way to, so such a header is left for the person to set.
+# Devin documents ${env:NAME} only for OAuth fields; until a run shows it works in headers, None.
 ENV_REF = {("claude-code", "project"): "${%s}", ("claude-code", "global"): "${%s}",
            ("cursor", "project"): "${env:%s}", ("cursor", "global"): "${env:%s}",
            ("github-copilot", "project"): "${input:%s}", ("github-copilot", "global"): None,
-           ("gemini-cli", "project"): None, ("gemini-cli", "global"): None}
+           ("gemini-cli", "project"): None, ("gemini-cli", "global"): None,
+           ("devin-desktop", "project"): None, ("devin-desktop", "global"): None}
 
 
 def load_servers(servers_dir, names):
@@ -114,7 +119,7 @@ def json_config(harness, scope, name, spec, workspace):
     if "remote" not in spec:
         return substitute(spec["config"], workspace), []
     r = spec["remote"]
-    if harness == "cursor":
+    if harness in ("cursor", "devin-desktop"):
         config = {"url": r["url"]}
     elif harness == "gemini-cli":
         config = {"serverUrl": r["url"]}  # Antigravity's key; it takes Streamable HTTP only
