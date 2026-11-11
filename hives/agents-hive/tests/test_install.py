@@ -1,5 +1,6 @@
-"""Tests for install.py's Codex rendering: an agent becomes one TOML file whose prompt is
-developer_instructions, whatever characters the prompt holds.
+"""Tests for install.py's per-harness rendering: for Codex an agent becomes one TOML file
+whose prompt is developer_instructions, whatever characters the prompt holds; for Cursor a
+read-only agent gets readonly: true.
 
 Standard library only (Python 3.9 has no TOML parser, so the strings are checked by hand).
 Run from the repo root:
@@ -44,6 +45,16 @@ class CodexTomlTest(unittest.TestCase):
         self.assertIn("--sandbox read-only", warning)
         self.assertIsNone(install.unenforced({"tools": "Read, Grep, Glob"}, "markdown"))
         self.assertIsNone(install.unenforced({}, "toml"))
+
+    def test_cursor_agents_are_readonly_when_their_tools_cannot_write(self):
+        tmpl, keys, fallback, fmt = install.agent_target("cursor")
+        self.assertIn("readonly", keys)
+        out = install.render({"description": "d", "tools": "Read, Grep, Glob"}, "Body.\n", keys, "explore")
+        self.assertIn("\nreadonly: true\n", out)
+        self.assertNotIn("tools:", out)
+        writer = install.render({"description": "d", "tools": "Read, Edit, Bash"}, "Body.\n", keys, "fixer")
+        self.assertNotIn("readonly", writer)
+        self.assertIsNone(install.readonly({"description": "no tools list"}))
 
     def test_every_canonical_agent_renders(self):
         for name, (fm, body) in install.load_agents([]).items():
