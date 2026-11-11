@@ -114,6 +114,17 @@ else
   flunk "mcp-hive install.py resolves a Server Card through an AI Catalog"
   printf '%s\n' "$out" | sed 's/^/      /'
 fi
+# Antigravity's config documents no way to read the environment, so the header is left to set.
+out=$(python3 hives/mcp-hive/scripts/install.py --servers-dir "$sandbox/registry" --dir "$proj" \
+  --harness gemini-cli --dry-run 2>&1); code=$?
+if [ "$code" -eq 0 ] && printf '%s\n' "$out" | grep -q '"serverUrl": "https://demo.example.com/mcp"' \
+  && printf '%s\n' "$out" | grep -q 'set header Authorization by hand' \
+  && ! printf '%s\n' "$out" | grep -q 'Bearer'; then
+  pass "mcp-hive install.py leaves Antigravity's secret header to set by hand"
+else
+  flunk "mcp-hive install.py leaves Antigravity's secret header to set by hand"
+  printf '%s\n' "$out" | sed 's/^/      /'
+fi
 run "plugins-hive install.py --dry-run" \
   python3 hives/plugins-hive/scripts/install.py --dir "$proj" --hives-dir hives --dry-run
 run "projects-hive init.py --dry-run" \

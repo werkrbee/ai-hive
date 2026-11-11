@@ -60,6 +60,22 @@
       "source": "https://ai.google.dev/gemini-api/docs/pricing",
       "checked": "2026-11-10"
     },
+    "gemini-4-argon": {
+      "name": "Gemini 4 Argon (launch price to 2026-11-30, then $4 · $0.20 · $20)",
+      "input": 2,
+      "cached": 0.1,
+      "output": 10,
+      "source": "https://aistudio.google.com/docs/pricing",
+      "checked": "2026-11-11"
+    },
+    "gemini-3-8-flash": {
+      "name": "Gemini 3.8 Flash (launch price to 2026-12-31, then $1.50 · $0.15 · $7.50)",
+      "input": 0.75,
+      "cached": 0.075,
+      "output": 3.75,
+      "source": "https://aistudio.google.com/docs/pricing",
+      "checked": "2026-11-11"
+    },
     "gpt-6-luna": {
       "name": "GPT-6 Luna (prompts up to 272,000 tokens)",
       "input": 0.1,
@@ -415,7 +431,7 @@
     },
     {
       "id": "gemini-cli",
-      "name": "Gemini CLI",
+      "name": "Gemini CLI and Antigravity",
       "vendor": "Google",
       "category": "pro-code",
       "tier": "top-ten",
@@ -423,29 +439,73 @@
       "adapter": "gemini-cli",
       "surfaces": {
         "skills": {"global": "~/.gemini/skills", "project": ".agents/skills"},
-        "rules": {"project": "GEMINI.md"},
-        "agents": {"fallback": "agents"}
+        "rules": {"global": "~/.gemini/GEMINI.md", "project": "GEMINI.md"},
+        "agents": {"project": ".agents/agents/{name}.md", "keys": ["name", "description"]}
       },
       "capabilities": {
-        "rules": {"supported": true, "source": "hives/rules-hive/scripts/install.sh", "checked": "2026-11-10"},
-        "skills": {"supported": true, "source": "hives/skills-hive/scripts/install.sh", "checked": "2026-11-10"},
-        "subagents": {"supported": "unknown"},
-        "mcp": {"supported": "unknown"},
-        "hooks": {"supported": "unknown"},
-        "memory": {"supported": "unknown"},
-        "permissions": {"supported": "unknown"},
-        "headless": {"supported": "unknown"}
+        "rules": {"supported": true, "source": "https://antigravity.google/docs/rules", "checked": "2026-11-11"},
+        "skills": {"supported": true, "source": "https://antigravity.google/docs/skills", "checked": "2026-11-11"},
+        "subagents": {"supported": true, "source": "https://antigravity.google/docs/subagents", "checked": "2026-11-11"},
+        "mcp": {
+          "supported": true,
+          "path": ".agents/mcp_config.json",
+          "source": "https://antigravity.google/docs/mcp",
+          "checked": "2026-11-11"
+        },
+        "hooks": {
+          "supported": true,
+          "path": ".agents/hooks.json",
+          "source": "https://antigravity.google/docs/hooks",
+          "checked": "2026-11-11"
+        },
+        "memory": {"supported": false, "source": "https://antigravity.google/docs/rules", "checked": "2026-11-11"},
+        "permissions": {
+          "supported": true,
+          "path": "~/.gemini/antigravity-cli/settings.json",
+          "source": "https://antigravity.google/docs/permissions",
+          "checked": "2026-11-11"
+        },
+        "headless": {
+          "supported": true,
+          "path": "agy -p",
+          "source": "https://antigravity.google/docs/cli/headless",
+          "checked": "2026-11-11"
+        }
       },
       "cost": {
-        "unit": "Free tier, Google AI Pro or Ultra plan, or API tokens",
-        "tokens": {"basis": "list", "models": ["gemini-3-1-pro"]},
+        "unit": "Antigravity: free with a weekly limit, or Google AI Pro $19.99 or Ultra $99.99 or $199.99 a month with higher limits and AI credits beyond them; teams through Gemini Enterprise from $30 a seat. Gemini CLI: a paid Gemini API key at list price, or Gemini Code Assist Standard or Enterprise",
+        "tokens": {"basis": "list", "models": ["gemini-4-argon"]},
         "sources": [
-          "https://www.developersdigest.tech/blog/ai-coding-tools-pricing-2026",
-          "https://ai.google.dev/gemini-api/docs/pricing"
+          "https://antigravity.google/pricing",
+          "https://gemini.google/plans/",
+          "https://antigravity.google/docs/plans",
+          "https://developers.googleblog.com/an-important-update-transitioning-gemini-cli-to-antigravity-cli/"
         ],
-        "checked": "2026-11-10"
+        "checked": "2026-11-11"
       },
-      "verified": false
+      "runs": [
+        {
+          "agent": "barry",
+          "date": "2026-11-11",
+          "version": "1.5.5",
+          "model": "gemini-3-8-flash",
+          "how": "agy -p \"Use the barry skill. Plan issue #238 …\" --settings '{\"permissions\":{\"deny\":[\"write_file(*)\"]}}'",
+          "tokens": {"input": 118485, "cache_write": 0, "cached": 786515, "output": 12680},
+          "cost": "from the free plan's weekly limit; $0.20 at Gemini 3.8 Flash's per-token rate",
+          "result": "planned #238 in steps, each with an agent role mapped to Antigravity's; edited nothing (headless mode soft-denied gh, so the issue's text was given as a file)"
+        },
+        {
+          "agent": "patricia",
+          "date": "2026-11-11",
+          "version": "1.5.5",
+          "model": "gemini-3-8-flash",
+          "how": "agy -p \"Use the patricia skill. Review the staged diff …\" --settings '{\"permissions\":{\"deny\":[\"write_file(*)\"]}}'",
+          "tokens": {"input": 158824, "cache_write": 0, "cached": 1620647, "output": 40532},
+          "cost": "from the free plan's weekly limit; $0.39 at Gemini 3.8 Flash's per-token rate",
+          "result": "PASS on the staged diff, noting the runs still to record; edited nothing"
+        }
+      ],
+      "verified": true
     },
     {
       "id": "devin-desktop",
@@ -971,7 +1031,7 @@
       "surfaces": {
         "skills": {"global": "~/.agents/skills", "project": ".agents/skills"},
         "rules": {"global": "~/.codex/AGENTS.md", "project": "AGENTS.md"},
-        "agents": {"project": ".agents/agents/{name}.md", "keys": ["name", "description", "tools", "model"]}
+        "agents": {"project": ".agents/agents/{name}.md", "keys": ["name", "description"]}
       }
     }
   ]

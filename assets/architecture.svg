@@ -121,7 +121,7 @@
 <text x="946" y="1214" font-size="13.5" font-weight="500" fill="#7A6B4F" text-anchor="start">runs on</text>
 <rect x="50" y="1240" width="1160" height="96" rx="16" fill="#17140F" stroke="#17140F" stroke-width="2.5"/>
 <text x="630" y="1278" font-size="17" font-weight="700" fill="#F2A81D" text-anchor="middle">Worker bees: every harness</text>
-<text x="630" y="1304" font-size="12.5" font-weight="400" fill="#F7EFDD" text-anchor="middle">Installers render each hive into native formats for Claude Code, GitHub Copilot, Codex, Cursor, Gemini CLI, Devin Desktop,</text>
+<text x="630" y="1304" font-size="12.5" font-weight="400" fill="#F7EFDD" text-anchor="middle">Installers render each hive into native formats for Claude Code, GitHub Copilot, Codex, Cursor, Gemini CLI and Antigravity, Devin Desktop,</text>
 <text x="630" y="1322" font-size="12.5" font-weight="400" fill="#F7EFDD" text-anchor="middle">Kiro, Cline, OpenCode, Goose, Databricks Genie Code and Snowflake Cortex Code</text>
 <rect x="1258" y="338" width="420" height="998" rx="22" fill="#FFFDF7" stroke="#B9791A" stroke-width="2.5" stroke-dasharray="12 8"/>
 <rect x="1270" y="320" width="385.75" height="31.5" rx="15.75" fill="#B9791A" stroke="#B9791A" stroke-width="0"/>

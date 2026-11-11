@@ -170,7 +170,7 @@ cp -R skills/barry ~/.cursor/skills/barry
 | Claude Code | `~/.claude/skills/` | `.claude/skills/` |
 | OpenAI Codex | `~/.agents/skills/` | `.agents/skills/` |
 | GitHub Copilot | `~/.copilot/skills/` | `.agents/skills/` |
-| Gemini CLI | `~/.gemini/skills/` | `.agents/skills/` |
+| Gemini CLI and Antigravity | `~/.gemini/skills/` | `.agents/skills/` |
 | Goose | `~/.config/goose/skills/` | `.goose/skills/` |
 | OpenCode | `~/.config/opencode/skills/` | `.agents/skills/` |
 | Kiro (AWS) | `~/.kiro/skills/` † | `.kiro/skills/` or `.agents/skills/` † |

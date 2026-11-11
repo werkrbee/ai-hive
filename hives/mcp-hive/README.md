@@ -159,6 +159,7 @@ python3 scripts/install.py --harness codex --harness goose
 | Claude Code | `.mcp.json` (project) / `~/.claude.json` | `mcpServers` |
 | Cursor | `.cursor/mcp.json` / `~/.cursor/mcp.json` | `mcpServers` |
 | VS Code / GitHub Copilot | `.vscode/mcp.json` | `servers` |
+| Gemini CLI and Antigravity | `.agents/mcp_config.json` / `~/.gemini/config/mcp_config.json` (Antigravity's) | `mcpServers` |
 | Codex | `~/.codex/config.toml` | `[mcp_servers.*]` (snippet) |
 | Goose | Goose config (YAML) | `extensions` (snippet) |
 
