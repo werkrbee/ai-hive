@@ -102,15 +102,18 @@ def render_toml(fm, body, keys, name):
 
 
 # How to keep an agent read-only in a harness whose agent files can't carry its tools list.
-# Codex has no tools field. Antigravity's names its own tools, and a name it doesn't know can
-# hang the subagent, so Claude Code's names aren't passed on.
+# Codex has no tools field. Antigravity names its own tools, and a name it doesn't know can
+# hang the subagent, so Claude Code's names aren't passed on; it reads the shared
+# .agents/agents/ folder, so that target carries no tools list either.
 UNENFORCED = {
-    "codex": ("Codex", "it inherits the session's sandbox, so run that session with "
-                       "--sandbox read-only to keep this agent from editing"),
-    "gemini-cli": ("Antigravity", "its main agent decides its tools and permissions, so deny "
-                                  "write_file(*) and command(*) in that session's permissions "
-                                  "to keep this agent from editing"),
+    "codex": ("a Codex agent file", "it inherits the session's sandbox, so run that session "
+                                    "with --sandbox read-only to keep this agent from editing"),
+    "gemini-cli": ("an Antigravity agent file", "its main agent decides its tools and permissions, "
+                                                "so deny write_file(*) and command(*) in that "
+                                                "session's permissions to keep this agent from editing"),
 }
+UNENFORCED["agents"] = ("the shared .agents/agents/ folder, which Antigravity reads",
+                        UNENFORCED["gemini-cli"][1])
 
 
 def unenforced(fm, harness):
@@ -120,7 +123,7 @@ def unenforced(fm, harness):
     if harness not in UNENFORCED or not tools:
         return None
     where, advice = UNENFORCED[harness]
-    return f"tools ({tools}) can't be enforced in an {where} agent file; {advice}"
+    return f"tools ({tools}) can't be enforced in {where}; {advice}"
 
 
 def load_agents(names):
@@ -167,7 +170,7 @@ def main():
             rel = tmpl.format(name=name)
             target = Path(args.dir) / rel
             content = (render_toml if fmt == "toml" else render)(fm, body, keys, name)
-            warning = unenforced(fm, h)
+            warning = unenforced(fm, fallback or h)
             if warning:
                 print(f"warning: {h}: {name}: {warning}", file=sys.stderr)
             if args.dry_run:

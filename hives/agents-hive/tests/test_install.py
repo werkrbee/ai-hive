@@ -43,6 +43,7 @@ class CodexTomlTest(unittest.TestCase):
 
     def test_an_agent_whose_tools_codex_cannot_enforce_is_warned_about(self):
         warning = install.unenforced({"tools": "Read, Grep, Glob"}, "codex")
+        self.assertIn("in a Codex agent file;", warning)
         self.assertIn("--sandbox read-only", warning)
         self.assertIsNone(install.unenforced({"tools": "Read, Grep, Glob"}, "claude-code"))
         self.assertIsNone(install.unenforced({}, "codex"))
@@ -55,6 +56,15 @@ class CodexTomlTest(unittest.TestCase):
         self.assertEqual(out, "---\nname: explore\ndescription: d\n---\n\nBody.\n")
         warning = install.unenforced({"tools": "Read, Grep, Glob"}, "gemini-cli")
         self.assertIn("write_file(*) and command(*)", warning)
+
+    def test_the_shared_agents_folder_carries_no_tools_since_antigravity_reads_it(self):
+        self.assertEqual(install.agent_target("agents")[:2], install.agent_target("gemini-cli")[:2])
+        for fallback in ("goose", "kiro"):
+            tmpl, keys, via, fmt = install.agent_target(fallback)
+            self.assertEqual((tmpl, via), (".agents/agents/{name}.md", "agents"))
+            self.assertNotIn("tools", keys)
+            self.assertNotIn("model", keys)
+        self.assertIn("which Antigravity reads", install.unenforced({"tools": "Read"}, "agents"))
 
     def test_cursor_agents_are_readonly_when_their_tools_cannot_write(self):
         tmpl, keys, fallback, fmt = install.agent_target("cursor")

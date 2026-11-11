@@ -32,7 +32,8 @@ run `/skills reload` after adding one mid-session.
 `~/.gemini/config/agents/` (person); the body is the system prompt. The fields are `name`,
 `description`, `tools`, `model` (`inherit`, `flash` or `pro`), `commandExecutionPolicy`,
 `mcpServers` and `skills`. `tools` takes Antigravity's own tool names, and a name it doesn't
-know can hang the subagent, so the agents installer writes only `name` and `description`.
+know can hang the subagent, so the agents installer writes only `name` and `description`,
+for this harness and for the shared `.agents/agents/` target alike.
 A subagent's tools and permissions are then whatever its main agent gives it, and it
 inherits the session's allowed commands and file scopes. So the installer warns for each
 agent with a tools list: a read-only agent such as `explore` or Patricia's `charter-review`
@@ -92,8 +93,9 @@ Patricia's recorded runs were headless, with writes denied (`docs/harness-matrix
 Gemini CLI's equivalent is `gemini -p`.
 
 **Models.** Only pass a model when the user asks, with `--model`; `agy models` lists what
-the plan offers. Gemini 3.8 Flash (High) is the default on the free plan and is on every plan, Gemini 4 Argon from Google AI Pro up,
-and Claude Sonnet 5.5 and Opus 5.5 on paid Pro, Ultra and Enterprise.
+the plan offers. Gemini 3.8 Flash (High) is the default on the free plan and is on every
+plan, Gemini 4 Argon from Google AI Pro up, and Claude Sonnet 5.5 and Opus 5.5 on paid
+Pro, Ultra and Enterprise.
 
 **Cost.** Antigravity is free for individuals with a weekly limit. Google AI Pro ($19.99 a
 month) and Ultra ($99.99 or $199.99) raise the limits, refreshed every five hours up to a

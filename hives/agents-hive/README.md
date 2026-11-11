@@ -370,11 +370,12 @@ python3 scripts/install.py --dry-run
 | Cursor | `.cursor/agents/<name>.md` (`readonly: true` when the agent's tools can't write) |
 | Codex | `.codex/agents/<name>.toml` (TOML, the prompt as `developer_instructions`) |
 | Gemini CLI and Antigravity | `.agents/agents/<name>.md` (Antigravity's; `name` and `description` only) |
-| AGENTS.md ecosystem | `.agents/agents/<name>.md` |
+| AGENTS.md ecosystem | `.agents/agents/<name>.md` (`name` and `description` only, since Antigravity reads it) |
 
 Goose, Kiro, and the data-cloud harnesses fall back to `.agents/agents/`. Codex and
-Antigravity can't take an agent's `tools` list, so the installer warns for each agent that
-has one and says how to keep the session read-only.
+Antigravity can't take an agent's `tools` list, and neither can the shared folder Antigravity
+reads, so the installer warns for each agent that has one and says how to keep the session
+read-only.
 
 ## Adding an agent
 

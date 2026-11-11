@@ -1031,7 +1031,7 @@
       "surfaces": {
         "skills": {"global": "~/.agents/skills", "project": ".agents/skills"},
         "rules": {"global": "~/.codex/AGENTS.md", "project": "AGENTS.md"},
-        "agents": {"project": ".agents/agents/{name}.md", "keys": ["name", "description", "tools", "model"]}
+        "agents": {"project": ".agents/agents/{name}.md", "keys": ["name", "description"]}
       }
     }
   ]
