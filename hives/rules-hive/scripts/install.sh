@@ -72,12 +72,17 @@ if [ -z "${HARNESSES// }" ]; then
 fi
 
 write_file() {
-  # $1 = target path, $2 = harness (for cursor frontmatter)
+  # $1 = target path, $2 = harness (for Cursor's and Devin Desktop's frontmatter)
   target="$1"; harness="$2"
   mkdir -p "$(dirname "$target")"
   if [ "$harness" = "cursor" ]; then
     {
       printf -- '---\ndescription: %s\nalwaysApply: true\n---\n\n' "$RULESET"
+      cat "$SRC"
+    } > "$target"
+  elif [ "$harness" = "devin-desktop" ] && [ "${target%/global_rules.md}" = "$target" ]; then
+    {
+      printf -- '---\ntrigger: always_on\n---\n\n'
       cat "$SRC"
     } > "$target"
   else

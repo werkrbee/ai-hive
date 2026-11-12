@@ -54,6 +54,7 @@ skills-hive/
 │               ├── cursor.md
 │               ├── codex.md
 │               ├── gemini-cli.md
+│               ├── devin-desktop.md
 │               ├── goose.md
 │               ├── opencode.md
 │               ├── kiro.md
@@ -171,6 +172,7 @@ cp -R skills/barry ~/.cursor/skills/barry
 | OpenAI Codex | `~/.agents/skills/` | `.agents/skills/` |
 | GitHub Copilot | `~/.copilot/skills/` | `.agents/skills/` |
 | Gemini CLI and Antigravity | `~/.gemini/skills/` | `.agents/skills/` |
+| Devin Desktop | `~/.config/devin/skills/` | `.devin/skills/` |
 | Goose | `~/.config/goose/skills/` | `.goose/skills/` |
 | OpenCode | `~/.config/opencode/skills/` | `.agents/skills/` |
 | Kiro (AWS) | `~/.kiro/skills/` † | `.kiro/skills/` or `.agents/skills/` † |

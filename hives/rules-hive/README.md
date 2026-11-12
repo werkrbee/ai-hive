@@ -188,6 +188,7 @@ On Windows: `.\scripts\install.ps1 -Dir C:\path\to\project`.
 | Cursor | `.cursor/rules/<ruleset>.mdc` |
 | GitHub Copilot | `.github/copilot-instructions.md` |
 | Gemini CLI and Antigravity | `GEMINI.md` (or `~/.gemini/GEMINI.md`) |
+| Devin Desktop | `.devin/rules/<ruleset>.md` with `trigger: always_on` (or `~/.devin/global_rules.md`) |
 | Goose | `.goosehints` |
 
 Filenames evolve — confirm against each harness's current docs. When in doubt,
