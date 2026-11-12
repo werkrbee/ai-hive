@@ -146,6 +146,22 @@ else
   flunk "mcp-hive install.py writes Kiro's header with an environment reference"
   printf '%s\n' "$out" | sed 's/^/      /'
 fi
+# Cline reads only a user-level file and passes headers through as written, so the header is
+# left to set; a project install is skipped. HOME is the sandbox's, so no real file is read.
+out=$(HOME="$sandbox/home" python3 hives/mcp-hive/scripts/install.py --servers-dir "$sandbox/registry" \
+  --dir "$proj" --harness cline --global --dry-run 2>&1); code=$?
+skip=$(python3 hives/mcp-hive/scripts/install.py --servers-dir "$sandbox/registry" --dir "$proj" \
+  --harness cline --dry-run 2>&1)
+if [ "$code" -eq 0 ] && printf '%s\n' "$out" | grep -q '"type": "streamableHttp"' \
+  && printf '%s\n' "$out" | grep -q '.cline/data/settings/cline_mcp_settings.json' \
+  && printf '%s\n' "$out" | grep -q 'set header Authorization by hand' \
+  && ! printf '%s\n' "$out" | grep -q 'Bearer' \
+  && printf '%s\n' "$skip" | grep -q 'skip: cline has no project MCP config'; then
+  pass "mcp-hive install.py writes Cline's user-level file and leaves its secret header to set by hand"
+else
+  flunk "mcp-hive install.py writes Cline's user-level file and leaves its secret header to set by hand"
+  printf '%s\n' "$out" "$skip" | sed 's/^/      /'
+fi
 run "plugins-hive install.py --dry-run" \
   python3 hives/plugins-hive/scripts/install.py --dir "$proj" --hives-dir hives --dry-run
 run "projects-hive init.py --dry-run" \

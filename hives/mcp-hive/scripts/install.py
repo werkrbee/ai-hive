@@ -19,6 +19,7 @@ Usage:
   python3 scripts/install.py --harness gemini-cli                 # Antigravity's .agents/mcp_config.json
   python3 scripts/install.py --harness devin-desktop              # .devin/mcp_config.json
   python3 scripts/install.py --harness kiro                       # .kiro/settings/mcp.json
+  python3 scripts/install.py --global --harness cline             # ~/.cline/data/settings/cline_mcp_settings.json
   python3 scripts/install.py --server huggingface --dry-run
 """
 import argparse
@@ -36,7 +37,7 @@ TARGET_SPEC = "2026-07-28"
 # harness -> where its JSON MCP config lives at each scope and which key holds the servers.
 # GitHub Copilot's project file is VS Code's; its user file is the Copilot CLI's, which VS Code
 # also reads as Copilot Global. Gemini CLI and Antigravity's files are Antigravity's; Gemini CLI
-# keeps its servers in .gemini/settings.json instead.
+# keeps its servers in .gemini/settings.json instead. Cline reads only a user-level file.
 JSON_TARGETS = {
     "claude-code":    {"project": (".mcp.json", "mcpServers"), "global": ("~/.claude.json", "mcpServers")},
     "cursor":         {"project": (".cursor/mcp.json", "mcpServers"), "global": ("~/.cursor/mcp.json", "mcpServers")},
@@ -47,18 +48,21 @@ JSON_TARGETS = {
                        "global": ("~/.config/devin/mcp_config.json", "mcpServers")},
     "kiro":           {"project": (".kiro/settings/mcp.json", "mcpServers"),
                        "global": ("~/.kiro/settings/mcp.json", "mcpServers")},
+    "cline":          {"global": ("~/.cline/data/settings/cline_mcp_settings.json", "mcpServers")},
 }
 # harnesses whose config isn't JSON — we print a snippet instead
 SNIPPET_TARGETS = {"codex": "toml", "goose": "yaml"}
 # how each JSON harness reads a value from the environment at each scope (VS Code prompts via
 # inputs). None: the format documents no way to, so such a header is left for the person to set.
 # Devin documents ${env:NAME} only for OAuth fields; until a run shows it works in headers, None.
+# Cline passes headers through as written.
 ENV_REF = {("claude-code", "project"): "${%s}", ("claude-code", "global"): "${%s}",
            ("cursor", "project"): "${env:%s}", ("cursor", "global"): "${env:%s}",
            ("github-copilot", "project"): "${input:%s}", ("github-copilot", "global"): None,
            ("gemini-cli", "project"): None, ("gemini-cli", "global"): None,
            ("devin-desktop", "project"): None, ("devin-desktop", "global"): None,
-           ("kiro", "project"): "${%s}", ("kiro", "global"): "${%s}"}
+           ("kiro", "project"): "${%s}", ("kiro", "global"): "${%s}",
+           ("cline", "global"): None}
 
 
 def load_servers(servers_dir, names):
@@ -127,6 +131,8 @@ def json_config(harness, scope, name, spec, workspace):
         config = {"url": r["url"]}
     elif harness == "gemini-cli":
         config = {"serverUrl": r["url"]}  # Antigravity's key; it takes Streamable HTTP only
+    elif harness == "cline":
+        config = {"type": "streamableHttp", "url": r["url"]}  # without type, Cline assumes SSE
     else:
         config = {"type": "http", "url": r["url"]}
     headers, inputs = {}, []
@@ -259,6 +265,9 @@ def main():
     for h in harnesses:
         if h in JSON_TARGETS:
             scope = "global" if args.glob else "project"
+            if scope not in JSON_TARGETS[h]:
+                print(f"skip: {h} has no project MCP config; use --global", file=sys.stderr)
+                continue
             target, key = JSON_TARGETS[h][scope]
             if scope == "project":
                 target = os.path.join(args.dir, target)

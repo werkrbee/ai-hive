@@ -372,6 +372,7 @@ python3 scripts/install.py --dry-run
 | Gemini CLI and Antigravity | `.agents/agents/<name>.md` (Antigravity's; `name` and `description` only) |
 | Devin Desktop | `.devin/agents/<name>.md` (`tools` as `allowed-tools`, in Devin's names) |
 | Kiro | `.kiro/agents/<name>.md` (`tools` in Kiro's categories: `read`, `write`, `shell`, `web`) |
+| Cline | `.cline/agents/<name>.yaml` (frontmatter and a body, which Cline reads only from `.yaml`; `tools` in ClineCore's names) |
 | AGENTS.md ecosystem | `.agents/agents/<name>.md` (`name` and `description` only, since Antigravity reads it) |
 
 Goose and the data-cloud harnesses fall back to `.agents/agents/`. Codex and

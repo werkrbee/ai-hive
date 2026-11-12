@@ -190,6 +190,7 @@ On Windows: `.\scripts\install.ps1 -Dir C:\path\to\project`.
 | Gemini CLI and Antigravity | `GEMINI.md` (or `~/.gemini/GEMINI.md`) |
 | Devin Desktop | `.devin/rules/<ruleset>.md` with `trigger: always_on` (or `~/.devin/global_rules.md`) |
 | Kiro | `AGENTS.md` (or `~/.kiro/steering/AGENTS.md`) |
+| Cline | `.cline/rules/<ruleset>.md` (or `~/.cline/rules/<ruleset>.md`) |
 | Goose | `.goosehints` |
 
 Filenames evolve — confirm against each harness's current docs. When in doubt,

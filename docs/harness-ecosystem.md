@@ -66,7 +66,8 @@ first thing the quarterly check should revisit.
 7. **Kiro** (AWS). Spec-driven, and the successor to Amazon Q Developer: an IDE, `kiro-cli`,
    the web and mobile, sharing steering files, specs, skills and custom agents under `.kiro/`.
 8. **Cline**. The most installed open-source agent inside VS Code, and a common way into
-   agents for teams that bring their own model. A new adapter.
+   agents for teams that bring their own model. It also runs as a CLI, a desktop app and an
+   SDK, all reading `.cline/`. A new adapter.
 9. **OpenCode**. An open-source, model-agnostic terminal agent; the closest peer to the
    House's own position.
 10. **Goose** (Linux Foundation). Open source under neutral governance, and a reference
@@ -180,7 +181,7 @@ below summarize it as of 2026-11-10, and the matrix is the one to trust when the
 | Gemini CLI and Antigravity | Antigravity: free with a weekly limit, or Google AI Pro $19.99 or Ultra $99.99 or $199.99 a month, AI credits beyond the limits; Gemini CLI: a paid API key, or Code Assist Standard or Enterprise | List (API key) | Gemini 4 Argon: $2 · $10 to 2026-11-30, then $4 · $20 |
 | Devin Desktop | Plan with a daily and weekly token quota (Free; Pro $20, Max $200 a month; Teams $80 plus $40 a seat), then extra usage at API list price | List | SWE-2: $3 · $15 (free on self-serve to 2026-11-30) |
 | Kiro | Credit, used fractionally per request and scaled by the model's multiplier (Sonnet 5.5 1.3x, Opus 5.5 2x, against Auto); Free 50 a month, Pro $20 for 1,000, Pro+ $40 for 2,000, Pro Max $100 for 5,000, Power $200 for 10,000; more at $0.04 | Not published | Not published (credits aren't tied to tokens) |
-| Cline | Free; your own key, or Cline's provider | List, no fee | As the model |
+| Cline | Free and open source; inference on your own key, Cline credits at cost, or ClinePass $9.99 a month for open coding models | List, no fee | Sonnet 5.5: $2 · $10 |
 | OpenCode | Free; your own key | List, no fee | As the model |
 | Goose | Free; your own key | List, no fee | As the model |
 
@@ -226,7 +227,6 @@ harness's row is filled in.
 - [Skills CLI's list of supported agents and their skill paths](https://mintlify.com/vercel-labs/skills/guides/supported-agents)
 - [AI coding tools cost compared: Copilot, Cursor, Claude Code and Codex (CloudZero)](https://www.cloudzero.com/blog/ai-coding-tools-cost/)
 - [Plans vs API break-even for Claude Code, Codex, Copilot and Cursor (DEV)](https://dev.to/tokely/claude-code-codex-copilot-and-cursor-plans-vs-api-break-even-and-the-cost-of-long-sessions-2026-53d6)
-- [AI coding tools pricing 2026 (Developers Digest), for Cline](https://www.developersdigest.tech/blog/ai-coding-tools-pricing-2026)
 - [OpenAI API pricing](https://developers.openai.com/api/docs/pricing) and [GPT-5.5 pricing breakdown](https://apidog.com/blog/gpt-5-5-pricing/)
 - [Gemini Developer API pricing](https://ai.google.dev/gemini-api/docs/pricing)
 - [Microsoft Copilot Credits guide, September 2026](https://cdn-dynmedia-1.microsoft.com/is/content/microsoftcorp/microsoft/bade/documents/products-and-services/en-us/ai/CopilotCreditsGuideSeptember2026.pdf)
