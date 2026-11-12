@@ -18,6 +18,7 @@ Usage:
   python3 scripts/install.py --global --harness github-copilot   # Copilot CLI and VS Code's Copilot Global
   python3 scripts/install.py --harness gemini-cli                 # Antigravity's .agents/mcp_config.json
   python3 scripts/install.py --harness devin-desktop              # .devin/mcp_config.json
+  python3 scripts/install.py --harness kiro                       # .kiro/settings/mcp.json
   python3 scripts/install.py --server huggingface --dry-run
 """
 import argparse
@@ -44,6 +45,8 @@ JSON_TARGETS = {
                        "global": ("~/.gemini/config/mcp_config.json", "mcpServers")},
     "devin-desktop":  {"project": (".devin/mcp_config.json", "mcpServers"),
                        "global": ("~/.config/devin/mcp_config.json", "mcpServers")},
+    "kiro":           {"project": (".kiro/settings/mcp.json", "mcpServers"),
+                       "global": ("~/.kiro/settings/mcp.json", "mcpServers")},
 }
 # harnesses whose config isn't JSON — we print a snippet instead
 SNIPPET_TARGETS = {"codex": "toml", "goose": "yaml"}
@@ -54,7 +57,8 @@ ENV_REF = {("claude-code", "project"): "${%s}", ("claude-code", "global"): "${%s
            ("cursor", "project"): "${env:%s}", ("cursor", "global"): "${env:%s}",
            ("github-copilot", "project"): "${input:%s}", ("github-copilot", "global"): None,
            ("gemini-cli", "project"): None, ("gemini-cli", "global"): None,
-           ("devin-desktop", "project"): None, ("devin-desktop", "global"): None}
+           ("devin-desktop", "project"): None, ("devin-desktop", "global"): None,
+           ("kiro", "project"): "${%s}", ("kiro", "global"): "${%s}"}
 
 
 def load_servers(servers_dir, names):
@@ -119,7 +123,7 @@ def json_config(harness, scope, name, spec, workspace):
     if "remote" not in spec:
         return substitute(spec["config"], workspace), []
     r = spec["remote"]
-    if harness in ("cursor", "devin-desktop"):
+    if harness in ("cursor", "devin-desktop", "kiro"):
         config = {"url": r["url"]}
     elif harness == "gemini-cli":
         config = {"serverUrl": r["url"]}  # Antigravity's key; it takes Streamable HTTP only

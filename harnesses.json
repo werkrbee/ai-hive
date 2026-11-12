@@ -587,25 +587,29 @@
       "rank": 7,
       "adapter": "kiro",
       "surfaces": {
-        "skills": {"global": "~/.kiro/skills", "project": ".agents/skills"},
-        "rules": {"project": "AGENTS.md"},
-        "agents": {"fallback": "agents"}
+        "skills": {"global": "~/.kiro/skills", "project": ".kiro/skills"},
+        "rules": {"global": "~/.kiro/steering/AGENTS.md", "project": "AGENTS.md"},
+        "agents": {"project": ".kiro/agents/{name}.md", "keys": ["name", "description", "tools", "model"]}
       },
       "capabilities": {
-        "rules": {"supported": true, "source": "hives/rules-hive/scripts/install.sh", "checked": "2026-11-10"},
-        "skills": {"supported": true, "source": "hives/skills-hive/scripts/install.sh", "checked": "2026-11-10"},
-        "subagents": {"supported": "unknown"},
-        "mcp": {"supported": "unknown"},
-        "hooks": {"supported": "unknown"},
-        "memory": {"supported": "unknown"},
-        "permissions": {"supported": "unknown"},
-        "headless": {"supported": "unknown"}
+        "rules": {"supported": true, "source": "https://kiro.dev/docs/steering/", "checked": "2026-11-11"},
+        "skills": {"supported": true, "source": "https://kiro.dev/docs/skills/", "checked": "2026-11-11"},
+        "subagents": {"supported": true, "source": "https://kiro.dev/docs/custom-agents/subagents/", "checked": "2026-11-11"},
+        "mcp": {"supported": true, "source": "https://kiro.dev/docs/mcp/configuration/", "checked": "2026-11-11"},
+        "hooks": {"supported": true, "source": "https://kiro.dev/docs/hooks/", "checked": "2026-11-11"},
+        "memory": {"supported": true, "source": "https://kiro.dev/docs/memory/", "checked": "2026-11-11"},
+        "permissions": {"supported": true, "source": "https://kiro.dev/docs/permissions/", "checked": "2026-11-11"},
+        "headless": {"supported": true, "source": "https://kiro.dev/docs/cli/headless/", "checked": "2026-11-11"}
       },
       "cost": {
-        "unit": "Credit (Pro $20 for 1,000 a month; more at $0.04); credits per request vary by model",
+        "unit": "Credit, used fractionally by each request and scaled by the model's multiplier against Auto (Claude Sonnet 5.5 1.3x, Opus 5.5 2x); Free 50 a month, Pro $20 for 1,000, Pro+ $40 for 2,000, Pro Max $100 for 5,000, Power $200 for 10,000, Teams $20 a seat for 500 pooled; more at $0.04 a credit",
         "tokens": {"basis": "not-published"},
-        "sources": ["https://www.developersdigest.tech/blog/ai-coding-tools-pricing-2026"],
-        "checked": "2026-11-10"
+        "sources": [
+          "https://kiro.dev/pricing/",
+          "https://kiro.dev/docs/billing/",
+          "https://kiro.dev/docs/models/available-models/"
+        ],
+        "checked": "2026-11-11"
       },
       "verified": false
     },

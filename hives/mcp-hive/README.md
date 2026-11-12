@@ -161,6 +161,7 @@ python3 scripts/install.py --harness codex --harness goose
 | VS Code / GitHub Copilot | `.vscode/mcp.json` | `servers` |
 | Gemini CLI and Antigravity | `.agents/mcp_config.json` / `~/.gemini/config/mcp_config.json` (Antigravity's) | `mcpServers` |
 | Devin Desktop | `.devin/mcp_config.json` / `~/.config/devin/mcp_config.json` | `mcpServers` |
+| Kiro | `.kiro/settings/mcp.json` / `~/.kiro/settings/mcp.json` | `mcpServers` |
 | Codex | `~/.codex/config.toml` | `[mcp_servers.*]` (snippet) |
 | Goose | Goose config (YAML) | `extensions` (snippet) |
 

@@ -66,25 +66,37 @@ def readonly(fm):
     return "true" if tools and not set(tools) & WRITE_TOOLS else None
 
 
-# Claude Code's tool names -> Devin's (Devin CLI's permissions reference). Devin doesn't check a
-# subagent's tool names, so an agent with a tool outside this map gets no list, and a warning.
-DEVIN_TOOLS = {"read": "read", "grep": "grep", "glob": "glob", "edit": "edit", "write": "edit",
-               "multiedit": "edit", "bash": "exec"}
+# Claude Code's tool names -> a harness's own, for harnesses whose agent files take a tools
+# list in their own names, and the frontmatter key it goes under. Devin's names are from Devin
+# CLI's permissions reference, Kiro's are its tool categories. Neither documents checking a
+# subagent's tool names, so an agent with a tool outside the map gets no list, and a warning.
+NATIVE_TOOLS = {
+    "devin-desktop": ("allowed-tools", {"read": "read", "grep": "grep", "glob": "glob", "edit": "edit",
+                                        "write": "edit", "multiedit": "edit", "bash": "exec"}),
+    "kiro": ("tools", {"read": "read", "grep": "read", "glob": "read", "edit": "write",
+                       "write": "write", "multiedit": "write", "bash": "shell",
+                       "webfetch": "web", "websearch": "web"}),
+}
 
 
-def devin_tools(fm):
-    """The agent's tools as a Devin allowed-tools list, or None if it has none or one Devin's
-    names don't cover."""
-    tools = [t.strip().lower() for t in fm.get("tools", "").split(",") if t.strip()]
-    if not tools or any(t not in DEVIN_TOOLS for t in tools):
+def native_tools(fm, harness):
+    """The agent's tools as a list in the harness's own names, or None if it has none, the
+    harness takes Claude Code's names, or one of them has no name there."""
+    if harness not in NATIVE_TOOLS:
         return None
-    return "[" + ", ".join(dict.fromkeys(DEVIN_TOOLS[t] for t in tools)) + "]"
+    names = NATIVE_TOOLS[harness][1]
+    tools = [t.strip().lower() for t in fm.get("tools", "").split(",") if t.strip()]
+    if not tools or any(t not in names for t in tools):
+        return None
+    return "[" + ", ".join(dict.fromkeys(names[t] for t in tools)) + "]"
 
 
-def render(fm, body, keys, name):
+def render(fm, body, keys, name, harness=None):
     out = ["---"]
+    derived = {"name": name, "readonly": readonly(fm)}
+    if harness in NATIVE_TOOLS:
+        derived[NATIVE_TOOLS[harness][0]] = native_tools(fm, harness)
     for k in keys:
-        derived = {"name": name, "readonly": readonly(fm), "allowed-tools": devin_tools(fm)}
         val = derived[k] if k in derived else fm.get(k)
         if val:
             out.append(f"{k}: {val}")
@@ -134,6 +146,8 @@ UNENFORCED["agents"] = ("the shared .agents/agents/ folder, which Antigravity re
 UNENFORCED["devin-desktop"] = ("a Devin agent file, since Devin has no name for one of them",
                                "deny edit and exec in .devin/config.json's permissions "
                                "to keep this agent from editing")
+UNENFORCED["kiro"] = ("a Kiro agent file, since Kiro has no name for one of them",
+                      "deny fs_write and shell in its permissions to keep this agent from editing")
 
 
 def unenforced(fm, harness):
@@ -142,7 +156,7 @@ def unenforced(fm, harness):
     tools = fm.get("tools")
     if harness not in UNENFORCED or not tools:
         return None
-    if harness == "devin-desktop" and devin_tools(fm):
+    if native_tools(fm, harness):
         return None
     where, advice = UNENFORCED[harness]
     return f"tools ({tools}) can't be enforced in {where}; {advice}"
@@ -191,7 +205,8 @@ def main():
         for name, (fm, body) in agents.items():
             rel = tmpl.format(name=name)
             target = Path(args.dir) / rel
-            content = (render_toml if fmt == "toml" else render)(fm, body, keys, name)
+            content = (render_toml(fm, body, keys, name) if fmt == "toml"
+                       else render(fm, body, keys, name, fallback or h))
             warning = unenforced(fm, fallback or h)
             if warning:
                 print(f"warning: {h}: {name}: {warning}", file=sys.stderr)
