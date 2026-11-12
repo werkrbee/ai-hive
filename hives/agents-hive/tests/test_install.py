@@ -1,8 +1,8 @@
 """Tests for install.py's per-harness rendering: for Codex an agent becomes one TOML file
 whose prompt is developer_instructions, whatever characters the prompt holds; for Cursor a
 read-only agent gets readonly: true; for Antigravity an agent carries no tools list, and an
-agent with one is warned about, as for Codex; for Devin and Kiro an agent's tools carry over
-under the harness's own names.
+agent with one is warned about, as for Codex; for Devin, Kiro and Cline an agent's tools carry
+over under the harness's own names.
 
 Standard library only (Python 3.9 has no TOML parser, so the strings are checked by hand).
 Run from the repo root:
@@ -108,6 +108,21 @@ class CodexTomlTest(unittest.TestCase):
         self.assertIsNone(install.native_tools(fm, "kiro"))
         self.assertNotIn("tools:", install.render(fm, "Body.\n", install.agent_target("kiro")[1], "x", "kiro"))
         self.assertIn("deny fs_write and shell", install.unenforced(fm, "kiro"))
+
+    def test_cline_agents_are_yaml_files_with_clinecore_tool_names(self):
+        tmpl, keys, fallback, fmt = install.agent_target("cline")
+        self.assertEqual((tmpl, fmt, fallback), (".cline/agents/{name}.yaml", "markdown", None))
+        out = install.render({"description": "d", "tools": "Read, Grep, Glob"}, "Body.\n", keys, "explore", "cline")
+        self.assertEqual(out, "---\nname: explore\ndescription: d\ntools: [read_files, search_codebase]\n---\n\nBody.\n")
+        self.assertEqual(install.native_tools({"tools": "Read, Edit, Write, Bash"}, "cline"),
+                         "[read_files, editor, apply_patch, run_commands]")
+        self.assertIsNone(install.unenforced({"tools": "Read, Grep, Glob"}, "cline"))
+
+    def test_a_tool_cline_has_no_name_for_drops_the_list_and_warns(self):
+        fm = {"description": "d", "tools": "Read, WebSearch"}
+        self.assertIsNone(install.native_tools(fm, "cline"))
+        self.assertNotIn("tools:", install.render(fm, "Body.\n", install.agent_target("cline")[1], "x", "cline"))
+        self.assertIn("plan mode", install.unenforced(fm, "cline"))
 
     def test_claude_code_keeps_its_own_tool_names(self):
         out = install.render({"description": "d", "tools": "Read, Grep"}, "Body.\n",

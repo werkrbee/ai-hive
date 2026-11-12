@@ -68,14 +68,20 @@ def readonly(fm):
 
 # Claude Code's tool names -> a harness's own, for harnesses whose agent files take a tools
 # list in their own names, and the frontmatter key it goes under. Devin's names are from Devin
-# CLI's permissions reference, Kiro's are its tool categories. Neither documents checking a
-# subagent's tool names, so an agent with a tool outside the map gets no list, and a warning.
+# CLI's permissions reference, Kiro's are its tool categories, and Cline's are ClineCore's
+# built-ins (it offers editor or apply_patch by model, so an edit tool maps to both). None of
+# them rejects a name it doesn't know (Cline drops it), so an agent with a tool outside the
+# map gets no list, and a warning.
 NATIVE_TOOLS = {
     "devin-desktop": ("allowed-tools", {"read": "read", "grep": "grep", "glob": "glob", "edit": "edit",
                                         "write": "edit", "multiedit": "edit", "bash": "exec"}),
     "kiro": ("tools", {"read": "read", "grep": "read", "glob": "read", "edit": "write",
                        "write": "write", "multiedit": "write", "bash": "shell",
                        "webfetch": "web", "websearch": "web"}),
+    "cline": ("tools", {"read": "read_files", "grep": "search_codebase", "glob": "search_codebase",
+                        "edit": "editor, apply_patch", "write": "editor, apply_patch",
+                        "multiedit": "editor, apply_patch", "bash": "run_commands",
+                        "webfetch": "fetch_web_content"}),
 }
 
 
@@ -88,7 +94,8 @@ def native_tools(fm, harness):
     tools = [t.strip().lower() for t in fm.get("tools", "").split(",") if t.strip()]
     if not tools or any(t not in names for t in tools):
         return None
-    return "[" + ", ".join(dict.fromkeys(names[t] for t in tools)) + "]"
+    native = [n.strip() for t in tools for n in names[t].split(",")]
+    return "[" + ", ".join(dict.fromkeys(native)) + "]"
 
 
 def render(fm, body, keys, name, harness=None):
@@ -146,6 +153,8 @@ UNENFORCED["agents"] = ("the shared .agents/agents/ folder, which Antigravity re
 UNENFORCED["devin-desktop"] = ("a Devin agent file, since Devin has no name for one of them",
                                "deny edit and exec in .devin/config.json's permissions "
                                "to keep this agent from editing")
+UNENFORCED["cline"] = ("a Cline agent file, since Cline has no name for one of them",
+                       "run that session in plan mode (--plan) to keep this agent from editing")
 UNENFORCED["kiro"] = ("a Kiro agent file, since Kiro has no name for one of them",
                       "deny fs_write and shell in its permissions to keep this agent from editing")
 

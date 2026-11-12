@@ -115,6 +115,14 @@
       "output": 15,
       "source": "https://docs.devin.ai/desktop/models",
       "checked": "2026-11-11"
+    },
+    "gpt-5-6-terra": {
+      "name": "GPT-5.6 Terra (prompts up to 272,000 tokens)",
+      "input": 2,
+      "cached": 0.2,
+      "output": 12,
+      "source": "https://developers.openai.com/api/docs/pricing",
+      "checked": "2026-11-12"
     }
   },
   "harnesses": [
@@ -621,24 +629,54 @@
       "tier": "top-ten",
       "rank": 8,
       "adapter": "cline",
-      "surfaces": {},
+      "surfaces": {
+        "skills": {"global": "~/.cline/skills", "project": ".cline/skills"},
+        "rules": {"global": "~/.cline/rules/{name}.md", "project": ".cline/rules/{name}.md"},
+        "agents": {"project": ".cline/agents/{name}.yaml", "keys": ["name", "description", "tools"]}
+      },
       "capabilities": {
-        "rules": {"supported": "unknown"},
-        "skills": {"supported": "unknown"},
-        "subagents": {"supported": "unknown"},
-        "mcp": {"supported": "unknown"},
-        "hooks": {"supported": "unknown"},
-        "memory": {"supported": "unknown"},
-        "permissions": {"supported": "unknown"},
-        "headless": {"supported": "unknown"}
+        "rules": {"supported": true, "source": "https://docs.cline.bot/customization/cline-rules", "checked": "2026-11-12"},
+        "skills": {"supported": true, "source": "https://docs.cline.bot/customization/skills", "checked": "2026-11-12"},
+        "subagents": {"supported": true, "source": "https://docs.cline.bot/features/subagents", "checked": "2026-11-12"},
+        "mcp": {"supported": true, "source": "https://docs.cline.bot/mcp/mcp-overview", "checked": "2026-11-12"},
+        "hooks": {"supported": true, "source": "https://docs.cline.bot/sdk/plugins", "checked": "2026-11-12"},
+        "memory": {"supported": false, "source": "https://docs.cline.bot/best-practices/memory-bank", "checked": "2026-11-12"},
+        "permissions": {"supported": true, "source": "https://docs.cline.bot/features/auto-approve", "checked": "2026-11-12"},
+        "headless": {"supported": true, "source": "https://docs.cline.bot/cli/cli-reference", "checked": "2026-11-12"}
       },
       "cost": {
-        "unit": "Free; your own key, or Cline's provider",
-        "tokens": {"basis": "own-key", "note": "or Cline's provider, whose rate isn't recorded"},
-        "sources": ["https://www.developersdigest.tech/blog/ai-coding-tools-pricing-2026"],
-        "checked": "2026-11-10"
+        "unit": "Free and open source; inference on your own key, or Cline credits at cost (pay as you go); ClinePass $9.99 a month for open coding models; Enterprise custom",
+        "tokens": {"basis": "list", "models": ["claude-sonnet-5-5"]},
+        "sources": [
+          "https://cline.bot/pricing",
+          "https://docs.cline.bot/getting-started/cline-provider",
+          "https://docs.cline.bot/getting-started/clinepass"
+        ],
+        "checked": "2026-11-12"
       },
-      "verified": false
+      "verified": true,
+      "runs": [
+        {
+          "agent": "barry",
+          "date": "2026-11-12",
+          "version": "3.0.74",
+          "model": "gpt-5-6-terra",
+          "how": "cline --json --plan \"Use the barry skill. Plan issue #241 …\" (signed in with a ChatGPT plan, provider openai-codex)",
+          "tokens": {"input": 38294, "cache_write": 0, "cached": 33792, "output": 2636},
+          "cost": "from the ChatGPT plan's included usage; $0.11 at GPT-5.6 Terra's list price",
+          "result": "planned #241 in steps, each with a role mapped to Cline's agents and what to delegate; edited nothing"
+        },
+        {
+          "agent": "patricia",
+          "date": "2026-11-12",
+          "version": "3.0.74",
+          "model": "gpt-5-6-terra",
+          "how": "cline --json --plan \"Use the patricia skill. Review the staged diff …\" (signed in with a ChatGPT plan, provider openai-codex)",
+          "tokens": {"input": 65354, "cache_write": 0, "cached": 242688, "output": 3662},
+          "cost": "from the ChatGPT plan's included usage; $0.22 at GPT-5.6 Terra's list price",
+          "result": "CONCERNS on the staged diff only because these runs weren't recorded yet and the installer checks outran its 30-second command limit; found the secret handling sound; edited nothing"
+        }
+      ]
     },
     {
       "id": "opencode",

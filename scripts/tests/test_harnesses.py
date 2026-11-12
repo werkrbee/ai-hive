@@ -47,7 +47,7 @@ class CheckTest(unittest.TestCase):
                            "no date checked")
 
     def test_an_unknown_needs_no_evidence(self):
-        self.assertEqual(self.problems(lambda r: self.harness(r, "cline")["capabilities"]["rules"].update(
+        self.assertEqual(self.problems(lambda r: self.harness(r, "opencode")["capabilities"]["subagents"].update(
             supported="unknown")), [])
 
     def test_a_row_has_every_field_of_its_category(self):
@@ -146,13 +146,16 @@ class ConformanceTest(unittest.TestCase):
 
     def test_a_missing_file_fails_a_top_ten_harness_and_is_reported_for_others(self):
         with tempfile.TemporaryDirectory() as sandbox:
+            registry = harnesses.load()
+            next(h for h in registry["harnesses"] if h["id"] == "goose")["surfaces"] = {}
             failures, reports, _ = harnesses.conformance(
-                sandbox, prepare=lambda house: (house / "hives/skills-hive/skills/barry/SKILL.md").unlink())
+                sandbox, registry,
+                prepare=lambda house: (house / "hives/skills-hive/skills/barry/SKILL.md").unlink())
         self.assertIn("claude-code: skills (global) didn't land at "
                       "home/claude-code/.claude/skills/barry/SKILL.md (nothing written there)", failures)
         self.assertFalse(any(f.startswith("scout:") for f in failures))
         self.assertTrue(any(r.startswith("scout: skills (global)") for r in reports))
-        self.assertIn("cline: no install paths yet", reports)
+        self.assertIn("goose: no install paths yet", reports)
         self.assertEqual({f.split(": ", 1)[1].split(" ", 1)[0] for f in failures}, {"skills"})
 
 

@@ -31,6 +31,7 @@ function Rel($h) {
     "github-copilot" { ".github\copilot-instructions.md" }
     "gemini-cli"     { "GEMINI.md" }
     "devin-desktop"  { ".devin\rules\$Ruleset.md" }
+    "cline"          { ".cline\rules\$Ruleset.md" }
     "goose"          { ".goosehints" }
     default          { $null }
   }
