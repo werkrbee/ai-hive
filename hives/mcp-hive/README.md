@@ -162,6 +162,7 @@ python3 scripts/install.py --harness codex --harness goose
 | Gemini CLI and Antigravity | `.agents/mcp_config.json` / `~/.gemini/config/mcp_config.json` (Antigravity's) | `mcpServers` |
 | Devin Desktop | `.devin/mcp_config.json` / `~/.config/devin/mcp_config.json` | `mcpServers` |
 | Kiro | `.kiro/settings/mcp.json` / `~/.kiro/settings/mcp.json` | `mcpServers` |
+| OpenCode | `opencode.json` / `~/.config/opencode/opencode.json` | `mcp.servers` |
 | Cline | `~/.cline/data/settings/cline_mcp_settings.json` (user-level only; `--global`) | `mcpServers` |
 | Codex | `~/.codex/config.toml` | `[mcp_servers.*]` (snippet) |
 | Goose | Goose config (YAML) | `extensions` (snippet) |

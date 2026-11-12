@@ -176,7 +176,7 @@ cp -R skills/barry ~/.cursor/skills/barry
 | Devin Desktop | `~/.config/devin/skills/` | `.devin/skills/` |
 | Cline | `~/.cline/skills/` | `.cline/skills/` |
 | Goose | `~/.config/goose/skills/` | `.goose/skills/` |
-| OpenCode | `~/.config/opencode/skills/` | `.agents/skills/` |
+| OpenCode | `~/.config/opencode/skills/` | `.opencode/skills/` |
 | Kiro (AWS) | `~/.kiro/skills/` | `.kiro/skills/` |
 | Scout (Windows) | `%USERPROFILE%\.scout\skills\` | — |
 | Databricks Genie Code | workspace-based ‡ | `.agents/skills/` ‡ |

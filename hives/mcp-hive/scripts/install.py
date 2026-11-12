@@ -20,6 +20,7 @@ Usage:
   python3 scripts/install.py --harness devin-desktop              # .devin/mcp_config.json
   python3 scripts/install.py --harness kiro                       # .kiro/settings/mcp.json
   python3 scripts/install.py --global --harness cline             # ~/.cline/data/settings/cline_mcp_settings.json
+  python3 scripts/install.py --harness opencode                   # opencode.json, under mcp.servers
   python3 scripts/install.py --server huggingface --dry-run
 """
 import argparse
@@ -38,6 +39,7 @@ TARGET_SPEC = "2026-07-28"
 # GitHub Copilot's project file is VS Code's; its user file is the Copilot CLI's, which VS Code
 # also reads as Copilot Global. Gemini CLI and Antigravity's files are Antigravity's; Gemini CLI
 # keeps its servers in .gemini/settings.json instead. Cline reads only a user-level file.
+# OpenCode V2 nests its servers under mcp.servers, written here as a dotted key.
 JSON_TARGETS = {
     "claude-code":    {"project": (".mcp.json", "mcpServers"), "global": ("~/.claude.json", "mcpServers")},
     "cursor":         {"project": (".cursor/mcp.json", "mcpServers"), "global": ("~/.cursor/mcp.json", "mcpServers")},
@@ -49,6 +51,8 @@ JSON_TARGETS = {
     "kiro":           {"project": (".kiro/settings/mcp.json", "mcpServers"),
                        "global": ("~/.kiro/settings/mcp.json", "mcpServers")},
     "cline":          {"global": ("~/.cline/data/settings/cline_mcp_settings.json", "mcpServers")},
+    "opencode":       {"project": ("opencode.json", "mcp.servers"),
+                       "global": ("~/.config/opencode/opencode.json", "mcp.servers")},
 }
 # harnesses whose config isn't JSON — we print a snippet instead
 SNIPPET_TARGETS = {"codex": "toml", "goose": "yaml"}
@@ -62,7 +66,8 @@ ENV_REF = {("claude-code", "project"): "${%s}", ("claude-code", "global"): "${%s
            ("gemini-cli", "project"): None, ("gemini-cli", "global"): None,
            ("devin-desktop", "project"): None, ("devin-desktop", "global"): None,
            ("kiro", "project"): "${%s}", ("kiro", "global"): "${%s}",
-           ("cline", "global"): None}
+           ("cline", "global"): None,
+           ("opencode", "project"): "{env:%s}", ("opencode", "global"): "{env:%s}"}
 
 
 def load_servers(servers_dir, names):
@@ -125,7 +130,11 @@ def substitute(obj, workspace):
 def json_config(harness, scope, name, spec, workspace):
     """Return (config, VS Code inputs) for one server in one JSON harness at one scope."""
     if "remote" not in spec:
-        return substitute(spec["config"], workspace), []
+        config = substitute(spec["config"], workspace)
+        if harness == "opencode":  # one command array, and environment rather than env
+            config = {"type": "local", "command": [config["command"], *config.get("args", [])],
+                      **({"environment": config["env"]} if config.get("env") else {})}
+        return config, []
     r = spec["remote"]
     if harness in ("cursor", "devin-desktop", "kiro"):
         config = {"url": r["url"]}
@@ -133,6 +142,8 @@ def json_config(harness, scope, name, spec, workspace):
         config = {"serverUrl": r["url"]}  # Antigravity's key; it takes Streamable HTTP only
     elif harness == "cline":
         config = {"type": "streamableHttp", "url": r["url"]}  # without type, Cline assumes SSE
+    elif harness == "opencode":
+        config = {"type": "remote", "url": r["url"]}
     else:
         config = {"type": "http", "url": r["url"]}
     headers, inputs = {}, []
@@ -149,6 +160,8 @@ def json_config(harness, scope, name, spec, workspace):
                                "description": f"{h['name']} for {name}", "password": h["secret"]})
         headers[h["name"]] = value
     if headers:
+        if harness == "opencode":
+            config["oauth"] = False  # OpenCode tries OAuth first unless a header carries the credential
         config["headers"] = headers
     return config, inputs
 
@@ -162,10 +175,12 @@ def merge_json(harness, scope, path, key, servers, workspace, dry):
         except json.JSONDecodeError:
             print(f"warning: {path} is not valid JSON; leaving it alone", file=sys.stderr)
             return
-    data.setdefault(key, {})
+    table = data
+    for part in key.split("."):
+        table = table.setdefault(part, {})
     for name, spec in servers.items():
         config, inputs = json_config(harness, scope, name, spec, workspace)
-        data[key][name] = config
+        table[name] = config
         if inputs:
             existing = {i.get("id") for i in data.setdefault("inputs", [])}
             data["inputs"] += [i for i in inputs if i["id"] not in existing]

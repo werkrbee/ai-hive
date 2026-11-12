@@ -69,7 +69,8 @@ first thing the quarterly check should revisit.
    agents for teams that bring their own model. It also runs as a CLI, a desktop app and an
    SDK, all reading `.cline/`. A new adapter.
 9. **OpenCode**. An open-source, model-agnostic terminal agent; the closest peer to the
-   House's own position.
+   House's own position. Now V2, with a terminal UI, a desktop app and an SDK sharing one
+   background server and `.opencode/`.
 10. **Goose** (Linux Foundation). Open source under neutral governance, and a reference
     for MCP-first agents.
 
@@ -168,7 +169,7 @@ listed above, wherever tokens are billed at list price.
 
 Each harness's row, with the source and date behind every value, is kept in
 `harnesses.json` and rendered as [`harness-matrix.md`](harness-matrix.md); the tables
-below summarize it as of 2026-11-10, and the matrix is the one to trust when they differ.
+below summarize it as of 2026-11-12, and the matrix is the one to trust when they differ.
 
 ### Pro-code
 
@@ -182,7 +183,7 @@ below summarize it as of 2026-11-10, and the matrix is the one to trust when the
 | Devin Desktop | Plan with a daily and weekly token quota (Free; Pro $20, Max $200 a month; Teams $80 plus $40 a seat), then extra usage at API list price | List | SWE-2: $3 · $15 (free on self-serve to 2026-11-30) |
 | Kiro | Credit, used fractionally per request and scaled by the model's multiplier (Sonnet 5.5 1.3x, Opus 5.5 2x, against Auto); Free 50 a month, Pro $20 for 1,000, Pro+ $40 for 2,000, Pro Max $100 for 5,000, Power $200 for 10,000; more at $0.04 | Not published | Not published (credits aren't tied to tokens) |
 | Cline | Free and open source; inference on your own key, Cline credits at cost, or ClinePass $9.99 a month for open coding models | List, no fee | Sonnet 5.5: $2 · $10 |
-| OpenCode | Free; your own key | List, no fee | As the model |
+| OpenCode | Free and open source; your own key, a ChatGPT plan, Console credits at list price (plus a 4.6% + $0.31 fee per purchase), or OpenCode Go from $10 a month for open models | List, no markup | Sonnet 5.5: $2 · $10 |
 | Goose | Free; your own key | List, no fee | As the model |
 
 ### Low-code
