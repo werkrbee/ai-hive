@@ -162,6 +162,21 @@ else
   flunk "mcp-hive install.py writes Cline's user-level file and leaves its secret header to set by hand"
   printf '%s\n' "$out" "$skip" | sed 's/^/      /'
 fi
+# OpenCode nests servers under mcp.servers and reads {env:NAME} in headers; a header credential
+# turns its default OAuth off.
+out=$(python3 hives/mcp-hive/scripts/install.py --servers-dir "$sandbox/registry" --dir "$proj" \
+  --harness opencode --dry-run 2>&1); code=$?
+if [ "$code" -eq 0 ] && printf '%s\n' "$out" | grep -q 'opencode.json:' \
+  && printf '%s\n' "$out" | python3 -c 'import json, sys
+text = sys.stdin.read()
+cfg = json.loads(text[text.index("{"):text.rindex("}") + 1])["mcp"]["servers"]["demo"]
+assert cfg == {"type": "remote", "url": "https://demo.example.com/mcp", "oauth": False,
+               "headers": {"Authorization": "Bearer {env:DEMO_TOKEN}"}}, cfg'; then
+  pass "mcp-hive install.py writes OpenCode's nested servers with an environment reference"
+else
+  flunk "mcp-hive install.py writes OpenCode's nested servers with an environment reference"
+  printf '%s\n' "$out" | sed 's/^/      /'
+fi
 run "plugins-hive install.py --dry-run" \
   python3 hives/plugins-hive/scripts/install.py --dir "$proj" --hives-dir hives --dry-run
 run "projects-hive init.py --dry-run" \

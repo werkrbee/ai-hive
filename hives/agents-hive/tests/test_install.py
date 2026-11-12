@@ -2,7 +2,7 @@
 whose prompt is developer_instructions, whatever characters the prompt holds; for Cursor a
 read-only agent gets readonly: true; for Antigravity an agent carries no tools list, and an
 agent with one is warned about, as for Codex; for Devin, Kiro and Cline an agent's tools carry
-over under the harness's own names.
+over under the harness's own names, and for OpenCode the tools it lacks become deny rules.
 
 Standard library only (Python 3.9 has no TOML parser, so the strings are checked by hand).
 Run from the repo root:
@@ -60,7 +60,7 @@ class CodexTomlTest(unittest.TestCase):
 
     def test_the_shared_agents_folder_carries_no_tools_since_antigravity_reads_it(self):
         self.assertEqual(install.agent_target("agents")[:2], install.agent_target("gemini-cli")[:2])
-        for fallback in ("goose", "opencode"):
+        for fallback in ("goose", "databricks-genie-code"):
             tmpl, keys, via, fmt = install.agent_target(fallback)
             self.assertEqual((tmpl, via), (".agents/agents/{name}.md", "agents"))
             self.assertNotIn("tools", keys)
@@ -123,6 +123,36 @@ class CodexTomlTest(unittest.TestCase):
         self.assertIsNone(install.native_tools(fm, "cline"))
         self.assertNotIn("tools:", install.render(fm, "Body.\n", install.agent_target("cline")[1], "x", "cline"))
         self.assertIn("plan mode", install.unenforced(fm, "cline"))
+
+    def test_opencode_agents_deny_the_actions_their_tools_lack(self):
+        tmpl, keys, fallback, fmt = install.agent_target("opencode")
+        self.assertEqual((tmpl, fmt, fallback), (".opencode/agents/{name}.md", "markdown", None))
+        out = install.render({"description": "d", "tools": "Read, Grep, Glob"}, "Body.\n", keys, "explore", "opencode")
+        self.assertTrue(out.startswith("---\ndescription: d\nmode: subagent\npermissions:\n"), out)
+        for action in install.OPENCODE_GUARDED:
+            self.assertIn(f'  - action: {action}\n    resource: "*"\n    effect: deny\n', out)
+        self.assertNotIn("action: read", out)  # reads keep the session's defaults
+        self.assertNotIn("name:", out)  # V2 takes the ID from the file name
+        writer = install.native_tools({"tools": "Read, Edit, Bash"}, "opencode")
+        self.assertNotIn("action: edit", writer)
+        self.assertNotIn("action: shell", writer)
+        self.assertIn("action: webfetch", writer)
+        self.assertIsNone(install.unenforced({"tools": "Read, Grep, Glob"}, "opencode"))
+
+    def test_an_opencode_agent_granted_every_guarded_action_gets_no_rules_or_warning(self):
+        fm = {"description": "d", "tools": "Read, Edit, Bash, WebFetch, WebSearch, Task"}
+        self.assertIsNone(install.native_tools(fm, "opencode"))
+        self.assertIsNone(install.unenforced(fm, "opencode"))
+
+    def test_a_tool_opencode_has_no_action_for_fails_closed_and_warns(self):
+        # Without rules OpenCode allows every action, so an unmapped tool must not drop them.
+        fm = {"description": "d", "tools": "Read, NotebookEdit"}
+        out = install.render(fm, "Body.\n", install.agent_target("opencode")[1], "x", "opencode")
+        for action in install.OPENCODE_GUARDED:
+            self.assertIn(f"  - action: {action}\n", out)
+        warning = install.unenforced(fm, "opencode")
+        self.assertIn("no permission action for notebookedit", warning)
+        self.assertIn("add an allow rule by hand", warning)
 
     def test_claude_code_keeps_its_own_tool_names(self):
         out = install.render({"description": "d", "tools": "Read, Grep"}, "Body.\n",

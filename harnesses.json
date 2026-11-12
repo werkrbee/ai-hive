@@ -687,27 +687,54 @@
       "rank": 9,
       "adapter": "opencode",
       "surfaces": {
-        "skills": {"global": "~/.config/opencode/skills", "project": ".agents/skills"},
-        "rules": {"project": "AGENTS.md"},
-        "agents": {"fallback": "agents"}
+        "skills": {"global": "~/.config/opencode/skills", "project": ".opencode/skills"},
+        "rules": {"global": "~/.config/opencode/AGENTS.md", "project": "AGENTS.md"},
+        "agents": {"project": ".opencode/agents/{name}.md", "keys": ["description", "mode", "permissions"]}
       },
       "capabilities": {
-        "rules": {"supported": true, "source": "hives/rules-hive/scripts/install.sh", "checked": "2026-11-10"},
-        "skills": {"supported": true, "source": "hives/skills-hive/scripts/install.sh", "checked": "2026-11-10"},
-        "subagents": {"supported": "unknown"},
-        "mcp": {"supported": "unknown"},
-        "hooks": {"supported": "unknown"},
-        "memory": {"supported": "unknown"},
-        "permissions": {"supported": "unknown"},
-        "headless": {"supported": "unknown"}
+        "rules": {"supported": true, "source": "https://opencode.ai/docs/instructions/", "checked": "2026-11-12"},
+        "skills": {"supported": true, "source": "https://opencode.ai/docs/skills/", "checked": "2026-11-12"},
+        "subagents": {"supported": true, "source": "https://opencode.ai/docs/agents/", "checked": "2026-11-12"},
+        "mcp": {"supported": true, "source": "https://opencode.ai/docs/mcp-servers/", "checked": "2026-11-12"},
+        "hooks": {"supported": true, "source": "https://opencode.ai/docs/build/plugins/server/", "checked": "2026-11-12"},
+        "memory": {"supported": false, "source": "https://opencode.ai/docs/instructions/", "checked": "2026-11-12"},
+        "permissions": {"supported": true, "source": "https://opencode.ai/docs/permissions/", "checked": "2026-11-12"},
+        "headless": {"supported": true, "source": "https://opencode.ai/docs/cli/commands/", "checked": "2026-11-12"}
       },
       "cost": {
-        "unit": "Free; your own key",
-        "tokens": {"basis": "own-key"},
-        "sources": ["https://www.morphllm.com/comparisons/opencode-vs-gemini-cli"],
-        "checked": "2026-11-10"
+        "unit": "Free and open source; your own key, a ChatGPT plan, OpenCode Console credits at the provider's list price (plus a 4.6% + $0.31 processing fee on each purchase), or OpenCode Go ($10, Go Plus $40, Go Teams $20 a member a month) for open models",
+        "tokens": {"basis": "list", "models": ["claude-sonnet-5-5"]},
+        "sources": [
+          "https://opencode.ai/docs/console/models/",
+          "https://opencode.ai/docs/console/billing/",
+          "https://opencode.ai/docs/console/go/",
+          "https://opencode.ai/docs/providers/"
+        ],
+        "checked": "2026-11-12"
       },
-      "verified": false
+      "verified": true,
+      "runs": [
+        {
+          "agent": "barry",
+          "date": "2026-11-12",
+          "version": "2.2.7",
+          "model": "gpt-5-6-terra",
+          "how": "opencode run --standalone --format json --agent plan --model openai/gpt-5.6-terra \"Use the barry skill. Plan issue #242 …\" (signed in with a ChatGPT plan)",
+          "tokens": {"input": 24272, "cache_write": 0, "cached": 28160, "output": 1728},
+          "cost": "from the ChatGPT plan's usage; $0.07 at GPT-5.6 Terra's list price, counting 229 reasoning tokens as output",
+          "result": "planned #242 in steps, each with a role mapped to OpenCode's agents and what to delegate; used only read, glob and the skill tool"
+        },
+        {
+          "agent": "patricia",
+          "date": "2026-11-12",
+          "version": "2.2.7",
+          "model": "gpt-5-6-terra",
+          "how": "opencode run --standalone --format json --agent plan --model openai/gpt-5.6-terra \"Use the patricia skill. Review the staged diff …\" (signed in with a ChatGPT plan)",
+          "tokens": {"input": 45980, "cache_write": 0, "cached": 61440, "output": 1816},
+          "cost": "from the ChatGPT plan's usage; $0.13 at GPT-5.6 Terra's list price, counting 973 reasoning tokens as output",
+          "result": "CONCERNS: an agent with an unmapped tool got no permission rules, which OpenCode treats as allow-all; the translation now fails closed, and #294 tracks the same gap in Devin, Kiro and Cline. Edited nothing"
+        }
+      ]
     },
     {
       "id": "goose",

@@ -183,7 +183,7 @@ On Windows: `.\scripts\install.ps1 -Dir C:\path\to\project`.
 
 | Harness | Instruction file (project) |
 |---------|----------------------------|
-| AGENTS.md standard (Codex, opencode, Amp, Jules, …) | `AGENTS.md` |
+| AGENTS.md standard (Codex, Amp, Jules, …) | `AGENTS.md` |
 | Claude Code | `CLAUDE.md` (or `~/.claude/CLAUDE.md`) |
 | Cursor | `.cursor/rules/<ruleset>.mdc` |
 | GitHub Copilot | `.github/copilot-instructions.md` |
@@ -191,6 +191,7 @@ On Windows: `.\scripts\install.ps1 -Dir C:\path\to\project`.
 | Devin Desktop | `.devin/rules/<ruleset>.md` with `trigger: always_on` (or `~/.devin/global_rules.md`) |
 | Kiro | `AGENTS.md` (or `~/.kiro/steering/AGENTS.md`) |
 | Cline | `.cline/rules/<ruleset>.md` (or `~/.cline/rules/<ruleset>.md`) |
+| OpenCode | `AGENTS.md` (or `~/.config/opencode/AGENTS.md`) |
 | Goose | `.goosehints` |
 
 Filenames evolve — confirm against each harness's current docs. When in doubt,
