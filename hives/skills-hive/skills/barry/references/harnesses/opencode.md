@@ -35,11 +35,12 @@ tools list: an agent is limited by permission rules instead. The installer turns
 actions an agent's tools don't grant (`edit`, `shell`, `webfetch`, `websearch`,
 `subagent`) into deny rules, which keeps `explore` and the review agents read-only, and
 leaves reads to the session's own rules so defaults such as asking before reading a
-`.env` file still apply. With no rules OpenCode allows every action, so the translation
-fails closed: an agent with a tool OpenCode has no action for still gets its deny rules,
-and a warning saying to add an allow rule by hand if it needs more. A subagent runs in its own child session in the background, and reports when
-it goes idle. Built in are `build` and `plan` (primary) and `general` and `explore`
-(subagents).
+`.env` file still apply. OpenCode's default rules allow every action (see Permissions), so
+an agent with no rules of its own can do anything; the translation therefore fails closed:
+an agent with a tool OpenCode has no action for still gets its deny rules, and a warning
+saying to add an allow rule by hand if it needs more. A subagent runs in its own child
+session in the background, and reports when it goes idle. Built in are `build` and `plan`
+(primary) and `general` and `explore` (subagents).
 
 **Delegation.** Map Barry's logical roles to OpenCode's agents:
 
@@ -74,8 +75,11 @@ carries from one session to the next. The House's knowledge-hive files serve tha
 (`allow`, `deny` or `ask`), in `permissions` in `opencode.json` and on each agent; the last
 match wins, and an operation touching several resources is denied if any one is. The
 actions include `read`, `edit`, `glob`, `grep`, `shell`, `subagent`, `skill`, `webfetch`,
-`websearch`, `external_directory` and one per MCP tool. With no matching rule OpenCode
-asks. Policies from an administrator or an OpenCode Console workspace outrank them.
+`websearch`, `external_directory` and one per MCP tool. OpenCode puts its default rules
+first: allow every action, then ask before reading `.env` files, as `opencode debug agents`
+shows for each agent. A rule added after them narrows that; an action no rule matches at
+all, which the defaults leave rare, is asked about. Policies from an administrator or an
+OpenCode Console workspace outrank them.
 
 **Headless.** `opencode run "<prompt>"` sends one message and prints the reply; `--format
 json` prints JSON Lines, `--agent` picks the agent (`plan` for a run that shouldn't edit),
@@ -92,5 +96,6 @@ or OpenCode Go's open coding models. Several Console models are free for a limit
 **Cost.** OpenCode itself is free. A ChatGPT plan's usage counts against the plan. OpenCode
 Console sells inference at the provider's list price, with prepaid credits that carry a
 4.6% plus $0.31 processing fee on each purchase and no seat fees. It is what was OpenCode
-Zen, whose pages now redirect to it. OpenCode Go costs $10 a month, Go Plus $40 and Go Teams $20 a member for
-open models with usage limits. See the matrix for the current figures and their sources.
+Zen, whose pages now redirect to it. OpenCode Go costs $10 a month, Go Plus $40 and Go
+Teams $20 a member, for open models with usage limits. See the matrix for the current
+figures and their sources.
