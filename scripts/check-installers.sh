@@ -135,6 +135,17 @@ else
   flunk "mcp-hive install.py leaves Devin's secret header to set by hand"
   printf '%s\n' "$out" | sed 's/^/      /'
 fi
+# Kiro reads ${NAME} from the environment in headers, so the header is written with the reference.
+out=$(python3 hives/mcp-hive/scripts/install.py --servers-dir "$sandbox/registry" --dir "$proj" \
+  --harness kiro --dry-run 2>&1); code=$?
+if [ "$code" -eq 0 ] && printf '%s\n' "$out" | grep -q '"url": "https://demo.example.com/mcp"' \
+  && printf '%s\n' "$out" | grep -q 'Bearer ${DEMO_TOKEN}' \
+  && printf '%s\n' "$out" | grep -q '.kiro/settings/mcp.json'; then
+  pass "mcp-hive install.py writes Kiro's header with an environment reference"
+else
+  flunk "mcp-hive install.py writes Kiro's header with an environment reference"
+  printf '%s\n' "$out" | sed 's/^/      /'
+fi
 run "plugins-hive install.py --dry-run" \
   python3 hives/plugins-hive/scripts/install.py --dir "$proj" --hives-dir hives --dry-run
 run "projects-hive init.py --dry-run" \

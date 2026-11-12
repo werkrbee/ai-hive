@@ -175,14 +175,13 @@ cp -R skills/barry ~/.cursor/skills/barry
 | Devin Desktop | `~/.config/devin/skills/` | `.devin/skills/` |
 | Goose | `~/.config/goose/skills/` | `.goose/skills/` |
 | OpenCode | `~/.config/opencode/skills/` | `.agents/skills/` |
-| Kiro (AWS) | `~/.kiro/skills/` † | `.kiro/skills/` or `.agents/skills/` † |
+| Kiro (AWS) | `~/.kiro/skills/` | `.kiro/skills/` |
 | Scout (Windows) | `%USERPROFILE%\.scout\skills\` | — |
 | Databricks Genie Code | workspace-based ‡ | `.agents/skills/` ‡ |
 | Snowflake Cortex Code | workspace-based ‡ | `.agents/skills/` ‡ |
 
 Many harnesses also read `~/.agents/skills/` as a shared fallback.
 
-† Kiro paths are best-effort — confirm against current AWS Kiro docs.
 ‡ Databricks Genie Code and Snowflake Cortex Code are **data / analytics**
 harnesses; skills are provisioned in the platform workspace (publish-based, like
 Foundry) rather than a local home directory. Confirm the exact mechanism in

@@ -1,8 +1,8 @@
 """Tests for install.py's per-harness rendering: for Codex an agent becomes one TOML file
 whose prompt is developer_instructions, whatever characters the prompt holds; for Cursor a
 read-only agent gets readonly: true; for Antigravity an agent carries no tools list, and an
-agent with one is warned about, as for Codex; for Devin an agent's tools carry over under
-Devin's names.
+agent with one is warned about, as for Codex; for Devin and Kiro an agent's tools carry over
+under the harness's own names.
 
 Standard library only (Python 3.9 has no TOML parser, so the strings are checked by hand).
 Run from the repo root:
@@ -60,7 +60,7 @@ class CodexTomlTest(unittest.TestCase):
 
     def test_the_shared_agents_folder_carries_no_tools_since_antigravity_reads_it(self):
         self.assertEqual(install.agent_target("agents")[:2], install.agent_target("gemini-cli")[:2])
-        for fallback in ("goose", "kiro"):
+        for fallback in ("goose", "opencode"):
             tmpl, keys, via, fmt = install.agent_target(fallback)
             self.assertEqual((tmpl, via), (".agents/agents/{name}.md", "agents"))
             self.assertNotIn("tools", keys)
@@ -80,16 +80,39 @@ class CodexTomlTest(unittest.TestCase):
     def test_devin_agents_carry_claude_code_tools_under_devin_names(self):
         tmpl, keys, fallback, fmt = install.agent_target("devin-desktop")
         self.assertEqual((tmpl, fmt, fallback), (".devin/agents/{name}.md", "markdown", None))
-        out = install.render({"description": "d", "tools": "Read, Grep, Glob"}, "Body.\n", keys, "explore")
+        out = install.render({"description": "d", "tools": "Read, Grep, Glob"}, "Body.\n", keys, "explore",
+                             "devin-desktop")
         self.assertEqual(out, "---\nname: explore\ndescription: d\nallowed-tools: [read, grep, glob]\n---\n\nBody.\n")
-        self.assertEqual(install.devin_tools({"tools": "Read, Edit, Write, Bash"}), "[read, edit, exec]")
+        self.assertEqual(install.native_tools({"tools": "Read, Edit, Write, Bash"}, "devin-desktop"),
+                         "[read, edit, exec]")
         self.assertIsNone(install.unenforced({"tools": "Read, Grep, Glob"}, "devin-desktop"))
 
     def test_a_tool_devin_has_no_name_for_drops_the_list_and_warns(self):
         fm = {"description": "d", "tools": "Read, WebFetch"}
-        self.assertIsNone(install.devin_tools(fm))
-        self.assertNotIn("allowed-tools", install.render(fm, "Body.\n", install.agent_target("devin-desktop")[1], "x"))
+        self.assertIsNone(install.native_tools(fm, "devin-desktop"))
+        self.assertNotIn("allowed-tools", install.render(fm, "Body.\n", install.agent_target("devin-desktop")[1], "x",
+                                                         "devin-desktop"))
         self.assertIn("deny edit and exec", install.unenforced(fm, "devin-desktop"))
+
+    def test_kiro_agents_carry_claude_code_tools_under_kiro_categories(self):
+        tmpl, keys, fallback, fmt = install.agent_target("kiro")
+        self.assertEqual((tmpl, fmt, fallback), (".kiro/agents/{name}.md", "markdown", None))
+        out = install.render({"description": "d", "tools": "Read, Grep, Glob"}, "Body.\n", keys, "explore", "kiro")
+        self.assertEqual(out, "---\nname: explore\ndescription: d\ntools: [read]\n---\n\nBody.\n")
+        self.assertEqual(install.native_tools({"tools": "Read, Edit, Write, Bash, WebFetch"}, "kiro"),
+                         "[read, write, shell, web]")
+        self.assertIsNone(install.unenforced({"tools": "Read, Grep, Glob"}, "kiro"))
+
+    def test_a_tool_kiro_has_no_name_for_drops_the_list_and_warns(self):
+        fm = {"description": "d", "tools": "Read, NotebookEdit"}
+        self.assertIsNone(install.native_tools(fm, "kiro"))
+        self.assertNotIn("tools:", install.render(fm, "Body.\n", install.agent_target("kiro")[1], "x", "kiro"))
+        self.assertIn("deny fs_write and shell", install.unenforced(fm, "kiro"))
+
+    def test_claude_code_keeps_its_own_tool_names(self):
+        out = install.render({"description": "d", "tools": "Read, Grep"}, "Body.\n",
+                             install.agent_target("claude-code")[1], "explore", "claude-code")
+        self.assertIn("\ntools: Read, Grep\n", out)
 
     def test_every_canonical_agent_renders(self):
         for name, (fm, body) in install.load_agents([]).items():
