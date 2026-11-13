@@ -77,7 +77,7 @@
 <text x="260.0" y="745.0" font-size="16" font-weight="700" fill="#17140F" text-anchor="middle">mcp-hive</text>
 <text x="260.0" y="764.0" font-size="12" font-weight="600" fill="#B9791A" text-anchor="middle">tools · MCP</text>
 <text x="260.0" y="782.0" font-size="12" font-weight="400" fill="#4A4030" text-anchor="middle">MCP server configs: filesystem,</text>
-<text x="260.0" y="800.0" font-size="12" font-weight="400" fill="#4A4030" text-anchor="middle">git, fetch, huggingface</text>
+<text x="260.0" y="800.0" font-size="12" font-weight="400" fill="#4A4030" text-anchor="middle">git, fetch, huggingface, patricia</text>
 <rect x="460" y="700" width="340" height="136" rx="14" fill="#F6DCA0" stroke="#17140F" stroke-width="2.5"/>
 <text x="630.0" y="745.0" font-size="16" font-weight="700" fill="#17140F" text-anchor="middle">workflows-hive</text>
 <text x="630.0" y="764.0" font-size="12" font-weight="600" fill="#B9791A" text-anchor="middle">orchestration · engine</text>

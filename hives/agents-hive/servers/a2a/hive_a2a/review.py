@@ -12,6 +12,10 @@ Task states, as A2A defines them:
 
 Input that doesn't match the contract, or that is too large for the contract's budget,
 never becomes a task: SendMessage returns InvalidParamsError (-32602) with the reasons.
+
+The same review runs for an MCP tool call (mcp.py): Reviewer.check_value and
+Reviewer.review are shared, so both bindings hold the same contract, budget, ledger and
+ceiling.
 """
 import asyncio
 import json
@@ -44,6 +48,16 @@ class Plan:
     user_prompt: str
     max_output_tokens: int
     max_usd: float
+
+
+@dataclass(frozen=True)
+class Outcome:
+    """How a review ended: rejected (text, and the refusal's JSON as data), failed (text),
+    or completed (the verdict)."""
+    state: str
+    text: str = ""
+    data: dict | None = None
+    verdict: dict | None = None
 
 
 def read_input(message):
@@ -92,6 +106,10 @@ class Reviewer:
             problem = problem or (None if value else "this contract takes a JSON data part")
         if problem:
             raise InvalidParamsError(message=problem)
+        return self.check_value(value)
+
+    def check_value(self, value):
+        """(value, plan) for contract input already parsed, or raise InvalidParamsError."""
         problems = contract.errors(value, self.config.contract["inputs"])
         if problems:
             raise InvalidParamsError(message="the input doesn't match the contract: " + contract.describe(problems),
@@ -150,6 +168,43 @@ class Reviewer:
         """(output, None), or (None, why the model's reply doesn't meet the contract)."""
         return contract.parse_output(text, self.config.contract["output"])
 
+    async def review(self, plan, key, started=None):
+        """Hold the plan's cost against the ceiling, ask the model, check its reply and record
+        what it cost, under key in the ledger's calls in flight. started() is awaited once the
+        call is about to go out. Returns an Outcome."""
+        refusal = await self.ledger.reserve(plan.max_usd)
+        if refusal:
+            log.warning("ceiling reached; refused %s", key)
+            return Outcome("rejected", refusal.text(), refusal.data())
+
+        # From here the provider may bill us. Until it reports metered usage, the cost is
+        # taken to be the whole reservation, so a timeout or cancel still counts toward the
+        # ceiling.
+        entry = self.unmetered(plan.max_usd)
+        try:
+            await self.ledger.start(key, entry)
+            if started:
+                await started()
+            budget = self.config.contract.get("budget", {})
+            try:
+                completion = await asyncio.wait_for(
+                    self.provider.complete(self.system, plan.user_prompt, plan.max_output_tokens),
+                    timeout=budget.get("seconds"))
+            except TimeoutError:
+                return Outcome("failed", f"The review ran past the contract's {budget['seconds']}-second budget "
+                                         "and was stopped.")
+            except ProviderError as e:
+                entry = self.entry(e.completion) if e.completion else entry if e.sent else None
+                log.warning("provider error on %s: %s", key, e)
+                return Outcome("failed", f"The model provider failed: {e}")
+            entry = self.entry(completion)
+            verdict, problems = self.verdict(completion.text)
+            if problems:
+                return Outcome("failed", "The model's reply doesn't match the contract's output: " + problems)
+            return Outcome("completed", verdict=verdict)
+        finally:
+            await self.ledger.settle(plan.max_usd, entry, key=key)
+
 
 def _message(updater, text, data=None):
     parts = [new_text_part(text)]
@@ -175,43 +230,14 @@ class Executor(AgentExecutor):
             await updater.reject(_message(updater, f"Refused: {e.message}"))
             return
 
-        refusal = await r.ledger.reserve(plan.max_usd)
-        if refusal:
-            log.warning("ceiling reached; refused task %s", context.task_id)
-            await updater.reject(_message(updater, refusal.text(), refusal.data()))
-            return
-
-        # From here the provider may bill us. Until it reports metered usage, the cost is
-        # taken to be the whole reservation, so a timeout or cancel still counts toward the
-        # ceiling.
-        entry = r.unmetered(plan.max_usd)
-        try:
-            await r.ledger.start(context.task_id, entry)
-            await updater.start_work()
-            budget = r.config.contract.get("budget", {})
-            try:
-                completion = await asyncio.wait_for(
-                    r.provider.complete(r.system, plan.user_prompt, plan.max_output_tokens),
-                    timeout=budget.get("seconds"))
-            except TimeoutError:
-                await updater.failed(_message(
-                    updater, f"The review ran past the contract's {budget['seconds']}-second budget and was stopped."))
-                return
-            except ProviderError as e:
-                entry = r.entry(e.completion) if e.completion else entry if e.sent else None
-                log.warning("provider error on task %s: %s", context.task_id, e)
-                await updater.failed(_message(updater, f"The model provider failed: {e}"))
-                return
-            entry = r.entry(completion)
-            verdict, problems = r.verdict(completion.text)
-            if problems:
-                await updater.failed(_message(
-                    updater, "The model's reply doesn't match the contract's output: " + problems))
-                return
-            await updater.add_artifact([new_data_part(verdict, "application/json")], name="verdict")
+        outcome = await r.review(plan, context.task_id, started=updater.start_work)
+        if outcome.state == "rejected":
+            await updater.reject(_message(updater, outcome.text, outcome.data))
+        elif outcome.state == "failed":
+            await updater.failed(_message(updater, outcome.text))
+        else:
+            await updater.add_artifact([new_data_part(outcome.verdict, "application/json")], name="verdict")
             await updater.complete()
-        finally:
-            await r.ledger.settle(plan.max_usd, entry, key=context.task_id)
 
     async def cancel(self, context, event_queue):
         if context.task_id is None or context.context_id is None:

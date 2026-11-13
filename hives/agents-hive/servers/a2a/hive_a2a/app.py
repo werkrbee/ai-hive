@@ -1,6 +1,7 @@
 """Assemble the A2A server: the Agent Card, the JSON-RPC endpoint, auth, a durable task
 store and the executor its contract calls for: the reviewer (review.py), or for
-orchestration, hosted Barry's loop (orchestrate.py)."""
+orchestration, hosted Barry's loop (orchestrate.py). A reviewer is also served over MCP
+(mcp.py)."""
 import contextlib
 import importlib.util
 import logging
@@ -15,8 +16,8 @@ from a2a.server.routes import create_agent_card_routes, create_jsonrpc_routes
 from a2a.server.tasks import DatabaseTaskStore
 from a2a.types import AgentCard, Role, TaskState
 
-from . import orchestrate, providers, review
-from .auth import Authenticator, AuthMiddleware
+from . import mcp, orchestrate, providers, review
+from .auth import PUBLIC_PATHS, Authenticator, AuthMiddleware
 from .config import REPO_ROOT
 from .ledger import Ledger
 
@@ -90,8 +91,10 @@ def create_app(config, provider=None, authenticator=None, ledger_clock=None, net
     ledger = Ledger(config.ledger, config.monthly_ceiling_usd, shared=config.shared_ledgers,
                     **({"clock": ledger_clock} if ledger_clock else {}))
     provider = provider or providers.create(config.model)
-    agent_card = ParseDict(card(config), AgentCard())
+    rendered = card(config)
+    agent_card = ParseDict(rendered, AgentCard())
     orchestrator = None
+    mcp_server = None
     if config.orchestration:
         orchestrator = orchestrate.Orchestrator(config, ledger, provider, store, network, clock)
         handler = orchestrate.Handler(orchestrator, agent_executor=orchestrate.Executor(orchestrator),
@@ -100,6 +103,7 @@ def create_app(config, provider=None, authenticator=None, ledger_clock=None, net
         reviewer = review.Reviewer(config, ledger, provider)
         handler = review.Handler(reviewer, agent_executor=review.Executor(reviewer), task_store=store,
                                  agent_card=agent_card)
+        mcp_server = mcp.Server(config, reviewer, rendered["version"])
 
     @contextlib.asynccontextmanager
     async def lifespan(app):
@@ -119,11 +123,17 @@ def create_app(config, provider=None, authenticator=None, ledger_clock=None, net
             await engine.dispose()
 
     rpc_path = urlparse(config.public_url).path or "/"
+    public, challenges, extra = set(PUBLIC_PATHS), {}, []
+    if mcp_server:
+        public |= {mcp.CARD_PATH, *mcp.METADATA_PATHS}
+        challenges[mcp.PATH] = mcp.challenge(config)
+        extra = mcp_server.routes()
     app = Starlette(
         routes=[*create_agent_card_routes(agent_card, cache_control="public, max-age=300"),
-                *create_jsonrpc_routes(handler, rpc_path)],
+                *extra, *create_jsonrpc_routes(handler, rpc_path)],
         lifespan=lifespan,
     )
-    app.add_middleware(AuthMiddleware, authenticator=authenticator or Authenticator(config.auth))
+    app.add_middleware(AuthMiddleware, authenticator=authenticator or Authenticator(config.auth),
+                       public=public, challenges=challenges)
     app.state.orchestrator = orchestrator
     return app

@@ -45,7 +45,7 @@ ARTIFACT_HIVES = [
     ("rules-hive", "instructions · AGENTS.md", ["AGENTS.md / CLAUDE.md, the Queen Bee's", "Charter, approval policy"]),
     ("agents-hive", "actors · personas", ["Personas rendered per harness,", "contracts, cards, passports"]),
     ("skills-hive", "capabilities · SKILL.md", ["Portable SKILL.md files,", "incl. barry and patricia"]),
-    ("mcp-hive", "tools · MCP", ["MCP server configs: filesystem,", "git, fetch, huggingface"]),
+    ("mcp-hive", "tools · MCP", ["MCP server configs: filesystem,", "git, fetch, huggingface, patricia"]),
     ("workflows-hive", "orchestration · engine", ["Durable, resumable plans,", "designed around MCP Tasks"]),
     ("knowledge-hive", "state · STATE.md", ["Memory, results and usage", "ledgers, audit log"]),
 ]

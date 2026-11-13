@@ -1,0 +1,8 @@
+{
+  "name": "patricia",
+  "description": "Patricia's governance review: a verdict on a proposed action against the Queen Bee's Charter (remote, hosted by werkrbee; configured from its Server Card). Only clients werkrbee registers may call it.",
+  "transport": "streamable-http",
+  "discovery": {
+    "card": "https://patricia-a2a.kindpebble-873b1da9.eastus2.azurecontainerapps.io/.well-known/mcp/server-card.json"
+  }
+}

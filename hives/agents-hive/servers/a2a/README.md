@@ -3,8 +3,9 @@
 `hive_a2a` serves one execution contract of one House persona over
 [A2A](https://a2a-protocol.org) v1.0. It is configured for Patricia's
 `governance-review`: another agent sends a proposal and gets back a verdict
-(`allow`, `allow-with-conditions` or `block`) in the contract's output shape. The same
-server, configured for Barry's `orchestration`, runs a goal as an agent loop on the
+(`allow`, `allow-with-conditions` or `block`) in the contract's output shape. A reviewer
+is also served over MCP, as one read-only tool ([MCP](#mcp), below). The same server,
+configured for Barry's `orchestration`, runs a goal as an agent loop on the
 workflows-hive engine ([Orchestration](#orchestration), below).
 
 It is built on the official [A2A Python SDK](https://github.com/a2aproject/a2a-python)
@@ -20,7 +21,7 @@ aren't offered, and the card says so. The Agent Card is served at
 `cards/<persona>/card.json` and the contract, then given this endpoint's URL and an
 OAuth2 client-credentials security scheme.
 
-**Security.** Every request except the card needs a bearer token. The token must be a JWT
+**Security.** Every request except the cards and the MCP resource metadata needs a bearer token. The token must be a JWT
 signed by a key from the configured JWKS, name the configured issuer and audience, be
 unexpired, and come from a client on `auth.allowed_clients`. Only app tokens from the
 client-credentials flow are accepted: a delegated (user) token, one with `scp` or an Entra
@@ -125,6 +126,54 @@ another's call. A test checks it across two callers and a follow-up message.
 **Durability.** Tasks are kept in SQLite at `server.database` and survive a restart. A
 review that was running when the server stopped can't resume, so at startup it is marked
 failed, with a message asking the caller to send it again.
+
+## MCP
+
+A reviewer is also an MCP server, so a client that speaks MCP but not A2A, as most
+low-code platforms do (`docs/low-code-alignment.md`), can ask Patricia for a verdict.
+`mcp.py` serves it from the same process, and orchestration doesn't: hosted Barry isn't
+offered over MCP.
+
+**The tool.** One tool, `review`. Its input schema is the contract's `inputs` and its
+output schema the contract's `output`. A call runs the same input check, budget,
+ceiling, model call, output check and ledger entry as an A2A task, through
+`Reviewer.check_value` and `Reviewer.review`. The verdict comes back as
+`structuredContent`, trimmed to the contract's fields, and as its JSON in a text block.
+Input that breaks the contract, a reply that breaks it, a timeout or a provider error is
+a tool error (`isError`) saying why; a ceiling refusal is a tool error whose second text
+block is the refusal's JSON, the same `monthly-ceiling-reached` object an A2A refusal
+carries. An unknown tool or arguments that aren't an object are a JSON-RPC error. The
+tool is annotated read-only and not destructive. There are no resources, prompts,
+sampling or elicitation, and no task is kept: a call is metered and forgotten, so one
+caller never sees another's.
+
+**Transport and versions.** Streamable HTTP at `/mcp` on the server's origin, POST only,
+answered with plain JSON and no session. It speaks MCP
+[2026-07-28](https://modelcontextprotocol.io/specification/2026-07-28), the current
+revision, statelessly: a request whose `_meta` carries its protocol version must send
+matching `MCP-Protocol-Version`, `Mcp-Method` and, for `tools/call`, `Mcp-Name` headers,
+or it gets 400 and `HeaderMismatch` (-32020); a version it doesn't serve gets 400 and
+`UnsupportedProtocolVersionError` (-32022); an unknown method gets 404. It offers
+`server/discover`, `tools/list`, `tools/call` and `ping`. Because the low-code platforms'
+clients still open with the `initialize` handshake, it also answers 2025-11-25 and
+2025-06-18 that way, without minting a session, and then expects their
+`MCP-Protocol-Version` header. GET and DELETE get 405, and a request with an `Origin`
+other than the server's own gets 403.
+
+**Auth.** The A2A server's, on every request to `/mcp`: an app token from an allowlisted
+client with the required role, and a delegated token refused. A request without a valid
+token gets 401 with
+`WWW-Authenticate: Bearer resource_metadata="<origin>/.well-known/oauth-protected-resource/mcp", scope="<auth.scope>"`.
+That Protected Resource Metadata (RFC 9728), also served at
+`/.well-known/oauth-protected-resource`, names `auth.issuer` as the authorization server.
+Entra doesn't offer dynamic client registration, so a client is registered by hand (`entra.sh`)
+and enters its client ID and secret in its platform's connection.
+
+**The Server Card.** Served without a token at `/.well-known/mcp/server-card.json`, as
+`io.werkrbee/patricia`, at the persona card's version, naming the endpoint and the
+protocol versions above. mcp-hive's `servers/patricia` entry points at the deployed card,
+so `hives/mcp-hive/scripts/install.py --server patricia` writes it into a harness's MCP
+config.
 
 ## Orchestration
 
@@ -266,6 +315,19 @@ Point a caller at `public_url` with a token from the client-credentials flow (fo
 
 Send it with the headers `A2A-Version: 1.0` and `Authorization: Bearer <token>`.
 
+The same review over MCP is a `POST` to `<origin>/mcp` with the same token:
+
+```json
+{"jsonrpc": "2.0", "id": 1, "method": "tools/call", "params": {
+  "name": "review", "arguments": {"proposal": "Force-push main to drop one commit.", "context": "Requested in chat."},
+  "_meta": {"io.modelcontextprotocol/protocolVersion": "2026-07-28",
+            "io.modelcontextprotocol/clientInfo": {"name": "example", "version": "1.0"},
+            "io.modelcontextprotocol/clientCapabilities": {}}}}
+```
+
+Send it with the headers `MCP-Protocol-Version: 2026-07-28`, `Mcp-Method: tools/call`,
+`Mcp-Name: review` and `Authorization: Bearer <token>`.
+
 ## Tests and conformance
 
 ```bash
@@ -282,6 +344,10 @@ cover:
 - per-caller isolation and cancel
 - restarts
 - the HTTP providers' request shapes
+- MCP (`tests/test_mcp.py`): the Server Card, checked against mcp-hive's validator, and the
+  resource metadata; auth refusals and the challenge; the tool's schemas; header and version
+  checks, both eras and the methods refused; the verdict, contract refusals and metering;
+  the ceiling refusal's JSON; and that no caller's data reaches another call
 - orchestration (`tests/test_orchestrate.py`, against a scripted model and mock MCP and
   A2A servers): the loop, delegation, allowed, gated and denied calls, budget stops, the
   ceiling, a rate-limited turn asked again or cancelled while it waits, resume, expiry and
@@ -309,10 +375,11 @@ servers/a2a/
 │   ├── config.py       # the TOML config
 │   ├── contract.py     # check values against a contract's schemas
 │   ├── ledger.py       # the usage ledger, the monthly ceiling and runs' holds
+│   ├── mcp.py          # the review as an MCP tool, its Server Card and resource metadata
 │   ├── orchestrate.py  # hosted Barry: the loop on the engine, MCP and A2A tools
 │   ├── providers.py    # stub, Messages and Chat Completions
 │   └── review.py       # the executor: input, budget, ceiling, model, verdict
-├── tests/              # test_server.py, test_orchestrate.py, the eval runners' tests
+├── tests/              # test_server.py, test_mcp.py, test_orchestrate.py, the eval runners' tests
 ├── conformance/        # the TCK runner and the recorded run
 ├── config.example.toml
 └── requirements.txt
