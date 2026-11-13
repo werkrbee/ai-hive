@@ -1,6 +1,6 @@
 # The low-code alignment pattern: design note
 
-Status: proposed (#244). It decides how the House reaches the low-code ten before any
+Status: accepted (#244). It decides how the House reaches the low-code ten before any
 platform issue (#245–#254) starts, as `hives/agents-hive/design/hosted-barry.md` did for
 hosted Barry. It ends with what each platform issue does and the implementation issues
 that come first. Platform facts were checked on 2026-11-12 against the sources at the end;
@@ -90,10 +90,12 @@ minutes is, and its platform issue records that limit.
 What isn't offered, and why:
 
 - **Hosted Barry.** His gated actions pause for a person, and the client that started the
-  task answers as the product's attestation that its person decided. A platform's agent
-  that started the task would be answering its own approval, which the Charter forbids
-  (`queue.answer` is prohibited). Opening Barry beyond werkrbee products is the ROADMAP's
-  "Public A2A access" item, which needs signed passports first.
+  task answers as the product's attestation that its person asked them through its own
+  sign-in (`servers/a2a/README.md`, "Approvals"). A platform's agent that started the task
+  would be answering its own approval, attesting to nobody, and an agent must never answer
+  its own approvals (`hives/workflows-hive/README.md`, "The review queue"). Opening Barry
+  beyond werkrbee products is the ROADMAP's "Public A2A access" item, which needs signed
+  passports first.
 - **Product MCP servers registered for Barry**, such as verify-mcp. Their gating is done by
   Barry's engine, under the caller's approval policy, not by the server, so a platform
   calling one directly would skip the approval policy. They accept only Barry's identity.
@@ -171,7 +173,7 @@ costs about a cent, so the ten recorded calls cost about ten cents.
 Each platform issue records one call from an agent built in the platform to hosted
 Patricia. Every platform makes the same call, the reference task: the proposal
 "Force-push main to drop one commit." with the context "Requested in chat.", whose verdict
-should be `block`. A fixed task makes the twenty comparable for the cost report (#255)
+should be `block`. A fixed task makes the ten comparable for the cost report (#255)
 and checks the answer as well as the plumbing.
 
 It proves five things:
@@ -237,21 +239,25 @@ A platform account or trial, and any spend, wait for the maintainer's yes as wel
 
 ## Implementation issues
 
-To create once this note is accepted, before the first platform's recorded call:
+Created on acceptance, to be done before the first platform's recorded call:
 
-1. **agents-hive: Patricia over MCP.** The Streamable HTTP endpoint and its `review` tool on
-   the A2A server, the Server Card and Protected Resource Metadata, mcp-hive's
-   `servers/patricia` entry, and tests through the same auth, contract, budget and ledger.
-2. **agents-hive: the HTTP+JSON binding and its OpenAPI document.** The binding on the
-   server, declared in the card, and the OpenAPI 3.0 document rendered from the contract.
-3. **agents-hive: delegated tokens for reviews.** The delegated scope on Patricia's API app
-   in `entra.sh`, and `auth.py` accepting one from an allowed `azp` for `governance-review`
-   only. Deployed through the gated steps.
-4. **agents-hive: the boundary and the ledger.** Drop message metadata a capability doesn't
-   read before a task is stored, and put the task ID in a review's ledger entry.
-5. **scripts: low-code runs in the registry.** The low-code run shape in `harnesses.json`,
-   its check, the matrix's columns for it, and the rule that a verified low-code row
-   records a run of Patricia.
+1. **agents-hive: Patricia over MCP** (#298). The Streamable HTTP endpoint and its
+   `review` tool on the A2A server, the Server Card and Protected Resource Metadata,
+   mcp-hive's `servers/patricia` entry, and tests through the same auth, contract, budget
+   and ledger.
+2. **agents-hive: the HTTP+JSON binding and its OpenAPI document** (#299). The binding on
+   the server, declared in the card, and the OpenAPI 3.0 document rendered from the
+   contract.
+3. **agents-hive: delegated tokens for reviews** (#300). The delegated scope on
+   Patricia's API app in `entra.sh`, and `auth.py` accepting one from an allowed `azp` for
+   `governance-review` only, deciding whether one platform client's users share their tasks or each sees only
+   their own. Deployed through the gated steps.
+4. **agents-hive: the boundary and the ledger** (#301). Drop message metadata a
+   capability doesn't read before a task is stored, and put the task ID in a review's
+   ledger entry.
+5. **scripts: low-code runs in the registry** (#302). The low-code run shape in
+   `harnesses.json`, its check, the matrix's columns for it, and the rule that a verified
+   low-code row records a run of Patricia.
 
 A2A v0.3 is left to the platform issues. Gemini Enterprise documents v0.3, and Copilot
 Studio's example payload uses v0.3's `message/send`; if either can't reach the v1.0
