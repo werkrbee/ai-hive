@@ -72,7 +72,8 @@ first thing the quarterly check should revisit.
    House's own position. Now V2, with a terminal UI, a desktop app and an SDK sharing one
    background server and `.opencode/`.
 10. **Goose** (Linux Foundation). Open source under neutral governance, and a reference
-    for MCP-first agents.
+    for MCP-first agents. A desktop app, a CLI and an SDK, whose subagents are recipes and
+    whose tools all come from MCP extensions.
 
 ## The low-code ten
 
@@ -184,7 +185,7 @@ below summarize it as of 2026-11-12, and the matrix is the one to trust when the
 | Kiro | Credit, used fractionally per request and scaled by the model's multiplier (Sonnet 5.5 1.3x, Opus 5.5 2x, against Auto); Free 50 a month, Pro $20 for 1,000, Pro+ $40 for 2,000, Pro Max $100 for 5,000, Power $200 for 10,000; more at $0.04 | Not published | Not published (credits aren't tied to tokens) |
 | Cline | Free and open source; inference on your own key, Cline credits at cost, or ClinePass $9.99 a month for open coding models | List, no fee | Sonnet 5.5: $2 · $10 |
 | OpenCode | Free and open source; your own key, a ChatGPT plan, Console credits at list price (plus a 4.6% + $0.31 fee per purchase), or OpenCode Go from $10 a month for open models | List, no markup | Sonnet 5.5: $2 · $10 |
-| Goose | Free; your own key | List, no fee | As the model |
+| Goose | Free and open source; your own key, or a subscription it signs in to, such as a ChatGPT plan or GitHub Copilot | List, no fee | As the model |
 
 ### Low-code
 

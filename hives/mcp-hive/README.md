@@ -165,7 +165,7 @@ python3 scripts/install.py --harness codex --harness goose
 | OpenCode | `opencode.json` / `~/.config/opencode/opencode.json` | `mcp.servers` |
 | Cline | `~/.cline/data/settings/cline_mcp_settings.json` (user-level only; `--global`) | `mcpServers` |
 | Codex | `~/.codex/config.toml` | `[mcp_servers.*]` (snippet) |
-| Goose | Goose config (YAML) | `extensions` (snippet) |
+| Goose | `~/.config/goose/config.yaml` (user-level only) | `extensions` (snippet, headers read `${NAME}` through `env_keys`) |
 
 Paths and keys evolve — confirm against each harness's current docs.
 

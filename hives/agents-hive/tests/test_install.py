@@ -60,7 +60,7 @@ class CodexTomlTest(unittest.TestCase):
 
     def test_the_shared_agents_folder_carries_no_tools_since_antigravity_reads_it(self):
         self.assertEqual(install.agent_target("agents")[:2], install.agent_target("gemini-cli")[:2])
-        for fallback in ("goose", "databricks-genie-code"):
+        for fallback in ("databricks-genie-code", "snowflake-cortex-code"):
             tmpl, keys, via, fmt = install.agent_target(fallback)
             self.assertEqual((tmpl, via), (".agents/agents/{name}.md", "agents"))
             self.assertNotIn("tools", keys)
@@ -153,6 +153,29 @@ class CodexTomlTest(unittest.TestCase):
         warning = install.unenforced(fm, "opencode")
         self.assertIn("no permission action for notebookedit", warning)
         self.assertIn("add an allow rule by hand", warning)
+
+    def test_goose_agents_are_recipes_granting_only_the_tools_theirs_map_to(self):
+        tmpl, keys, fallback, fmt = install.agent_target("goose")
+        self.assertEqual((tmpl, fallback, fmt), (".goose/recipes/{name}.yaml", None, "recipe"))
+        out = install.render_recipe({"description": "Finds — things", "tools": "Read, Grep, Glob"},
+                                    "Line one.\n\nLine two.\n", keys, "explore")
+        self.assertEqual(out, 'version: 1.0.0\ntitle: "explore"\ndescription: "Finds — things"\n'
+                              "instructions: |\n  Line one.\n\n  Line two.\n"
+                              "extensions:\n  - type: platform\n    name: developer\n"
+                              "    available_tools: [tree, read_image]\n"
+                              "  - type: platform\n    name: analyze\n")
+        self.assertIn("not read them", install.unenforced({"tools": "Read, Grep, Glob"}, "goose"))
+        writer = install.render_recipe({"description": "d", "tools": "Read, Edit, Write, Bash"},
+                                       "Body.\n", keys, "fixer")
+        self.assertIn("available_tools: [tree, read_image, edit, write, shell]", writer)
+        self.assertIsNone(install.unenforced({"tools": "Read, Edit, Write, Bash"}, "goose"))
+
+    def test_a_goose_agent_without_a_tools_list_inherits_and_an_unmapped_tool_fails_closed(self):
+        keys = install.agent_target("goose")[1]
+        self.assertNotIn("extensions", install.render_recipe({"description": "d"}, "B.\n", keys, "x"))
+        out = install.render_recipe({"description": "d", "tools": "WebFetch"}, "B.\n", keys, "x")
+        self.assertTrue(out.endswith("\nextensions: []\n"))
+        self.assertIn("no tool for webfetch", install.unenforced({"tools": "WebFetch"}, "goose"))
 
     def test_claude_code_keeps_its_own_tool_names(self):
         out = install.render({"description": "d", "tools": "Read, Grep"}, "Body.\n",

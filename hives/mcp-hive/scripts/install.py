@@ -21,6 +21,7 @@ Usage:
   python3 scripts/install.py --harness kiro                       # .kiro/settings/mcp.json
   python3 scripts/install.py --global --harness cline             # ~/.cline/data/settings/cline_mcp_settings.json
   python3 scripts/install.py --harness opencode                   # opencode.json, under mcp.servers
+  python3 scripts/install.py --harness goose                      # prints extensions for Goose's config.yaml
   python3 scripts/install.py --server huggingface --dry-run
 """
 import argparse
@@ -54,7 +55,8 @@ JSON_TARGETS = {
     "opencode":       {"project": ("opencode.json", "mcp.servers"),
                        "global": ("~/.config/opencode/opencode.json", "mcp.servers")},
 }
-# harnesses whose config isn't JSON — we print a snippet instead
+# harnesses whose config isn't JSON — we print a snippet instead. Goose keeps its extensions
+# in the person's config.yaml beside its other settings, and has no project file.
 SNIPPET_TARGETS = {"codex": "toml", "goose": "yaml"}
 # how each JSON harness reads a value from the environment at each scope (VS Code prompts via
 # inputs). None: the format documents no way to, so such a header is left for the person to set.
@@ -234,27 +236,35 @@ def print_snippet(fmt, servers, workspace):
                 print(f'env = {json.dumps(c["env"])}')
             print()
     elif fmt == "yaml":
+        # Goose's extensions, for ~/.config/goose/config.yaml. A header reads ${NAME} from the
+        # extension's environment, which env_keys fills from the shell or Goose's secret store.
         print("extensions:")
         for name, spec in servers.items():
             print(f"  {name}:")
+            print(f"    name: {name}")
+            print("    enabled: true")
+            print("    timeout: 300")
             if "remote" in spec:
                 r = spec["remote"]
-                print(f"    name: {name}")
                 print("    type: streamable_http")
                 print(f"    uri: {json.dumps(r['url'])}")
-                static = {h["name"]: "".join(t for _, t in h["parts"])
-                          for h in r["headers"] if all(k == "text" for k, _ in h["parts"])}
-                if static:
-                    print("    headers:")
-                    for k, v in static.items():
-                        print(f"      {json.dumps(k)}: {json.dumps(v)}")
+                headers, keys = {}, []
                 for h in r["headers"]:
-                    if h["name"] not in static:
-                        print(f"    # set header {h['name']} by hand; it needs a value from the environment")
+                    headers[h["name"]] = "".join("${%s}" % t if k == "env" else t for k, t in h["parts"])
+                    keys += [t for k, t in h["parts"] if k == "env" and t not in keys]
+                if headers:
+                    print("    headers:")
+                    for k, v in headers.items():
+                        print(f"      {json.dumps(k)}: {json.dumps(v)}")
+                if keys:
+                    print(f"    env_keys: {json.dumps(keys)}")
                 continue
             c = substitute(spec["config"], workspace)
-            print(f'    cmd: "{c["command"]}"')
+            print("    type: stdio")
+            print(f"    cmd: {json.dumps(c['command'])}")
             print(f"    args: {json.dumps(c.get('args', []))}")
+            if c.get("env"):
+                print(f"    envs: {json.dumps(c['env'])}")
 
 
 def main():

@@ -745,27 +745,40 @@
       "rank": 10,
       "adapter": "goose",
       "surfaces": {
-        "skills": {"global": "~/.config/goose/skills", "project": ".goose/skills"},
-        "rules": {"project": ".goosehints"},
-        "agents": {"fallback": "agents"}
+        "skills": {"global": "~/.agents/skills", "project": ".agents/skills"},
+        "rules": {"global": "~/.config/goose/AGENTS.md", "project": "AGENTS.md"},
+        "agents": {"project": ".goose/recipes/{name}.yaml", "format": "recipe",
+                   "keys": ["title", "description", "instructions", "extensions"]}
       },
       "capabilities": {
-        "rules": {"supported": true, "source": "hives/rules-hive/scripts/install.sh", "checked": "2026-11-10"},
-        "skills": {"supported": true, "source": "hives/skills-hive/scripts/install.sh", "checked": "2026-11-10"},
-        "subagents": {"supported": "unknown"},
-        "mcp": {"supported": true, "source": "hives/mcp-hive/scripts/install.py", "checked": "2026-11-10"},
-        "hooks": {"supported": "unknown"},
-        "memory": {"supported": "unknown"},
-        "permissions": {"supported": "unknown"},
-        "headless": {"supported": "unknown"}
+        "rules": {"supported": true, "source": "https://goose-docs.ai/docs/guides/context-engineering/using-goosehints", "checked": "2026-11-12"},
+        "skills": {"supported": true, "source": "https://goose-docs.ai/docs/guides/context-engineering/using-skills", "checked": "2026-11-12"},
+        "subagents": {"supported": true, "source": "https://goose-docs.ai/docs/guides/context-engineering/subagents", "checked": "2026-11-12"},
+        "mcp": {"supported": true, "source": "https://goose-docs.ai/docs/getting-started/using-extensions", "checked": "2026-11-12"},
+        "hooks": {"supported": true, "source": "https://goose-docs.ai/docs/guides/context-engineering/hooks", "checked": "2026-11-12"},
+        "memory": {"supported": true, "source": "https://goose-docs.ai/docs/mcp/memory-mcp", "checked": "2026-11-12"},
+        "permissions": {"supported": true, "source": "https://goose-docs.ai/docs/guides/managing-tools/goose-permissions", "checked": "2026-11-12"},
+        "headless": {"supported": true, "source": "https://goose-docs.ai/docs/guides/running-tasks", "checked": "2026-11-12"}
       },
       "cost": {
-        "unit": "Free; your own key",
-        "tokens": {"basis": "own-key"},
-        "sources": ["https://github.com/block/goose"],
-        "checked": "2026-11-10"
+        "unit": "Free and open source (Apache 2.0); your own key, or a subscription it signs in to, such as a ChatGPT Plus or Pro plan or GitHub Copilot",
+        "tokens": {"basis": "own-key", "note": "Goose adds no fee; a subscription's usage counts against the plan"},
+        "sources": ["https://goose-docs.ai/docs/getting-started/providers", "https://github.com/aaif-goose/goose/blob/main/LICENSE"],
+        "checked": "2026-11-12"
       },
-      "verified": false
+      "verified": true,
+      "runs": [
+        {"agent": "barry", "date": "2026-11-12", "version": "1.59.0", "model": "gpt-5-6-terra",
+         "how": "goose run --no-session --output-format json --provider chatgpt_codex --model gpt-5.6-terra -t \"Use the barry skill. Plan issue #243 \u2026\" in a read-only worktree (signed in with a ChatGPT plan)",
+         "tokens": {"input": 35318, "cache_write": 0, "cached": 8704, "output": 2683},
+         "cost": "from the ChatGPT plan's usage; $0.10 at GPT-5.6 Terra's list price, as Goose reported it",
+         "result": "planned #243 in steps, each mapped to a Goose subagent, recipe or the main agent with what to delegate; loaded the skill and read files only through shell. Edited nothing"},
+        {"agent": "patricia", "date": "2026-11-12", "version": "1.59.0", "model": "gpt-5-6-terra",
+         "how": "goose run --no-session --output-format json --provider chatgpt_codex --model gpt-5.6-terra -t \"Use the patricia skill. Review the staged diff \u2026\" in a read-only worktree (signed in with a ChatGPT plan)",
+         "tokens": {"input": 180780, "cache_write": 0, "cached": 46080, "output": 1825},
+         "cost": "from the ChatGPT plan's usage; $0.39 at GPT-5.6 Terra's list price, as Goose reported it for the session",
+         "result": "CONCERNS: check-installers.sh couldn't clean up inside the read-only worktree, and the run's copied skills sat untracked in .agents/; both came from the run's setup, and the checks pass in a writable checkout. Delegated the review to .claude/agents/patricia.md, which Goose reads as a Markdown agent. Edited nothing"}
+      ]
     },
     {
       "id": "junie",

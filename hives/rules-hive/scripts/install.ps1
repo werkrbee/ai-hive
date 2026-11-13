@@ -25,14 +25,13 @@ $content = Get-Content $Src -Raw
 
 function Rel($h) {
   switch ($h) {
-    { $_ -in "agents","opencode","codex","kiro","databricks-genie-code","snowflake-cortex-code" } { "AGENTS.md" }
+    { $_ -in "agents","opencode","codex","kiro","goose","databricks-genie-code","snowflake-cortex-code" } { "AGENTS.md" }
     "claude-code"    { "CLAUDE.md" }
     "cursor"         { ".cursor\rules\$Ruleset.mdc" }
     "github-copilot" { ".github\copilot-instructions.md" }
     "gemini-cli"     { "GEMINI.md" }
     "devin-desktop"  { ".devin\rules\$Ruleset.md" }
     "cline"          { ".cline\rules\$Ruleset.md" }
-    "goose"          { ".goosehints" }
     default          { $null }
   }
 }

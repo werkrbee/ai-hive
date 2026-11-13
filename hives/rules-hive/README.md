@@ -192,7 +192,7 @@ On Windows: `.\scripts\install.ps1 -Dir C:\path\to\project`.
 | Kiro | `AGENTS.md` (or `~/.kiro/steering/AGENTS.md`) |
 | Cline | `.cline/rules/<ruleset>.md` (or `~/.cline/rules/<ruleset>.md`) |
 | OpenCode | `AGENTS.md` (or `~/.config/opencode/AGENTS.md`) |
-| Goose | `.goosehints` |
+| Goose | `AGENTS.md` (or `~/.config/goose/AGENTS.md`), read beside `.goosehints` |
 
 Filenames evolve — confirm against each harness's current docs. When in doubt,
 `AGENTS.md` is the widest-supported shared standard.

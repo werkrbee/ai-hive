@@ -28,7 +28,7 @@ def agent_target(harness):
     """(path template, keys to keep, harness it falls back to or None, file format) for a
     harness's agents, from the registry; None if it has no agent format. {name} is the
     agent name. The format is markdown (frontmatter and a body) unless the registry says
-    toml. A harness whose agent format isn't settled falls back to another's."""
+    toml or recipe (Goose). A harness whose agent format isn't settled falls back to another's."""
     s = harnesses.surface(harness, "agents")
     if not s:
         return None
@@ -161,6 +161,56 @@ def render_toml(fm, body, keys, name):
     return "\n".join(out) + "\n"
 
 
+# Claude Code's tool names -> the Goose tools that stand in for them, as (extension, tool), with
+# None for every tool of the extension. Goose's developer extension has write, edit, shell, tree
+# and read_image, and no tool that only reads a file's text: that goes through shell, which can
+# also change files, so a read tool gets tree, read_image and the analyze extension instead. An
+# agent's recipe lists only the extensions and tools its own tools map to, so a tool Goose has no
+# stand-in for is left out and the recipe fails closed; without that list a recipe inherits every
+# extension of the session that runs it.
+GOOSE_TOOLS = {"read": [("developer", "tree"), ("developer", "read_image"), ("analyze", None)],
+               "grep": [("analyze", None)], "glob": [("developer", "tree")],
+               "edit": [("developer", "edit")], "write": [("developer", "write")],
+               "multiedit": [("developer", "edit")], "bash": [("developer", "shell")]}
+
+
+def goose_extensions(fm):
+    """The recipe's extensions list, as YAML lines, for an agent with a tools list, else None."""
+    granted = {}
+    for t in tool_names(fm):
+        for ext, tool in GOOSE_TOOLS.get(t, []):
+            tools = granted.setdefault(ext, [])
+            if tool and tool not in tools:
+                tools.append(tool)
+    if not tool_names(fm):
+        return None
+    if not granted:
+        return ["extensions: []"]
+    out = ["extensions:"]
+    for ext, tools in granted.items():
+        out += ["  - type: platform", f"    name: {ext}"]
+        if tools:
+            out.append(f"    available_tools: [{', '.join(tools)}]")
+    return out
+
+
+def render_recipe(fm, body, keys, name):
+    """A Goose recipe: the agent's prompt as its instructions, and the extensions its tools grant.
+    Goose runs one as a subagent through its delegate tool, or with goose run --recipe."""
+    fields = {"title": json.dumps(name),
+              "description": json.dumps(fm.get("description", name), ensure_ascii=False)}
+    out = ["version: 1.0.0"]
+    for k in keys:
+        if k in fields:
+            out.append(f"{k}: {fields[k]}")
+        elif k == "instructions":
+            out.append("instructions: |")
+            out += [("  " + line).rstrip() for line in body.rstrip().splitlines()]
+        elif k == "extensions":
+            out += goose_extensions(fm) or []
+    return "\n".join(out) + "\n"
+
+
 # How to keep an agent read-only in a harness whose agent files can't carry its tools list.
 # Codex has no tools field. Antigravity names its own tools, and a name it doesn't know can
 # hang the subagent, so Claude Code's names aren't passed on; it reads the shared
@@ -189,6 +239,17 @@ def unenforced(fm, harness):
     """The warning for an agent whose tools list the harness's agent files can't carry, or
     None. Such an agent is read-only there only if the session is."""
     tools = fm.get("tools")
+    if harness == "goose" and tools:
+        notes = []
+        unmapped = [t for t in tool_names(fm) if t not in GOOSE_TOOLS]
+        if unmapped:
+            notes.append(f"Goose has no tool for {', '.join(unmapped)}, so its recipe leaves it out; "
+                         "add the extension by hand if it needs one")
+        if {"read", "grep"} & set(tool_names(fm)) and "bash" not in tool_names(fm):
+            notes.append("Goose reads a file's text only through shell, which can also change files, "
+                         "so this agent can list files and outline code (tree, analyze) but not read "
+                         "them; add shell to its developer tools by hand if it must")
+        return "; ".join(notes) or None
     if not tools or translatable(fm, harness):
         return None
     if harness == "opencode":
@@ -246,6 +307,7 @@ def main():
             rel = tmpl.format(name=name)
             target = Path(args.dir) / rel
             content = (render_toml(fm, body, keys, name) if fmt == "toml"
+                       else render_recipe(fm, body, keys, name) if fmt == "recipe"
                        else render(fm, body, keys, name, fallback or h))
             warning = unenforced(fm, fallback or h)
             if warning:

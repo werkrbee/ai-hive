@@ -374,9 +374,10 @@ python3 scripts/install.py --dry-run
 | Kiro | `.kiro/agents/<name>.md` (`tools` in Kiro's categories: `read`, `write`, `shell`, `web`) |
 | OpenCode | `.opencode/agents/<name>.md` (`mode: subagent`; the actions its `tools` lack become deny rules) |
 | Cline | `.cline/agents/<name>.yaml` (frontmatter and a body, which Cline reads only from `.yaml`; `tools` in ClineCore's names) |
+| Goose | `.goose/recipes/<name>.yaml` (a recipe, the prompt as `instructions`; `extensions` grants only the tools its `tools` map to) |
 | AGENTS.md ecosystem | `.agents/agents/<name>.md` (`name` and `description` only, since Antigravity reads it) |
 
-Goose and the data-cloud harnesses fall back to `.agents/agents/`. Codex and
+The data-cloud harnesses fall back to `.agents/agents/`. Codex and
 Antigravity can't take an agent's `tools` list, and neither can the shared folder Antigravity
 reads, so the installer warns for each agent that has one and says how to keep the session
 read-only.
