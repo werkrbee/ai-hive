@@ -153,7 +153,7 @@
 <use href="#icon-app" transform="translate(116 1566.0) scale(1)"/>
 <text x="180" y="1564.0" font-size="14.5" font-weight="700" fill="#17140F" text-anchor="start">patricia-a2a</text>
 <text x="180" y="1582.0" font-size="12" font-weight="600" fill="#0078D4" text-anchor="start">Container App</text>
-<text x="180" y="1600.0" font-size="12" font-weight="400" fill="#4A4030" text-anchor="start">Patricia over A2A,</text>
+<text x="180" y="1600.0" font-size="12" font-weight="400" fill="#4A4030" text-anchor="start">Patricia over A2A and MCP,</text>
 <text x="180" y="1618.0" font-size="12" font-weight="400" fill="#4A4030" text-anchor="start">scales 0 to 1</text>
 <rect x="450" y="1528" width="330" height="124" rx="12" fill="#FFFFFF" stroke="#EADFC6" stroke-width="2"/>
 <use href="#icon-app" transform="translate(466 1566.0) scale(1)"/>

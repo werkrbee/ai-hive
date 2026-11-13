@@ -78,7 +78,7 @@ AZURE_TYPES = {
 
 # What each Container App or job in main.bicep does, by its resource's symbolic name.
 APPS = {
-    "app": ["Patricia over A2A,", "scales 0 to 1"],
+    "app": ["Patricia over A2A and MCP,", "scales 0 to 1"],
     "barryApp": ["Hosted Barry over A2A,", "scales 0 to 1"],
     "verifyApp": ["The MCP server Barry is checked", "against; every call pauses for a person"],
     "evalJob": ["The trust evaluation,", "{schedule}"],
