@@ -47,7 +47,7 @@ class CheckTest(unittest.TestCase):
                            "no date checked")
 
     def test_an_unknown_needs_no_evidence(self):
-        self.assertEqual(self.problems(lambda r: self.harness(r, "goose")["capabilities"]["subagents"].update(
+        self.assertEqual(self.problems(lambda r: self.harness(r, "dify")["capabilities"]["mcp"].update(
             supported="unknown")), [])
 
     def test_a_row_has_every_field_of_its_category(self):

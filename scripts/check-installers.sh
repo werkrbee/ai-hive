@@ -177,6 +177,19 @@ else
   flunk "mcp-hive install.py writes OpenCode's nested servers with an environment reference"
   printf '%s\n' "$out" | sed 's/^/      /'
 fi
+# Goose substitutes ${NAME} in a header from the extension's env_keys, so the snippet keeps the
+# reference and names the key.
+out=$(python3 hives/mcp-hive/scripts/install.py --servers-dir "$sandbox/registry" --dir "$proj" \
+  --harness goose --dry-run 2>&1); code=$?
+if [ "$code" -eq 0 ] && printf '%s\n' "$out" | grep -q 'type: streamable_http' \
+  && printf '%s\n' "$out" | grep -q 'uri: "https://demo.example.com/mcp"' \
+  && printf '%s\n' "$out" | grep -q '"Authorization": "Bearer ${DEMO_TOKEN}"' \
+  && printf '%s\n' "$out" | grep -q 'env_keys: \["DEMO_TOKEN"\]'; then
+  pass "mcp-hive install.py prints Goose's extension with an environment reference"
+else
+  flunk "mcp-hive install.py prints Goose's extension with an environment reference"
+  printf '%s\n' "$out" | sed 's/^/      /'
+fi
 run "plugins-hive install.py --dry-run" \
   python3 hives/plugins-hive/scripts/install.py --dir "$proj" --hives-dir hives --dry-run
 run "projects-hive init.py --dry-run" \

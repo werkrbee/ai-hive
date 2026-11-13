@@ -175,7 +175,7 @@ cp -R skills/barry ~/.cursor/skills/barry
 | Gemini CLI and Antigravity | `~/.gemini/skills/` | `.agents/skills/` |
 | Devin Desktop | `~/.config/devin/skills/` | `.devin/skills/` |
 | Cline | `~/.cline/skills/` | `.cline/skills/` |
-| Goose | `~/.config/goose/skills/` | `.goose/skills/` |
+| Goose | `~/.agents/skills/` | `.agents/skills/` |
 | OpenCode | `~/.config/opencode/skills/` | `.opencode/skills/` |
 | Kiro (AWS) | `~/.kiro/skills/` | `.kiro/skills/` |
 | Scout (Windows) | `%USERPROFILE%\.scout\skills\` | — |
