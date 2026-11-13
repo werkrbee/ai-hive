@@ -537,8 +537,11 @@ Server Card is served at `/.well-known/mcp/server-card.json` as `io.werkrbee/pat
 Metadata is served at `/.well-known/oauth-protected-resource/mcp` and at the root path,
 naming Entra as the authorization server and her app's `.default` scope. `POST /mcp`
 gets 401 with a challenge that names that metadata and scope, with no error code since no
-token was sent. Her Agent Card matches the one before the deploy, which renders the same
-at `ac8eaa0` and `26f6494`. mcp-hive's `install.py --server patricia --dry-run` resolves
+token was sent. No copy of her Agent Card was saved before the deploy, but the image
+doesn't change it: `scripts/agent_card.py` renders it the same at `ac8eaa0` and
+`26f6494`, and the live card differs from that render only by what the server adds at
+start, its OAuth2 scheme and the `text/plain` input mode, from code the image doesn't
+change. mcp-hive's `install.py --server patricia --dry-run` resolves
 the card. No tokened call was made, so a review over MCP, and whether a platform's Entra
 token for the `.default` scope is accepted for the metadata's `resource`, are still to be
 checked with a real platform's connection. The image also brought hosted Barry the
