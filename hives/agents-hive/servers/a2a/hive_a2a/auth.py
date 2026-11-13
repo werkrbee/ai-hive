@@ -11,7 +11,9 @@ one method (orchestrate.py: Orchestration.Request to start or cancel a task,
 Orchestration.Approve to answer one).
 
 Only the Agent Card is served without a token, because a client has to read it to learn
-how to authenticate. It holds no secrets.
+how to authenticate. It holds no secrets. The MCP endpoint (mcp.py) adds its Server Card and
+Protected Resource Metadata to the public paths, for the same reason, and a challenge that
+points a client at the metadata when its token is missing or invalid.
 """
 import json
 
@@ -91,13 +93,16 @@ class Authenticator:
 class AuthMiddleware:
     """ASGI middleware: authenticate every HTTP request except the public paths."""
 
-    def __init__(self, app, authenticator):
+    def __init__(self, app, authenticator, public=PUBLIC_PATHS, challenges=None):
+        """public: paths served without a token; challenges: WWW-Authenticate values by path."""
         self.app = app
         self.authenticator = authenticator
+        self.public = set(public)
+        self.challenges = challenges or {}
 
     async def __call__(self, scope, receive, send):
         if scope["type"] == "lifespan" or (
-                scope["type"] == "http" and scope["path"] in PUBLIC_PATHS and scope["method"] in ("GET", "HEAD")):
+                scope["type"] == "http" and scope["path"] in self.public and scope["method"] in ("GET", "HEAD")):
             return await self.app(scope, receive, send)
         if scope["type"] != "http":
             raise RuntimeError(f"unsupported ASGI scope '{scope['type']}'")
@@ -105,7 +110,11 @@ class AuthMiddleware:
         who, refusal = await self.authenticator.caller(header)
         if refusal:
             status, reason = refusal
-            headers = {"www-authenticate": 'Bearer error="invalid_token"'} if status == 401 else {}
+            if scope["path"] in self.challenges:  # no error code when no token was sent (RFC 6750)
+                challenge = self.challenges[scope["path"]] + (', error="invalid_token"' if header else "")
+            else:
+                challenge = 'Bearer error="invalid_token"'
+            headers = {"www-authenticate": challenge} if status == 401 else {}
             return await JSONResponse({"error": reason}, status_code=status, headers=headers)(scope, receive, send)
         client, roles = who
         scope["user"] = Caller(client)

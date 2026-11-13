@@ -24,6 +24,7 @@ harness's config, so **Barry** and his fleet share one source of truth for tools
 | [**git**](servers/git/mcp.json) | Inspect and operate on a local git repository |
 | [**fetch**](servers/fetch/mcp.json) | Fetch and convert web pages to text |
 | [**huggingface**](servers/huggingface/mcp.json) | Search and use the Hugging Face Hub (remote, from its Server Card) |
+| [**patricia**](servers/patricia/mcp.json) | Patricia's governance review, hosted by werkrbee (remote, from its Server Card) |
 
 Each server is a small JSON file. A local server carries a `config` in the standard MCP
 shape (`command`, `args`, `env`), and `${WORKSPACE}` is substituted with the target
@@ -54,6 +55,15 @@ An entry points at a card in one of two ways:
   }
 }
 ```
+
+The [patricia](servers/patricia/mcp.json) entry points at its card directly. It is the
+House's own hosted server: one read-only tool, `review`, that returns Patricia's verdict
+on a proposed action against the Charter (`hives/agents-hive/servers/a2a/README.md`, "MCP").
+Only clients werkrbee registers on her allowlist may call it, with an Entra app token, so
+installing it writes the config but doesn't grant access; it is how low-code platforms
+reach the House (`docs/low-code-alignment.md`). Its card is served once the MCP endpoint
+is deployed, a separate gated step; until then it doesn't answer, an install of every
+server fails on it, and naming the others with `--server` works as before.
 
 The [huggingface](servers/huggingface/mcp.json) entry uses the catalog. At install time,
 `install.py` fetches the catalog and the card over HTTPS (refusing redirects to plain
@@ -115,7 +125,8 @@ mcp-hive/
 │   ├── filesystem/mcp.json
 │   ├── git/mcp.json
 │   ├── fetch/mcp.json
-│   └── huggingface/mcp.json      # remote, via its Server Card
+│   ├── huggingface/mcp.json      # remote, via its Server Card
+│   └── patricia/mcp.json         # remote, the House's hosted review
 ├── adapters/                     # WHERE they run — harness taxonomy & overrides
 │   ├── claude-code/  cursor/  codex/  gemini-cli/  goose/  opencode/
 │   ├── devin-desktop/  kiro/  cline/
