@@ -129,8 +129,9 @@ have been run in the real harness once, with the date and version recorded.
 A low-code harness is aligned when its row says how it calls out (MCP servers, A2A agents,
 OpenAPI connectors), how it authenticates, and what it can't do, with the vendor document
 and date; a guide shows a builder adding the House's capabilities without code; and an
-agent built in the platform has called hosted Patricia over A2A, or one of mcp-hive's
-servers over MCP, with the date and result recorded.
+agent built in the platform has called hosted Patricia, over MCP, A2A or OpenAPI, with
+the date, result and units recorded. How, and why Patricia, is in
+[`low-code-alignment.md`](low-code-alignment.md).
 
 An adapter folder gets content only where behavior has to diverge. The portable artifact
 stays the source of truth; aligning a harness never forks a skill, a rule or an agent for
