@@ -6,7 +6,8 @@ The tool's input schema is the contract's `inputs` and its output schema the con
 same contract, budget, ledger and monthly ceiling as an A2A task. It keeps no task: the
 verdict comes back in the reply, as structured content and as its JSON in a text block.
 A ceiling or allowance refusal is a tool error whose second text block is the same JSON
-the A2A refusal carries; a call past the client's hourly rate gets 429 (limits.py). The server offers no resources, prompts, sampling or elicitation.
+the A2A refusal carries; a call past the client's hourly rate gets 429 (limits.py). The
+server offers no resources, prompts, sampling or elicitation.
 
 Transport: Streamable HTTP at /mcp, POST only, answered with plain JSON and no session.
 It speaks MCP 2026-07-28, statelessly: a request whose `_meta` names its protocol version

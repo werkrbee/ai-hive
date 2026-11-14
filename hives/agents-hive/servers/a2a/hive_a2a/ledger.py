@@ -56,7 +56,8 @@ class Refusal:
 
     WHAT = {"ceiling": ("the monthly spending ceiling", "monthly-ceiling-reached"),
             "client": ("this client's monthly allowance", "client-allowance-reached"),
-            "shared": ("the monthly allowance clients without their own share", "shared-allowance-reached")}
+            "shared": ("the monthly allowance shared by clients without their own",
+                       "shared-allowance-reached")}
 
     def text(self, what="reviews"):
         return (f"Refused: {self.WHAT[self.limit][0]} of ${self.ceiling_usd:.2f} would be passed "

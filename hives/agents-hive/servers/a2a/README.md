@@ -168,11 +168,11 @@ ceiling, model call, output check and ledger entry as an A2A task, through
 `structuredContent`, trimmed to the contract's fields, and as its JSON in a text block.
 Input that breaks the contract, a reply that breaks it, a timeout or a provider error is
 a tool error (`isError`) saying why; a ceiling or allowance refusal is a tool error whose
-second text block is the refusal's JSON, the same object an A2A refusal carries. A call past
-the client's hourly rate gets 429 (see "Per-client limits"). An unknown tool or arguments that aren't an object are a JSON-RPC error. The
-tool is annotated read-only and not destructive. There are no resources, prompts,
-sampling or elicitation, and no task is kept: a call is metered and forgotten, so one
-caller never sees another's.
+second text block is the refusal's JSON, the same object an A2A refusal carries. A call
+past the client's hourly rate gets 429 (see "Per-client limits"). An unknown tool or
+arguments that aren't an object are a JSON-RPC error. The tool is annotated read-only and
+not destructive. There are no resources, prompts, sampling or elicitation, and no task is
+kept: a call is metered and forgotten, so one caller never sees another's.
 
 **Transport and versions.** Streamable HTTP at `/mcp` on the server's origin, POST only,
 answered with plain JSON and no session. It speaks MCP

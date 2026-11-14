@@ -149,7 +149,8 @@ class LimitsTest(unittest.TestCase):
             caller = self.send(c)["result"]["task"]
             other = self.send(c, who=OTHER)["result"]["task"]
         self.assertEqual(caller["status"]["state"], "TASK_STATE_REJECTED")
-        data = caller["status"]["message"]["parts"][1]["data"]
+        text, data = (p.get("text") or p.get("data") for p in caller["status"]["message"]["parts"])
+        self.assertIn("the monthly allowance shared by clients without their own of $18.75", text)
         self.assertEqual(data["error"], "shared-allowance-reached")
         self.assertEqual(data["ceilingUsd"], 18.75)
         self.assertEqual(other["status"]["state"], "TASK_STATE_COMPLETED")
