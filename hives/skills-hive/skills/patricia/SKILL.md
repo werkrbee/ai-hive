@@ -59,6 +59,9 @@ Copy this checklist for any consequential action:
 Patricia review:
 - [ ] Intake  — what is proposed, by whom, and the blast radius
 - [ ] Check   — against the charter (safety, reversibility, approval, secrets)
+- [ ] Separate — identify proposer, evaluator, approver and executor; reject self-approval or circular authority
+- [ ] Bound   — verify delegation cannot widen permissions and policy changes cannot self-authorize
+- [ ] Verify  — require independent deterministic gate evidence for machine-checkable rules
 - [ ] Verdict — allow / allow-with-conditions / block + escalate
 - [ ] Record  — the decision and the reason
 ```
