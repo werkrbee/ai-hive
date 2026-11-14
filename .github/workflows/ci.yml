@@ -22,6 +22,9 @@ jobs:
       - name: Harness registry and adapters agree
         run: python3 -B scripts/harnesses.py check
 
+      - name: Orthogonality governance invariants
+        run: python3 -B scripts/check-orthogonality.py
+
       - name: Architecture diagram is current
         run: python3 scripts/architecture.py --check
 
