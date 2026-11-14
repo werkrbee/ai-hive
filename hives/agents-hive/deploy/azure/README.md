@@ -528,6 +528,25 @@ deleted on the way out. Barry's managed identity already held both app roles fro
 `entra.sh --identity`, so no Entra change was needed. Nothing in `main` since that image
 changes what the check runs.
 
+Patricia over MCP, on 2026-11-13, in the same deployment (the `main` deployment of that
+day, every app and the weekly job on the image built from `26f6494`, Patricia's revision
+`patricia-a2a--0000012`): her MCP endpoint, `/mcp`, is live beside her A2A one
+(`servers/a2a/README.md`, "MCP"). Plain requests without a token checked the rest. Her
+Server Card is served at `/.well-known/mcp/server-card.json` as `io.werkrbee/patricia`
+1.1.0, naming the endpoint and its three protocol versions. Her Protected Resource
+Metadata is served at `/.well-known/oauth-protected-resource/mcp` and at the root path,
+naming Entra as the authorization server and her app's `.default` scope. `POST /mcp`
+gets 401 with a challenge that names that metadata and scope, with no error code since no
+token was sent. No copy of her Agent Card was saved before the deploy, but the image
+doesn't change it: `scripts/agent_card.py` renders it the same at `ac8eaa0` and
+`26f6494`, and the live card differs from that render only by what the server adds at
+start, its OAuth2 scheme and the `text/plain` input mode, from code the image doesn't
+change. mcp-hive's `install.py --server patricia --dry-run` resolves
+the card. No tokened call was made, so a review over MCP, and whether a platform's Entra
+token for the `.default` scope is accepted for the metadata's `resource`, are still to be
+checked with a real platform's connection. The image also brought hosted Barry the
+per-subject registrations from #222; `verify_barry.sh` hasn't been run on it yet.
+
 Record anything that differs in this README.
 
 ## Files

@@ -61,9 +61,8 @@ House's own hosted server: one read-only tool, `review`, that returns Patricia's
 on a proposed action against the Charter (`hives/agents-hive/servers/a2a/README.md`, "MCP").
 Only clients werkrbee registers on her allowlist may call it, with an Entra app token, so
 installing it writes the config but doesn't grant access; it is how low-code platforms
-reach the House (`docs/low-code-alignment.md`). Its card is served once the MCP endpoint
-is deployed, a separate gated step; until then it doesn't answer, an install of every
-server fails on it, and naming the others with `--server` works as before.
+reach the House (`docs/low-code-alignment.md`). Its card has been served by her deployed
+endpoint since 2026-11-13.
 
 The [huggingface](servers/huggingface/mcp.json) entry uses the catalog. At install time,
 `install.py` fetches the catalog and the card over HTTPS (refusing redirects to plain

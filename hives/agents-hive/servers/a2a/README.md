@@ -173,9 +173,7 @@ and enters its client ID and secret in its platform's connection.
 `io.werkrbee/patricia`, at the persona card's version, naming the endpoint and the
 protocol versions above. mcp-hive's `servers/patricia` entry points at the deployed card,
 so `hives/mcp-hive/scripts/install.py --server patricia` writes it into a harness's MCP
-config once this endpoint is deployed, a separate step through `deploy.sh`'s gates
-(`deploy/azure/README.md`). Until then the card's URL doesn't answer, and an install of
-every server fails on it, so name the others with `--server`.
+config. werkrbee's endpoint has been deployed since 2026-11-13 (`deploy/azure/README.md`).
 
 ## Orchestration
 
