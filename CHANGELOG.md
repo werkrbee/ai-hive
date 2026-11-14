@@ -1,5 +1,43 @@
 # Changelog
 
+## [0.13.0](https://github.com/werkrbee/ai-hive/compare/v0.12.1...v0.13.0) (2026-11-14)
+
+
+### Features
+
+* add the harness capability and price matrix ([#263](https://github.com/werkrbee/ai-hive/issues/263)) ([e890dd1](https://github.com/werkrbee/ai-hive/commit/e890dd146e7d7861fa2b17391c7ad3969eb21517)), closes [#232](https://github.com/werkrbee/ai-hive/issues/232)
+* **agents-hive:** rate-limit and cap each client on hosted Patricia ([#308](https://github.com/werkrbee/ai-hive/issues/308)) ([82326da](https://github.com/werkrbee/ai-hive/commit/82326dafbc6189b9025c3c53b5af1a08258864d9)), closes [#304](https://github.com/werkrbee/ai-hive/issues/304) [#229](https://github.com/werkrbee/ai-hive/issues/229)
+* **agents-hive:** serve Patricia's review over MCP ([#306](https://github.com/werkrbee/ai-hive/issues/306)) ([26f6494](https://github.com/werkrbee/ai-hive/commit/26f649409da5aecec732a5b3a443cebe69688b0b)), closes [#298](https://github.com/werkrbee/ai-hive/issues/298)
+* align Claude Code ([#265](https://github.com/werkrbee/ai-hive/issues/265)) ([13c23ba](https://github.com/werkrbee/ai-hive/commit/13c23bafef9159b34dd64e7eafc8d492c99b645a)), closes [#234](https://github.com/werkrbee/ai-hive/issues/234)
+* align Cline ([#293](https://github.com/werkrbee/ai-hive/issues/293)) ([0366575](https://github.com/werkrbee/ai-hive/commit/03665752848db64066fef9d1a81883fa440f9e29)), closes [#241](https://github.com/werkrbee/ai-hive/issues/241)
+* align Codex ([#267](https://github.com/werkrbee/ai-hive/issues/267)) ([edc3494](https://github.com/werkrbee/ai-hive/commit/edc34943da3ef7d2d4e0beb9d1e35a2f7f23a718)), closes [#236](https://github.com/werkrbee/ai-hive/issues/236)
+* align Cursor ([#269](https://github.com/werkrbee/ai-hive/issues/269)) ([c1535e8](https://github.com/werkrbee/ai-hive/commit/c1535e8f6d004f20946b12304aa75d8e9c159bde)), closes [#237](https://github.com/werkrbee/ai-hive/issues/237)
+* align Devin Desktop ([#275](https://github.com/werkrbee/ai-hive/issues/275)) ([9823629](https://github.com/werkrbee/ai-hive/commit/9823629767bda200149fd0245f2311577eb4f815)), closes [#239](https://github.com/werkrbee/ai-hive/issues/239)
+* align Gemini CLI and Antigravity ([#272](https://github.com/werkrbee/ai-hive/issues/272)) ([ce013aa](https://github.com/werkrbee/ai-hive/commit/ce013aa3c41d4c810b3d6adb1e8e8e12db22508f)), closes [#238](https://github.com/werkrbee/ai-hive/issues/238)
+* align GitHub Copilot ([#266](https://github.com/werkrbee/ai-hive/issues/266)) ([768ef33](https://github.com/werkrbee/ai-hive/commit/768ef33d80f08ec13c13df8533b608ee9945f8d7)), closes [#235](https://github.com/werkrbee/ai-hive/issues/235)
+* align Goose ([#296](https://github.com/werkrbee/ai-hive/issues/296)) ([7342356](https://github.com/werkrbee/ai-hive/commit/73423564042cbd559a563916dbf3393f1702b994)), closes [#243](https://github.com/werkrbee/ai-hive/issues/243)
+* align Kiro ([#277](https://github.com/werkrbee/ai-hive/issues/277)) ([e77712c](https://github.com/werkrbee/ai-hive/commit/e77712cc879a27ccd08767c957079b87731353c0)), closes [#240](https://github.com/werkrbee/ai-hive/issues/240)
+* align OpenCode ([#295](https://github.com/werkrbee/ai-hive/issues/295)) ([d1f109f](https://github.com/werkrbee/ai-hive/commit/d1f109f50bcad5a77f018f59b3a5cecd418ba618)), closes [#242](https://github.com/werkrbee/ai-hive/issues/242)
+
+
+### Refactoring
+
+* add one harness registry for every installer ([#259](https://github.com/werkrbee/ai-hive/issues/259)) ([aa27c86](https://github.com/werkrbee/ai-hive/commit/aa27c865399d58529ec6e0f1b0eb637dab5bcc92)), closes [#231](https://github.com/werkrbee/ai-hive/issues/231)
+
+
+### Documentation
+
+* decide the low-code alignment pattern ([#297](https://github.com/werkrbee/ai-hive/issues/297)) ([4ed6c5c](https://github.com/werkrbee/ai-hive/commit/4ed6c5c98dda2db4db774f6ca6bfa0de99c5ffdd)), closes [#244](https://github.com/werkrbee/ai-hive/issues/244)
+* link the low-code implementation issues ([#303](https://github.com/werkrbee/ai-hive/issues/303)) ([666506e](https://github.com/werkrbee/ai-hive/commit/666506ebc4f9c38fb9337074dd76ca400efc5ddd)), closes [#229](https://github.com/werkrbee/ai-hive/issues/229)
+* mark hosted Barry over A2A done in ROADMAP.md ([#227](https://github.com/werkrbee/ai-hive/issues/227)) ([4ab525f](https://github.com/werkrbee/ai-hive/commit/4ab525f42b246bdad1dc80fce95f04802ff31bb7)), closes [#106](https://github.com/werkrbee/ai-hive/issues/106)
+* record hosted Patricia's MCP endpoint as live ([#307](https://github.com/werkrbee/ai-hive/issues/307)) ([ead129c](https://github.com/werkrbee/ai-hive/commit/ead129c584239d01dc28d54db5193247661b7f85)), closes [#229](https://github.com/werkrbee/ai-hive/issues/229)
+* record the harness ecosystem ([#258](https://github.com/werkrbee/ai-hive/issues/258)) ([aabb698](https://github.com/werkrbee/ai-hive/commit/aabb6985ebd42e2516c47c6bf0da946f6b39201b)), closes [#230](https://github.com/werkrbee/ai-hive/issues/230)
+
+
+### CI
+
+* check harness installs land and fail stale harness rows ([#264](https://github.com/werkrbee/ai-hive/issues/264)) ([f9eed67](https://github.com/werkrbee/ai-hive/commit/f9eed678ae094349fb1655cf2a2a7c7df00be17f)), closes [#233](https://github.com/werkrbee/ai-hive/issues/233)
+
 ## [0.12.1](https://github.com/werkrbee/ai-hive/compare/v0.12.0...v0.12.1) (2026-11-08)
 
 
