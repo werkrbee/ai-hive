@@ -552,6 +552,21 @@ token for the `.default` scope is accepted for the metadata's `resource`, are st
 checked with a real platform's connection. The image also brought hosted Barry the
 per-subject registrations from #222; `verify_barry.sh` hasn't been run on it yet.
 
+Per-client limits, on 2026-11-14, in the same deployment (the `main` deployment of that
+day, every app and the weekly job on the image built from `82326da`, Patricia's revision
+`patricia-a2a--0000013`): hosted Patricia holds each client to 30 reviews an hour and half
+her $5 ceiling a month, with $2.50 held for hosted Barry's approval reviews
+(`servers/a2a/README.md`, "Per-client limits"). Both what-ifs matched the 2026-11-13
+deploy's but for the image and `RESERVED_CLIENTS`, which names Barry's identity's client
+ID with a share of 0.5; the weekly job gets it too, since it shares Patricia's server
+environment, and its own spending isn't held to an allowance. Her revision started with
+the new config, which refuses a reserved client that isn't on her allowlist. Plain
+requests without a token found her Agent Card, Server Card and Protected Resource
+Metadata served, and `POST /mcp` and the A2A endpoint each answered 401. No tokened call
+was made, so a review past the rate or an allowance has been refused only in the offline
+tests (`servers/a2a/tests/test_limits.py`), and `verify_barry.sh` still hasn't been run on
+an image since #222.
+
 Record anything that differs in this README.
 
 ## Files
