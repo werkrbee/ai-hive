@@ -86,6 +86,17 @@ class Render(unittest.TestCase):
         self.assertNotIn("orchestration", c)
         self.assertEqual(c["auth"]["required_roles"], ["Review.Request"])
 
+    def test_patricia_holds_an_allowance_for_each_reserved_client(self):
+        self.assertNotIn("limits", self.config(), "without RESERVED_CLIENTS her limits are the server's defaults")
+        self.assertNotIn("limits", self.config(RESERVED_CLIENTS=""))
+        c = self.config(RESERVED_CLIENTS="c2=0.5")
+        self.assertEqual(c["limits"]["clients"], [{"client": "c2", "share": 0.5}])
+        self.assertNotIn("limits", self.config(**{**BARRY_ENV, "RESERVED_CLIENTS": "c2=0.5"}),
+                         "only a reviewer has limits")
+        for bad in ("c2", "c2=1.5", "c2=0", "=0.5"):
+            with self.subTest(value=bad), self.assertRaises(SystemExit):
+                self.config(RESERVED_CLIENTS=bad)
+
     def test_barry_needs_patricia_and_well_formed_callers(self):
         with self.assertRaisesRegex(SystemExit, "missing environment: PATRICIA_URL, PATRICIA_API_APP_ID"):
             self.config(PERSONA="barry")

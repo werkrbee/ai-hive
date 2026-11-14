@@ -40,6 +40,16 @@ input_usd_per_mtok = 0.0             # the model's list price, for the ledger an
 output_usd_per_mtok = 0.0
 max_output_tokens = 4000
 
+# A reviewer's limits on each client (limits.py); these are the defaults.
+# [limits]
+# reviews_per_hour = 30              # each client's, in any hour; past it, 429 with Retry-After
+# client_share = 0.5                 # of the monthly ceiling, what one client may spend or reserve
+#
+# [[limits.clients]]                 # a client with a share held for it, out of the others' reach
+# client = "<barry-client-id>"
+# share = 0.5
+# reviews_per_hour = 60              # optional: its own rate
+
 # Hosted Barry only: with server.capability = "orchestration" (and persona = "barry",
 # prompt_files his Charter and skill), the loop's runs, delegates and callers.
 # [orchestration]

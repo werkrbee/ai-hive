@@ -5,8 +5,9 @@ The tool's input schema is the contract's `inputs` and its output schema the con
 `output`, and a call runs review.Reviewer's check_value and review, so it is held to the
 same contract, budget, ledger and monthly ceiling as an A2A task. It keeps no task: the
 verdict comes back in the reply, as structured content and as its JSON in a text block.
-A ceiling refusal is a tool error whose second text block is the same JSON the A2A
-refusal carries. The server offers no resources, prompts, sampling or elicitation.
+A ceiling or allowance refusal is a tool error whose second text block is the same JSON
+the A2A refusal carries; a call past the client's hourly rate gets 429 (limits.py). The
+server offers no resources, prompts, sampling or elicitation.
 
 Transport: Streamable HTTP at /mcp, POST only, answered with plain JSON and no session.
 It speaks MCP 2026-07-28, statelessly: a request whose `_meta` names its protocol version
@@ -218,8 +219,9 @@ class Server:
             return _result(id_, {**extra, "isError": True, "content": refused})
         # A key for the ledger's calls in flight; nothing about the call is kept after it.
         key = f"mcp-{uuid.uuid4()}"
-        log.info("review %s for %s over MCP", key, request.scope.get("auth", {}).get("client"))
-        outcome = await self.reviewer.review(plan, key)
+        client = request.scope.get("auth", {}).get("client")
+        log.info("review %s for %s over MCP", key, client)
+        outcome = await self.reviewer.review(plan, key, client=client)
         if outcome.state == "completed":
             return _result(id_, {**extra, "content": [{"type": "text", "text": json.dumps(outcome.verdict)}],
                                  "structuredContent": outcome.verdict})

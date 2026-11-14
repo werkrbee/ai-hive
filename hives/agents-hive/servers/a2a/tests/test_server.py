@@ -25,7 +25,7 @@ sys.path.insert(0, str(HERE.parent))
 
 from hive_a2a import providers, review  # noqa: E402
 from hive_a2a.app import create_app  # noqa: E402
-from hive_a2a.config import REPO_ROOT, ConfigError, load  # noqa: E402
+from hive_a2a.config import REPO_ROOT, ConfigError, Limits, load  # noqa: E402
 from hive_a2a.providers import Completion, Result, Tool, ToolCall, User  # noqa: E402
 
 sys.path.insert(0, str(REPO_ROOT / "hives/knowledge-hive/scripts"))
@@ -280,7 +280,8 @@ class ServerTest(unittest.TestCase):
         # $0.004 at these prices, so once the first is spent the second's would pass it.
         config = write_config(self.root, in_price=3.0, out_price=15.0)
         reserve = review.Reviewer(config, None, providers.create(config.model)).plan(PROPOSAL[0]["data"]).max_usd
-        config = dataclasses.replace(config, monthly_ceiling_usd=round(reserve + 0.001, 6))
+        config = dataclasses.replace(config, monthly_ceiling_usd=round(reserve + 0.001, 6),
+                                     limits=Limits(client_share=1.0))  # the ceiling alone
         with self.client(config) as c:
             first = self.send(c)["result"]["task"]
             second = self.send(c)["result"]["task"]

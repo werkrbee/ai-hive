@@ -8,6 +8,9 @@ section: where its runs are kept, the passport they run under, the A2A agents it
 delegate to, the one that reviews a gated action before it pauses, each caller's
 registration, the app roles that start and answer a task, and, optionally, the append blob
 its audit log is copied to (audit_blob).
+
+A reviewer's [limits] hold each client to a rate and a share of the monthly ceiling
+(limits.py); without the section, the defaults below apply.
 """
 import importlib.util
 import json
@@ -79,6 +82,28 @@ class Orchestration:
 
 
 @dataclass(frozen=True)
+class ClientLimit:
+    """A client with an allowance of its own: share of the monthly ceiling, held for it."""
+    client: str
+    share: float
+    reviews_per_hour: int | None = None  # its own rate, if not the default
+
+
+@dataclass(frozen=True)
+class Limits:
+    reviews_per_hour: int = 30  # each client's, in any hour
+    client_share: float = 0.5  # of the monthly ceiling, for a client without its own allowance
+    clients: tuple[ClientLimit, ...] = ()
+
+    def named(self):
+        return {c.client: c for c in self.clients}
+
+    def per_hour(self, client):
+        own = self.named().get(client)
+        return own.reviews_per_hour if own and own.reviews_per_hour else self.reviews_per_hour
+
+
+@dataclass(frozen=True)
 class Config:
     persona: str
     capability: str
@@ -92,6 +117,7 @@ class Config:
     model: Model
     contract: dict
     orchestration: Orchestration | None = None
+    limits: Limits = Limits()
 
     def price(self, input_tokens, output_tokens):
         m = self.model
@@ -202,6 +228,45 @@ def _orchestration(raw, base, auth):
     )
 
 
+def _share(value, where):
+    if isinstance(value, bool) or not isinstance(value, (int, float)) or not 0 < value <= 1:
+        raise ConfigError(f"{where} must be a number more than 0 and at most 1")
+    return float(value)
+
+
+def _rate(value, where):
+    if isinstance(value, bool) or not isinstance(value, int) or value < 1:
+        raise ConfigError(f"{where} must be a whole number, at least 1")
+    return value
+
+
+def _limits(raw, auth):
+    t = raw.get("limits", {})
+    if not isinstance(t, dict):
+        raise ConfigError("limits must be a table")
+    default = Limits()
+    clients = []
+    for n, c in enumerate(t.get("clients", [])):
+        where = f"limits.clients[{n}]"
+        if not isinstance(c, dict):
+            raise ConfigError(f"{where} must be a table")
+        client = _get(c, "client", str, where)
+        if client not in auth.allowed_clients:
+            raise ConfigError(f"{where}.client {client} isn't on auth.allowed_clients")
+        if any(x.client == client for x in clients):
+            raise ConfigError(f"{where}.client {client} has an allowance already")
+        rate = c.get("reviews_per_hour")
+        clients.append(ClientLimit(client, _share(c.get("share"), f"{where}.share"),
+                                   None if rate is None else _rate(rate, f"{where}.reviews_per_hour")))
+    if sum(c.share for c in clients) > 1 + 1e-9:
+        raise ConfigError("limits.clients' shares add up to more than the whole ceiling")
+    return Limits(
+        reviews_per_hour=_rate(t.get("reviews_per_hour", default.reviews_per_hour), "limits.reviews_per_hour"),
+        client_share=_share(t.get("client_share", default.client_share), "limits.client_share"),
+        clients=tuple(clients),
+    )
+
+
 def load(path):
     path = Path(path)
     try:
@@ -296,4 +361,5 @@ def load(path):
         model=model,
         contract=contract,
         orchestration=_orchestration(raw, base, auth) if capability == ORCHESTRATION else None,
+        limits=_limits(raw, auth),
     )

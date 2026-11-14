@@ -31,7 +31,9 @@ One resource group holds the whole deployment, so one budget covers it.
 the other's spending, and the calls it has in flight, toward the same ceiling. The ledgers
 count only model calls, at list price. The Azure budget watches the bill for everything in
 the group: the model, plus the registry (about $5 a month for Basic), storage, logs and
-the job. The budget only alerts; it doesn't stop anything.
+the job. The budget only alerts; it doesn't stop anything. Under the ceiling, the server
+also holds each client to an hourly rate and a share of the ceiling
+([`servers/a2a`](../../servers/a2a/README.md), "Per-client limits").
 
 **Deploying a new image.** While a new revision starts, Container Apps can run it
 alongside the old one for a short time, and both open the same files. Deploy when no
@@ -145,7 +147,10 @@ his callers map to still holds a `<...>` placeholder.
 ledger. Patricia's `monthlyCeilingUsd` must be a number from $0 to $5 alongside him,
 which covers hundreds of her reviews, and `deploy.sh` refuses, before any change, when it
 isn't; the Azure budget stays at $25 for the whole group. Each Barry run holds its whole
-$5 budget against his ceiling while it runs, so at most three run at once.
+$5 budget against his ceiling while it runs, so at most three run at once. His approval
+reviews are calls to Patricia, so they count toward hers, and `barry.reviewShare`, half by
+default, of her ceiling is held for them (`RESERVED_CLIENTS`): her other clients share the
+rest, so a platform can't use up what his approvals need.
 
 **Checking him.** `./verify_barry.sh --by <actor-id> <resource-group>` checks that his
 card is served, that a call without a token is refused, and that a goal with a gated

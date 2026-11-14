@@ -2,8 +2,9 @@
 ceiling, ask the model, check the output, and record what it cost.
 
 Task states, as A2A defines them:
-  rejected   the monthly ceiling is reached (the status message says so and when it
-             resets); nothing is sent to the model
+  rejected   the monthly ceiling, or the caller's allowance under it (limits.py), is
+             reached (the status message says so and when it resets); nothing is sent to
+             the model
   working    the model is reviewing
   completed  the verdict is the task's artifact, a JSON data part
   failed     the model errored, ran past the contract's time budget, or returned
@@ -32,7 +33,7 @@ from a2a.server.tasks import TaskUpdater
 from a2a.utils.errors import InvalidParamsError
 from a2a.utils.input_mode_validator import validate_input_modes
 
-from . import contract
+from . import contract, limits
 from .providers import ProviderError
 
 log = logging.getLogger("hive_a2a")
@@ -139,48 +140,49 @@ class Reviewer:
             return None
         return Plan(user, max_out, self.config.price(est_input, max_out))
 
-    def entry(self, completion):
+    def entry(self, completion, client=None):
         """The ledger entry for a call that reported its usage."""
         tokens = completion.input_tokens + completion.output_tokens
         usd = self.config.price(completion.input_tokens, completion.output_tokens)
         if usd > self.config.contract.get("budget", {}).get("usd", math.inf):
             log.warning("a call cost $%.4f, over the contract's per-call budget", usd)
         return {
-            **self._who(),
+            **self._who(client),
             "usd": round(usd, 6), "tokens": tokens,
             "tokenDetail": {"input": completion.input_tokens, "output": completion.output_tokens},
             # usd is computed from configured prices, not billed figures
             "basis": "estimated",
         }
 
-    def unmetered(self, usd):
+    def unmetered(self, usd, client=None):
         """An entry for a call that may have been billed but reported no usage."""
-        return {**self._who(), "usd": round(usd, 6), "basis": "estimated"}
+        return {**self._who(client), "usd": round(usd, 6), "basis": "estimated"}
 
-    def _who(self):
+    def _who(self, client=None):
         """What the ledger says about the call: the capability, the model's publisher (lower
-        case, as the ledger recorded it before the API was its own field), the wire API, and
-        the model."""
+        case, as the ledger recorded it before the API was its own field), the wire API, the
+        model, and the client it was made for, which its allowance is counted from."""
         return {"capability": self.config.capability, "provider": self.config.model.publisher.lower(),
-                "api": self.provider.name, "model": self.provider.model}
+                "api": self.provider.name, "model": self.provider.model, **({"client": client} if client else {})}
 
     def verdict(self, text):
         """(output, None), or (None, why the model's reply doesn't meet the contract)."""
         return contract.parse_output(text, self.config.contract["output"])
 
-    async def review(self, plan, key, started=None):
-        """Hold the plan's cost against the ceiling, ask the model, check its reply and record
-        what it cost, under key in the ledger's calls in flight. started() is awaited once the
-        call is about to go out. Returns an Outcome."""
-        refusal = await self.ledger.reserve(plan.max_usd)
+    async def review(self, plan, key, started=None, client=None):
+        """Hold the plan's cost against the ceiling and client's allowance, ask the model,
+        check its reply and record what it cost, under key in the ledger's calls in flight.
+        started() is awaited once the call is about to go out. Returns an Outcome."""
+        check = limits.allowance(self.config, client) if client else None
+        refusal = await self.ledger.reserve(plan.max_usd, client=client, check=check)
         if refusal:
-            log.warning("ceiling reached; refused %s", key)
+            log.warning("the %s limit is reached; refused %s", refusal.limit, key)
             return Outcome("rejected", refusal.text(), refusal.data())
 
         # From here the provider may bill us. Until it reports metered usage, the cost is
         # taken to be the whole reservation, so a timeout or cancel still counts toward the
         # ceiling.
-        entry = self.unmetered(plan.max_usd)
+        entry = self.unmetered(plan.max_usd, client)
         try:
             await self.ledger.start(key, entry)
             if started:
@@ -194,16 +196,16 @@ class Reviewer:
                 return Outcome("failed", f"The review ran past the contract's {budget['seconds']}-second budget "
                                          "and was stopped.")
             except ProviderError as e:
-                entry = self.entry(e.completion) if e.completion else entry if e.sent else None
+                entry = self.entry(e.completion, client) if e.completion else entry if e.sent else None
                 log.warning("provider error on %s: %s", key, e)
                 return Outcome("failed", f"The model provider failed: {e}")
-            entry = self.entry(completion)
+            entry = self.entry(completion, client)
             verdict, problems = self.verdict(completion.text)
             if problems:
                 return Outcome("failed", "The model's reply doesn't match the contract's output: " + problems)
             return Outcome("completed", verdict=verdict)
         finally:
-            await self.ledger.settle(plan.max_usd, entry, key=key)
+            await self.ledger.settle(plan.max_usd, entry, key=key, client=client)
 
 
 def _message(updater, text, data=None):
@@ -230,7 +232,9 @@ class Executor(AgentExecutor):
             await updater.reject(_message(updater, f"Refused: {e.message}"))
             return
 
-        outcome = await r.review(plan, context.task_id, started=updater.start_work)
+        user = context.call_context.user if context.call_context else None
+        client = user.user_name if user and user.is_authenticated else None
+        outcome = await r.review(plan, context.task_id, started=updater.start_work, client=client)
         if outcome.state == "rejected":
             await updater.reject(_message(updater, outcome.text, outcome.data))
         elif outcome.state == "failed":

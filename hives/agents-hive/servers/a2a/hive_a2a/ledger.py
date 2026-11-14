@@ -28,6 +28,10 @@ shared ledger is read afresh, with the calls it has in flight, and counted towar
 ceiling. Each process reserves under its own lock, though, so with shared ledgers the
 bound is one reservation from each process, when they reserve from just below the
 ceiling at the same moment.
+
+An entry may name the `client` it was made for. The ledger keeps each client's month and
+what it has reserved, so a reservation can also be held to that client's allowance
+(limits.py).
 """
 import asyncio
 import datetime
@@ -48,15 +52,21 @@ class Refusal:
     ceiling_usd: float
     resumes_on: str
     needed_usd: float = 0.0
+    limit: str = "ceiling"  # or "client" (its allowance) or "shared" (what clients without one share)
+
+    WHAT = {"ceiling": ("the monthly spending ceiling", "monthly-ceiling-reached"),
+            "client": ("this client's monthly allowance", "client-allowance-reached"),
+            "shared": ("the monthly allowance shared by clients without their own",
+                       "shared-allowance-reached")}
 
     def text(self, what="reviews"):
-        return (f"Refused: the monthly spending ceiling of ${self.ceiling_usd:.2f} would be passed "
+        return (f"Refused: {self.WHAT[self.limit][0]} of ${self.ceiling_usd:.2f} would be passed "
                 f"(${self.spent_usd:.2f} spent or reserved in {self.month}, and this needs up to "
                 f"${self.needed_usd:.2f}). New {what} are accepted again on {self.resumes_on}, or sooner "
                 "if what is reserved is released.")
 
     def data(self):
-        return {"error": "monthly-ceiling-reached", "month": self.month,
+        return {"error": self.WHAT[self.limit][1], "month": self.month,
                 "spentUsd": round(self.spent_usd, 6), "ceilingUsd": self.ceiling_usd,
                 "neededUsd": round(self.needed_usd, 6), "resumesOn": self.resumes_on}
 
@@ -121,6 +131,8 @@ class Ledger:
         self.holds = {}  # an orchestration run's budget, by run ID, less what it has spent
         self.totals = {}
         self.by_run = {}  # what each run ID has been charged, in every month
+        self.by_client = {}  # (month, client) -> what the client's entries came to
+        self.client_reserved = {}  # client -> what its reviews in flight have reserved
         self.lock = asyncio.Lock()
         # Calls in flight, by task id: the entry to record if the process dies before the
         # call settles. Kept on disk so a crash or kill can't erase possibly billed calls.
@@ -160,15 +172,21 @@ class Ledger:
             f.write(json.dumps(entry, separators=(", ", ": ")) + "\n")
         key = month_of(at)
         self.totals[key] = self.totals.get(key, 0.0) + entry.get("usd", 0)
+        self._count(entry, key)
+
+    def _count(self, entry, month):
         if isinstance(entry.get("runId"), str):
             self.by_run[entry["runId"]] = self.by_run.get(entry["runId"], 0.0) + entry.get("usd", 0)
+        if isinstance(entry.get("client"), str):
+            key = (month, entry["client"])
+            self.by_client[key] = self.by_client.get(key, 0.0) + entry.get("usd", 0)
 
     def _load(self):
         self.totals = read_totals(self.path)  # checks every entry, so the sums below can't fail
         for line in self.path.read_text(encoding="utf-8").splitlines():
             entry = json.loads(line)
-            if isinstance(entry.get("runId"), str):
-                self.by_run[entry["runId"]] = self.by_run.get(entry["runId"], 0.0) + entry.get("usd", 0)
+            at = datetime.datetime.fromisoformat(entry["at"].replace("Z", "+00:00"))
+            self._count(entry, month_of(at.astimezone(datetime.timezone.utc)))
 
     def run_spent(self, run_id):
         """What the ledger has charged to run_id: its turns, and any a restart cut off."""
@@ -189,18 +207,28 @@ class Ledger:
     def committed(self, at):
         return self.spent(at) + self.reserved + sum(self.holds.values()) + self.shared_spent(at)
 
-    async def reserve(self, usd, key=None):
-        """Hold usd against the ceiling, under key for a run's hold. Returns a Refusal instead
-        when it would take what is spent and reserved past the ceiling."""
+    def client_committed(self, client, at):
+        """What client's entries came to in at's month, and what its reviews in flight reserve."""
+        return self.by_client.get((month_of(at), client), 0.0) + self.client_reserved.get(client, 0.0)
+
+    async def reserve(self, usd, key=None, client=None, check=None):
+        """Hold usd against the ceiling, under key for a run's hold, or for client. Returns a
+        Refusal instead when it would take what is spent and reserved past the ceiling, or
+        when check(ledger, usd, at) returns one (limits.allowance)."""
         async with self.lock:
             at = self.clock()
             committed = self.committed(at)
             if committed + usd > self.ceiling:
                 return Refusal(month_of(at), committed, self.ceiling, next_month(at), usd)
+            refusal = check(self, usd, at) if check else None
+            if refusal:
+                return refusal
             if key is None:
                 self.reserved += usd
             else:
                 self.holds[key] = self.holds.get(key, 0.0) + usd
+            if client is not None:
+                self.client_reserved[client] = self.client_reserved.get(client, 0.0) + usd
             return None
 
     async def hold(self, key, usd):
@@ -230,10 +258,13 @@ class Ledger:
             self.pending[key] = entry
             self._write_pending()
 
-    async def settle(self, reserved_usd, entry=None, key=None):
-        """Release a reservation, and append the entry for what was actually used."""
+    async def settle(self, reserved_usd, entry=None, key=None, client=None):
+        """Release a reservation, client's if it was made for one, and append the entry for
+        what was actually used."""
         async with self.lock:
             self.reserved = max(0.0, self.reserved - reserved_usd)
+            if client in self.client_reserved:
+                self.client_reserved[client] = max(0.0, self.client_reserved[client] - reserved_usd)
             if entry is not None:
                 self._append(entry)
             if key in self.pending:

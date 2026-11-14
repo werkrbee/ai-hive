@@ -17,7 +17,7 @@ import test_server
 from test_server import CALLER, OTHER, STRANGER, WRONG_KEY, Fixed, Recording, token, write_config
 
 from hive_a2a import mcp, providers, review
-from hive_a2a.config import REPO_ROOT
+from hive_a2a.config import REPO_ROOT, Limits
 
 sys.path.insert(0, str(REPO_ROOT / "hives/mcp-hive/scripts"))
 sys.dont_write_bytecode = True  # don't leave __pycache__ in another hive
@@ -230,7 +230,8 @@ class McpTest(unittest.TestCase):
     def test_the_ceiling_refuses_a_call_with_the_a2a_refusal_s_json(self):
         config = write_config(self.root, in_price=3.0, out_price=15.0)
         reserve = review.Reviewer(config, None, providers.create(config.model)).plan(ARGS).max_usd
-        config = dataclasses.replace(config, monthly_ceiling_usd=round(reserve + 0.001, 6))
+        config = dataclasses.replace(config, monthly_ceiling_usd=round(reserve + 0.001, 6),
+                                     limits=Limits(client_share=1.0))  # the ceiling alone
         with self.client(config) as c:
             first = self.call(c)
             second = self.call(c)

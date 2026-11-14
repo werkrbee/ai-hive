@@ -202,13 +202,15 @@ integer, the same units and types as agents-hive contract budgets. `tokenDetail`
 optionally splits `tokens` into `input` and `output` integers that add up to it. `basis`
 is `metered` when the figures came from the provider and `estimated` when they were
 computed, as the workflows-hive reference engine does today. `runId`, `step`,
-`capability`, `provider`, `api` and `model` are optional strings. `runId` and `step` tie an
+`capability`, `provider`, `api`, `model` and `client` are optional strings. `runId` and `step` tie an
 entry to a workflows-hive run record, whose per-step `cost` (`usd` and an integer
 `tokens`) carries over to this entry's `usd` and `tokens` unchanged, so the engine will be
 able to append one entry per step as it checkpoints. `capability` is the execution
 contract the work ran under. `provider` is who made the model, in lower case (`openai`,
 `deepseek`), `api` the wire API the call used (`chat-completions`, `messages`), and
-`model` the model or deployment called. Older entries from the hosted Patricia server
+`model` the model or deployment called. `client` is the caller the work was done for, by
+its client ID, which a server that holds each caller to an allowance sums its entries by.
+Older entries from the hosted Patricia server
 have no `api`, and their `provider` is the vendor it was set up for, `openai` or
 `anthropic`, which groups with the publisher. (Builds from 2026-10-15 to 2026-10-18,
 between ai-hive PRs #84 and #90, wrote the API into `provider`; none was deployed.)
