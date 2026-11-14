@@ -54,7 +54,7 @@ param evalSchedule string = '0 6 * * 1'
 @description('Object ids of the people who may read the immutable copy of the audit log (audit_blob.py check), e.g. from az ad signed-in-user show --query id. The job writes it; nobody else needs to.')
 param auditReaders array = []
 
-@description('Hosted Barry, beside Patricia, from the same image and model. Empty deploys Patricia alone. apiAppId and allowedClients come from entra.sh --agent barry; callers maps each allowed client to its registration (registrations/<name>), as [{ client, registration }]; verifyApiAppId is the verify MCP server\'s API app, from entra.sh --agent verify; monthlyCeilingUsd is his own ceiling (a string, default 15).')
+@description('Hosted Barry, beside Patricia, from the same image and model. Empty deploys Patricia alone. apiAppId and allowedClients come from entra.sh --agent barry; callers maps each allowed client to its registration (registrations/<name>), as [{ client, registration }]; verifyApiAppId is the verify MCP server\'s API app, from entra.sh --agent verify; monthlyCeilingUsd is his own ceiling (a string, default 15); reviewShare is the share of Patricia\'s ceiling held for his approval reviews (a string, default 0.5).')
 param barry object = {}
 
 var suffix = uniqueString(resourceGroup().id)
@@ -395,6 +395,8 @@ var serverEnv = [
   { name: 'MODEL_INPUT_USD_PER_MTOK', value: inputUsdPerMtok }
   { name: 'MODEL_OUTPUT_USD_PER_MTOK', value: outputUsdPerMtok }
   { name: 'MONTHLY_CEILING_USD', value: monthlyCeilingUsd }
+  // Barry's approval reviews have an allowance of Patricia's ceiling no other client can use.
+  { name: 'RESERVED_CLIENTS', value: barryOn ? '${barryClient}=${barry.?reviewShare ?? '0.5'}' : '' }
   { name: 'DATA_DIR', value: '/data' }
 ]
 var dataVolume = {

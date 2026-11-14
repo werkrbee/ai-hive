@@ -81,6 +81,33 @@ vendor the server was set up for (`openai` or `anthropic`), which groups with ne
 (Builds between PRs #84 and #90, 2026-10-15 to 2026-10-18, wrote the API into `provider`;
 none was deployed.) The Azure budget alert in #55 is the billed backstop.
 
+**Per-client limits.** A reviewer holds each client, by the client ID its token names, to
+two limits under the ceiling, over both bindings (`limits.py`, #304). The MCP revision of
+2026-07-28 requires a server to rate limit tool calls, and without these one looping
+platform could spend the month's ceiling and leave hosted Barry's approval reviews
+`unreviewed` until it resets.
+- **Rate.** Each client may send `limits.reviews_per_hour` reviews (`SendMessage` or the MCP
+  `tools/call`) in any hour, 30 by default. One past it gets HTTP 429 with `Retry-After`
+  before it reaches a handler, so it costs nothing, and a JSON-RPC error saying when to try
+  again, with data
+  `{"error": "rate-limited", "limitPerHour", "retryAfterSeconds"}`. Other requests, such as
+  `GetTask` or `tools/list`, don't count. The window is kept in the server process, so a
+  restart, or scaling to zero, starts it afresh; the allowance is what bounds spending
+  across restarts.
+- **Allowance.** What one client may spend or reserve in a month, as a share of the
+  ceiling: `limits.client_share`, half by default, so no one client can spend it all. A
+  client in `[[limits.clients]]` has its own `share` instead, and may have its own
+  `reviews_per_hour`. That share is held for it: everything not spent or reserved by such a
+  client, the weekly evaluation's spending and older entries included, draws on what those
+  shares leave, so no other client's reviews reach into it. werkrbee's deployment holds
+  half of Patricia's ceiling for hosted Barry this way (`deploy/azure/README.md`). The
+  allowance is checked when a review's cost is reserved, from the `client` each ledger
+  entry records, so it survives restarts. A review over it is refused the way one over the
+  ceiling is, as a `rejected` task saying which allowance would be passed and when reviews
+  resume, with `"error": "client-allowance-reached"`, or `"shared-allowance-reached"` when
+  the clients without their own share have used theirs. `ceilingUsd` is then that
+  allowance. The evaluation, which runs in its own process, is held only to the ceiling.
+
 **Model.** A model-neutral interface. Config sets `model.api`, the wire API the server
 speaks, the model, and `model.publisher`, who made it, for the ledger (on Foundry, its
 catalog format; the Azure deploy sets it). A stub needs no publisher. The API is named
@@ -140,9 +167,9 @@ ceiling, model call, output check and ledger entry as an A2A task, through
 `Reviewer.check_value` and `Reviewer.review`. The verdict comes back as
 `structuredContent`, trimmed to the contract's fields, and as its JSON in a text block.
 Input that breaks the contract, a reply that breaks it, a timeout or a provider error is
-a tool error (`isError`) saying why; a ceiling refusal is a tool error whose second text
-block is the refusal's JSON, the same `monthly-ceiling-reached` object an A2A refusal
-carries. An unknown tool or arguments that aren't an object are a JSON-RPC error. The
+a tool error (`isError`) saying why; a ceiling or allowance refusal is a tool error whose
+second text block is the refusal's JSON, the same object an A2A refusal carries. A call past
+the client's hourly rate gets 429 (see "Per-client limits"). An unknown tool or arguments that aren't an object are a JSON-RPC error. The
 tool is annotated read-only and not destructive. There are no resources, prompts,
 sampling or elicitation, and no task is kept: a call is metered and forgotten, so one
 caller never sees another's.
@@ -341,6 +368,10 @@ cover:
 - contract input and output checks
 - the time budget
 - the ceiling, including a ledger already on disk, the monthly reset and a run's hold
+- per-client limits (`tests/test_limits.py`), over both bindings: the hourly rate's 429 and
+  `Retry-After`, the window moving on, one client's rate leaving another's alone, a client
+  refused past its share while others are served, a client's own share kept from the
+  others, and the config
 - per-caller isolation and cancel
 - restarts
 - the HTTP providers' request shapes
@@ -375,11 +406,12 @@ servers/a2a/
 │   ├── config.py       # the TOML config
 │   ├── contract.py     # check values against a contract's schemas
 │   ├── ledger.py       # the usage ledger, the monthly ceiling and runs' holds
+│   ├── limits.py       # each client's hourly rate and share of the ceiling
 │   ├── mcp.py          # the review as an MCP tool, its Server Card and resource metadata
 │   ├── orchestrate.py  # hosted Barry: the loop on the engine, MCP and A2A tools
 │   ├── providers.py    # stub, Messages and Chat Completions
 │   └── review.py       # the executor: input, budget, ceiling, model, verdict
-├── tests/              # test_server.py, test_mcp.py, test_orchestrate.py, the eval runners' tests
+├── tests/              # test_server.py, test_mcp.py, test_limits.py, test_orchestrate.py, the eval runners' tests
 ├── conformance/        # the TCK runner and the recorded run
 ├── config.example.toml
 └── requirements.txt

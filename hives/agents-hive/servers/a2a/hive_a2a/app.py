@@ -1,7 +1,7 @@
 """Assemble the A2A server: the Agent Card, the JSON-RPC endpoint, auth, a durable task
 store and the executor its contract calls for: the reviewer (review.py), or for
 orchestration, hosted Barry's loop (orchestrate.py). A reviewer is also served over MCP
-(mcp.py)."""
+(mcp.py), and holds each client to its hourly rate on both bindings (limits.py)."""
 import contextlib
 import importlib.util
 import logging
@@ -16,7 +16,7 @@ from a2a.server.routes import create_agent_card_routes, create_jsonrpc_routes
 from a2a.server.tasks import DatabaseTaskStore
 from a2a.types import AgentCard, Role, TaskState
 
-from . import mcp, orchestrate, providers, review
+from . import limits, mcp, orchestrate, providers, review
 from .auth import PUBLIC_PATHS, Authenticator, AuthMiddleware
 from .config import REPO_ROOT
 from .ledger import Ledger
@@ -83,8 +83,10 @@ async def fail_interrupted(store, resumes=lambda task_id: False,
             log.warning("marked task %s failed after a restart", task.id)
 
 
-def create_app(config, provider=None, authenticator=None, ledger_clock=None, network=None, clock=None):
-    """network (orchestrate.Network) and clock (the run engine's, for expiry) are for tests."""
+def create_app(config, provider=None, authenticator=None, ledger_clock=None, network=None, clock=None,
+               rate_clock=None):
+    """network (orchestrate.Network), clock (the run engine's, for expiry) and rate_clock (the
+    rate limit's, in seconds) are for tests."""
     config.database.parent.mkdir(parents=True, exist_ok=True)
     engine = create_async_engine(f"sqlite+aiosqlite:///{config.database}")
     store = DatabaseTaskStore(engine)
@@ -133,6 +135,11 @@ def create_app(config, provider=None, authenticator=None, ledger_clock=None, net
                 *extra, *create_jsonrpc_routes(handler, rpc_path)],
         lifespan=lifespan,
     )
+    if mcp_server:
+        # Added before auth, so it runs inside it, once the client is known.
+        limiter = limits.Limiter(config.limits, **({"clock": rate_clock} if rate_clock else {}))
+        app.add_middleware(limits.RateLimit, limiter=limiter,
+                           paths={rpc_path: {"SendMessage", "SendStreamingMessage"}, mcp.PATH: {"tools/call"}})
     app.add_middleware(AuthMiddleware, authenticator=authenticator or Authenticator(config.auth),
                        public=public, challenges=challenges)
     app.state.orchestrator = orchestrator

@@ -53,7 +53,7 @@ RUN_FIELDS = {"met", "ran", "of", "missed", "errored", "usd", "seconds"}
 # that couldn't run, fail it; the other two are flags for a person.
 FINDINGS = ("drift", "unconfirmed-miss", "cost", "not-run")
 LEDGER_FIELDS = {"at", "basis", "usd", "tokens", "tokenDetail", "runId", "step",
-                 "capability", "provider", "api", "model"}
+                 "capability", "provider", "api", "model", "client"}
 
 # Patterns for values that must never be committed. Heuristics: they catch the common
 # shapes, not every secret.
@@ -388,7 +388,7 @@ def check_ledger(path, err):
                 err(f"{at}: tokenDetail must be {{input, output}}, both non-negative integers")
             elif e.get("tokens") != d["input"] + d["output"]:
                 err(f"{at}: tokenDetail input and output must add up to tokens")
-        for key in ("runId", "step", "capability", "provider", "api", "model"):
+        for key in ("runId", "step", "capability", "provider", "api", "model", "client"):
             if key in e and (not isinstance(e[key], str) or not e[key]):
                 err(f"{at}: {key} must be a non-empty string")
 

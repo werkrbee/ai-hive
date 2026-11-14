@@ -37,4 +37,5 @@ param budgetStartDate = '2026-11-01'
 //   callers: [{ client: '<verify-barry-client-app-id>', registration: 'verify' }]
 //   verifyApiAppId: '<verify-api-app-id>'
 //   monthlyCeilingUsd: '15'
+//   reviewShare: '0.5'   // of Patricia's ceiling, held for his approval reviews
 // }

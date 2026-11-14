@@ -6,7 +6,10 @@ The prompt files are the ones the persona's passport pins, in its order, and eac
 match its pinned digest, or this exits without writing a config, so the container doesn't
 start on a prompt the passport doesn't pin. Patricia's app and her weekly eval job each
 keep a ledger on the share (LEDGER) and count the other's toward the ceiling
-(SHARED_LEDGERS).
+(SHARED_LEDGERS). Her [limits] hold an allowance of its own for each client in
+RESERVED_CLIENTS ("client=share" pairs, comma-separated), which main.bicep sets for hosted
+Barry, so a platform can't crowd out his approval reviews; the rest keep the server's
+defaults.
 
 Barry's config adds the orchestration section: his passport, his run records on his own
 share, Patricia as his one delegate and reviewer (PATRICIA_URL, PATRICIA_API_APP_ID), and
@@ -75,6 +78,28 @@ def callers(value):
     return pairs
 
 
+def reserved(value):
+    """[(client, share)] from "client=share,…"."""
+    pairs = []
+    for item in (i.strip() for i in value.split(",")):
+        if not item:
+            continue
+        client, sep, share = (x.strip() for x in item.partition("="))
+        if not sep or not client:
+            sys.exit(f"error: RESERVED_CLIENTS takes client=share pairs, not {item!r}")
+        n = number("RESERVED_CLIENTS", share)
+        if not 0 < n <= 1:
+            sys.exit(f"error: RESERVED_CLIENTS: {client}'s share must be more than 0 and at most 1")
+        pairs.append((client, n))
+    return pairs
+
+
+def limits(env, q):
+    """Patricia's [[limits.clients]] tables, or nothing."""
+    return "".join(f"\n[[limits.clients]]\nclient = {q(client)}\nshare = {share}\n"
+                   for client, share in reserved(env.get("RESERVED_CLIENTS", "")))
+
+
 def orchestration(env, data, q):
     """Barry's [orchestration] section."""
     scope = f"api://{env['PATRICIA_API_APP_ID']}/.default"
@@ -136,7 +161,7 @@ base_url = {q(env["MODEL_BASE_URL"])}
 auth = "entra"
 input_usd_per_mtok = {number("MODEL_INPUT_USD_PER_MTOK", env["MODEL_INPUT_USD_PER_MTOK"])}
 output_usd_per_mtok = {number("MODEL_OUTPUT_USD_PER_MTOK", env["MODEL_OUTPUT_USD_PER_MTOK"])}
-""" + (orchestration(env, data, q) if persona == "barry" else "")
+""" + (orchestration(env, data, q) if persona == "barry" else limits(env, q))
 
 
 if __name__ == "__main__":
