@@ -206,6 +206,7 @@ class McpTest(unittest.TestCase):
         [entry] = self.ledger()
         self.assertEqual(entry["capability"], "governance-review")
         self.assertEqual(entry["tokenDetail"], {"input": 100, "output": 20})
+        self.assertNotIn("taskId", entry, "there is no task to name")
         self.assertFalse((self.root / "data/ledger.jsonl.pending").exists() and
                          (self.root / "data/ledger.jsonl.pending").read_text().strip())
 

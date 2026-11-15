@@ -76,10 +76,13 @@ past the ceiling by what the other process reserved: one call's for the job.
 The ledger's `usd` is computed from the prices in the config, so its `basis` is
 `estimated`. Each entry names the model three ways: `provider` is its publisher,
 `model.publisher` in lower case (`openai`, `deepseek`); `api` is the wire API the call
-used; `model` is the deployment. Older entries have no `api`, and their `provider` is the
-vendor the server was set up for (`openai` or `anthropic`), which groups with newer ones.
-(Builds between PRs #84 and #90, 2026-10-15 to 2026-10-18, wrote the API into `provider`;
-none was deployed.) The Azure budget alert in #55 is the billed backstop.
+used; `model` is the deployment. A review's entry also names the `client` it was made for
+and, for an A2A task, its `taskId`, so a caller's record of the task can be matched to what
+it cost; an MCP review keeps no task, so its entry has none. Older entries have no `api`,
+and their `provider` is the vendor the server was set up for (`openai` or `anthropic`),
+which groups with newer ones. (Builds between PRs #84 and #90, 2026-10-15 to 2026-10-18,
+wrote the API into `provider`; none was deployed.) The Azure budget alert in #55 is the
+billed backstop.
 
 **Per-client limits.** A reviewer holds each client, by the client ID its token names, to
 two limits under the ceiling, over both bindings (`limits.py`, #304). The MCP revision of
@@ -149,6 +152,13 @@ prompt files only, and each call sends its own input after it, with no conversat
 no earlier message, even one from the same caller in the same context. So a provider's
 prompt cache can only ever hold that shared prefix, and nothing one caller sends reaches
 another's call. A test checks it across two callers and a follow-up message.
+
+**Message metadata.** A capability keeps only the message metadata it reads, and drops the
+rest before the task is stored, so context a caller attaches, such as the chat history
+Copilot Studio sends under `copilotstudio.microsoft.com/a2a/chathistory`, stays out of the
+task store, by the same trust boundary. A review reads none, and orchestration reads a
+request's `trigger` and `facts` and none of an answer's. An MCP call keeps no task, and
+the tool's arguments are only the contract's input.
 
 **Durability.** Tasks are kept in SQLite at `server.database` and survive a restart. A
 review that was running when the server stopped can't resume, so at startup it is marked
@@ -372,7 +382,8 @@ cover:
   `Retry-After`, the window moving on, one client's rate leaving another's alone, a client
   refused past its share while others are served, a client's own share kept from the
   others, and the config
-- per-caller isolation and cancel
+- per-caller isolation and cancel; metadata a review doesn't read kept out of the task
+  store and the model's call, and a review's ledger entry naming its task
 - restarts
 - the HTTP providers' request shapes
 - MCP (`tests/test_mcp.py`): the Server Card, checked against mcp-hive's validator, and the
@@ -385,7 +396,8 @@ cover:
   cancel; approvals: the request and its review, a reviewer
   that can't be reached or can't be given a token, one review for two publishes, approve,
   deny, a stale approval, a changed fact, a mismatched `id`, each method's role and
-  another caller's task
+  another caller's task; and a request's metadata kept to its trigger and facts, an
+  answer's dropped
 - the eval runners (`tests/test_eval.py` for Patricia's trust evaluation,
   `tests/test_orchestration_eval.py` for hosted Barry's goals, against a scripted model):
   scoring, metering, and what fails an eval
