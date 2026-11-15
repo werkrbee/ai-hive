@@ -55,7 +55,15 @@ the vendor's docs, none is left unknown, and for a pro-code harness Barry and Pa
 are each run once in the real harness. Record each run under the row's `runs`: the agent,
 date, harness version, model, the command, the input, cache-write, cached and output
 tokens, the cost as the harness reports it, and the result. Claude Code's row is the
-example. `check` refuses a verified row that falls short of any of these.
+example. A low-code harness instead calls Patricia once from an agent built in the
+platform, and its run records her as the agent, the date, the platform's version (null
+where it shows none), the binding (`mcp`, `a2a` or `openapi`), the auth route (`app` or
+`delegated`), the platform's units (amount, unit, basis `reported`, `estimated` or
+`not-reported`, and the usage report or rates they come from), the platform's input,
+cache-write, cached and output tokens, each null where it doesn't report them and never
+zero, the House's tokens and dollars from her ledger entry (with its `taskId` where it has
+one), the cost and the result (`docs/low-code-alignment.md`, "Units consumed"). `check`
+refuses a verified row that falls short of any of these.
 
 ## Using a coding agent
 

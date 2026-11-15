@@ -209,15 +209,16 @@ eight of the ten publish no effective rate.
 **The House's meter** is what Patricia's review cost werkrbee: her ledger entry for the
 call, with its tokens and estimated dollars. It is recorded beside the run but never added
 to the platform's cost, since a builder pays it only if the House charges for it, and it
-doesn't today. A review's ledger entry doesn't yet name its task, so it is found only by
-time; the entry will carry the task ID.
+doesn't today. A review over A2A names its task in the ledger entry (`taskId`), and the
+run records it; one over MCP has no task, so its entry is found by time.
 
 A pro-code run's row records Barry and Patricia with tokens in four counts. A low-code
 run records the binding, the auth route, the platform's units with their basis and
 source, the platform's tokens where known, the House's tokens and dollars, and the
 verdict. A low-code row is verified only with a run of Patricia, as a pro-code row needs
-runs of both agents. `scripts/harnesses.py` gets that shape and that check before the first
-recorded call.
+runs of both agents. `scripts/harnesses.py check` holds a run to that shape and that rule,
+and the matrix shows low-code runs in their own table, with the House's cost apart from the
+platform's.
 
 ## What each platform issue does
 
