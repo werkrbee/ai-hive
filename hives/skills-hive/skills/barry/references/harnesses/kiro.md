@@ -37,8 +37,9 @@ The fields include `name`, `description`, `model`, `tools`, `excludedTools`, `re
 the tools its file lists. Kiro's docs don't say what happens to a name it doesn't know, so
 the agents installer translates Claude Code's names (`Read, Grep, Glob` becomes `[read]`,
 `Edit` and `Write` become `write`, `Bash` becomes `shell`), which keeps `explore` and the
-review agents read-only; an agent with a tool Kiro has no name for gets no list and a
-warning. Any custom agent can run as a subagent, in its own context window and in parallel
+review agents read-only; an agent with a tool Kiro has no name for keeps its mapped tools
+and gets a warning naming the dropped tool. If none map, the installer refuses to write
+its file. Any custom agent can run as a subagent, in its own context window and in parallel
 with others, sharing steering, MCP servers and the workspace. Built in are a context
 gathering subagent and a general purpose one. An orchestrator needs `subagent` in its
 tools to delegate.

@@ -43,7 +43,8 @@ name it doesn't know, so an agent listing `Read` would get no tools at all. The 
 therefore translates Claude Code's names (`Read, Grep, Glob` becomes
 `[read_files, search_codebase]`; an edit tool becomes both `editor` and `apply_patch`,
 since Cline offers one or the other by model), which keeps `explore` and the review agents
-read-only. An agent with a tool Cline has no name for gets no list and a warning. `cline
+read-only. An agent with a tool Cline has no name for keeps its mapped tools and gets a
+warning naming the dropped tool; if none map, the installer refuses to write its file. `cline
 config agents` lists what loaded and `cline config tools` the tool names.
 
 **Delegation.** Map Barry's logical roles to Cline's agents:

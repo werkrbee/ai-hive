@@ -8,10 +8,14 @@ Standard library only (Python 3.9 has no TOML parser, so the strings are checked
 Run from the repo root:
   python3 -B -m unittest discover -s hives/agents-hive/tests
 """
+import contextlib
 import importlib.util
+import io
 import json
+import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 HIVE = Path(__file__).resolve().parent.parent
 spec = importlib.util.spec_from_file_location("agents_install", HIVE / "scripts" / "install.py")
@@ -87,12 +91,13 @@ class CodexTomlTest(unittest.TestCase):
                          "[read, edit, exec]")
         self.assertIsNone(install.unenforced({"tools": "Read, Grep, Glob"}, "devin-desktop"))
 
-    def test_a_tool_devin_has_no_name_for_drops_the_list_and_warns(self):
+    def test_a_tool_devin_has_no_name_for_keeps_mapped_tools_and_warns(self):
         fm = {"description": "d", "tools": "Read, WebFetch"}
-        self.assertIsNone(install.native_tools(fm, "devin-desktop"))
-        self.assertNotIn("allowed-tools", install.render(fm, "Body.\n", install.agent_target("devin-desktop")[1], "x",
-                                                         "devin-desktop"))
-        self.assertIn("deny edit and exec", install.unenforced(fm, "devin-desktop"))
+        self.assertEqual(install.native_tools(fm, "devin-desktop"), "[read]")
+        self.assertIn("allowed-tools: [read]\n", install.render(
+            fm, "Body.\n", install.agent_target("devin-desktop")[1], "x", "devin-desktop"))
+        self.assertIn("webfetch", install.unenforced(fm, "devin-desktop"))
+        self.assertIn("by hand", install.unenforced(fm, "devin-desktop"))
 
     def test_kiro_agents_carry_claude_code_tools_under_kiro_categories(self):
         tmpl, keys, fallback, fmt = install.agent_target("kiro")
@@ -103,11 +108,12 @@ class CodexTomlTest(unittest.TestCase):
                          "[read, write, shell, web]")
         self.assertIsNone(install.unenforced({"tools": "Read, Grep, Glob"}, "kiro"))
 
-    def test_a_tool_kiro_has_no_name_for_drops_the_list_and_warns(self):
+    def test_a_tool_kiro_has_no_name_for_keeps_mapped_tools_and_warns(self):
         fm = {"description": "d", "tools": "Read, NotebookEdit"}
-        self.assertIsNone(install.native_tools(fm, "kiro"))
-        self.assertNotIn("tools:", install.render(fm, "Body.\n", install.agent_target("kiro")[1], "x", "kiro"))
-        self.assertIn("deny fs_write and shell", install.unenforced(fm, "kiro"))
+        self.assertEqual(install.native_tools(fm, "kiro"), "[read]")
+        self.assertIn("tools: [read]\n", install.render(fm, "Body.\n", install.agent_target("kiro")[1], "x", "kiro"))
+        self.assertIn("notebookedit", install.unenforced(fm, "kiro"))
+        self.assertIn("by hand", install.unenforced(fm, "kiro"))
 
     def test_cline_agents_are_yaml_files_with_clinecore_tool_names(self):
         tmpl, keys, fallback, fmt = install.agent_target("cline")
@@ -118,11 +124,75 @@ class CodexTomlTest(unittest.TestCase):
                          "[read_files, editor, apply_patch, run_commands]")
         self.assertIsNone(install.unenforced({"tools": "Read, Grep, Glob"}, "cline"))
 
-    def test_a_tool_cline_has_no_name_for_drops_the_list_and_warns(self):
+    def test_a_tool_cline_has_no_name_for_keeps_mapped_tools_and_warns(self):
         fm = {"description": "d", "tools": "Read, WebSearch"}
-        self.assertIsNone(install.native_tools(fm, "cline"))
-        self.assertNotIn("tools:", install.render(fm, "Body.\n", install.agent_target("cline")[1], "x", "cline"))
-        self.assertIn("plan mode", install.unenforced(fm, "cline"))
+        self.assertEqual(install.native_tools(fm, "cline"), "[read_files]")
+        self.assertIn("tools: [read_files]\n", install.render(fm, "Body.\n", install.agent_target("cline")[1], "x", "cline"))
+        self.assertIn("websearch", install.unenforced(fm, "cline"))
+        self.assertIn("by hand", install.unenforced(fm, "cline"))
+
+    def test_unmapped_tools_do_not_drop_writers_or_duplicate_native_names(self):
+        for harness, expected in (("devin-desktop", "[read, edit, exec]"),
+                                  ("kiro", "[read, write, shell]"),
+                                  ("cline", "[read_files, editor, apply_patch, run_commands]")):
+            with self.subTest(harness=harness):
+                fm = {"tools": " Read, UnknownTool, Edit, Write, Bash, READ, OtherTool "}
+                self.assertEqual(install.native_tools(fm, harness), expected)
+                warning = install.unenforced(fm, harness)
+                self.assertIn("unknowntool, othertool", warning)
+                self.assertIn("leaves them out", warning)
+                self.assertIn("by hand", warning)
+
+    def test_no_tools_list_keeps_existing_inheritance_behavior(self):
+        for harness in ("devin-desktop", "kiro", "cline"):
+            for fm in ({}, {"tools": ""}, {"tools": " , "}):
+                with self.subTest(harness=harness, fm=fm):
+                    self.assertIsNone(install.native_tools(fm, harness))
+                    self.assertIsNone(install.unenforced(fm, harness))
+
+    def test_no_mapped_tools_refuses_rendering_instead_of_granting_default_tools(self):
+        for harness in ("devin-desktop", "kiro", "cline"):
+            with self.subTest(harness=harness):
+                with self.assertRaisesRegex(ValueError, "no mapped tools.*unknowntool"):
+                    install.render({"tools": "UnknownTool"}, "Body.\n",
+                                   install.agent_target(harness)[1], "x", harness)
+
+    def test_cli_refusal_preserves_existing_agent_file_even_in_dry_run(self):
+        for harness in ("devin-desktop", "kiro", "cline"):
+            for dry_run in (False, True):
+                with self.subTest(harness=harness, dry_run=dry_run), tempfile.TemporaryDirectory() as tmp:
+                    target = Path(tmp) / install.agent_target(harness)[0].format(name="x")
+                    target.parent.mkdir(parents=True)
+                    target.write_text("Existing restricted agent.\n")
+                    argv = ["install.py", "--harness", harness, "--dir", tmp]
+                    if dry_run:
+                        argv.append("--dry-run")
+                    with patch("sys.argv", argv), patch.object(install, "load_agents", return_value={
+                        "x": ({"tools": "UnknownTool"}, "Body.\n")
+                    }), contextlib.redirect_stderr(io.StringIO()) as err:
+                        with self.assertRaises(SystemExit) as refused:
+                            install.main()
+                    self.assertEqual(refused.exception.code, 2)
+                    self.assertIn("no mapped tools", err.getvalue())
+                    self.assertIn("unknowntool", err.getvalue())
+                    self.assertEqual(target.read_text(), "Existing restricted agent.\n")
+
+    def test_cli_installs_only_mapped_tools_and_emits_the_warning(self):
+        for harness, line in (("devin-desktop", "allowed-tools: [read]"),
+                              ("kiro", "tools: [read]"), ("cline", "tools: [read_files]")):
+            with self.subTest(harness=harness), tempfile.TemporaryDirectory() as tmp:
+                with patch("sys.argv", ["install.py", "--harness", harness, "--dir", tmp]), \
+                     patch.object(install, "load_agents", return_value={
+                         "x": ({"tools": "Read, UnknownTool"}, "Body.\n")
+                     }), contextlib.redirect_stderr(io.StringIO()) as err, \
+                     contextlib.redirect_stdout(io.StringIO()):
+                    install.main()
+                target = Path(tmp) / install.agent_target(harness)[0].format(name="x")
+                self.assertIn(line + "\n", target.read_text())
+                self.assertNotIn("UnknownTool", target.read_text())
+                self.assertIn(f"warning: {harness}: x:", err.getvalue())
+                self.assertIn("unknowntool", err.getvalue())
+                self.assertIn("by hand", err.getvalue())
 
     def test_opencode_agents_deny_the_actions_their_tools_lack(self):
         tmpl, keys, fallback, fmt = install.agent_target("opencode")
