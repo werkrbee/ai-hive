@@ -81,6 +81,30 @@ class CodexTomlTest(unittest.TestCase):
         self.assertNotIn("readonly", writer)
         self.assertIsNone(install.readonly({"description": "no tools list"}))
 
+    def test_cursor_scoped_tools_and_delegates_are_possible_writers(self):
+        keys = install.agent_target("cursor")[1]
+        for tool in ("Bash(git:*)", " Edit(src/*) ", "Task", "Agent",
+                     " Task(explore) ", "AGENT(code-review)",
+                     "mcp__github__create_pull_request", "MCP__FILESYSTEM__WRITE_FILE(path)",
+                     "mcp__github__get_issue"):
+            with self.subTest(tool=tool):
+                fm = {"description": "d", "tools": f"Read, {tool}, Grep"}
+                self.assertIsNone(install.readonly(fm))
+                out = install.render(fm, "Body.\n", keys, "worker", "cursor")
+                self.assertNotIn("readonly:", out)
+                self.assertNotIn("tools:", out)
+
+    def test_cursor_scoped_reads_stay_readonly_and_empty_lists_keep_defaults(self):
+        keys = install.agent_target("cursor")[1]
+        for tools in ("Read, Grep, Glob", " read(src/*), GREP(pattern), Glob(**/*.py) "):
+            with self.subTest(tools=tools):
+                fm = {"tools": tools}
+                self.assertEqual(install.readonly(fm), "true")
+                self.assertIn("\nreadonly: true\n", install.render(fm, "Body.\n", keys, "reader", "cursor"))
+        for tools in ("", " , "):
+            with self.subTest(tools=tools):
+                self.assertIsNone(install.readonly({"tools": tools}))
+
     def test_devin_agents_carry_claude_code_tools_under_devin_names(self):
         tmpl, keys, fallback, fmt = install.agent_target("devin-desktop")
         self.assertEqual((tmpl, fmt, fallback), (".devin/agents/{name}.md", "markdown", None))

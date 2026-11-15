@@ -55,15 +55,15 @@ def parse_agent(path):
     return fm, body
 
 
-# Tools that change files or run commands. An agent whose tools list has none of them is
-# read-only, which a harness with a readonly flag (Cursor) can enforce.
-WRITE_TOOLS = {"edit", "write", "multiedit", "notebookedit", "bash", "shell", "execute"}
+# Tools that may write, run commands or delegate to a writer. MCP tools are also possible
+# writers: a name alone doesn't prove what a server's tool does.
+WRITE_TOOLS = {"edit", "write", "multiedit", "notebookedit", "bash", "shell", "execute", "task", "agent"}
 
 
 def readonly(fm):
-    """"true" when the agent's tools list holds no tool that writes, else None."""
-    tools = [t.strip().lower() for t in fm.get("tools", "").split(",") if t.strip()]
-    return "true" if tools and not set(tools) & WRITE_TOOLS else None
+    """"true" when no listed tool may write, ignoring a tool's (...) scope, else None."""
+    tools = [t.partition("(")[0].strip().lower() for t in fm.get("tools", "").split(",") if t.strip()]
+    return "true" if tools and not any(t in WRITE_TOOLS or t.startswith("mcp__") for t in tools) else None
 
 
 # Claude Code's tool names -> a harness's own, for harnesses whose agent files take a tools
