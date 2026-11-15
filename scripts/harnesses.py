@@ -5,8 +5,8 @@ The registry is the only place a harness, its category and tier, its install pat
 its capability and price row are written down (docs/harness-ecosystem.md). Python
 installers import this module; shell installers call it. `matrix` writes the readable
 table, docs/harness-matrix.md. `check` is what CI runs: the registry is well formed,
-every claim in a row names its source and the date it was checked, a verified row has no
-unknowns and records its runs, no row in either ten was checked more than 90 days ago,
+every claim in a row names its source and the date it was checked, each recorded run has
+its category's shape, a verified row has no unknowns and records its runs, no row in either ten was checked more than 90 days ago,
 the table is current, each hive's adapters/ matches the registry, and each README that
 draws an adapters/ tree names every adapter. `conformance` is what check-installers.sh
 runs: it installs the House for every harness with install paths into a sandbox and
@@ -63,6 +63,17 @@ RUN_AGENTS = ("barry", "patricia")
 # What a recorded run writes down, and the tokens it counts.
 RUN_FIELDS = ("agent", "date", "version", "model", "how", "tokens", "cost", "result")
 RUN_TOKENS = ("input", "cache_write", "cached", "output")
+# A low-code platform calls Patricia, so its row records a run of her, metered twice
+# (docs/low-code-alignment.md, "Units consumed"): the platform's units, with their basis
+# and source, and its tokens where it reports them, each unknown count null and never zero;
+# and the House's tokens and dollars from Patricia's ledger, kept apart from the
+# platform's cost. version is null where the platform shows none.
+LOW_CODE_RUN_AGENT = "patricia"
+LOW_CODE_RUN_FIELDS = ("agent", "date", "version", "binding", "auth", "units", "tokens", "house", "cost",
+                       "result")
+BINDINGS = ("mcp", "a2a", "openapi")
+AUTH_ROUTES = ("app", "delegated")
+UNIT_BASES = ("reported", "estimated", "not-reported")
 
 
 def load(path=REGISTRY):
@@ -209,7 +220,9 @@ def render_matrix(registry=None):
             out.append(f"| {h['name']} | {c['unit']} | {cell} | {c['checked']} |")
         out.append("")
         ran = [(h, r) for h in rows for r in h.get("runs", [])]
-        if ran:
+        if ran and cat == "low-code":
+            out += low_code_runs(ran)
+        elif ran:
             out += ["### Recorded runs", "",
                     "Barry and Patricia run once in the real harness when it's aligned. The run doubles "
                     "as the reference task that cost is compared on; its cost is the harness's own figure.", "",
@@ -240,6 +253,98 @@ def render_matrix(registry=None):
             parts.append("cost: " + ", ".join(link(u) for u in h["cost"]["sources"]) + f", {h['cost']['checked']}")
             out.append(f"- **{h['name']}.** " + "; ".join(parts) + ".")
     return "\n".join(out) + "\n"
+
+
+def count(v):
+    """A token count as the tables write it, or unknown for null."""
+    return "unknown" if v is None else f"{v:,}"
+
+
+def low_code_runs(ran):
+    """The low-code recorded-runs table: the platform's meter, then the House's, apart."""
+    out = ["### Recorded runs", "",
+           "Patricia is called once from an agent built in the platform when it's aligned. The "
+           "platform's units and cost are the harness's own figures; the House's tokens and dollars "
+           "are her ledger's, recorded beside the run and never added to its cost.", "",
+           "| Harness | Agent | Date | Version | Binding | Auth | Platform units | "
+           "Platform tokens: input · cache write · cached · output | Cost | The House's tokens · $ | Result |",
+           "|---|---|---|---|---|---|---|---|---|---|---|"]
+    for h, r in ran:
+        u = r["units"]
+        units = (f"not reported ({u['source']})" if u["basis"] == "not-reported"
+                 else f"{u['amount']:,} {u['unit']}, {u['basis']} ({u['source']})")
+        tokens = " · ".join(count(r["tokens"][k]) for k in RUN_TOKENS)
+        house = f"{r['house']['tokens']:,} · ${r['house']['usd']:.4f}"
+        out.append(f"| {h['name']} | {r['agent'].capitalize()} | {r['date']} | {r['version'] or 'not shown'} | "
+                   f"{r['binding']} | {r['auth']} | {units} | {tokens} | {r['cost']} | {house} | {r['result']} |")
+    return out + [""]
+
+
+def run_problems(r, category, models):
+    """What's wrong with one recorded run of a row in category; empty when it's well formed."""
+    if category != "low-code":
+        missing = [k for k in RUN_FIELDS if k not in r]
+        if missing:
+            return [f"lacks {', '.join(missing)}"]
+        problems = []
+        if not DATE.match(str(r["date"])):
+            problems.append("has no date (YYYY-MM-DD)")
+        if r["model"] not in models:
+            problems.append(f"names model {r['model']!r}, which isn't in models")
+        if not all(isinstance(r["tokens"].get(k), int) for k in RUN_TOKENS):
+            problems.append(f"counts tokens as {', '.join(RUN_TOKENS)}")
+        return problems
+
+    missing = [k for k in LOW_CODE_RUN_FIELDS if k not in r]
+    if missing:
+        return [f"lacks {', '.join(missing)}"]
+    problems = []
+    if r["agent"] != LOW_CODE_RUN_AGENT:
+        problems.append(f"is of {r['agent']!r}; a low-code run is of {LOW_CODE_RUN_AGENT}")
+    if not DATE.match(str(r["date"])):
+        problems.append("has no date (YYYY-MM-DD)")
+    if r["version"] is not None and not (isinstance(r["version"], str) and r["version"]):
+        problems.append("names the platform's version, or null where it shows none")
+    if r["binding"] not in BINDINGS:
+        problems.append(f"binding must be one of {', '.join(BINDINGS)}")
+    if r["auth"] not in AUTH_ROUTES:
+        problems.append(f"auth must be one of {', '.join(AUTH_ROUTES)}")
+
+    u = r["units"] if isinstance(r["units"], dict) else {}
+    if u.get("basis") not in UNIT_BASES:
+        problems.append(f"units basis must be one of {', '.join(UNIT_BASES)}")
+    elif u["basis"] == "not-reported":
+        if u.get("amount") is not None:
+            problems.append("units not reported have a null amount, never zero")
+    elif not number(u.get("amount")):
+        problems.append(f"{u['basis']} units have an amount")
+    if not (isinstance(u.get("unit"), str) and u["unit"]):
+        problems.append("units name the platform's unit")
+    if not (isinstance(u.get("source"), str) and u["source"]):
+        problems.append("units name their source: the usage report, or the rates they're worked out from")
+
+    t = r["tokens"] if isinstance(r["tokens"], dict) else {}
+    if set(t) != set(RUN_TOKENS) or not all(v is None or (isinstance(v, int) and not isinstance(v, bool)
+                                                          and v >= 0) for v in t.values()):
+        problems.append(f"counts the platform's tokens as {', '.join(RUN_TOKENS)}, each a count or null")
+    elif any(t[k] == 0 for k in ("input", "output")):
+        problems.append("records an unknown token count as zero; it is null")
+
+    house = r["house"] if isinstance(r["house"], dict) else {}
+    if not (isinstance(house.get("tokens"), int) and not isinstance(house["tokens"], bool)
+            and house["tokens"] > 0) or not number(house.get("usd")):
+        problems.append("records the House's tokens and usd from Patricia's ledger")
+    if "taskId" in house and not (isinstance(house["taskId"], str) and house["taskId"]):
+        problems.append("names the ledger entry's taskId as a string, or leaves it out")
+    for key in ("cost", "result"):
+        if not (isinstance(r[key], str) and r[key]):
+            problems.append(f"says its {key}")
+    return problems
+
+
+def number(v):
+    """A finite, non-negative number, and not a bool."""
+    return isinstance(v, (int, float)) and not isinstance(v, bool) and v >= 0 and v == v and v != float("inf")
 
 
 def adapters(registry=None):
@@ -357,16 +462,8 @@ def check(registry=None, today=None):
             if t.get("basis") == "list" and not t.get("models"):
                 problems.append(f"{where}: a list-price basis names the models it's quoted for")
         for i, r in enumerate(h.get("runs", [])):
-            missing = [k for k in RUN_FIELDS if k not in r]
-            if missing:
-                problems.append(f"{where}: run {i + 1} lacks {', '.join(missing)}")
-                continue
-            if not DATE.match(str(r["date"])):
-                problems.append(f"{where}: run {i + 1} has no date (YYYY-MM-DD)")
-            if r["model"] not in reg.get("models", {}):
-                problems.append(f"{where}: run {i + 1} names model {r['model']!r}, which isn't in models")
-            if not all(isinstance(r["tokens"].get(k), int) for k in RUN_TOKENS):
-                problems.append(f"{where}: run {i + 1} counts tokens as {', '.join(RUN_TOKENS)}")
+            for p in run_problems(r, h["category"], reg.get("models", {})):
+                problems.append(f"{where}: run {i + 1} {p}")
         if not isinstance(h.get("verified"), bool):
             problems.append(f"{where}: its row says whether it's verified (true or false)")
         elif h["verified"]:
@@ -377,6 +474,8 @@ def check(registry=None, today=None):
             if h["category"] == "pro-code" and not set(RUN_AGENTS) <= ran:
                 problems.append(f"{where}: a verified pro-code row records a run of "
                                 f"{' and '.join(RUN_AGENTS)}")
+            if h["category"] == "low-code" and LOW_CODE_RUN_AGENT not in ran:
+                problems.append(f"{where}: a verified low-code row records a run of {LOW_CODE_RUN_AGENT}")
 
     for name, oldest, days in stale(reg, today):
         problems.append(f"{name}: its row was last checked {oldest}, {days} days ago (over "

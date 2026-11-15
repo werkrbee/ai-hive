@@ -107,6 +107,104 @@ class CheckTest(unittest.TestCase):
         self.assertFalse([p for p in problems if "claude-code" in p], problems)
 
 
+class LowCodeRunTest(unittest.TestCase):
+    """A low-code row records a run of Patricia in its own shape: the platform's meter and the
+    House's, apart, with an unknown count null and never zero."""
+
+    def setUp(self):
+        self.registry = copy.deepcopy(harnesses.load())
+        dates = [d for h in self.registry["harnesses"] for d in harnesses.row_dates(h, self.registry)]
+        self.today = datetime.date.fromisoformat(max(dates))
+
+    @staticmethod
+    def run_of_patricia():
+        return {"agent": "patricia", "date": "2026-11-15", "version": None, "binding": "mcp", "auth": "app",
+                "units": {"amount": 5, "unit": "Copilot Credits", "basis": "reported",
+                          "source": "Power Platform admin center, Copilot Studio usage, 2026-11-15"},
+                "tokens": {"input": None, "cache_write": None, "cached": None, "output": None},
+                "house": {"tokens": 4321, "usd": 0.0123, "taskId": "3f1c9a52-0d4e-4b7a-9c61-2a8e5f0b7d13"},
+                "cost": "$0.05 at pay-as-you-go", "result": "pass, and the topic went on"}
+
+    def row(self, registry, harness_id="copilot-studio"):
+        return next(h for h in registry["harnesses"] if h["id"] == harness_id)
+
+    def problems(self, mutate):
+        registry = copy.deepcopy(self.registry)
+        h = self.row(registry)
+        h["runs"] = [self.run_of_patricia()]
+        mutate(h)
+        return harnesses.check(registry, self.today), registry
+
+    def assertRefused(self, mutate, text):
+        problems, _ = self.problems(mutate)
+        self.assertTrue(any("copilot-studio" in p and text in p for p in problems), problems)
+
+    def test_a_well_formed_run_passes(self):
+        problems, registry = self.problems(lambda h: None)
+        # Only the table, which is now behind the registry, is out of step.
+        self.assertEqual([p for p in problems if "harness-matrix.md" not in p], [])
+
+    def test_a_run_lacks_no_field(self):
+        for key in harnesses.LOW_CODE_RUN_FIELDS:
+            with self.subTest(key=key):
+                self.assertRefused(lambda h: h["runs"][0].pop(key), f"run 1 lacks {key}")
+
+    def test_an_unknown_token_count_is_null_not_zero(self):
+        self.assertRefused(lambda h: h["runs"][0]["tokens"].update(input=0, output=0),
+                           "records an unknown token count as zero; it is null")
+        self.assertRefused(lambda h: h["runs"][0]["tokens"].pop("cached"), "counts the platform's tokens")
+
+    def test_known_platform_tokens_pass(self):
+        problems, _ = self.problems(lambda h: h["runs"][0]["tokens"].update(
+            input=5200, cache_write=None, cached=0, output=610))
+        self.assertEqual([p for p in problems if "harness-matrix.md" not in p], [])
+
+    def test_units_not_reported_are_null_not_zero(self):
+        self.assertRefused(lambda h: h["runs"][0]["units"].update(basis="not-reported", amount=0),
+                           "a null amount, never zero")
+        problems, _ = self.problems(lambda h: h["runs"][0]["units"].update(basis="not-reported", amount=None))
+        self.assertEqual([p for p in problems if "harness-matrix.md" not in p], [])
+        self.assertRefused(lambda h: h["runs"][0]["units"].update(basis="estimated", amount=None),
+                           "estimated units have an amount")
+        self.assertRefused(lambda h: h["runs"][0]["units"].pop("source"), "units name their source")
+
+    def test_the_binding_auth_and_agent_are_known(self):
+        self.assertRefused(lambda h: h["runs"][0].update(binding="webhook"), "binding must be one of")
+        self.assertRefused(lambda h: h["runs"][0].update(auth="key"), "auth must be one of")
+        self.assertRefused(lambda h: h["runs"][0].update(agent="barry"), "a low-code run is of patricia")
+
+    def test_the_house_meter_comes_from_the_ledger(self):
+        self.assertRefused(lambda h: h["runs"][0]["house"].pop("usd"), "the House's tokens and usd")
+        self.assertRefused(lambda h: h["runs"][0]["house"].update(tokens=0), "the House's tokens and usd")
+        problems, _ = self.problems(lambda h: h["runs"][0]["house"].pop("taskId"))
+        self.assertEqual([p for p in problems if "harness-matrix.md" not in p], [])
+
+    def verify(self, h):
+        for c in h["capabilities"].values():
+            c.update(supported=True, source="https://learn.microsoft.com/microsoft-copilot-studio/",
+                     checked="2026-11-10")
+        h["verified"] = True
+
+    def test_a_verified_row_records_a_run_of_patricia(self):
+        def verified_without_a_run(h):
+            self.verify(h)
+            h.pop("runs")
+        self.assertRefused(verified_without_a_run, "a verified low-code row records a run of patricia")
+        problems, _ = self.problems(self.verify)
+        self.assertEqual([p for p in problems if "harness-matrix.md" not in p], [])
+
+    def test_the_matrix_shows_low_code_runs_in_their_own_table(self):
+        registry = copy.deepcopy(self.registry)
+        self.row(registry)["runs"] = [self.run_of_patricia()]
+        low_code = harnesses.render_matrix(registry).split("## Low-code", 1)[1].split("## Model list prices")[0]
+        self.assertIn("The House's tokens · $", low_code)
+        self.assertIn("| Copilot Studio | Patricia | 2026-11-15 | not shown | mcp | app | 5 Copilot Credits, "
+                      "reported (Power Platform admin center, Copilot Studio usage, 2026-11-15) | "
+                      "unknown · unknown · unknown · unknown | $0.05 at pay-as-you-go | 4,321 · $0.0123 | "
+                      "pass, and the topic went on |", low_code)
+        self.assertNotIn("Copilot Studio |", harnesses.render_matrix(registry).split("## Low-code", 1)[0])
+
+
 
 class StaleTest(unittest.TestCase):
     def setUp(self):
