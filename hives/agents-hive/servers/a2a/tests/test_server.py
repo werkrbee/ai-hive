@@ -7,6 +7,7 @@ import asyncio
 import dataclasses
 import datetime
 import json
+import logging
 import sys
 import tempfile
 import time
@@ -45,7 +46,8 @@ def token(client=CALLER, key=KEY, kid="k1", **claims):
     return jwt.encode(body, key, algorithm="RS256", headers={"kid": kid})
 
 
-def write_config(root, ceiling=25.0, in_price=3.0, out_price=15.0, api="stub", publisher="Test Labs"):
+def write_config(root, ceiling=25.0, in_price=3.0, out_price=15.0, api="stub", publisher="Test Labs",
+                 delegated=False):
     jwk = json.loads(jwt.algorithms.RSAAlgorithm.to_jwk(KEY.public_key()))
     (root / "jwks.json").write_text(json.dumps({"keys": [{**jwk, "kid": "k1", "use": "sig", "alg": "RS256"}]}))
     (root / "config.toml").write_text(f"""
@@ -65,6 +67,7 @@ jwks_path = "jwks.json"
 token_url = "https://login.example.test/tenant/oauth2/v2.0/token"
 scope = "api://api-app/.default"
 allowed_clients = ["{CALLER}", "{OTHER}"]
+{'delegated_scopes = ["Review.Request"]' if delegated else ""}
 
 [model]
 api = "{api}"
@@ -194,6 +197,55 @@ class ServerTest(unittest.TestCase):
                 self.assertEqual(r.status_code, status, header[:20])
             self.assertEqual(self.rpc(c, "ListTasks", {}).status_code, 200)
         self.assertEqual(self.ledger(), [])
+
+    def test_a_delegated_token_may_ask_for_a_review_only_with_the_scope(self):
+        alice = token(scp="Review.Request", sub="pairwise-alice")
+        with self.client(write_config(self.root, delegated=True)) as c:
+            cases = {
+                f"Bearer {alice}": 200,
+                f"Bearer {token(scp='User.Read', sub='pairwise-alice')}": 403,
+                f"Bearer {token(STRANGER, scp='Review.Request', sub='pairwise-alice')}": 403,
+                f"Bearer {token(scp='Review.Request')}": 401,  # no sub, so no user to hold tasks for
+                f"Bearer {token(idtyp='user', sub='pairwise-alice')}": 403,
+            }
+            for header, status in cases.items():
+                self.assertEqual(self.rpc(c, "ListTasks", {}, auth=header).status_code, status, header[-40:])
+            r = self.rpc(c, "SendMessage", message(PROPOSAL), auth=f"Bearer {alice}")
+            task = r.json()["result"]["task"]
+        self.assertEqual(task["status"]["state"], "TASK_STATE_COMPLETED")
+        [entry] = self.ledger()
+        self.assertEqual(entry["client"], CALLER, "a user's reviews count against their platform client")
+        self.assertNotIn("pairwise-alice", json.dumps(entry))
+
+    def test_users_of_one_client_see_only_their_own_tasks(self):
+        alice = f"Bearer {token(scp='Review.Request', sub='pairwise-alice')}"
+        bob = f"Bearer {token(scp='Review.Request', sub='pairwise-bob')}"
+        app = f"Bearer {token()}"
+        with self.assertLogs("hive_a2a", "DEBUG") as logs, self.client(write_config(self.root, delegated=True)) as c:
+            logging.getLogger("hive_a2a").debug("start")
+            ids = {who: self.rpc(c, "SendMessage", message(PROPOSAL), auth=who).json()["result"]["task"]["id"]
+                   for who in (alice, bob, app)}
+            for who in (alice, bob, app):
+                listed = [t["id"] for t in self.rpc(c, "ListTasks", {}, auth=who).json()["result"]["tasks"]]
+                self.assertEqual(listed, [ids[who]])
+                for other in {alice, bob, app} - {who}:
+                    self.assertEqual(self.rpc(c, "GetTask", {"id": ids[other]}, auth=who).json()["error"]["code"],
+                                     -32001)
+                    self.assertEqual(self.rpc(c, "CancelTask", {"id": ids[other]}, auth=who).json()["error"]["code"],
+                                     -32001)
+        stored = b"".join(p.read_bytes() for p in (self.root / "data").iterdir() if p.is_file())
+        for sub in (b"pairwise-alice", b"pairwise-bob"):
+            self.assertNotIn(sub, stored, "a user is held only as an opaque ID")
+            self.assertFalse([l for l in logs.output if sub.decode() in l], "and isn't logged")
+
+    def test_only_a_review_takes_delegated_tokens(self):
+        write_config(self.root, delegated=True)
+        text = (self.root / "config.toml").read_text().replace('capability = "governance-review"',
+                                                                'capability = "orchestration"')
+        (self.root / "config.toml").write_text(text)
+        with self.assertRaises(ConfigError) as e:
+            load(self.root / "config.toml")
+        self.assertIn("delegated_scopes is for governance-review only", str(e.exception))
 
     # --- the contract ----------------------------------------------------
 

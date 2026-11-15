@@ -5,13 +5,18 @@
 # whose one caller is Barry's managed identity. Safe to re-run: existing apps are found by
 # name and reused.
 #
-#   patricia  patricia-a2a-api, Review.Request (the default)
+#   patricia  patricia-a2a-api, Review.Request (the default), as an app role and as a
+#             delegated scope, so a platform that signs a user in can ask for a review
 #   barry     barry-a2a-api, Orchestration.Request and Orchestration.Approve
 #   verify    barry-verify-mcp-api, Verify.Call: the MCP server hosted Barry is checked
 #             against (servers/verify-mcp)
 #
 # With --identity it instead grants the API's roles to a managed identity, by its
 # principal (object) id: Barry's, for Patricia's API and the verify server's.
+#
+# The delegated scope needs admin consent, and each platform's client app requests it and
+# is consented in its own alignment issue; a user still needs an assignment to the API,
+# which keeps requiring one. Hosted Barry and the verify server expose no scope.
 #
 # It creates no secrets. Each product's owner adds a credential to their own app
 # (preferably a certificate or a federated credential) and keeps it in that product's
@@ -43,10 +48,13 @@ while [ "$#" -gt 0 ]; do
     *) break ;;
   esac
 done
-# Each role: its value, display name and description, separated by |.
+# Each role: its value, display name and description, separated by |. SCOPE, the same for
+# a delegated scope, is set only for Patricia's reviews.
+SCOPE=''
 case "$agent" in
   patricia) API_NAME="patricia-a2a-api"
-    ROLES=("Review.Request|Request reviews|Request governance reviews from Patricia.") ;;
+    ROLES=("Review.Request|Request reviews|Request governance reviews from Patricia.")
+    SCOPE="Review.Request|Request reviews as the signed-in user|Ask Patricia for a governance review on behalf of the signed-in user." ;;
   barry) API_NAME="barry-a2a-api"
     ROLES=("Orchestration.Request|Request orchestration|Start and cancel tasks with hosted Barry."
            "Orchestration.Approve|Answer approvals|Approve or deny the gated actions hosted Barry asks about.") ;;
@@ -113,6 +121,12 @@ add_owner() {  # make you an owner of a new app; Graph can take a moment to find
   exit 1
 }
 
+has_scope() {  # $1 = API appId: 1 if it already exposes SCOPE's value, else 0
+  local values
+  values=$(az ad app show --id "$1" --query "api.oauth2PermissionScopes[].value" -o tsv) || exit 1
+  if printf '%s\n' "$values" | grep -qx "${SCOPE%%|*}"; then echo 1; else echo 0; fi
+}
+
 role_id_for() {  # $1 = API appId, $2 = role value: the role's id, or nothing
   local id
   id=$(az ad app show --id "$1" --query "appRoles[?value=='$2'].id | [0]" -o tsv) || exit 1
@@ -158,6 +172,9 @@ else
 fi
 plan="$plan
     set api://<appId>, v2 tokens and assignment required"
+if [ -n "$SCOPE" ] && { [ -z "$plan_api" ] || [ "$(has_scope "$plan_api")" = "0" ]; }; then
+  plan="$plan; expose the ${SCOPE%%|*} delegated scope (admin consent)"
+fi
 [ -n "$plan_api_sp" ] || plan="$plan; create its service principal"
 grant_plan() {  # $1 = principal's sp id or nothing: what granting it the roles would do
   local missing
@@ -217,8 +234,22 @@ fi
 # update can't set api.requestedAccessTokenVersion on an app whose api block is still
 # empty, so that goes straight to Microsoft Graph.
 az ad app update --id "$api_app_id" --identifier-uris "api://$api_app_id"
+# The api block is sent whole, with any delegated scope it already has, so a re-run keeps
+# each scope's id and adds SCOPE only when it's missing.
+api_body=$(az ad app show --id "$api_app_id" --query "api.oauth2PermissionScopes" -o json |
+  python3 -c '
+import json, sys, uuid
+scopes = json.load(sys.stdin) or []
+spec = sys.argv[1]
+if spec:
+    v, n, d = spec.split("|", 2)
+    if not any(s.get("value") == v for s in scopes):
+        scopes.append({"id": str(uuid.uuid4()), "value": v, "type": "Admin", "isEnabled": True,
+                       "adminConsentDisplayName": n, "adminConsentDescription": d})
+print(json.dumps({"api": {"requestedAccessTokenVersion": 2, "oauth2PermissionScopes": scopes}}))
+' "$SCOPE")
 az rest --method PATCH --url "https://graph.microsoft.com/v1.0/applications(appId='$api_app_id')" \
-  --body '{"api": {"requestedAccessTokenVersion": 2}}'
+  --body "$api_body"
 api_sp=$(sp_id_for "$api_app_id")
 # Only apps assigned a role can get a token for the API at all, before the server's own checks.
 az ad sp update --id "$api_sp" --set appRoleAssignmentRequired=true

@@ -9,13 +9,14 @@ keep a ledger on the share (LEDGER) and count the other's toward the ceiling
 (SHARED_LEDGERS). Her [limits] hold an allowance of its own for each client in
 RESERVED_CLIENTS ("client=share" pairs, comma-separated), which main.bicep sets for hosted
 Barry, so a platform can't crowd out his approval reviews; the rest keep the server's
-defaults.
+defaults. She also accepts a delegated token carrying the Review.Request scope from an
+allowed client (entra.sh exposes it), for a platform that signs a user in.
 
 Barry's config adds the orchestration section: his passport, his run records on his own
 share, Patricia as his one delegate and reviewer (PATRICIA_URL, PATRICIA_API_APP_ID), and
 his callers' registrations (CALLERS, "client=registration" pairs, comma-separated), and
 the append blob his audit log is copied to (AUDIT_BLOB_URL), when it is set. His roles are
-checked per method, so his auth section requires none.
+checked per method, so his auth section requires none, and he accepts no delegated token.
 
 Nothing here is secret: identities are ids, and the model is reached with the app's
 managed identity. Standard library only.
@@ -152,6 +153,7 @@ token_url = {q(login + "/oauth2/v2.0/token")}
 scope = {q(f"api://{api}/.default")}
 allowed_clients = {q(clients)}
 {'required_roles = ["Review.Request"]' if persona == "patricia" else ""}
+{'delegated_scopes = ["Review.Request"]' if persona == "patricia" else ""}
 
 [model]
 api = {q(env["MODEL_API"])}

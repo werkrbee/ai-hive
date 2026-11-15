@@ -24,6 +24,9 @@ REPO_ROOT = Path(os.environ.get("HIVE_REPO_ROOT") or Path(__file__).resolve().pa
 
 APIS = ("stub", "messages", "chat-completions")
 ORCHESTRATION = "orchestration"
+# The one capability that may accept delegated (user) tokens: a platform that signs a user
+# in may ask Patricia for a review, never start an orchestration run.
+DELEGABLE = "governance-review"
 MODEL_AUTH = ("api-key", "entra")
 
 
@@ -42,6 +45,9 @@ class Auth:
     allowed_clients: tuple[str, ...]
     client_claims: tuple[str, ...]
     required_roles: tuple[str, ...]
+    # Delegated (user) scopes this server accepts in place of a role; only a review may
+    # have any (auth.py).
+    delegated_scopes: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -315,7 +321,10 @@ def load(path):
         allowed_clients=_strings(a, "allowed_clients", "auth", required=True),
         client_claims=_strings(a, "client_claims", "auth") or ("azp", "appid"),
         required_roles=_strings(a, "required_roles", "auth"),
+        delegated_scopes=_strings(a, "delegated_scopes", "auth"),
     )
+    if auth.delegated_scopes and capability != DELEGABLE:
+        raise ConfigError(f"auth.delegated_scopes is for {DELEGABLE} only; {capability} takes app tokens")
 
     m = raw.get("model", {})
     api = _get(m, "api", str, "model")

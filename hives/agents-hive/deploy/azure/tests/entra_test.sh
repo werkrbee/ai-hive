@@ -14,8 +14,8 @@ trap 'rm -rf "$work"' EXIT
 fail=0
 
 # The stub. Tenant state lives in $STUB: apps ("name appId owner"), sps ("appId spId"),
-# roles ("appId roleId [value]", a role with no value being any one asked for), grants
-# ("clientSp apiSp roleId"). Mutations are appended to
+# roles ("appId roleId [value]", a role with no value being any one asked for), scopes
+# ("appId scopeId value", the API's delegated scopes), grants ("clientSp apiSp roleId"). Mutations are appended to
 # $STUB/changes. STUB_FAIL, when set, is a pattern; a call whose arguments match it fails.
 mkdir -p "$work/bin"
 cat > "$work/bin/az" <<'STUB'
@@ -24,7 +24,7 @@ args="$*"
 if [ -n "${STUB_FAIL:-}" ] && printf '%s' "$args" | grep -q -- "$STUB_FAIL"; then
   echo "stub: failing: $args" >&2; exit 1
 fi
-touch "$STUB/apps" "$STUB/sps" "$STUB/roles" "$STUB/grants" "$STUB/changes"
+touch "$STUB/apps" "$STUB/sps" "$STUB/roles" "$STUB/scopes" "$STUB/grants" "$STUB/changes"
 quoted() { printf '%s' "$args" | sed -n "s/.*$1 '\([^']*\)'.*/\1/p"; }
 case "$args" in
   "ad signed-in-user show"*) echo me ;;
@@ -33,6 +33,14 @@ case "$args" in
     id=$(printf '%s' "$args" | sed -n 's/.*--id \([^ ]*\).*/\1/p')
     awk -v i="$id" '$2==i && $3=="me"{c++} END{print c+0}' "$STUB/apps" ;;
   "ad sp list"*) awk -v a="$(quoted 'appId eq')" '$1==a{print $2}' "$STUB/sps" ;;
+  "ad app show"*oauth2PermissionScopes*)
+    id=$(printf '%s' "$args" | sed -n 's/.*--id \([^ ]*\).*/\1/p')
+    case "$args" in
+      *"-o json"*) python3 -c 'import json, sys
+print(json.dumps([{"id": i, "value": v} for a, i, v in (l.split() for l in open(sys.argv[1])) if a == sys.argv[2]]))' \
+        "$STUB/scopes" "$id" ;;
+      *) awk -v i="$id" '$1==i{print $3}' "$STUB/scopes" ;;
+    esac ;;
   "ad app show"*)
     id=$(printf '%s' "$args" | sed -n 's/.*--id \([^ ]*\).*/\1/p')
     v=$(printf '%s' "$args" | sed -n "s/.*value=='\([^']*\)'.*/\1/p")
@@ -95,6 +103,10 @@ check "create: you own each app it creates" \
   eval '[ "$(grep -c "^ad app owner add" "$STUB/changes")" -eq 3 ]'
 check "create: v2 tokens are set through Graph" \
   grep -q "rest --method PATCH.*requestedAccessTokenVersion.: 2" "$STUB/changes"
+check "create: plan exposes Patricia's delegated scope" \
+  has "expose the Review.Request delegated scope (admin consent)"
+check "create: the scope is added, for admin consent" \
+  grep -q 'rest --method PATCH.*oauth2PermissionScopes.: \[{.id.: .[0-9a-f-]*., .value.: .Review.Request., .type.: .Admin.' "$STUB/changes"
 : > "$STUB/changes"
 out=$(printf 'no\n' | PATH="$work/bin:$PATH" /bin/bash "$entra" lineup singularity 2>&1)
 check "create: a re-run reuses all three apps and changes nothing" eval \
@@ -121,7 +133,18 @@ check "reuse: plan knows lineup already has the role" \
   has "lineup-patricia-client: reuse c-1; already has Review.Request"
 check "reuse: plan grants singularity the role" \
   has "singularity-patricia-client: reuse c-2; grant Review.Request"
+check "reuse: plan exposes the scope it lacks" has "expose the Review.Request delegated scope"
 check "reuse: nothing changed on no" unchanged
+
+# An API that already exposes the scope keeps it, with its id, and the plan doesn't offer it.
+echo "patricia-a2a-api api-1 me" | seed scoped apps
+echo "api-1 sp-api" | seed scoped sps
+echo "api-1 role-1 Review.Request" | seed scoped roles
+echo "api-1 scope-1 Review.Request" | seed scoped scopes
+run scoped yes lineup
+check "scoped: plan doesn't offer the scope again" eval '! has "delegated scope"'
+check "scoped: yes keeps the scope and its id, adding none" eval \
+  '[ "$code" -eq 0 ] && grep -q "oauth2PermissionScopes.: \[{.id.: .scope-1., .value.: .Review.Request.}\]" "$STUB/changes"'
 
 # Saying yes to that plan does what it said: one grant, and no new apps.
 run reuse-yes yes
@@ -133,6 +156,8 @@ check "reuse: yes grants only the missing role and creates no app" eval \
 run barry yes --agent barry verify
 check "barry: plan creates his API app with both roles" \
   has "barry-a2a-api: create, with the Orchestration.Request, Orchestration.Approve app roles"
+check "barry: he exposes no delegated scope" eval \
+  '! has "delegated scope" && grep -q "oauth2PermissionScopes.: \[\]" "$STUB/changes"'
 check "barry: his caller's client is named for him and granted both" \
   has "verify-barry-client: create; grant Orchestration.Request, Orchestration.Approve"
 check "barry: yes grants each role and prints his parameters" eval \
