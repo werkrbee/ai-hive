@@ -71,6 +71,7 @@ class Render(unittest.TestCase):
         self.assertEqual((c["server"]["persona"], c["server"]["capability"]), ("barry", "orchestration"))
         self.assertEqual(c["server"]["prompt_files"], rc.pinned_prompts(REPO, "barry"))
         self.assertNotIn("required_roles", c["auth"], "his roles are checked per method")
+        self.assertNotIn("delegated_scopes", c["auth"], "he takes app tokens only")
         o = c["orchestration"]
         self.assertEqual((o["passport"], o["state_dir"], o["reviewer"]), ("barry", "/data/runs", "patricia"))
         self.assertEqual(o["delegates"], [{"name": "patricia", "url": "https://patricia-a2a.example/",
@@ -85,6 +86,7 @@ class Render(unittest.TestCase):
         c = self.config()
         self.assertNotIn("orchestration", c)
         self.assertEqual(c["auth"]["required_roles"], ["Review.Request"])
+        self.assertEqual(c["auth"]["delegated_scopes"], ["Review.Request"], "a signed-in user may ask for a review")
 
     def test_patricia_holds_an_allowance_for_each_reserved_client(self):
         self.assertNotIn("limits", self.config(), "without RESERVED_CLIENTS her limits are the server's defaults")

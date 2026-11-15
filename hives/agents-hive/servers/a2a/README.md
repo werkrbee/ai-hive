@@ -23,11 +23,22 @@ OAuth2 client-credentials security scheme.
 
 **Security.** Every request except the cards and the MCP resource metadata needs a bearer token. The token must be a JWT
 signed by a key from the configured JWKS, name the configured issuer and audience, be
-unexpired, and come from a client on `auth.allowed_clients`. Only app tokens from the
-client-credentials flow are accepted: a delegated (user) token, one with `scp` or an Entra
-`idtyp` other than `app`, is refused. A missing or invalid token
+unexpired, and come from a client on `auth.allowed_clients`. App tokens from the
+client-credentials flow are accepted. A delegated (user) token, one with `scp` or an Entra
+`idtyp` other than `app`, is accepted only by a reviewer whose `auth.delegated_scopes` is
+set (hosted Patricia's is `Review.Request`), so a platform that signs a user in can ask for
+a review: it must carry one of those scopes, come from a client on the list and name its
+user (`sub`), and it needs no role, since the scope is its permission. Every other
+delegated token is refused, and the config refuses `delegated_scopes` on any capability
+but `governance-review`, so hosted Barry refuses them all. A missing or invalid token
 gets HTTP 401; a valid token from a client not on the list gets 403. Each caller sees only
-its own tasks: another caller's task id is "task not found". TLS is terminated in front of
+its own tasks: another caller's task id is "task not found". For a delegated token the
+caller is the client and its user, so two users of one platform client don't see each
+other's tasks, or the client's app-token tasks: one person's proposal never reaches
+another, as the Charter's trust boundary asks. The user is held only as an opaque ID, a
+hash of the issuer and the token's `sub` (pairwise in Entra), never a name or email, and
+isn't logged. A user's reviews count against their client's rate and allowance, and the
+ledger names the client, not the user. TLS is terminated in front of
 the server (Azure Container Apps ingress, in #55), and `public_url` must be HTTPS except on
 localhost.
 
@@ -198,7 +209,8 @@ clients still open with the `initialize` handshake, it also answers 2025-11-25 a
 other than the server's own gets 403.
 
 **Auth.** The A2A server's, on every request to `/mcp`: an app token from an allowlisted
-client with the required role, and a delegated token refused. A request without a valid
+client with the required role, or a delegated token with a scope the server accepts, as
+over A2A. A request without a valid
 token gets 401 with
 `WWW-Authenticate: Bearer resource_metadata="<origin>/.well-known/oauth-protected-resource/mcp", scope="<auth.scope>"`.
 That Protected Resource Metadata (RFC 9728), also served at
@@ -374,7 +386,8 @@ Send it with the headers `MCP-Protocol-Version: 2026-07-28`, `Mcp-Method: tools/
 The tests run offline. They use the stub model and tokens signed by a throwaway key, and
 cover:
 - the card
-- auth refusals
+- auth refusals; a delegated token accepted for a review only with the scope, from an
+  allowed client, and refused by orchestration and its config
 - contract input and output checks
 - the time budget
 - the ceiling, including a ledger already on disk, the monthly reset and a run's hold
@@ -382,7 +395,8 @@ cover:
   `Retry-After`, the window moving on, one client's rate leaving another's alone, a client
   refused past its share while others are served, a client's own share kept from the
   others, and the config
-- per-caller isolation and cancel; metadata a review doesn't read kept out of the task
+- per-caller isolation and cancel, two users of one client included, with neither user's
+  `sub` stored or logged; metadata a review doesn't read kept out of the task
   store and the model's call, and a review's ledger entry naming its task
 - restarts
 - the HTTP providers' request shapes
@@ -396,7 +410,7 @@ cover:
   cancel; approvals: the request and its review, a reviewer
   that can't be reached or can't be given a token, one review for two publishes, approve,
   deny, a stale approval, a changed fact, a mismatched `id`, each method's role and
-  another caller's task; and a request's metadata kept to its trigger and facts, an
+  another caller's task; a delegated token refused even with the review scope; and a request's metadata kept to its trigger and facts, an
   answer's dropped
 - the eval runners (`tests/test_eval.py` for Patricia's trust evaluation,
   `tests/test_orchestration_eval.py` for hosted Barry's goals, against a scripted model):

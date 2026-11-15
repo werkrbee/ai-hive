@@ -108,6 +108,15 @@ A product calls the server with a token from the client-credentials flow: `POST`
 `https://login.microsoftonline.com/<tenant>/oauth2/v2.0/token` with its client id, its
 credential and `scope=api://<apiAppId>/.default`.
 
+A platform that signs a user in (Copilot Studio, Gemini Enterprise) calls Patricia with a
+delegated token instead, for reviews only. `entra.sh` exposes `Review.Request` as a
+delegated scope on her API app, beside the app role, and it needs admin consent. The
+platform's client app requests the scope and is consented in that platform's alignment
+issue, and a user gets a token only with an assignment to the API app, which keeps
+requiring one. Her rendered config accepts the scope from an allowed client; hosted Barry
+and the verify server accept no delegated token. Running `entra.sh` changes Entra, and the
+server's side ships through `deploy.sh`'s gated steps, each with its own yes.
+
 ## Hosted Barry
 
 Barry ([`design/hosted-barry.md`](../../design/hosted-barry.md)) runs as a second Container

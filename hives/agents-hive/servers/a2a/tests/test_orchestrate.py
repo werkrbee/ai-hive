@@ -275,6 +275,14 @@ class OrchestrateTest(unittest.TestCase):
 
     # --- the loop --------------------------------------------------------
 
+    def test_a_delegated_token_is_refused_even_with_the_review_scope(self):
+        with self.client(write_config(self.root), Scripted(final())) as c:
+            for claims in ({"scp": "Review.Request"}, {"scp": "Orchestration.Request"}, {"idtyp": "user"}):
+                header = f"Bearer {token(CALLER, roles=list(BOTH), sub='pairwise-alice', **claims)}"
+                r = c.post("/", headers={"A2A-Version": "1.0", "Authorization": header},
+                           json={"jsonrpc": "2.0", "id": 1, "method": "ListTasks", "params": {}})
+                self.assertEqual(r.status_code, 403, claims)
+
     def test_a_run_delegates_to_patricia_and_completes_with_its_result(self):
         model = Scripted(call("delegate__patricia", {"proposal": "Send the bullpen call."}), final())
         with self.client(write_config(self.root), model) as c:

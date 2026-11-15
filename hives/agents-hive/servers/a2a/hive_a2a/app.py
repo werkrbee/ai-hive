@@ -17,7 +17,7 @@ from a2a.server.tasks import DatabaseTaskStore
 from a2a.types import AgentCard, Role, TaskState
 
 from . import limits, mcp, orchestrate, providers, review
-from .auth import PUBLIC_PATHS, Authenticator, AuthMiddleware
+from .auth import PUBLIC_PATHS, Authenticator, AuthMiddleware, task_owner
 from .config import REPO_ROOT
 from .ledger import Ledger
 
@@ -89,7 +89,7 @@ def create_app(config, provider=None, authenticator=None, ledger_clock=None, net
     rate limit's, in seconds) are for tests."""
     config.database.parent.mkdir(parents=True, exist_ok=True)
     engine = create_async_engine(f"sqlite+aiosqlite:///{config.database}")
-    store = DatabaseTaskStore(engine)
+    store = DatabaseTaskStore(engine, owner_resolver=task_owner)
     ledger = Ledger(config.ledger, config.monthly_ceiling_usd, shared=config.shared_ledgers,
                     **({"clock": ledger_clock} if ledger_clock else {}))
     provider = provider or providers.create(config.model)

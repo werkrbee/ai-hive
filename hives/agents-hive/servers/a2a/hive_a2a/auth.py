@@ -10,11 +10,20 @@ also go to the handler, in the request's auth state, so an executor can require 
 one method (orchestrate.py: Orchestration.Request to start or cancel a task,
 Orchestration.Approve to answer one).
 
+A server whose auth.delegated_scopes is set (only hosted Patricia's review, config.py)
+also accepts a delegated (user) token from a client on the allowlist when it carries one of
+those scopes, so a platform that signs a user in can call her. Such a token needs no role:
+the scope is its permission. The user is held only as an opaque ID, a hash of the token's
+issuer and `sub` (pairwise in Entra: one user's sub differs for every API), which goes to
+the handler with the client and is never logged. Every other server refuses delegated
+tokens, as hosted Barry and the verify server do.
+
 Only the Agent Card is served without a token, because a client has to read it to learn
 how to authenticate. It holds no secrets. The MCP endpoint (mcp.py) adds its Server Card and
 Protected Resource Metadata to the public paths, for the same reason, and a challenge that
 points a client at the metadata when its token is missing or invalid.
 """
+import hashlib
 import json
 
 import anyio
@@ -25,7 +34,15 @@ from starlette.responses import JSONResponse
 PUBLIC_PATHS = {"/.well-known/agent-card.json"}
 
 
+def user_id(issuer, sub):
+    """The opaque ID a delegated token's user is held as: never a name, email or raw claim."""
+    return hashlib.sha256(f"{issuer}|{sub}".encode()).hexdigest()[:32]
+
+
 class Caller(BaseUser):
+    """The calling client. Its name is the client ID, which allowances and the ledger count
+    by; a delegated token's user is kept apart, in the request's auth state."""
+
     def __init__(self, client_id):
         self.client_id = client_id
 
@@ -65,8 +82,8 @@ class Authenticator:
         self.keys = keys or Keys(auth)
 
     async def caller(self, header):
-        """((client id, its roles), None), or (None, (status, reason)) when the request is
-        refused."""
+        """((client id, its roles, the user's opaque ID or None), None), or (None, (status,
+        reason)) when the request is refused."""
         scheme, _, token = (header or "").partition(" ")
         if scheme.lower() != "bearer" or not token.strip():
             return None, (401, "a bearer token is required")
@@ -78,16 +95,33 @@ class Authenticator:
             )
         except (jwt.PyJWTError, ValueError) as e:
             return None, (401, f"the token is not valid ({type(e).__name__})")
-        if "scp" in claims or claims.get("idtyp", "app") != "app":
-            # A delegated (user) token: this server takes client-credentials tokens only.
+        delegated = "scp" in claims or claims.get("idtyp", "app") != "app"
+        accepted = getattr(self.auth, "delegated_scopes", ())
+        if delegated and not accepted:
             return None, (403, "only client-credentials (app) tokens may call this agent")
+        if delegated:
+            scopes = claims["scp"].split() if isinstance(claims.get("scp"), str) else []
+            if not set(scopes) & set(accepted):
+                return None, (403, "a delegated token needs a scope this agent accepts")
+            if not (isinstance(claims.get("sub"), str) and claims["sub"]):
+                return None, (401, "the token is not valid (no sub)")
         client = next((claims[c] for c in self.auth.client_claims if isinstance(claims.get(c), str)), None)
         if client not in self.auth.allowed_clients:
             return None, (403, "this client is not allowed to call this agent")
         roles = claims.get("roles") if isinstance(claims.get("roles"), list) else []
-        if self.auth.required_roles and not set(roles) & set(self.auth.required_roles):
+        if not delegated and self.auth.required_roles and not set(roles) & set(self.auth.required_roles):
             return None, (403, "the token lacks a required role")
-        return (client, tuple(r for r in roles if isinstance(r, str))), None
+        user = user_id(self.auth.issuer, claims["sub"]) if delegated else None
+        return (client, tuple(r for r in roles if isinstance(r, str)), user), None
+
+
+def task_owner(context):
+    """Whose tasks a request sees (the task store's owner): the client's, for an app token,
+    or one user's of that client, for a delegated token, so two users of one platform client
+    never see each other's tasks."""
+    auth = (context.state.get("auth") if context and context.state else None) or {}
+    client = auth.get("client") or (context.user.user_name if context and context.user else "")
+    return f"{client}/user/{auth['user']}" if auth.get("user") else client
 
 
 class AuthMiddleware:
@@ -116,7 +150,7 @@ class AuthMiddleware:
                 challenge = 'Bearer error="invalid_token"'
             headers = {"www-authenticate": challenge} if status == 401 else {}
             return await JSONResponse({"error": reason}, status_code=status, headers=headers)(scope, receive, send)
-        client, roles = who
+        client, roles, user = who
         scope["user"] = Caller(client)
-        scope["auth"] = {"client": client, "roles": roles}
+        scope["auth"] = {"client": client, "roles": roles, "user": user}
         return await self.app(scope, receive, send)
