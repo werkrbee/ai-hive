@@ -92,7 +92,7 @@ from a2a.utils.input_mode_validator import validate_input_modes
 from . import contract
 from .config import REPO_ROOT, _registrations
 from .providers import Completion, ProviderError, Result, Tool, ToolCall, User
-from .review import read_input
+from .review import keep_metadata, read_input
 
 log = logging.getLogger("hive_a2a")
 
@@ -106,6 +106,7 @@ CORRECTIONS = 1  # times a final reply that misses the output schema is sent bac
 # looked for before each wait and every CANCEL_POLL seconds during it.
 RATE_RETRIES, RATE_BACKOFF, RATE_WAIT_MAX, RATE_ROOM, CANCEL_POLL = 4, 5, 60, 30, 0.5
 IDEMPOTENCY_META = "io.werkrbee/idempotency-key"
+REQUEST_METADATA = ("trigger", "facts")  # the request metadata a run reads; the rest isn't stored
 MCP_VERSION = "2026-07-28"  # mcp-hive's target; the server may negotiate another
 TIMEOUT = httpx.Timeout(180)  # Patricia's review answers within her 120-second budget
 # A Server Card fetch that times out or gets a 5xx, as from a server starting from zero, is
@@ -1170,7 +1171,8 @@ class Executor(AgentExecutor):
 class Handler(DefaultRequestHandler):
     """Refuses media types the card doesn't declare, a token without the role a method needs,
     input that doesn't meet the contract, and an answer that doesn't answer what its task
-    waits on, before anything runs."""
+    waits on, before anything runs. A request's metadata keeps only its trigger and facts,
+    and an answer's none, before the task stores the message."""
 
     def __init__(self, orchestrator, **kwargs):
         super().__init__(**kwargs)
@@ -1188,10 +1190,12 @@ class Handler(DefaultRequestHandler):
         if not params.message.task_id:
             self.require(context, o.o.request_roles, "start a task")
             o.check(params.message)
+            keep_metadata(params.message, REQUEST_METADATA)
             return await super().on_message_send(params, context)
         self.require(context, o.o.approve_roles, "answer an approval")
         answer = o.read_answer(params.message)
         await o.check_answer(params.message.task_id, context.user.user_name, answer)
+        keep_metadata(params.message)
         try:
             return await super().on_message_send(params, context)
         except BaseException:

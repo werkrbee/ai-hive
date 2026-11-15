@@ -231,18 +231,20 @@ class OrchestrateTest(unittest.TestCase):
         self.assertEqual(r.status_code, 200, r.text)
         return r.json()
 
-    def start(self, client, goal="Fill the open bullpen slot.", trigger=None, facts=None, who=CALLER):
+    def start(self, client, goal="Fill the open bullpen slot.", trigger=None, facts=None, who=CALLER, extra=None):
         message = {"messageId": str(uuid.uuid4()), "role": "ROLE_USER", "parts": [{"data": {"goal": goal}}]}
-        metadata = {k: v for k, v in (("trigger", trigger), ("facts", facts)) if v is not None}
+        metadata = {k: v for k, v in (("trigger", trigger), ("facts", facts)) if v is not None} | (extra or {})
         if metadata:
             message["metadata"] = metadata
         reply = self.rpc(client, "SendMessage", {"message": message}, who)
         self.assertIn("result", reply, reply)
         return reply["result"]["task"]
 
-    def answer(self, client, task, who=CALLER, roles=BOTH, **approval):
+    def answer(self, client, task, who=CALLER, roles=BOTH, extra=None, **approval):
         message = {"messageId": str(uuid.uuid4()), "role": "ROLE_USER", "taskId": task["id"],
                    "contextId": task["contextId"], "parts": [{"data": {"approval": approval}}]}
+        if extra:
+            message["metadata"] = extra
         return self.rpc(client, "SendMessage", {"message": message}, who, roles)
 
     def request(self, task):
@@ -593,6 +595,25 @@ class OrchestrateTest(unittest.TestCase):
         task = self.wait(c, self.start(c, facts=self.ORGANIZER)["id"])
         self.assertEqual(task["status"]["state"], "TASK_STATE_INPUT_REQUIRED", self.text(task))
         return task
+
+    def test_metadata_a_run_doesnt_read_isnt_stored(self):
+        # A request keeps only the trigger and facts a run reads, and an answer keeps none, so
+        # the chat history a platform attaches is never stored, and the facts still gate the run.
+        chat = {"copilotstudio.microsoft.com/a2a/chathistory": [{"role": "user", "text": "My locker code is "
+                                                                                        "4417-QUARTZ."}]}
+        model = Scripted(call("lineup__send_message", self.BLAST), final())
+        with self.client(write_config(self.root), model) as c:
+            task = self.wait(c, self.start(c, facts=self.ORGANIZER, extra=chat)["id"])
+            self.assertEqual(task["status"]["state"], "TASK_STATE_INPUT_REQUIRED", self.text(task))
+            self.answer(c, task, extra=chat, id=self.request(task)["id"], decision="approve", by="usr_7f3a")
+            done = self.wait(c, task["id"], until=("TASK_STATE_COMPLETED", "TASK_STATE_FAILED"))
+            got = self.rpc(c, "GetTask", {"id": task["id"], "historyLength": 50})["result"]
+        self.assertEqual(done["status"]["state"], "TASK_STATE_COMPLETED", self.text(done))
+        sent = [m.get("metadata") for m in got["history"] if m["role"] == "ROLE_USER"]
+        self.assertEqual(sent, [{"facts": self.ORGANIZER}, None])
+        for path in self.root.rglob("*"):
+            if path.is_file():
+                self.assertNotIn(b"QUARTZ", path.read_bytes(), path)
 
     def test_a_paused_task_carries_the_approval_request_and_patricias_review(self):
         model = Scripted(call("lineup__send_message", self.BLAST))

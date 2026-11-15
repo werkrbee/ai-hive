@@ -13,6 +13,9 @@ Task states, as A2A defines them:
 
 Input that doesn't match the contract, or that is too large for the contract's budget,
 never becomes a task: SendMessage returns InvalidParamsError (-32602) with the reasons.
+A message's metadata is dropped before its task is stored, since a review reads none of
+it (keep_metadata), so context a caller attaches, such as a platform's chat history,
+isn't kept.
 
 The same review runs for an MCP tool call (mcp.py): Reviewer.check_value and
 Reviewer.review are shared, so both bindings hold the same contract, budget, ledger and
@@ -75,6 +78,18 @@ def read_input(message):
     if text and len(text) == len(parts):
         return "\n".join(text), None
     return None, "the message needs a JSON data part with the contract input"
+
+
+def keep_metadata(message, keys=()):
+    """Drop the message's metadata other than keys, before its task stores it. A capability
+    keeps only what it reads: the Charter's trust boundary keeps a caller's other context,
+    such as the chat history a platform attaches, out of the task store."""
+    if not message.HasField("metadata"):
+        return
+    for key in [k for k in message.metadata.fields if k not in keys]:
+        del message.metadata.fields[key]
+    if not message.metadata.fields:
+        message.ClearField("metadata")
 
 
 class Reviewer:
@@ -140,39 +155,42 @@ class Reviewer:
             return None
         return Plan(user, max_out, self.config.price(est_input, max_out))
 
-    def entry(self, completion, client=None):
+    def entry(self, completion, client=None, task=None):
         """The ledger entry for a call that reported its usage."""
         tokens = completion.input_tokens + completion.output_tokens
         usd = self.config.price(completion.input_tokens, completion.output_tokens)
         if usd > self.config.contract.get("budget", {}).get("usd", math.inf):
             log.warning("a call cost $%.4f, over the contract's per-call budget", usd)
         return {
-            **self._who(client),
+            **self._who(client, task),
             "usd": round(usd, 6), "tokens": tokens,
             "tokenDetail": {"input": completion.input_tokens, "output": completion.output_tokens},
             # usd is computed from configured prices, not billed figures
             "basis": "estimated",
         }
 
-    def unmetered(self, usd, client=None):
+    def unmetered(self, usd, client=None, task=None):
         """An entry for a call that may have been billed but reported no usage."""
-        return {**self._who(client), "usd": round(usd, 6), "basis": "estimated"}
+        return {**self._who(client, task), "usd": round(usd, 6), "basis": "estimated"}
 
-    def _who(self, client=None):
+    def _who(self, client=None, task=None):
         """What the ledger says about the call: the capability, the model's publisher (lower
         case, as the ledger recorded it before the API was its own field), the wire API, the
-        model, and the client it was made for, which its allowance is counted from."""
+        model, the client it was made for, which its allowance is counted from, and the A2A
+        task it was made for, so a caller's record of the task can be matched to its cost."""
         return {"capability": self.config.capability, "provider": self.config.model.publisher.lower(),
-                "api": self.provider.name, "model": self.provider.model, **({"client": client} if client else {})}
+                "api": self.provider.name, "model": self.provider.model, **({"client": client} if client else {}),
+                **({"taskId": task} if task else {})}
 
     def verdict(self, text):
         """(output, None), or (None, why the model's reply doesn't meet the contract)."""
         return contract.parse_output(text, self.config.contract["output"])
 
-    async def review(self, plan, key, started=None, client=None):
+    async def review(self, plan, key, started=None, client=None, task=None):
         """Hold the plan's cost against the ceiling and client's allowance, ask the model,
-        check its reply and record what it cost, under key in the ledger's calls in flight.
-        started() is awaited once the call is about to go out. Returns an Outcome."""
+        check its reply and record what it cost, under key in the ledger's calls in flight,
+        naming the A2A task it was made for, if any. started() is awaited once the call is
+        about to go out. Returns an Outcome."""
         check = limits.allowance(self.config, client) if client else None
         refusal = await self.ledger.reserve(plan.max_usd, client=client, check=check)
         if refusal:
@@ -182,7 +200,7 @@ class Reviewer:
         # From here the provider may bill us. Until it reports metered usage, the cost is
         # taken to be the whole reservation, so a timeout or cancel still counts toward the
         # ceiling.
-        entry = self.unmetered(plan.max_usd, client)
+        entry = self.unmetered(plan.max_usd, client, task)
         try:
             await self.ledger.start(key, entry)
             if started:
@@ -196,10 +214,10 @@ class Reviewer:
                 return Outcome("failed", f"The review ran past the contract's {budget['seconds']}-second budget "
                                          "and was stopped.")
             except ProviderError as e:
-                entry = self.entry(e.completion, client) if e.completion else entry if e.sent else None
+                entry = self.entry(e.completion, client, task) if e.completion else entry if e.sent else None
                 log.warning("provider error on %s: %s", key, e)
                 return Outcome("failed", f"The model provider failed: {e}")
-            entry = self.entry(completion, client)
+            entry = self.entry(completion, client, task)
             verdict, problems = self.verdict(completion.text)
             if problems:
                 return Outcome("failed", "The model's reply doesn't match the contract's output: " + problems)
@@ -234,7 +252,8 @@ class Executor(AgentExecutor):
 
         user = context.call_context.user if context.call_context else None
         client = user.user_name if user and user.is_authenticated else None
-        outcome = await r.review(plan, context.task_id, started=updater.start_work, client=client)
+        outcome = await r.review(plan, context.task_id, started=updater.start_work, client=client,
+                                 task=context.task_id)
         if outcome.state == "rejected":
             await updater.reject(_message(updater, outcome.text, outcome.data))
         elif outcome.state == "failed":
@@ -251,7 +270,8 @@ class Executor(AgentExecutor):
 
 class Handler(DefaultRequestHandler):
     """Refuses media types the card doesn't declare (ContentTypeNotSupportedError) and input
-    that doesn't meet the contract (InvalidParamsError) before any task is created."""
+    that doesn't meet the contract (InvalidParamsError) before any task is created, and drops
+    the message's metadata, which a review doesn't read."""
 
     def __init__(self, reviewer, **kwargs):
         super().__init__(**kwargs)
@@ -260,4 +280,5 @@ class Handler(DefaultRequestHandler):
     async def on_message_send(self, params, context):
         validate_input_modes(params.message, self._agent_card)
         self.reviewer.check(params.message)
+        keep_metadata(params.message)
         return await super().on_message_send(params, context)

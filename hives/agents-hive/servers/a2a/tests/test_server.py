@@ -206,19 +206,20 @@ class ServerTest(unittest.TestCase):
         self.assertTrue(verdict["reason"])
         [entry] = self.ledger()
         self.assertEqual(entry["capability"], "governance-review")
+        self.assertEqual(entry["taskId"], task["id"], "a caller's record of the task can be matched to its cost")
         self.assertEqual((entry["provider"], entry["api"], entry["model"]), ("test labs", "stub", "test-model"))
         self.assertEqual(entry["tokens"], entry["tokenDetail"]["input"] + entry["tokenDetail"]["output"])
         self.assertGreater(entry["usd"], 0)
         problems = []
         check_knowledge.check_ledger(self.root / "data/ledger.jsonl", problems.append)
         self.assertEqual(problems, [], "the ledger must be in knowledge-hive's format")
-        for api in ("", 7):
-            with self.subTest(api=api):
+        for field, value in (("api", ""), ("api", 7), ("taskId", "")):
+            with self.subTest(field=field, value=value):
                 bad = self.root / "bad.jsonl"
-                bad.write_text(json.dumps({**entry, "api": api}) + "\n")
+                bad.write_text(json.dumps({**entry, field: value}) + "\n")
                 problems = []
                 check_knowledge.check_ledger(bad, problems.append)
-                self.assertEqual(problems, ["bad.jsonl:1: api must be a non-empty string"])
+                self.assertEqual(problems, [f"bad.jsonl:1: {field} must be a non-empty string"])
 
     def test_text_parts_are_the_proposal(self):
         with self.client(write_config(self.root)) as c:
@@ -354,6 +355,27 @@ class ServerTest(unittest.TestCase):
         self.assertNotIn("signing key", other)  # another caller's call
         self.assertNotIn("signing key", later)  # the same caller's next message carries no history
         self.assertIn("old key", later)
+
+    def test_metadata_a_review_doesnt_read_isnt_stored(self):
+        # Copilot Studio sends the conversation so far in the message's metadata. A review
+        # reads none of it, so none of it is kept with the task.
+        chat = [{"role": "user", "text": "My locker code is 4417-QUARTZ."}]
+        params = message(PROPOSAL)
+        params["message"]["metadata"] = {"copilotstudio.microsoft.com/a2a/chathistory": chat}
+        config = write_config(self.root)
+        provider = Recording(json.dumps({"verdict": "allow", "reason": "r"}))
+        with self.client(config, provider=provider) as c:
+            r = self.rpc(c, "SendMessage", params)
+            self.assertEqual(r.status_code, 200, r.text)
+            task = r.json()["result"]["task"]
+            got = self.rpc(c, "GetTask", {"id": task["id"], "historyLength": 10}).json()["result"]
+        self.assertEqual(task["status"]["state"], "TASK_STATE_COMPLETED")
+        self.assertTrue(got["history"])
+        for m in got["history"]:
+            self.assertNotIn("metadata", m)
+        stored = b"".join(p.read_bytes() for p in config.database.parent.glob(config.database.name + "*"))
+        self.assertNotIn(b"QUARTZ", stored, "the task store never holds it")
+        self.assertNotIn("QUARTZ", provider.calls[0][1], "nor does the model see it")
 
     def test_cancel_stops_a_working_review(self):
         gate = Gate()
