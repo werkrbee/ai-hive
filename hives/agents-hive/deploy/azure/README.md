@@ -567,6 +567,20 @@ was made, so a review past the rate or an allowance has been refused only in the
 tests (`servers/a2a/tests/test_limits.py`), and `verify_barry.sh` still hasn't been run on
 an image since #222.
 
+Unread metadata, on 2026-11-15, in the same deployment (the `main` deployment of that day,
+every app and the weekly job on the image built from `905d96f`, Patricia's revision
+`patricia-a2a--0000014`): hosted Patricia drops a message's metadata before its task is
+stored, Barry keeps only a request's `trigger` and `facts` and none of an answer's, and
+each review's ledger entry names its A2A task (`servers/a2a/README.md`, "Message metadata"
+and "Monthly ceiling"). Step 1's what-if matched the 2026-11-14 deploy's line for line,
+and step 4's differed only in the image and the job's `HIVE_COMMIT`, with
+`RESERVED_CLIENTS` already in place. Plain requests without a token found both Agent
+Cards, each still declaring no streaming, and the Server Card served, and the A2A
+endpoints, `POST /mcp` and the verify server each answered 401. No tokened call was made,
+so the metadata a hosted review drops and the task its entry names have been checked only
+in the offline tests (`servers/a2a/tests/test_server.py`, `test_orchestrate.py`,
+`test_mcp.py`), and `verify_barry.sh` still hasn't been run on an image since #222.
+
 Record anything that differs in this README.
 
 ## Files
