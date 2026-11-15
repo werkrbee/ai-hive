@@ -134,8 +134,11 @@ and send that user's token; neither documents a client-credentials option for A2
 So Patricia will also accept a delegated token from a registered platform client, on two
 conditions: it carries a delegated scope her API app exposes, `Review.Request`, and its
 `azp` is on the allowlist. The API app already requires assignment, so only users assigned
-to it can get one. Patricia uses the user's identity for nothing: tasks still belong to
-the client, and nothing about the user is logged or stored. This loosens a rule the server
+to it can get one. Patricia uses the user's identity only to keep their tasks apart: a
+task belongs to the client and that user, so two users of one platform don't see each
+other's, and the user is held only as an opaque ID (a hash of the issuer and the token's
+pairwise `sub`), never a name or email, and isn't logged. The ledger and the client's
+allowance name the client, not the user. This loosens a rule the server
 has today, and only for her: hosted Barry keeps refusing delegated tokens, because his
 approvals rest on the product client's attestation. The change is an implementation issue
 below, and it changes Entra, so it waits for the maintainer's yes.
