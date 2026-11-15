@@ -33,7 +33,8 @@ place it looks.
 tool names are `read`, `grep`, `glob`, `edit` and `exec`, and it doesn't check them, so the
 agents installer translates Claude Code's names (`Read, Grep, Glob` becomes
 `[read, grep, glob]`) and keeps `explore` and the review agents read-only. An agent with a
-tool Devin has no name for gets no list and a warning. A background subagent keeps only the
+tool Devin has no name for keeps its mapped tools and gets a warning naming the dropped
+tool; if none map, the installer refuses to write its file. A background subagent keeps only the
 permissions the session already granted. Built in are `subagent_explore` (read-only, with
 web search) and `subagent_general`. In Devin Desktop subagents sit behind the Subagents
 (Preview) setting. `devin doctor` reports the profiles it loaded.

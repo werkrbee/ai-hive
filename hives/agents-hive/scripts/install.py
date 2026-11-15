@@ -69,10 +69,11 @@ def readonly(fm):
 # Claude Code's tool names -> a harness's own, for harnesses whose agent files take a tools
 # list in their own names, and the frontmatter key it goes under. Devin's names are from Devin
 # CLI's permissions reference, Kiro's are its tool categories, and Cline's are ClineCore's
-# built-ins (it offers editor or apply_patch by model, so an edit tool maps to both). None of
-# them rejects a name it doesn't know (Cline drops it), so an agent with a tool outside the
-# map gets no list, and a warning. OpenCode has no tools list: its permission actions stand in
-# for one, and opencode_permissions turns the ones an agent lacks into deny rules. There it
+# built-ins (it offers editor or apply_patch by model, so an edit tool maps to both).
+# Only mapped tools are carried over, with a warning for the rest. If none map, refuse
+# to render: omitting the list can grant all tools, and empty-list behavior isn't
+# established for every harness. OpenCode has no tools list: its permission actions stand
+# in for one, and opencode_permissions turns the ones an agent lacks into deny rules. There it
 # fails closed: a tool with no action is denied too, since without rules OpenCode allows it all.
 NATIVE_TOOLS = {
     "devin-desktop": ("allowed-tools", {"read": "read", "grep": "grep", "glob": "glob", "edit": "edit",
@@ -114,13 +115,18 @@ def opencode_permissions(granted):
 
 def native_tools(fm, harness):
     """The agent's tools as a list in the harness's own names, or None if it has none, the
-    harness takes Claude Code's names, or one of them has no name there."""
+    harness takes Claude Code's names, or OpenCode needs no deny rules.
+    Refuse a non-empty list with no mapped tools rather than grant default tools."""
     names = NATIVE_TOOLS.get(harness, ("", {}))[1]
-    if harness == "opencode" and tool_names(fm):
-        return opencode_permissions({names[t] for t in tool_names(fm) if t in names})
-    if not translatable(fm, harness):
+    tools = tool_names(fm)
+    if harness == "opencode" and tools:
+        return opencode_permissions({names[t] for t in tools if t in names})
+    if not names or not tools:
         return None
-    native = list(dict.fromkeys(n.strip() for t in tool_names(fm) for n in names[t].split(",")))
+    native = list(dict.fromkeys(n.strip() for t in tools if t in names for n in names[t].split(",")))
+    if not native:
+        raise ValueError(f"no mapped tools for {harness}: {', '.join(tools)}; refusing to render an agent "
+                         "with default tool access; add the required native tools by hand")
     return "[" + ", ".join(native) + "]"
 
 
@@ -226,18 +232,9 @@ UNENFORCED["agents"] = ("the shared .agents/agents/ folder, which Antigravity re
                         UNENFORCED["gemini-cli"][1])
 
 
-UNENFORCED["devin-desktop"] = ("a Devin agent file, since Devin has no name for one of them",
-                               "deny edit and exec in .devin/config.json's permissions "
-                               "to keep this agent from editing")
-UNENFORCED["cline"] = ("a Cline agent file, since Cline has no name for one of them",
-                       "run that session in plan mode (--plan) to keep this agent from editing")
-UNENFORCED["kiro"] = ("a Kiro agent file, since Kiro has no name for one of them",
-                      "deny fs_write and shell in its permissions to keep this agent from editing")
-
-
 def unenforced(fm, harness):
     """The warning for an agent whose tools list the harness's agent files can't carry, or
-    None. Such an agent is read-only there only if the session is."""
+    None. Unmapped native tools are omitted; unsupported formats need session restrictions."""
     tools = fm.get("tools")
     if harness == "goose" and tools:
         notes = []
@@ -250,13 +247,18 @@ def unenforced(fm, harness):
                          "so this agent can list files and outline code (tree, analyze) but not read "
                          "them; add shell to its developer tools by hand if it must")
         return "; ".join(notes) or None
-    if not tools or translatable(fm, harness):
+    if not tool_names(fm) or translatable(fm, harness):
         return None
     if harness == "opencode":
         unmapped = [t for t in tool_names(fm) if t not in NATIVE_TOOLS["opencode"][1]]
         return (f"OpenCode has no permission action for {', '.join(unmapped)}; the agent's rules "
                 "deny every edit, shell, web and subagent action its other tools don't grant, so "
                 "add an allow rule by hand if it needs more")
+    if harness in NATIVE_TOOLS:
+        unmapped = [t for t in tool_names(fm) if t not in NATIVE_TOOLS[harness][1]]
+        return (f"{harness} has no tool name for {', '.join(unmapped)}; the agent's tools list "
+                "leaves them out and keeps the mapped tools; add the required native tools by hand "
+                "if the agent needs them")
     if harness not in UNENFORCED:
         return None
     where, advice = UNENFORCED[harness]
@@ -306,9 +308,12 @@ def main():
         for name, (fm, body) in agents.items():
             rel = tmpl.format(name=name)
             target = Path(args.dir) / rel
-            content = (render_toml(fm, body, keys, name) if fmt == "toml"
-                       else render_recipe(fm, body, keys, name) if fmt == "recipe"
-                       else render(fm, body, keys, name, fallback or h))
+            try:
+                content = (render_toml(fm, body, keys, name) if fmt == "toml"
+                           else render_recipe(fm, body, keys, name) if fmt == "recipe"
+                           else render(fm, body, keys, name, fallback or h))
+            except ValueError as e:
+                ap.error(f"{h}: {name}: {e}")
             warning = unenforced(fm, fallback or h)
             if warning:
                 print(f"warning: {h}: {name}: {warning}", file=sys.stderr)

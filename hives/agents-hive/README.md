@@ -382,6 +382,13 @@ Antigravity can't take an agent's `tools` list, and neither can the shared folde
 reads, so the installer warns for each agent that has one and says how to keep the session
 read-only.
 
+For Devin, Kiro and Cline, an unmapped tool is left out with a warning naming it;
+the agent keeps every tool that does map. Add a required native tool by hand after
+reviewing its scope. If none of an agent's tools map, installation fails before writing
+that agent's file, including with `--dry-run`. This avoids default tool access without
+relying on an empty list's behavior. An agent without a tools list keeps the harness's
+default behavior.
+
 ## Adding an agent
 
 1. Create `agents/<name>/agent.md` with frontmatter (`name`, `description`,
