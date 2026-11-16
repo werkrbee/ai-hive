@@ -123,6 +123,15 @@ esac
             self.assertIn("refusing to overwrite", orphan.stderr)
             self.assertEqual(git("--git-dir=" + str(remote), "rev-parse", branch), head)
             self.assertNotIn(env["GH_TOKEN"], first.stdout + first.stderr + again.stdout + again.stderr + orphan.stderr)
+            # A merged, unchanged snapshot must be a no-op even though the old
+            # monthly branch still exists and no open review PR remains.
+            git("push", "origin", head + ":refs/heads/main", cwd=repo)
+            unchanged = run()
+            self.assertEqual(unchanged.returncode, 0, unchanged.stderr)
+            self.assertIn("No metadata changes", unchanged.stdout)
+            self.assertFalse((root / "pr").exists())
+            self.assertEqual(git("--git-dir=" + str(remote), "rev-parse", branch), head)
+
 
 
 if __name__ == "__main__":

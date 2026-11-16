@@ -65,3 +65,20 @@ Review audit digests (SHA-256): narrowed grant `bcaef0b3f5234efdc57cb5ff84c97246
 Final dispatch-diff review by `/root/patricia_review`: **PASS**. No additional governance blockers; final-commit CI must pass before merge, and production dispatch outcome must be recorded afterward.
 
 Final-head CI #495 rejected the new dispatch condition before jobs started because its squash-title literal contains a colon in a YAML plain scalar. The condition was converted to a folded YAML scalar; both workflow files then parsed successfully. CI must run again on this correction.
+
+
+## Post-merge resolution — 2026-11-16
+
+This entry supersedes the pending merge and production conditions above without changing their historical text or audit digests. PR #324 was marked ready and squash-merged as `6c285eb9803319e88a4a720040fb2e5c68c7bca9` after final-head CI #496 and independent supplied-context Patricia PASS. Production workflow_dispatch run [#1](https://github.com/werkrbee/ai-hive/actions/runs/43974129990) and main CI #497 passed. That production run preceded the Node.js 24 Action upgrade.
+
+PR #326 upgraded checkout/setup-python to commit-pinned Node.js 24 releases and merged as `0a860f89ad6732dcffc7e926f3bda6f1de45b032` after CI #499 and Patricia PASS; main CI #500 passed. PR #325 received maintainer workflow approval and an approved review, passed CI #494, and squash-merged the reviewed JSON as `53998f2c5bbe9d20e4d991638d57bf887a2c32ea`. Main CI #502 passed, and the merged snapshot blob exactly matches the reviewed blob `b134f1893b972754f44ca0aea02a12d4d518ba7a`.
+
+The post-merge cleanup removes only the two obsolete PR #324 CI jobs and adds regression coverage for an unchanged, already-merged snapshot. It preserves the monthly workflow and normal CI checks. A fresh Node.js 24 monthly dispatch remains pending signed-in access; no success is claimed for an unexecuted run. See [current tracker status](monthly-open-weight-models-status.md) and the cleanup PR for subsequent verification. The user requires separate approval before this cleanup PR may merge.
+
+Cleanup Patricia review by independent read-only task `/root/patricia_review`: **PASS** for PR preparation. The reviewer received narrowed supplied context only, under Barry passport v5 to Patricia passport v10's read-only intersection; no tools, network, shell, writes or delegation were permitted. Final-head CI and the user's new approval are still required before merge. The fresh hosted monthly dispatch remains pending; local no-change evidence does not complete it. This is not the hosted/model-pinned Patricia deployment.
+
+Cleanup review audit: narrowed grant SHA-256 remains `bcaef0b3f5234efdc57cb5ff84c97246bd17a3252b09bdaf85de956c6500e555`. Artifact digests underlying the supplied cleanup review (SHA-256):
+
+- `.github/workflows/ci.yml`: `af12377f21ebcb2d80fbcd486b90232f756225d785e5c311f236820eb5f7450b`
+- `tests/test_open_weight_models.py`: `7c5ddb67c1a901948f95d4a9b7eb6997a52f1486c021ab7016d319ba8daa9ac0`
+- `docs/reviews/monthly-open-weight-models-status.md`: `c8c31d4b80cc1c7f4e3eeb851ae1742d4292d87125c3fceb3ed9b09f18ac9bea`
