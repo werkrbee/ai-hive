@@ -33,6 +33,22 @@ This is AI Hive's expert-level **model** reference, complementary to the harness
 | NVIDIA Nemotron | Yes, selected releases | Release-specific terms | https://huggingface.co/nvidia |
 | Arcee | Yes, selected releases | Release-specific terms | https://huggingface.co/arcee-ai |
 
+## Tracked exact model downloads
+
+These are specific upstream model-card/download pages monitored by the monthly collector, rather than publisher home pages. Download access may require accepting terms or authentication. License status is **unverified until the model card and its linked LICENSE are reviewed**.
+
+| Model | Exact download / card | License family to verify |
+| --- | --- | --- |
+| Llama 3.1 8B Instruct | https://huggingface.co/meta-llama/Llama-3.1-8B-Instruct | Meta Llama 3.1 community terms |
+| Mistral 7B Instruct v0.3 | https://huggingface.co/mistralai/Mistral-7B-Instruct-v0.3 | Apache-2.0 |
+| Qwen2.5 7B Instruct | https://huggingface.co/Qwen/Qwen2.5-7B-Instruct | Apache-2.0 |
+| DeepSeek R1 | https://huggingface.co/deepseek-ai/DeepSeek-R1 | MIT / supplemental model terms |
+| Gemma 3 4B IT | https://huggingface.co/google/gemma-3-4b-it | Gemma terms |
+| Phi-4 | https://huggingface.co/microsoft/phi-4 | MIT |
+| gpt-oss 20B | https://huggingface.co/openai/gpt-oss-20b | Apache-2.0 / usage policy |
+
+These seven are a baseline for reproducible tracking, **not** the top seven models as of November 16, 2026. Expand the list by dated evaluation and add new releases after verifying the official repository.
+
 ## Selection and deployment guidance
 
 Choose by **task** (general reasoning, coding, multilingual, vision, embedding, speech), **license**, **context window**, **total/active parameters**, **quantization**, **RAM/VRAM**, **runtime compatibility**, **provenance**, and **evaluation evidence**. An organization download page is not an executable model download; use an exact repository/revision. Distinguish native weights from community quantizations and mirrors. Test performance on your own workloads; benchmark claims are not interchangeable.
