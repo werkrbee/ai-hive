@@ -76,7 +76,9 @@ jobs:
 
   dispatch-models-production-check:
     # One-time production acceptance dispatch, authorized as part of PR #324.
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && startsWith(github.event.head_commit.message, 'feat: open-weight model intelligence and monthly license tracking (#324)')
+    if: >-
+      github.event_name == 'push' && github.ref == 'refs/heads/main' &&
+      startsWith(github.event.head_commit.message, 'feat: open-weight model intelligence and monthly license tracking (#324)')
     runs-on: ubuntu-latest
     permissions:
       actions: write

@@ -63,3 +63,5 @@ Review audit digests (SHA-256): narrowed grant `bcaef0b3f5234efdc57cb5ff84c97246
 - `docs/open-weight-models-monthly.json`: `605b5845283290ba842050f591c173eb59daf8167f13b36d2cea13f7b37c60ee`
 
 Final dispatch-diff review by `/root/patricia_review`: **PASS**. No additional governance blockers; final-commit CI must pass before merge, and production dispatch outcome must be recorded afterward.
+
+Final-head CI #495 rejected the new dispatch condition before jobs started because its squash-title literal contains a colon in a YAML plain scalar. The condition was converted to a folded YAML scalar; both workflow files then parsed successfully. CI must run again on this correction.
