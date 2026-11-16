@@ -14,7 +14,7 @@
   %USERPROFILE%\.scout\m-settings.json.
 
 .PARAMETER Only
-  Install into a single harness (scout, copilot, claude, cursor, codex, gemini).
+  Install into a single registry harness id; old short labels remain deprecated aliases.
 
 .PARAMETER Force
   Replace an existing file/junction at the target.
@@ -40,17 +40,25 @@ $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $RepoRoot  = Split-Path -Parent $ScriptDir
 $Src       = Join-Path $RepoRoot "skills"
 
-# ---------------------------------------------------------------------------
-# Harness registry: label -> global skills path. Edit to add/remove harnesses.
-# ---------------------------------------------------------------------------
-$Harnesses = [ordered]@{
-  scout   = Join-Path $env:USERPROFILE ".scout\skills"
-  copilot = Join-Path $env:USERPROFILE ".copilot\skills"
-  claude  = Join-Path $env:USERPROFILE ".claude\skills"
-  cursor  = Join-Path $env:USERPROFILE ".cursor\skills"
-  codex   = Join-Path $env:USERPROFILE ".agents\skills"
-  gemini  = Join-Path $env:USERPROFILE ".gemini\skills"
-  kiro    = Join-Path $env:USERPROFILE ".kiro\skills"
+# Keep the Windows installer's existing targets/order; paths and aliases live in
+# the shared registry. USERPROFILE is deliberate: Windows junctions use this home.
+$HouseRoot = Split-Path -Parent (Split-Path -Parent $RepoRoot)
+$Registry = Get-Content (Join-Path $HouseRoot "harnesses.json") -Raw | ConvertFrom-Json
+$Harnesses = [ordered]@{}
+$Aliases = @{}
+foreach ($h in ($Registry.harnesses | Where-Object { $_.surfaces.skills.windows_order } |
+                Sort-Object { $_.surfaces.skills.windows_order })) {
+  if (-not ($h.surfaces.skills.global -is [string]) -or
+      -not $h.surfaces.skills.global.StartsWith('~/')) {
+    throw "Harness '$($h.id)' needs a global skills path under ~/ in harnesses.json"
+  }
+  $Harnesses[$h.id] = Join-Path $env:USERPROFILE ($h.surfaces.skills.global -replace '^~[/\\]', '')
+  foreach ($alias in $h.surfaces.skills.windows_aliases) { $Aliases[$alias] = $h.id }
+}
+if ($Only -and $Aliases.ContainsKey($Only)) {
+  $canonical = $Aliases[$Only]
+  Write-Warning "Harness '$Only' is deprecated; use '$canonical'."
+  $Only = $canonical
 }
 
 if (-not (Test-Path $Src)) {

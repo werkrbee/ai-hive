@@ -135,9 +135,17 @@
       "rank": 1,
       "adapter": "claude-code",
       "surfaces": {
-        "skills": {"global": "~/.claude/skills", "project": ".claude/skills"},
-        "rules": {"global": "~/.claude/CLAUDE.md", "project": "CLAUDE.md"},
-        "agents": {"project": ".claude/agents/{name}.md", "keys": ["name", "description", "tools", "model"]}
+        "skills": {"global": "~/.claude/skills", "project": ".claude/skills", "windows_order": 3, "windows_aliases": ["claude"]},
+        "rules": {"global": "~/.claude/CLAUDE.md", "project": "CLAUDE.md", "windows_default_order": 2},
+        "agents": {"project": ".claude/agents/{name}.md", "keys": ["name", "description", "tools", "model"]},
+        "mcp": {
+          "format": "json",
+          "project": ".mcp.json",
+          "keys": {"project": "mcpServers", "global": "mcpServers"},
+          "env": {"project": "${%s}", "global": "${%s}"},
+          "global": "~/.claude.json",
+          "default_order": 1
+        }
       },
       "capabilities": {
         "rules": {"supported": true, "source": "https://code.claude.com/docs/en/memory", "checked": "2026-11-10"},
@@ -213,9 +221,21 @@
       "rank": 2,
       "adapter": "github-copilot",
       "surfaces": {
-        "skills": {"global": "~/.copilot/skills", "project": ".agents/skills"},
-        "rules": {"global": "~/.copilot/copilot-instructions.md", "project": ".github/copilot-instructions.md"},
-        "agents": {"project": ".github/agents/{name}.agent.md", "keys": ["name", "description", "tools", "model"]}
+        "skills": {"global": "~/.copilot/skills", "project": ".agents/skills", "windows_order": 2, "windows_aliases": ["copilot"]},
+        "rules": {
+          "global": "~/.copilot/copilot-instructions.md",
+          "project": ".github/copilot-instructions.md",
+          "windows_default_order": 4
+        },
+        "agents": {"project": ".github/agents/{name}.agent.md", "keys": ["name", "description", "tools", "model"]},
+        "mcp": {
+          "format": "json",
+          "project": ".vscode/mcp.json",
+          "keys": {"project": "servers", "global": "mcpServers"},
+          "env": {"project": "${input:%s}", "global": null},
+          "global": "~/.copilot/mcp-config.json",
+          "default_order": 3
+        }
       },
       "capabilities": {
         "rules": {
@@ -304,9 +324,10 @@
       "rank": 3,
       "adapter": "codex",
       "surfaces": {
-        "skills": {"global": "~/.agents/skills", "project": ".agents/skills"},
+        "skills": {"global": "~/.agents/skills", "project": ".agents/skills", "windows_order": 5},
         "rules": {"global": "~/.codex/AGENTS.md", "project": "AGENTS.md"},
-        "agents": {"project": ".codex/agents/{name}.toml", "format": "toml", "keys": ["name", "description", "model"]}
+        "agents": {"project": ".codex/agents/{name}.toml", "format": "toml", "keys": ["name", "description", "model"]},
+        "mcp": {"format": "toml", "snippet": true, "global": "~/.codex/config.toml"}
       },
       "capabilities": {
         "rules": {
@@ -385,9 +406,17 @@
       "rank": 4,
       "adapter": "cursor",
       "surfaces": {
-        "skills": {"global": "~/.cursor/skills", "project": ".cursor/skills"},
-        "rules": {"project": ".cursor/rules/{name}.mdc"},
-        "agents": {"project": ".cursor/agents/{name}.md", "keys": ["name", "description", "readonly", "model"]}
+        "skills": {"global": "~/.cursor/skills", "project": ".cursor/skills", "windows_order": 4},
+        "rules": {"project": ".cursor/rules/{name}.mdc", "windows_default_order": 3},
+        "agents": {"project": ".cursor/agents/{name}.md", "keys": ["name", "description", "readonly", "model"]},
+        "mcp": {
+          "format": "json",
+          "project": ".cursor/mcp.json",
+          "keys": {"project": "mcpServers", "global": "mcpServers"},
+          "env": {"project": "${env:%s}", "global": "${env:%s}"},
+          "global": "~/.cursor/mcp.json",
+          "default_order": 2
+        }
       },
       "capabilities": {
         "rules": {"supported": true, "source": "https://cursor.com/docs/rules", "checked": "2026-11-10"},
@@ -454,9 +483,16 @@
       "rank": 5,
       "adapter": "gemini-cli",
       "surfaces": {
-        "skills": {"global": "~/.gemini/skills", "project": ".agents/skills"},
-        "rules": {"global": "~/.gemini/GEMINI.md", "project": "GEMINI.md"},
-        "agents": {"project": ".agents/agents/{name}.md", "keys": ["name", "description"]}
+        "skills": {"global": "~/.gemini/skills", "project": ".agents/skills", "windows_order": 6, "windows_aliases": ["gemini"]},
+        "rules": {"global": "~/.gemini/GEMINI.md", "project": "GEMINI.md", "windows_default_order": 5},
+        "agents": {"project": ".agents/agents/{name}.md", "keys": ["name", "description"]},
+        "mcp": {
+          "format": "json",
+          "project": ".agents/mcp_config.json",
+          "keys": {"project": "mcpServers", "global": "mcpServers"},
+          "env": {"project": null, "global": null},
+          "global": "~/.gemini/config/mcp_config.json"
+        }
       },
       "capabilities": {
         "rules": {"supported": true, "source": "https://antigravity.google/docs/rules", "checked": "2026-11-11"},
@@ -534,7 +570,14 @@
       "surfaces": {
         "skills": {"global": "~/.config/devin/skills", "project": ".devin/skills"},
         "rules": {"global": "~/.devin/global_rules.md", "project": ".devin/rules/{name}.md"},
-        "agents": {"project": ".devin/agents/{name}.md", "keys": ["name", "description", "allowed-tools", "model"]}
+        "agents": {"project": ".devin/agents/{name}.md", "keys": ["name", "description", "allowed-tools", "model"]},
+        "mcp": {
+          "format": "json",
+          "project": ".devin/mcp_config.json",
+          "keys": {"project": "mcpServers", "global": "mcpServers"},
+          "env": {"project": null, "global": null},
+          "global": "~/.config/devin/mcp_config.json"
+        }
       },
       "capabilities": {
         "rules": {
@@ -595,9 +638,16 @@
       "rank": 7,
       "adapter": "kiro",
       "surfaces": {
-        "skills": {"global": "~/.kiro/skills", "project": ".kiro/skills"},
+        "skills": {"global": "~/.kiro/skills", "project": ".kiro/skills", "windows_order": 7},
         "rules": {"global": "~/.kiro/steering/AGENTS.md", "project": "AGENTS.md"},
-        "agents": {"project": ".kiro/agents/{name}.md", "keys": ["name", "description", "tools", "model"]}
+        "agents": {"project": ".kiro/agents/{name}.md", "keys": ["name", "description", "tools", "model"]},
+        "mcp": {
+          "format": "json",
+          "project": ".kiro/settings/mcp.json",
+          "keys": {"project": "mcpServers", "global": "mcpServers"},
+          "env": {"project": "${%s}", "global": "${%s}"},
+          "global": "~/.kiro/settings/mcp.json"
+        }
       },
       "capabilities": {
         "rules": {"supported": true, "source": "https://kiro.dev/docs/steering/", "checked": "2026-11-11"},
@@ -632,7 +682,13 @@
       "surfaces": {
         "skills": {"global": "~/.cline/skills", "project": ".cline/skills"},
         "rules": {"global": "~/.cline/rules/{name}.md", "project": ".cline/rules/{name}.md"},
-        "agents": {"project": ".cline/agents/{name}.yaml", "keys": ["name", "description", "tools"]}
+        "agents": {"project": ".cline/agents/{name}.yaml", "keys": ["name", "description", "tools"]},
+        "mcp": {
+          "format": "json",
+          "global": "~/.cline/data/settings/cline_mcp_settings.json",
+          "keys": {"global": "mcpServers"},
+          "env": {"global": null}
+        }
       },
       "capabilities": {
         "rules": {"supported": true, "source": "https://docs.cline.bot/customization/cline-rules", "checked": "2026-11-12"},
@@ -689,7 +745,14 @@
       "surfaces": {
         "skills": {"global": "~/.config/opencode/skills", "project": ".opencode/skills"},
         "rules": {"global": "~/.config/opencode/AGENTS.md", "project": "AGENTS.md"},
-        "agents": {"project": ".opencode/agents/{name}.md", "keys": ["description", "mode", "permissions"]}
+        "agents": {"project": ".opencode/agents/{name}.md", "keys": ["description", "mode", "permissions"]},
+        "mcp": {
+          "format": "json",
+          "project": "opencode.json",
+          "keys": {"project": "mcp.servers", "global": "mcp.servers"},
+          "env": {"project": "{env:%s}", "global": "{env:%s}"},
+          "global": "~/.config/opencode/opencode.json"
+        }
       },
       "capabilities": {
         "rules": {"supported": true, "source": "https://opencode.ai/docs/instructions/", "checked": "2026-11-12"},
@@ -747,37 +810,78 @@
       "surfaces": {
         "skills": {"global": "~/.agents/skills", "project": ".agents/skills"},
         "rules": {"global": "~/.config/goose/AGENTS.md", "project": "AGENTS.md"},
-        "agents": {"project": ".goose/recipes/{name}.yaml", "format": "recipe",
-                   "keys": ["title", "description", "instructions", "extensions"]}
+        "agents": {
+          "project": ".goose/recipes/{name}.yaml",
+          "format": "recipe",
+          "keys": ["title", "description", "instructions", "extensions"]
+        },
+        "mcp": {"format": "yaml", "snippet": true, "global": "~/.config/goose/config.yaml"}
       },
       "capabilities": {
-        "rules": {"supported": true, "source": "https://goose-docs.ai/docs/guides/context-engineering/using-goosehints", "checked": "2026-11-12"},
-        "skills": {"supported": true, "source": "https://goose-docs.ai/docs/guides/context-engineering/using-skills", "checked": "2026-11-12"},
-        "subagents": {"supported": true, "source": "https://goose-docs.ai/docs/guides/context-engineering/subagents", "checked": "2026-11-12"},
-        "mcp": {"supported": true, "source": "https://goose-docs.ai/docs/getting-started/using-extensions", "checked": "2026-11-12"},
-        "hooks": {"supported": true, "source": "https://goose-docs.ai/docs/guides/context-engineering/hooks", "checked": "2026-11-12"},
+        "rules": {
+          "supported": true,
+          "source": "https://goose-docs.ai/docs/guides/context-engineering/using-goosehints",
+          "checked": "2026-11-12"
+        },
+        "skills": {
+          "supported": true,
+          "source": "https://goose-docs.ai/docs/guides/context-engineering/using-skills",
+          "checked": "2026-11-12"
+        },
+        "subagents": {
+          "supported": true,
+          "source": "https://goose-docs.ai/docs/guides/context-engineering/subagents",
+          "checked": "2026-11-12"
+        },
+        "mcp": {
+          "supported": true,
+          "source": "https://goose-docs.ai/docs/getting-started/using-extensions",
+          "checked": "2026-11-12"
+        },
+        "hooks": {
+          "supported": true,
+          "source": "https://goose-docs.ai/docs/guides/context-engineering/hooks",
+          "checked": "2026-11-12"
+        },
         "memory": {"supported": true, "source": "https://goose-docs.ai/docs/mcp/memory-mcp", "checked": "2026-11-12"},
-        "permissions": {"supported": true, "source": "https://goose-docs.ai/docs/guides/managing-tools/goose-permissions", "checked": "2026-11-12"},
+        "permissions": {
+          "supported": true,
+          "source": "https://goose-docs.ai/docs/guides/managing-tools/goose-permissions",
+          "checked": "2026-11-12"
+        },
         "headless": {"supported": true, "source": "https://goose-docs.ai/docs/guides/running-tasks", "checked": "2026-11-12"}
       },
       "cost": {
         "unit": "Free and open source (Apache 2.0); your own key, or a subscription it signs in to, such as a ChatGPT Plus or Pro plan or GitHub Copilot",
         "tokens": {"basis": "own-key", "note": "Goose adds no fee; a subscription's usage counts against the plan"},
-        "sources": ["https://goose-docs.ai/docs/getting-started/providers", "https://github.com/aaif-goose/goose/blob/main/LICENSE"],
+        "sources": [
+          "https://goose-docs.ai/docs/getting-started/providers",
+          "https://github.com/aaif-goose/goose/blob/main/LICENSE"
+        ],
         "checked": "2026-11-12"
       },
       "verified": true,
       "runs": [
-        {"agent": "barry", "date": "2026-11-12", "version": "1.59.0", "model": "gpt-5-6-terra",
-         "how": "goose run --no-session --output-format json --provider chatgpt_codex --model gpt-5.6-terra -t \"Use the barry skill. Plan issue #243 \u2026\" in a read-only worktree (signed in with a ChatGPT plan)",
-         "tokens": {"input": 35318, "cache_write": 0, "cached": 8704, "output": 2683},
-         "cost": "from the ChatGPT plan's usage; $0.10 at GPT-5.6 Terra's list price, as Goose reported it",
-         "result": "planned #243 in steps, each mapped to a Goose subagent, recipe or the main agent with what to delegate; loaded the skill and read files only through shell. Edited nothing"},
-        {"agent": "patricia", "date": "2026-11-12", "version": "1.59.0", "model": "gpt-5-6-terra",
-         "how": "goose run --no-session --output-format json --provider chatgpt_codex --model gpt-5.6-terra -t \"Use the patricia skill. Review the staged diff \u2026\" in a read-only worktree (signed in with a ChatGPT plan)",
-         "tokens": {"input": 180780, "cache_write": 0, "cached": 46080, "output": 1825},
-         "cost": "from the ChatGPT plan's usage; $0.39 at GPT-5.6 Terra's list price, as Goose reported it for the session",
-         "result": "CONCERNS: check-installers.sh couldn't clean up inside the read-only worktree, and the run's copied skills sat untracked in .agents/; both came from the run's setup, and the checks pass in a writable checkout. Delegated the review to .claude/agents/patricia.md, which Goose reads as a Markdown agent. Edited nothing"}
+        {
+          "agent": "barry",
+          "date": "2026-11-12",
+          "version": "1.59.0",
+          "model": "gpt-5-6-terra",
+          "how": "goose run --no-session --output-format json --provider chatgpt_codex --model gpt-5.6-terra -t \"Use the barry skill. Plan issue #243 …\" in a read-only worktree (signed in with a ChatGPT plan)",
+          "tokens": {"input": 35318, "cache_write": 0, "cached": 8704, "output": 2683},
+          "cost": "from the ChatGPT plan's usage; $0.10 at GPT-5.6 Terra's list price, as Goose reported it",
+          "result": "planned #243 in steps, each mapped to a Goose subagent, recipe or the main agent with what to delegate; loaded the skill and read files only through shell. Edited nothing"
+        },
+        {
+          "agent": "patricia",
+          "date": "2026-11-12",
+          "version": "1.59.0",
+          "model": "gpt-5-6-terra",
+          "how": "goose run --no-session --output-format json --provider chatgpt_codex --model gpt-5.6-terra -t \"Use the patricia skill. Review the staged diff …\" in a read-only worktree (signed in with a ChatGPT plan)",
+          "tokens": {"input": 180780, "cache_write": 0, "cached": 46080, "output": 1825},
+          "cost": "from the ChatGPT plan's usage; $0.39 at GPT-5.6 Terra's list price, as Goose reported it for the session",
+          "result": "CONCERNS: check-installers.sh couldn't clean up inside the read-only worktree, and the run's copied skills sat untracked in .agents/; both came from the run's setup, and the checks pass in a writable checkout. Delegated the review to .claude/agents/patricia.md, which Goose reads as a Markdown agent. Edited nothing"
+        }
       ]
     },
     {
@@ -829,7 +933,7 @@
       "rank": null,
       "adapter": null,
       "note": "In private and public preview; to be renamed Autopilot at Microsoft Ignite (November 2026). Which harness it belongs to is unconfirmed, likely Microsoft 365 Copilot rather than GitHub Copilot. Its skills path stays installable meanwhile.",
-      "surfaces": {"skills": {"global": "~/.scout/skills", "project": ".agents/skills"}}
+      "surfaces": {"skills": {"global": "~/.scout/skills", "project": ".agents/skills", "windows_order": 1}}
     },
     {
       "id": "m365-copilot",
@@ -1156,7 +1260,7 @@
       "adapter": null,
       "surfaces": {
         "skills": {"global": "~/.agents/skills", "project": ".agents/skills"},
-        "rules": {"global": "~/.codex/AGENTS.md", "project": "AGENTS.md"},
+        "rules": {"global": "~/.codex/AGENTS.md", "project": "AGENTS.md", "windows_default_order": 1},
         "agents": {"project": ".agents/agents/{name}.md", "keys": ["name", "description"]}
       }
     }

@@ -39,7 +39,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 REGISTRY = ROOT / "harnesses.json"
 MATRIX = ROOT / "docs" / "harness-matrix.md"
-SURFACES = ("skills", "rules", "agents")
+SURFACES = ("skills", "rules", "agents", "mcp")
 SCOPES = ("global", "project")
 
 # What a row says about a harness, by category, in table order, with each column's heading.
@@ -412,6 +412,59 @@ def check(registry=None, today=None):
                     problems.append(f"{where}: {name} falls back to {s['fallback']!r}, which has no {name} paths")
             elif not any(scope in s for scope in SCOPES):
                 problems.append(f"{where}: {name} has neither a global nor a project path")
+            if name == "mcp":
+                fmt = s.get("format")
+                if fmt not in ("json", "toml", "yaml"):
+                    problems.append(f"{where}: mcp format must be json, toml or yaml")
+                if fmt in ("toml", "yaml") and s.get("snippet") is not True:
+                    problems.append(f"{where}: non-JSON mcp config must be a snippet")
+                if fmt == "json":
+                    if s.get("snippet"):
+                        problems.append(f"{where}: JSON mcp config cannot be a snippet")
+                    for scope in SCOPES:
+                        if scope not in s:
+                            continue
+                        keys = s.get("keys")
+                        key = keys.get(scope) if isinstance(keys, dict) else None
+                        if not isinstance(key, str) or not key or any(not p for p in key.split(".")):
+                            problems.append(f"{where}: mcp {scope} needs a servers key")
+                        env = s.get("env")
+                        env = env if isinstance(env, dict) else {}
+                        if scope not in env or (env[scope] is not None and
+                                               (not isinstance(env[scope], str) or env[scope].count("%s") != 1
+                                                or "%" in env[scope].replace("%s", ""))):
+                            problems.append(f"{where}: mcp {scope} needs an env reference with one %s, or null")
+            for scope in SCOPES:
+                if scope in s and (not isinstance(s[scope], str) or not s[scope]):
+                    problems.append(f"{where}: {name} {scope} path must be a nonempty string")
+            for field in ("windows_order", "windows_default_order", "default_order"):
+                if field in s and (type(s[field]) is not int or s[field] < 1):
+                    problems.append(f"{where}: {name} {field} must be a positive integer")
+            if "windows_order" in s and (name != "skills" or not isinstance(s.get("global"), str)
+                                         or not s["global"].startswith("~/")):
+                problems.append(f"{where}: windows_order needs a global skills path under ~/")
+            if "windows_default_order" in s and (name != "rules" or not isinstance(s.get("project"), str)
+                                                 or not s["project"]):
+                problems.append(f"{where}: windows_default_order needs a project rules path")
+            if "default_order" in s and name != "mcp":
+                problems.append(f"{where}: default_order belongs to mcp")
+            aliases = s.get("windows_aliases", [])
+            if not isinstance(aliases, list) or any(not isinstance(a, str) or not a for a in aliases):
+                problems.append(f"{where}: {name} windows_aliases must be nonempty strings")
+
+    for name, field in (("skills", "windows_order"), ("rules", "windows_default_order"),
+                        ("mcp", "default_order")):
+        orders = [h["surfaces"].get(name, {}).get(field) for h in entries
+                  if type(h["surfaces"].get(name, {}).get(field)) is int]
+        if len(orders) != len(set(orders)):
+            problems.append(f"{name}: duplicate {field}")
+    aliases = []
+    for h in entries:
+        names = h["surfaces"].get("skills", {}).get("windows_aliases", [])
+        if isinstance(names, list):
+            aliases.extend(a.lower() for a in names if isinstance(a, str))
+    if len(aliases) != len(set(aliases)) or set(aliases) & {i.lower() for i in ids}:
+        problems.append("skills: Windows aliases must be unique and distinct from harness ids")
 
     for cat in ("pro-code", "low-code"):
         ranks = sorted(h["rank"] for h in entries if h["category"] == cat and h["tier"] == "top-ten")
