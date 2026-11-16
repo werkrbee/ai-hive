@@ -11,8 +11,12 @@ jobs:
     permissions:
       contents: write
       pull-requests: write
+    env:
+      GH_TOKEN: ${{ github.token }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
@@ -20,17 +24,24 @@ jobs:
         run: python3 -m unittest discover -s tests -p 'test_open_weight_models.py' -v
       - name: Fetch official model metadata
         run: python3 scripts/update_open_weight_models.py
-      - name: Propose reviewed snapshot
-        uses: peter-evans/create-pull-request@v7
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          branch: automation/monthly-open-weight-models
-          delete-branch: true
-          commit-message: 'docs: refresh monthly open-weight model metadata'
-          title: 'docs: monthly open-weight model license and download review'
-          body: |
-            Automated model-card metadata snapshot only. **Do not merge without human review.**
-            Validate the exact upstream LICENSE and acceptable-use terms, download availability,
-            new releases, hardware requirements and this month's rankings before approving.
-            Update docs/open-weight-model-intelligence.md when the editorial assessment changes.
-          add-paths: docs/open-weight-models-monthly.json
+      - name: Propose a review PR if snapshot changed
+        shell: bash
+        run: |
+          set -euo pipefail
+          if git diff --quiet -- docs/open-weight-models-monthly.json && test -f docs/open-weight-models-monthly.json; then
+            echo "No metadata changes"
+            exit 0
+          fi
+          branch="automation/monthly-open-weight-models"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git switch -c "$branch"
+          git add docs/open-weight-models-monthly.json
+          git commit -m "docs: refresh monthly open-weight model metadata"
+          # Do not overwrite a concurrently updated branch or human edits.
+          git -c http.extraheader="AUTHORIZATION: basic $(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)" push origin "HEAD:refs/heads/$branch"
+          if gh pr list --head "$branch" --base main --state open --json number --jq 'length' | grep -qx '0'; then
+            gh pr create --base main --head "$branch" --title "docs: monthly open-weight model license and download review" --body "Automated model-card metadata only. Do not merge without checking upstream licenses, release changes, and download access. Update the editorial guide manually."
+          else
+            echo "Existing monthly review PR retained"
+          fi
