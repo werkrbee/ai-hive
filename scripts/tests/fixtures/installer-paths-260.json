@@ -1,0 +1,161 @@
+{
+  "JSON_TARGETS": {
+    "claude-code": {
+      "project": [
+        ".mcp.json",
+        "mcpServers"
+      ],
+      "global": [
+        "~/.claude.json",
+        "mcpServers"
+      ]
+    },
+    "cursor": {
+      "project": [
+        ".cursor/mcp.json",
+        "mcpServers"
+      ],
+      "global": [
+        "~/.cursor/mcp.json",
+        "mcpServers"
+      ]
+    },
+    "github-copilot": {
+      "project": [
+        ".vscode/mcp.json",
+        "servers"
+      ],
+      "global": [
+        "~/.copilot/mcp-config.json",
+        "mcpServers"
+      ]
+    },
+    "gemini-cli": {
+      "project": [
+        ".agents/mcp_config.json",
+        "mcpServers"
+      ],
+      "global": [
+        "~/.gemini/config/mcp_config.json",
+        "mcpServers"
+      ]
+    },
+    "devin-desktop": {
+      "project": [
+        ".devin/mcp_config.json",
+        "mcpServers"
+      ],
+      "global": [
+        "~/.config/devin/mcp_config.json",
+        "mcpServers"
+      ]
+    },
+    "kiro": {
+      "project": [
+        ".kiro/settings/mcp.json",
+        "mcpServers"
+      ],
+      "global": [
+        "~/.kiro/settings/mcp.json",
+        "mcpServers"
+      ]
+    },
+    "cline": {
+      "global": [
+        "~/.cline/data/settings/cline_mcp_settings.json",
+        "mcpServers"
+      ]
+    },
+    "opencode": {
+      "project": [
+        "opencode.json",
+        "mcp.servers"
+      ],
+      "global": [
+        "~/.config/opencode/opencode.json",
+        "mcp.servers"
+      ]
+    }
+  },
+  "SNIPPET_TARGETS": {
+    "codex": "toml",
+    "goose": "yaml"
+  },
+  "ENV_REF": [
+    {
+      "harness": "claude-code",
+      "scope": "project",
+      "value": "${%s}"
+    },
+    {
+      "harness": "claude-code",
+      "scope": "global",
+      "value": "${%s}"
+    },
+    {
+      "harness": "cursor",
+      "scope": "project",
+      "value": "${env:%s}"
+    },
+    {
+      "harness": "cursor",
+      "scope": "global",
+      "value": "${env:%s}"
+    },
+    {
+      "harness": "github-copilot",
+      "scope": "project",
+      "value": "${input:%s}"
+    },
+    {
+      "harness": "github-copilot",
+      "scope": "global",
+      "value": null
+    },
+    {
+      "harness": "gemini-cli",
+      "scope": "project",
+      "value": null
+    },
+    {
+      "harness": "gemini-cli",
+      "scope": "global",
+      "value": null
+    },
+    {
+      "harness": "devin-desktop",
+      "scope": "project",
+      "value": null
+    },
+    {
+      "harness": "devin-desktop",
+      "scope": "global",
+      "value": null
+    },
+    {
+      "harness": "kiro",
+      "scope": "project",
+      "value": "${%s}"
+    },
+    {
+      "harness": "kiro",
+      "scope": "global",
+      "value": "${%s}"
+    },
+    {
+      "harness": "cline",
+      "scope": "global",
+      "value": null
+    },
+    {
+      "harness": "opencode",
+      "scope": "project",
+      "value": "{env:%s}"
+    },
+    {
+      "harness": "opencode",
+      "scope": "global",
+      "value": "{env:%s}"
+    }
+  ]
+}

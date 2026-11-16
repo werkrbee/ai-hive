@@ -1,0 +1,214 @@
+{
+  "server": {
+    "remote": {
+      "url": "https://demo.example/mcp",
+      "headers": [
+        {
+          "name": "Authorization",
+          "secret": true,
+          "parts": [
+            [
+              "text",
+              "Bearer "
+            ],
+            [
+              "env",
+              "DEMO_TOKEN"
+            ]
+          ]
+        },
+        {
+          "name": "Fixed",
+          "secret": false,
+          "parts": [
+            [
+              "text",
+              "constant"
+            ]
+          ]
+        }
+      ]
+    }
+  },
+  "json": {
+    "claude-code/project": {
+      "config": {
+        "type": "http",
+        "url": "https://demo.example/mcp",
+        "headers": {
+          "Authorization": "Bearer ${DEMO_TOKEN}",
+          "Fixed": "constant"
+        }
+      },
+      "inputs": [],
+      "output": ""
+    },
+    "claude-code/global": {
+      "config": {
+        "type": "http",
+        "url": "https://demo.example/mcp",
+        "headers": {
+          "Authorization": "Bearer ${DEMO_TOKEN}",
+          "Fixed": "constant"
+        }
+      },
+      "inputs": [],
+      "output": ""
+    },
+    "cursor/project": {
+      "config": {
+        "url": "https://demo.example/mcp",
+        "headers": {
+          "Authorization": "Bearer ${env:DEMO_TOKEN}",
+          "Fixed": "constant"
+        }
+      },
+      "inputs": [],
+      "output": ""
+    },
+    "cursor/global": {
+      "config": {
+        "url": "https://demo.example/mcp",
+        "headers": {
+          "Authorization": "Bearer ${env:DEMO_TOKEN}",
+          "Fixed": "constant"
+        }
+      },
+      "inputs": [],
+      "output": ""
+    },
+    "github-copilot/project": {
+      "config": {
+        "type": "http",
+        "url": "https://demo.example/mcp",
+        "headers": {
+          "Authorization": "Bearer ${input:DEMO_TOKEN}",
+          "Fixed": "constant"
+        }
+      },
+      "inputs": [
+        {
+          "type": "promptString",
+          "id": "DEMO_TOKEN",
+          "description": "Authorization for remote",
+          "password": true
+        }
+      ],
+      "output": ""
+    },
+    "github-copilot/global": {
+      "config": {
+        "type": "http",
+        "url": "https://demo.example/mcp",
+        "headers": {
+          "Fixed": "constant"
+        }
+      },
+      "inputs": [],
+      "output": "  remote: set header Authorization by hand in this file; it needs a value from the environment\n"
+    },
+    "gemini-cli/project": {
+      "config": {
+        "serverUrl": "https://demo.example/mcp",
+        "headers": {
+          "Fixed": "constant"
+        }
+      },
+      "inputs": [],
+      "output": "  remote: set header Authorization by hand in this file; it needs a value from the environment\n"
+    },
+    "gemini-cli/global": {
+      "config": {
+        "serverUrl": "https://demo.example/mcp",
+        "headers": {
+          "Fixed": "constant"
+        }
+      },
+      "inputs": [],
+      "output": "  remote: set header Authorization by hand in this file; it needs a value from the environment\n"
+    },
+    "devin-desktop/project": {
+      "config": {
+        "url": "https://demo.example/mcp",
+        "headers": {
+          "Fixed": "constant"
+        }
+      },
+      "inputs": [],
+      "output": "  remote: set header Authorization by hand in this file; it needs a value from the environment\n"
+    },
+    "devin-desktop/global": {
+      "config": {
+        "url": "https://demo.example/mcp",
+        "headers": {
+          "Fixed": "constant"
+        }
+      },
+      "inputs": [],
+      "output": "  remote: set header Authorization by hand in this file; it needs a value from the environment\n"
+    },
+    "kiro/project": {
+      "config": {
+        "url": "https://demo.example/mcp",
+        "headers": {
+          "Authorization": "Bearer ${DEMO_TOKEN}",
+          "Fixed": "constant"
+        }
+      },
+      "inputs": [],
+      "output": ""
+    },
+    "kiro/global": {
+      "config": {
+        "url": "https://demo.example/mcp",
+        "headers": {
+          "Authorization": "Bearer ${DEMO_TOKEN}",
+          "Fixed": "constant"
+        }
+      },
+      "inputs": [],
+      "output": ""
+    },
+    "cline/global": {
+      "config": {
+        "type": "streamableHttp",
+        "url": "https://demo.example/mcp",
+        "headers": {
+          "Fixed": "constant"
+        }
+      },
+      "inputs": [],
+      "output": "  remote: set header Authorization by hand in this file; it needs a value from the environment\n"
+    },
+    "opencode/project": {
+      "config": {
+        "type": "remote",
+        "url": "https://demo.example/mcp",
+        "oauth": false,
+        "headers": {
+          "Authorization": "Bearer {env:DEMO_TOKEN}",
+          "Fixed": "constant"
+        }
+      },
+      "inputs": [],
+      "output": ""
+    },
+    "opencode/global": {
+      "config": {
+        "type": "remote",
+        "url": "https://demo.example/mcp",
+        "oauth": false,
+        "headers": {
+          "Authorization": "Bearer {env:DEMO_TOKEN}",
+          "Fixed": "constant"
+        }
+      },
+      "inputs": [],
+      "output": ""
+    }
+  },
+  "snippets": {
+    "codex": "\n# --- add to your TOML config ---\n[mcp_servers.remote]\nurl = \"https://demo.example/mcp\"\nbearer_token_env_var = \"DEMO_TOKEN\"\nhttp_headers = { \"Fixed\" = \"constant\" }\n\n",
+    "goose": "\n# --- add to your YAML config ---\nextensions:\n  remote:\n    name: remote\n    enabled: true\n    timeout: 300\n    type: streamable_http\n    uri: \"https://demo.example/mcp\"\n    headers:\n      \"Authorization\": \"Bearer ${DEMO_TOKEN}\"\n      \"Fixed\": \"constant\"\n    env_keys: [\"DEMO_TOKEN\"]\n"
+  }
+}

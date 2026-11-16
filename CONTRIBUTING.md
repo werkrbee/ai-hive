@@ -78,3 +78,15 @@ contribute — it's one supported path.
 ## Don't commit
 
 `.DS_Store`, `node_modules/`, secrets, `.env`. See `.gitignore`.
+
+### Installer registry fields
+
+The `mcp` surface records `format`, project/global paths, and for JSON configs,
+`keys` and `env` by scope. A null environment reference leaves secret headers for
+the person to fill in; `%s` marks an environment variable name. TOML/YAML targets
+set `snippet: true`: the installer prints snippets at either scope, as before.
+`default_order` keeps MCP's default target selection stable. Windows skills use
+`windows_order` to preserve their existing auto-detected target set and order,
+and `windows_aliases` for deprecated short labels. Rules use
+`windows_default_order` for their default target selection. Paths remain shared
+with the other installers; PowerShell expands `~` under `USERPROFILE`.

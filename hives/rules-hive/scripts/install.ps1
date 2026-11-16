@@ -13,7 +13,7 @@
 [CmdletBinding()]
 param(
   [string]$Ruleset = "queen-charter",
-  [string[]]$Harness = @("agents","claude-code","cursor","github-copilot","gemini-cli"),
+  [string[]]$Harness = @(),
   [string]$Dir = "."
 )
 
@@ -23,17 +23,23 @@ $Src = Join-Path $RepoRoot "rules\$Ruleset\AGENTS.md"
 if (-not (Test-Path $Src)) { throw "ruleset not found: $Src" }
 $content = Get-Content $Src -Raw
 
-function Rel($h) {
-  switch ($h) {
-    { $_ -in "agents","opencode","codex","kiro","goose","databricks-genie-code","snowflake-cortex-code" } { "AGENTS.md" }
-    "claude-code"    { "CLAUDE.md" }
-    "cursor"         { ".cursor\rules\$Ruleset.mdc" }
-    "github-copilot" { ".github\copilot-instructions.md" }
-    "gemini-cli"     { "GEMINI.md" }
-    "devin-desktop"  { ".devin\rules\$Ruleset.md" }
-    "cline"          { ".cline\rules\$Ruleset.md" }
-    default          { $null }
+$HouseRoot = Split-Path -Parent (Split-Path -Parent $RepoRoot)
+$Registry = Get-Content (Join-Path $HouseRoot "harnesses.json") -Raw | ConvertFrom-Json
+$Targets = @{}
+foreach ($h in $Registry.harnesses) {
+  if ($h.surfaces.rules.windows_default_order -and
+      (-not ($h.surfaces.rules.project -is [string]) -or -not $h.surfaces.rules.project)) {
+    throw "Harness '$($h.id)' needs a project rules path in harnesses.json"
   }
+  if ($h.surfaces.rules.project) { $Targets[$h.id] = $h.surfaces.rules.project }
+}
+if (-not $Harness.Count) {
+  $Harness = @($Registry.harnesses | Where-Object { $_.surfaces.rules.windows_default_order } |
+               Sort-Object { $_.surfaces.rules.windows_default_order } | ForEach-Object { $_.id })
+}
+function Rel($h) {
+  if ($Targets.ContainsKey($h)) { return $Targets[$h].Replace('{name}', $Ruleset) }
+  return $null
 }
 
 foreach ($h in $Harness) {

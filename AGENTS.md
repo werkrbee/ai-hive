@@ -49,9 +49,9 @@ harnesses.json     the harness registry: every harness, its category, tier and i
   `adapters/<harness>/` is *where* it runs. Sub-harnesses nest one level deeper.
 - **Naming.** kebab-case product directories (`claude-code`, `github-copilot`).
 - **One harness registry.** A harness, its adapter folder and its install paths are
-  written down in `harnesses.json`. The rules, skills and agents installers and the
-  architecture diagram read it through `scripts/harnesses.py`; the Windows and MCP
-  installers still keep their own lists until they move onto it.
+  written down in `harnesses.json`. The Bash/Python installers and the architecture
+  diagram read it through `scripts/harnesses.py`; Windows installers read it with
+  `ConvertFrom-Json`.
 - **Docs voice.** Plain prose, sentence case, minimal bullets, two weights. Match the
   existing docs. No hype.
 

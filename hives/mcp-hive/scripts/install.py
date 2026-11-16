@@ -36,40 +36,16 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 SERVERS_DIR = REPO_ROOT / "servers"
 TARGET_SPEC = "2026-07-28"
 
-# harness -> where its JSON MCP config lives at each scope and which key holds the servers.
-# GitHub Copilot's project file is VS Code's; its user file is the Copilot CLI's, which VS Code
-# also reads as Copilot Global. Gemini CLI and Antigravity's files are Antigravity's; Gemini CLI
-# keeps its servers in .gemini/settings.json instead. Cline reads only a user-level file.
-# OpenCode V2 nests its servers under mcp.servers, written here as a dotted key.
-JSON_TARGETS = {
-    "claude-code":    {"project": (".mcp.json", "mcpServers"), "global": ("~/.claude.json", "mcpServers")},
-    "cursor":         {"project": (".cursor/mcp.json", "mcpServers"), "global": ("~/.cursor/mcp.json", "mcpServers")},
-    "github-copilot": {"project": (".vscode/mcp.json", "servers"), "global": ("~/.copilot/mcp-config.json", "mcpServers")},
-    "gemini-cli":     {"project": (".agents/mcp_config.json", "mcpServers"),
-                       "global": ("~/.gemini/config/mcp_config.json", "mcpServers")},
-    "devin-desktop":  {"project": (".devin/mcp_config.json", "mcpServers"),
-                       "global": ("~/.config/devin/mcp_config.json", "mcpServers")},
-    "kiro":           {"project": (".kiro/settings/mcp.json", "mcpServers"),
-                       "global": ("~/.kiro/settings/mcp.json", "mcpServers")},
-    "cline":          {"global": ("~/.cline/data/settings/cline_mcp_settings.json", "mcpServers")},
-    "opencode":       {"project": ("opencode.json", "mcp.servers"),
-                       "global": ("~/.config/opencode/opencode.json", "mcp.servers")},
-}
-# harnesses whose config isn't JSON — we print a snippet instead. Goose keeps its extensions
-# in the person's config.yaml beside its other settings, and has no project file.
-SNIPPET_TARGETS = {"codex": "toml", "goose": "yaml"}
-# how each JSON harness reads a value from the environment at each scope (VS Code prompts via
-# inputs). None: the format documents no way to, so such a header is left for the person to set.
-# Devin documents ${env:NAME} only for OAuth fields; until a run shows it works in headers, None.
-# Cline passes headers through as written.
-ENV_REF = {("claude-code", "project"): "${%s}", ("claude-code", "global"): "${%s}",
-           ("cursor", "project"): "${env:%s}", ("cursor", "global"): "${env:%s}",
-           ("github-copilot", "project"): "${input:%s}", ("github-copilot", "global"): None,
-           ("gemini-cli", "project"): None, ("gemini-cli", "global"): None,
-           ("devin-desktop", "project"): None, ("devin-desktop", "global"): None,
-           ("kiro", "project"): "${%s}", ("kiro", "global"): "${%s}",
-           ("cline", "global"): None,
-           ("opencode", "project"): "{env:%s}", ("opencode", "global"): "{env:%s}"}
+# Import the shared registry from the monorepo, not a second harness catalog.
+sys.path.insert(0, str(REPO_ROOT.parents[1] / "scripts"))
+import harnesses as registry  # noqa: E402
+
+MCP_TARGETS = {h["id"]: h["surfaces"]["mcp"] for h in registry.harnesses(surface="mcp")}
+JSON_TARGETS = {h: {scope: (s[scope], s["keys"][scope]) for scope in registry.SCOPES if scope in s}
+                for h, s in MCP_TARGETS.items() if s["format"] == "json"}
+SNIPPET_TARGETS = {h: s["format"] for h, s in MCP_TARGETS.items() if s.get("snippet")}
+ENV_REF = {(h, scope): s["env"][scope] for h, s in MCP_TARGETS.items() if s["format"] == "json"
+           for scope in registry.SCOPES if scope in s}
 
 
 def load_servers(servers_dir, names):
@@ -279,7 +255,8 @@ def main():
     ap.add_argument("--dry-run", action="store_true")
     args = ap.parse_args()
 
-    harnesses = args.harness or ["claude-code", "cursor", "github-copilot"]
+    harnesses = args.harness or sorted((h for h, s in MCP_TARGETS.items() if "default_order" in s),
+                                          key=lambda h: MCP_TARGETS[h]["default_order"])
     servers = load_servers(Path(args.servers_dir), args.server)
     if not servers:
         print("no servers to install", file=sys.stderr)
