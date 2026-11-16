@@ -275,6 +275,15 @@ class OrchestrateTest(unittest.TestCase):
 
     # --- the loop --------------------------------------------------------
 
+    def test_barry_is_served_over_json_rpc_only(self):
+        with self.client(write_config(self.root), Scripted()) as c:
+            card = c.get("/.well-known/agent-card.json").json()
+            headers = {"A2A-Version": "1.0", "Authorization": f"Bearer {token(CALLER, roles=list(BOTH))}"}
+            sent = c.post("/message:send", json={}, headers=headers)
+            document = c.get("/openapi.json", headers=headers)
+        self.assertEqual([i["protocolBinding"] for i in card["supportedInterfaces"]], ["JSONRPC"])
+        self.assertEqual((sent.status_code, document.status_code), (404, 404), "HTTP+JSON is a reviewer's")
+
     def test_a_delegated_token_is_refused_even_with_the_review_scope(self):
         with self.client(write_config(self.root), Scripted(final())) as c:
             for claims in ({"scp": "Review.RequestAsUser"}, {"scp": "Orchestration.Request"}, {"idtyp": "user"}):

@@ -10,9 +10,10 @@ COPY hives/agents-hive/servers/a2a/requirements.txt hives/agents-hive/servers/a2
 RUN pip install --no-cache-dir -r hives/agents-hive/servers/a2a/requirements.txt
 
 # Only what the server reads: its code, the card, contract and passport it serves, the
-# renderer for the card, and the prompt files.
+# renderers for the card and the OpenAPI document, and the prompt files.
 COPY hives/agents-hive/servers/a2a/hive_a2a hives/agents-hive/servers/a2a/hive_a2a
 COPY hives/agents-hive/scripts/agent_card.py hives/agents-hive/scripts/agent_card.py
+COPY hives/agents-hive/scripts/openapi.py hives/agents-hive/scripts/openapi.py
 COPY hives/agents-hive/cards hives/agents-hive/cards
 COPY hives/agents-hive/contracts hives/agents-hive/contracts
 COPY hives/agents-hive/passports hives/agents-hive/passports

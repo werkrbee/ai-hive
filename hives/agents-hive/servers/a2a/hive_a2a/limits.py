@@ -1,10 +1,12 @@
-"""Per-client limits on reviews, over both bindings (A2A SendMessage and MCP tools/call).
+"""Per-client limits on reviews, over every binding (A2A SendMessage, over JSON-RPC or
+HTTP+JSON, and MCP tools/call).
 
 Two limits, each keyed by the client ID auth.py authenticated:
 
   rate       each client may send limits.reviews_per_hour reviews in any hour. One past it
-             gets HTTP 429 with Retry-After, and a JSON-RPC error saying when to try again,
-             before the request reaches a handler, so it costs nothing. The window is kept
+             gets HTTP 429 with Retry-After, and an error saying when to try again (a
+             JSON-RPC error, or over HTTP+JSON A2A's REST error), before the request
+             reaches a handler, so it costs nothing. The window is kept
              in this process: a restart, or scaling to zero, starts it afresh. The allowance
              below is what bounds spending across restarts.
   allowance  what one client may spend or reserve in a month, as a share of the monthly
@@ -25,6 +27,7 @@ from .ledger import Refusal, month_of, next_month
 
 WINDOW_SECONDS = 3600
 RATE_LIMITED = -32000  # JSON-RPC's server error range; the HTTP status is what clients act on
+REST = None  # in RateLimit's paths: every POST there starts a review (HTTP+JSON's message:send)
 
 
 class Limiter:
@@ -50,8 +53,8 @@ class Limiter:
 
 class RateLimit:
     """ASGI middleware: refuse a client's review past its hourly rate with 429. paths maps
-    each path to the JSON-RPC methods there that start a review. It sits inside AuthMiddleware,
-    which has put the client in the scope."""
+    each path to the JSON-RPC methods there that start a review, or to REST where every POST
+    does. It sits inside AuthMiddleware, which has put the client in the scope."""
 
     def __init__(self, app, limiter, paths):
         self.app = app
@@ -60,6 +63,12 @@ class RateLimit:
 
     async def __call__(self, scope, receive, send):
         if scope["type"] != "http" or scope["method"] != "POST" or scope["path"] not in self.paths:
+            return await self.app(scope, receive, send)
+        client = (scope.get("auth") or {}).get("client")
+        if self.paths[scope["path"]] is REST:
+            wait = self.limiter.admit(client) if client else None
+            if wait is not None:
+                return await self.respond(send, self.rest_error(client, wait), wait)
             return await self.app(scope, receive, send)
         body, more = b"", True
         while more:
@@ -70,11 +79,10 @@ class RateLimit:
             request = json.loads(body)
         except ValueError:
             request = None
-        client = (scope.get("auth") or {}).get("client")
         if isinstance(request, dict) and request.get("method") in self.paths[scope["path"]] and client:
             wait = self.limiter.admit(client)
             if wait is not None:
-                return await self.refuse(send, request.get("id"), client, wait)
+                return await self.respond(send, self.rpc_error(request.get("id"), client, wait), wait)
         replayed = False
 
         async def replay():
@@ -86,13 +94,25 @@ class RateLimit:
 
         return await self.app(scope, replay, send)
 
-    async def refuse(self, send, id_, client, wait):
+    def text(self, client, wait):
         limit = self.limiter.limits.per_hour(client)
-        error = {"code": RATE_LIMITED,
-                 "message": f"Refused: this client has sent {limit} reviews in the last hour, its limit. "
-                            f"Send again in {wait} seconds.",
-                 "data": {"error": "rate-limited", "limitPerHour": limit, "retryAfterSeconds": wait}}
-        body = json.dumps({"jsonrpc": "2.0", "id": id_, "error": error}).encode()
+        return (f"Refused: this client has sent {limit} reviews in the last hour, its limit. "
+                f"Send again in {wait} seconds."), {"error": "rate-limited", "limitPerHour": limit,
+                                                    "retryAfterSeconds": wait}
+
+    def rpc_error(self, id_, client, wait):
+        message, data = self.text(client, wait)
+        return {"jsonrpc": "2.0", "id": id_, "error": {"code": RATE_LIMITED, "message": message, "data": data}}
+
+    def rest_error(self, client, wait):
+        """A2A's REST error, whose ErrorInfo metadata holds strings."""
+        message, data = self.text(client, wait)
+        info = {"@type": "type.googleapis.com/google.rpc.ErrorInfo", "reason": "RATE_LIMITED", "domain": "hive-a2a",
+                "metadata": {k: str(v) for k, v in data.items()}}
+        return {"error": {"code": 429, "status": "RESOURCE_EXHAUSTED", "message": message, "details": [info]}}
+
+    async def respond(self, send, payload, wait):
+        body = json.dumps(payload).encode()
         await send({"type": "http.response.start", "status": 429,
                     "headers": [(b"content-type", b"application/json"), (b"retry-after", str(wait).encode()),
                                 (b"content-length", str(len(body)).encode())]})

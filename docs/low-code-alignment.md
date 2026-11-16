@@ -81,7 +81,9 @@ checks, budget, ledger and ceiling are one implementation:
   declares, described by an OpenAPI 3.0 document with one operation, `SendMessage`. It is
   rendered from the contract, as the Agent Card is, with the request's data part narrowed
   to the contract's `inputs` and the reply's artifact to its `output`. It is a description
-  of the standard binding, not a fourth API.
+  of the standard binding, not a fourth API. The server serves it at `/openapi.json`
+  without a token, and its security scheme offers the authorization-code flow for the
+  delegated scope beside client credentials (#299).
 
 A review answers in the reply to the call. It returns a completed task (A2A) or a tool
 result (MCP) within the contract's 600-second budget, so a platform needs no polling, push

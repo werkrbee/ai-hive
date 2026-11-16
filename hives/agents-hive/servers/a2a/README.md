@@ -4,7 +4,8 @@
 [A2A](https://a2a-protocol.org) v1.0. It is configured for Patricia's
 `governance-review`: another agent sends a proposal and gets back a verdict
 (`allow`, `allow-with-conditions` or `block`) in the contract's output shape. A reviewer
-is also served over MCP, as one read-only tool ([MCP](#mcp), below). The same server,
+is also served over A2A's HTTP+JSON binding, described in an OpenAPI document
+([HTTP+JSON](#httpjson), below), and over MCP, as one read-only tool ([MCP](#mcp), below). The same server,
 configured for Barry's `orchestration`, runs a goal as an agent loop on the
 workflows-hive engine ([Orchestration](#orchestration), below).
 
@@ -14,14 +15,15 @@ one place in the repo that isn't standard-library Python.
 
 ## What it does
 
-**Protocol.** The JSON-RPC binding, at the path of `server.public_url`. It supports
-`SendMessage`, `GetTask`, `ListTasks` and `CancelTask`. Streaming and push notifications
-aren't offered, and the card says so. The Agent Card is served at
+**Protocol.** The JSON-RPC binding, at the path of `server.public_url`, and for a reviewer
+also the HTTP+JSON binding at the same path. It supports `SendMessage`, `GetTask`,
+`ListTasks` and `CancelTask`. Streaming and push notifications aren't offered, and the
+card says so. The Agent Card is served at
 `/.well-known/agent-card.json`. It is rendered by `scripts/agent_card.py` from
 `cards/<persona>/card.json` and the contract, then given this endpoint's URL and an
 OAuth2 client-credentials security scheme.
 
-**Security.** Every request except the cards and the MCP resource metadata needs a bearer token. The token must be a JWT
+**Security.** Every request except the cards, the OpenAPI document and the MCP resource metadata needs a bearer token. The token must be a JWT
 signed by a key from the configured JWKS, name the configured issuer and audience, be
 unexpired, and come from a client on `auth.allowed_clients`. App tokens from the
 client-credentials flow are accepted. A delegated (user) token, one with `scp` or an Entra
@@ -96,15 +98,17 @@ wrote the API into `provider`; none was deployed.) The Azure budget alert in #55
 billed backstop.
 
 **Per-client limits.** A reviewer holds each client, by the client ID its token names, to
-two limits under the ceiling, over both bindings (`limits.py`, #304). The MCP revision of
+two limits under the ceiling, over every binding (`limits.py`, #304). The MCP revision of
 2026-07-28 requires a server to rate limit tool calls, and without these one looping
 platform could spend the month's ceiling and leave hosted Barry's approval reviews
 `unreviewed` until it resets.
-- **Rate.** Each client may send `limits.reviews_per_hour` reviews (`SendMessage` or the MCP
-  `tools/call`) in any hour, 30 by default. One past it gets HTTP 429 with `Retry-After`
-  before it reaches a handler, so it costs nothing, and a JSON-RPC error saying when to try
-  again, with data
-  `{"error": "rate-limited", "limitPerHour", "retryAfterSeconds"}`. Other requests, such as
+- **Rate.** Each client may send `limits.reviews_per_hour` reviews (`SendMessage`, over
+  JSON-RPC or HTTP+JSON, or the MCP `tools/call`) in any hour, 30 by default. One past it
+  gets HTTP 429 with `Retry-After` before it reaches a handler, so it costs nothing, and a
+  JSON-RPC error saying when to try again, with data
+  `{"error": "rate-limited", "limitPerHour", "retryAfterSeconds"}`. Over HTTP+JSON it is
+  A2A's REST error instead, `RESOURCE_EXHAUSTED` with reason `RATE_LIMITED` and the same
+  data, as strings, in its metadata. Other requests, such as
   `GetTask` or `tools/list`, don't count. The window is kept in the server process, so a
   restart, or scaling to zero, starts it afresh; the allowance is what bounds spending
   across restarts.
@@ -174,6 +178,35 @@ the tool's arguments are only the contract's input.
 **Durability.** Tasks are kept in SQLite at `server.database` and survive a restart. A
 review that was running when the server stopped can't resume, so at startup it is marked
 failed, with a message asking the caller to send it again.
+
+## HTTP+JSON
+
+A reviewer also serves A2A v1.0's HTTP+JSON binding, at the same path as JSON-RPC, so a
+low-code platform that imports OpenAPI, and has neither A2A nor MCP or can't send a token
+Patricia accepts over them, can still ask for a verdict (`docs/low-code-alignment.md`).
+The binding's routes are the SDK's (`create_rest_routes`), through the same handler, so a
+review is held to the same auth, contract checks, budget, ledger, ceiling and allowance,
+and the same tasks are seen over both bindings. `POST /message:send` is `SendMessage`, and
+`GET /tasks/{id}`, `GET /tasks` and `POST /tasks/{id}:cancel` the other methods. Every
+request needs the `A2A-Version: 1.0` header: without it the SDK takes the request as v0.3,
+which isn't served, and refuses it. A refusal before any task is A2A's REST error, with
+HTTP 400 and a reason: `INVALID_PARAMS` with each problem as a field violation,
+`CONTENT_TYPE_NOT_SUPPORTED`, `VERSION_NOT_SUPPORTED`, or `UNSUPPORTED_OPERATION` for
+streaming. The reply is `application/a2a+json`. The SDK's per-tenant copies of the routes
+are left out. Orchestration doesn't serve this binding: hosted Barry is JSON-RPC only.
+
+**The OpenAPI document.** `/openapi.json`, under the endpoint's path, served without a
+token. It describes the binding's one operation a platform needs, `SendMessage`, in
+OpenAPI 3.0.3: the request's message has one data part, narrowed to the contract's
+`inputs`, the completed task's artifact is narrowed to its `output`, and the refusals are
+listed by status. Its security scheme is Entra's: the client-credentials flow with
+`auth.scope`, and, when `auth.delegated_scopes` is set, the authorization-code flow with
+each delegated scope. It describes the standard binding, not another API.
+`agents-hive/scripts/openapi.py` renders it from the contract, as `agent_card.py` renders
+the card, and the server checks it at startup, so it can't drift from the contract; CI
+renders one for every contract and checks each against the OpenAPI 3.0.3 rules it uses
+(`validate-artifacts.sh`). The rendered document also passes `openapi-spec-validator`
+0.7.2, checked by hand on 2026-11-16.
 
 ## MCP
 
@@ -394,7 +427,11 @@ cover:
 - contract input and output checks
 - the time budget
 - the ceiling, including a ledger already on disk, the monthly reset and a run's hold
-- per-client limits (`tests/test_limits.py`), over both bindings: the hourly rate's 429 and
+- HTTP+JSON: the card's two interfaces, a review returning the same verdict and refusals
+  as over JSON-RPC from the same task store and ledger, the ceiling's rejection, a user's
+  tasks kept from another's, and the OpenAPI document served without a token, checked and
+  narrowed to the contract, with the delegated flow only where it's accepted
+- per-client limits (`tests/test_limits.py`), over every binding: the hourly rate's 429 and
   `Retry-After`, the window moving on, one client's rate leaving another's alone, a client
   refused past its share while others are served, a client's own share kept from the
   others, and the config
@@ -430,7 +467,7 @@ on. [`conformance/RESULTS.md`](conformance/RESULTS.md) records the latest run.
 ```text
 servers/a2a/
 ├── hive_a2a/
-│   ├── app.py          # the card, routes, task store and startup
+│   ├── app.py          # the card, routes (JSON-RPC, HTTP+JSON, the OpenAPI document), task store and startup
 │   ├── auth.py         # OAuth2 bearer tokens and the client allowlist
 │   ├── config.py       # the TOML config
 │   ├── contract.py     # check values against a contract's schemas

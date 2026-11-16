@@ -32,8 +32,9 @@ class Clock:
 
 class LimitsTest(unittest.TestCase):
     # the other tests' helpers, without inheriting (and so running again) their tests
-    client, rpc, send, ledger = (test_server.ServerTest.client, test_server.ServerTest.rpc,
-                                 test_server.ServerTest.send, test_server.ServerTest.ledger)
+    client, rpc, send, ledger, rest = (test_server.ServerTest.client, test_server.ServerTest.rpc,
+                                       test_server.ServerTest.send, test_server.ServerTest.ledger,
+                                       test_server.ServerTest.rest)
     post, call = test_mcp.McpTest.post, test_mcp.McpTest.call
 
     def setUp(self):
@@ -92,6 +93,26 @@ class LimitsTest(unittest.TestCase):
         self.assertEqual(listed.status_code, 200, "only a tool call counts toward the rate")
         self.assertEqual(len(model.calls), 1)
         self.assertEqual(len(self.ledger()), 1)
+
+    def test_http_json_reviews_share_the_rate_and_get_a2a_s_rest_error(self):
+        clock, model = Clock(), Recording(VERDICT)
+        with self.client(self.config(reviews_per_hour=2), provider=model, rate_clock=clock) as c:
+            self.send(c)
+            sent = self.rest(c, "/message:send", test_server.message(PROPOSAL))
+            refused = self.rest(c, "/message:send", test_server.message(PROPOSAL))
+            looked_up = self.rest(c, f"/tasks/{sent.json()['task']['id']}", method="GET")
+        self.assertEqual(sent.status_code, 200, sent.text)
+        self.assertEqual(refused.status_code, 429, refused.text)
+        self.assertEqual(refused.headers["retry-after"], "3600")
+        error = refused.json()["error"]
+        self.assertEqual((error["code"], error["status"]), (429, "RESOURCE_EXHAUSTED"))
+        self.assertIn("Send again in 3600 seconds", error["message"])
+        [info] = error["details"]
+        self.assertEqual((info["reason"], info["metadata"]),
+                         ("RATE_LIMITED", {"error": "rate-limited", "limitPerHour": "2", "retryAfterSeconds": "3600"}))
+        self.assertEqual(looked_up.status_code, 200, "only a review counts toward the rate")
+        self.assertEqual(len(model.calls), 2, "a refused review never reaches the model")
+        self.assertEqual(len(self.ledger()), 2, "or the ledger")
 
     def test_both_bindings_share_one_rate_and_the_window_moves_on(self):
         clock = Clock()
