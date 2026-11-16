@@ -109,8 +109,10 @@ A product calls the server with a token from the client-credentials flow: `POST`
 credential and `scope=api://<apiAppId>/.default`.
 
 A platform that signs a user in (Copilot Studio, Gemini Enterprise) calls Patricia with a
-delegated token instead, for reviews only. `entra.sh` exposes `Review.Request` as a
-delegated scope on her API app, beside the app role, and it needs admin consent. The
+delegated token instead, for reviews only. `entra.sh` exposes `Review.RequestAsUser` as
+a delegated scope on her API app, beside the `Review.Request` app role, and it needs admin
+consent. The two names differ because Entra refuses a scope with the same value as an app
+role (`DuplicateValue`, seen on 2026-11-15). The
 platform's client app requests the scope and is consented in that platform's alignment
 issue, and a user gets a token only with an assignment to the API app, which keeps
 requiring one. Her rendered config accepts the scope from an allowed client; hosted Barry

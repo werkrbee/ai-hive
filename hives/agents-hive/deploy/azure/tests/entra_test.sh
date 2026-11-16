@@ -104,9 +104,9 @@ check "create: you own each app it creates" \
 check "create: v2 tokens are set through Graph" \
   grep -q "rest --method PATCH.*requestedAccessTokenVersion.: 2" "$STUB/changes"
 check "create: plan exposes Patricia's delegated scope" \
-  has "expose the Review.Request delegated scope (admin consent)"
+  has "expose the Review.RequestAsUser delegated scope (admin consent)"
 check "create: the scope is added, for admin consent" \
-  grep -q 'rest --method PATCH.*oauth2PermissionScopes.: \[{.id.: .[0-9a-f-]*., .value.: .Review.Request., .type.: .Admin.' "$STUB/changes"
+  grep -q 'rest --method PATCH.*oauth2PermissionScopes.: \[{.id.: .[0-9a-f-]*., .value.: .Review.RequestAsUser., .type.: .Admin.' "$STUB/changes"
 : > "$STUB/changes"
 out=$(printf 'no\n' | PATH="$work/bin:$PATH" /bin/bash "$entra" lineup singularity 2>&1)
 check "create: a re-run reuses all three apps and changes nothing" eval \
@@ -133,18 +133,18 @@ check "reuse: plan knows lineup already has the role" \
   has "lineup-patricia-client: reuse c-1; already has Review.Request"
 check "reuse: plan grants singularity the role" \
   has "singularity-patricia-client: reuse c-2; grant Review.Request"
-check "reuse: plan exposes the scope it lacks" has "expose the Review.Request delegated scope"
+check "reuse: plan exposes the scope it lacks" has "expose the Review.RequestAsUser delegated scope"
 check "reuse: nothing changed on no" unchanged
 
 # An API that already exposes the scope keeps it, with its id, and the plan doesn't offer it.
 echo "patricia-a2a-api api-1 me" | seed scoped apps
 echo "api-1 sp-api" | seed scoped sps
 echo "api-1 role-1 Review.Request" | seed scoped roles
-echo "api-1 scope-1 Review.Request" | seed scoped scopes
+echo "api-1 scope-1 Review.RequestAsUser" | seed scoped scopes
 run scoped yes lineup
 check "scoped: plan doesn't offer the scope again" eval '! has "delegated scope"'
 check "scoped: yes keeps the scope and its id, adding none" eval \
-  '[ "$code" -eq 0 ] && grep -q "oauth2PermissionScopes.: \[{.id.: .scope-1., .value.: .Review.Request.}\]" "$STUB/changes"'
+  '[ "$code" -eq 0 ] && grep -q "oauth2PermissionScopes.: \[{.id.: .scope-1., .value.: .Review.RequestAsUser.}\]" "$STUB/changes"'
 
 # Saying yes to that plan does what it said: one grant, and no new apps.
 run reuse-yes yes

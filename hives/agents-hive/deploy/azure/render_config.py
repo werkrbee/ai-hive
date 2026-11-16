@@ -9,7 +9,7 @@ keep a ledger on the share (LEDGER) and count the other's toward the ceiling
 (SHARED_LEDGERS). Her [limits] hold an allowance of its own for each client in
 RESERVED_CLIENTS ("client=share" pairs, comma-separated), which main.bicep sets for hosted
 Barry, so a platform can't crowd out his approval reviews; the rest keep the server's
-defaults. She also accepts a delegated token carrying the Review.Request scope from an
+defaults. She also accepts a delegated token carrying the Review.RequestAsUser scope from an
 allowed client (entra.sh exposes it), for a platform that signs a user in.
 
 Barry's config adds the orchestration section: his passport, his run records on his own
@@ -153,7 +153,7 @@ token_url = {q(login + "/oauth2/v2.0/token")}
 scope = {q(f"api://{api}/.default")}
 allowed_clients = {q(clients)}
 {'required_roles = ["Review.Request"]' if persona == "patricia" else ""}
-{'delegated_scopes = ["Review.Request"]' if persona == "patricia" else ""}
+{'delegated_scopes = ["Review.RequestAsUser"]' if persona == "patricia" else ""}
 
 [model]
 api = {q(env["MODEL_API"])}
