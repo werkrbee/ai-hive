@@ -599,14 +599,15 @@ Patricia accepts a user's delegated token with the `Review.RequestAsUser` scope 
 allowed client, and keeps each user's tasks apart (`servers/a2a/README.md`), while hosted
 Barry still refuses one. `entra.sh --agent patricia` first failed on 2026-11-15 with
 `DuplicateValue`, leaving her API app's identifier URI, v2 tokens and required assignment
-set and no scope; with the scope renamed (#318) it added the scope, admin consent, beside
-the unchanged `Review.Request` role, and reading the app back showed both. Step 1's and
-step 4's what-ifs showed only `reference()` values and server-set properties besides step
-4's image, which changed on each app and the job. A plain request found Patricia's Agent
-Card, still declaring no streaming, and her A2A endpoint answered 401. No tokened call was
-made, and no platform client has consent for the scope yet, so a delegated review has been
-checked only in the offline tests (`test_server.py`, `test_orchestrate.py`), and
-`verify_barry.sh` still hasn't been run on an image since #222.
+set and no scope; with the scope renamed (#318) it added the scope, which needs admin
+consent, beside the unchanged `Review.Request` role, and reading the app back showed both.
+Step 1's and step 4's what-ifs showed only `reference()` and `format()` values, server-set
+properties and the budget's date format, besides step 4's image, which changed on each app
+and the job. A plain request found Patricia's Agent Card, still declaring no streaming,
+and her A2A endpoint answered 401. No tokened call was made, and no platform client has
+consent for the scope yet, so a delegated review has been checked only in the offline
+tests (`test_server.py`, `test_orchestrate.py`), and `verify_barry.sh` still hasn't been
+run on an image since #222.
 
 Record anything that differs in this README.
 
