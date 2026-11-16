@@ -1,0 +1,57 @@
+# Open-weight model intelligence — November 16, 2026
+
+This is AI Hive's expert-level **model** reference, complementary to the harness registry (`harnesses.json`). A model supplies inference; a harness orchestrates agents; Ollama, llama.cpp and vLLM are inference runtimes. Downloadable weights do **not** transfer copyright ownership, guarantee unrestricted use, or make a release Open Source AI under the [OSI definition](https://opensource.org/ai/open-source-ai-definition).
+
+## License families
+
+| License family | Practical meaning | Required check |
+| --- | --- | --- |
+| Apache-2.0 | Permissive commercial redistribution/modification; includes patent grant | Preserve notices, attribution and license |
+| MIT | Permissive commercial use and modification | Preserve copyright and license notice |
+| Vendor community license | Downloadable weights, often commercial use subject to conditions | Usage restrictions, scale thresholds, attribution, redistribution |
+| Vendor model terms / acceptable-use policy | Model-specific conditions and prohibited uses | Read both license and linked policies |
+| Research / noncommercial | Commercial deployment may be prohibited | Do not label commercially deployable |
+| Gated / custom / unclear | Download may require approval or conditions | Verify exact revision and terms before use |
+| Closed / API-only | No publicly downloadable flagship weights | Do not conflate vendor's other open releases |
+
+## Major families and official discovery locations
+
+**Important:** These links are publisher organization pages, not evidence that *every* model on the page has the stated license. Each individual model card and LICENSE file controls. License examples below are indicative, not blanket legal conclusions.
+
+| Family | Open weights? | License examples / caution | Publisher download or model card |
+| --- | --- | --- | --- |
+| Meta Llama | Yes, selected releases | Llama Community License; custom terms, thresholds and acceptable-use conditions | https://huggingface.co/meta-llama |
+| Mistral | Yes, selected releases | Apache-2.0 on many; other releases have different terms | https://huggingface.co/mistralai |
+| Alibaba Qwen | Yes, selected releases | Apache-2.0 on many; exceptions require per-model review | https://huggingface.co/Qwen |
+| DeepSeek | Yes, selected releases | MIT on R1; other variants may differ | https://huggingface.co/deepseek-ai |
+| Google Gemma | Yes | Gemma Terms of Use, not standard Apache/MIT | https://huggingface.co/google |
+| Microsoft Phi | Yes, selected releases | MIT on Phi-4 examples; verify variant | https://huggingface.co/microsoft |
+| Z.ai / GLM | Yes, selected releases | MIT on some GLM variants; verify release | https://huggingface.co/zai-org |
+| Moonshot Kimi | Selected releases; verify availability | Custom or version-specific terms; verify weights actually downloadable | https://huggingface.co/moonshotai |
+| xAI Grok | Grok-1 weights; not every later Grok | Verify exact release license; do not generalize | https://huggingface.co/xai-org |
+| OpenAI gpt-oss | Yes, selected models; flagship GPT API remains closed | Apache-2.0 for gpt-oss releases; verify model card | https://huggingface.co/openai |
+| NVIDIA Nemotron | Yes, selected releases | Release-specific terms | https://huggingface.co/nvidia |
+| Arcee | Yes, selected releases | Release-specific terms | https://huggingface.co/arcee-ai |
+
+## Selection and deployment guidance
+
+Choose by **task** (general reasoning, coding, multilingual, vision, embedding, speech), **license**, **context window**, **total/active parameters**, **quantization**, **RAM/VRAM**, **runtime compatibility**, **provenance**, and **evaluation evidence**. An organization download page is not an executable model download; use an exact repository/revision. Distinguish native weights from community quantizations and mirrors. Test performance on your own workloads; benchmark claims are not interchangeable.
+
+For local use, start with a small quantized model compatible with available RAM; larger MoE models can have large *total* weight footprints despite low active parameters. Offline inference can avoid provider token charges, but electricity, hardware, operations and licensing remain costs. Self-hosting does not itself establish HIPAA/GDPR compliance or eliminate model security risks.
+
+## Monthly maintenance
+
+The companion scheduled workflow runs on the first day of every month and can be manually dispatched. It fetches live metadata for a **curated list of exact Hugging Face model repositories**, records model-card license tags and gated status, preserves source URLs, and opens a review PR when the snapshot changes. Treat API metadata as a *signal*, not legal verification. A reviewer must inspect model cards and primary LICENSE files, record exceptions, check newly released models, and update this editorial guide. If an upstream API fails, the job fails rather than presenting stale information as fresh. No automatic merge.
+
+The initial curated set intentionally samples representative releases; it is not a performance ranking or exhaustive census. The workflow's generated `docs/open-weight-models-monthly.json` records what was observed and when. Maintain source provenance and dated license evidence in the reviewed PR.
+
+## Primary and secondary resources
+
+- Model repositories and licenses: the publisher Hugging Face pages above; model cards and linked LICENSE files
+- Hugging Face model API: https://huggingface.co/docs/hub/api
+- OSI Open Source AI Definition: https://opensource.org/ai/open-source-ai-definition
+- Apache-2.0: https://www.apache.org/licenses/LICENSE-2.0
+- MIT: https://opensource.org/license/mit
+- Secondary business overview (updated November 2, 2026): https://www.layer3labs.io/open-weights/best-open-weights-ai-models
+
+This guide is informational, not legal advice. All license claims require per-release confirmation before production deployment.
