@@ -5,8 +5,8 @@
 # whose one caller is Barry's managed identity. Safe to re-run: existing apps are found by
 # name and reused.
 #
-#   patricia  patricia-a2a-api, Review.Request (the default), as an app role and as a
-#             delegated scope, so a platform that signs a user in can ask for a review
+#   patricia  patricia-a2a-api, Review.Request (the default), and the delegated scope
+#             Review.RequestAsUser, so a platform that signs a user in can ask for a review
 #   barry     barry-a2a-api, Orchestration.Request and Orchestration.Approve
 #   verify    barry-verify-mcp-api, Verify.Call: the MCP server hosted Barry is checked
 #             against (servers/verify-mcp)
@@ -49,12 +49,13 @@ while [ "$#" -gt 0 ]; do
   esac
 done
 # Each role: its value, display name and description, separated by |. SCOPE, the same for
-# a delegated scope, is set only for Patricia's reviews.
+# a delegated scope, is set only for Patricia's reviews. Entra refuses a scope with the same
+# value as an app role (DuplicateValue), so the scope has a name of its own.
 SCOPE=''
 case "$agent" in
   patricia) API_NAME="patricia-a2a-api"
     ROLES=("Review.Request|Request reviews|Request governance reviews from Patricia.")
-    SCOPE="Review.Request|Request reviews as the signed-in user|Ask Patricia for a governance review on behalf of the signed-in user." ;;
+    SCOPE="Review.RequestAsUser|Request reviews as the signed-in user|Ask Patricia for a governance review on behalf of the signed-in user." ;;
   barry) API_NAME="barry-a2a-api"
     ROLES=("Orchestration.Request|Request orchestration|Start and cancel tasks with hosted Barry."
            "Orchestration.Approve|Answer approvals|Approve or deny the gated actions hosted Barry asks about.") ;;

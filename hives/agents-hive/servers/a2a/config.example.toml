@@ -27,7 +27,7 @@ scope = "api://<api-app-id>/.default"
 allowed_clients = ["<caller-app-id>"]   # one entry per product allowed to call
 # client_claims = ["azp", "appid"]
 # required_roles = ["Review.Request"]
-# delegated_scopes = ["Review.Request"]   # governance-review only: user tokens with this scope, from allowed clients
+# delegated_scopes = ["Review.RequestAsUser"]   # governance-review only: user tokens with this scope, from allowed clients
 
 [model]
 api = "stub"                         # stub | messages | chat-completions: the wire API, not the vendor

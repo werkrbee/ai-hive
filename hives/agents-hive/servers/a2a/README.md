@@ -26,7 +26,7 @@ signed by a key from the configured JWKS, name the configured issuer and audienc
 unexpired, and come from a client on `auth.allowed_clients`. App tokens from the
 client-credentials flow are accepted. A delegated (user) token, one with `scp` or an Entra
 `idtyp` other than `app`, is accepted only by a reviewer whose `auth.delegated_scopes` is
-set (hosted Patricia's is `Review.Request`), so a platform that signs a user in can ask for
+set (hosted Patricia's is `Review.RequestAsUser`), so a platform that signs a user in can ask for
 a review: it must carry one of those scopes, come from a client on the list and name its
 user (`sub`), and it needs no role, since the scope is its permission. Every other
 delegated token is refused, and the config refuses `delegated_scopes` on any capability

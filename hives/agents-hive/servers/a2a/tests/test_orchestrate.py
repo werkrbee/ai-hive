@@ -277,7 +277,7 @@ class OrchestrateTest(unittest.TestCase):
 
     def test_a_delegated_token_is_refused_even_with_the_review_scope(self):
         with self.client(write_config(self.root), Scripted(final())) as c:
-            for claims in ({"scp": "Review.Request"}, {"scp": "Orchestration.Request"}, {"idtyp": "user"}):
+            for claims in ({"scp": "Review.RequestAsUser"}, {"scp": "Orchestration.Request"}, {"idtyp": "user"}):
                 header = f"Bearer {token(CALLER, roles=list(BOTH), sub='pairwise-alice', **claims)}"
                 r = c.post("/", headers={"A2A-Version": "1.0", "Authorization": header},
                            json={"jsonrpc": "2.0", "id": 1, "method": "ListTasks", "params": {}})

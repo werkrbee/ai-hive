@@ -86,7 +86,7 @@ class Render(unittest.TestCase):
         c = self.config()
         self.assertNotIn("orchestration", c)
         self.assertEqual(c["auth"]["required_roles"], ["Review.Request"])
-        self.assertEqual(c["auth"]["delegated_scopes"], ["Review.Request"], "a signed-in user may ask for a review")
+        self.assertEqual(c["auth"]["delegated_scopes"], ["Review.RequestAsUser"], "a signed-in user may ask for a review")
 
     def test_patricia_holds_an_allowance_for_each_reserved_client(self):
         self.assertNotIn("limits", self.config(), "without RESERVED_CLIENTS her limits are the server's defaults")

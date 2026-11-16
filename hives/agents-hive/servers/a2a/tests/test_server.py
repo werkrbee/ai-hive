@@ -67,7 +67,7 @@ jwks_path = "jwks.json"
 token_url = "https://login.example.test/tenant/oauth2/v2.0/token"
 scope = "api://api-app/.default"
 allowed_clients = ["{CALLER}", "{OTHER}"]
-{'delegated_scopes = ["Review.Request"]' if delegated else ""}
+{'delegated_scopes = ["Review.RequestAsUser"]' if delegated else ""}
 
 [model]
 api = "{api}"
@@ -189,7 +189,7 @@ class ServerTest(unittest.TestCase):
                 f"Bearer {token(exp=int(time.time()) - 3600)}": 401,
                 f"Bearer {token(kid='unknown')}": 401,
                 f"Bearer {token(STRANGER)}": 403,
-                f"Bearer {token(scp='Review.Request')}": 403,
+                f"Bearer {token(scp='Review.RequestAsUser')}": 403,
                 f"Bearer {token(idtyp='user')}": 403,
             }
             for header, status in cases.items():
@@ -199,13 +199,14 @@ class ServerTest(unittest.TestCase):
         self.assertEqual(self.ledger(), [])
 
     def test_a_delegated_token_may_ask_for_a_review_only_with_the_scope(self):
-        alice = token(scp="Review.Request", sub="pairwise-alice")
+        alice = token(scp="Review.RequestAsUser", sub="pairwise-alice")
         with self.client(write_config(self.root, delegated=True)) as c:
             cases = {
                 f"Bearer {alice}": 200,
                 f"Bearer {token(scp='User.Read', sub='pairwise-alice')}": 403,
-                f"Bearer {token(STRANGER, scp='Review.Request', sub='pairwise-alice')}": 403,
-                f"Bearer {token(scp='Review.Request')}": 401,  # no sub, so no user to hold tasks for
+                f"Bearer {token(scp='Review.Request', sub='pairwise-alice')}": 403,  # the app role's name
+                f"Bearer {token(STRANGER, scp='Review.RequestAsUser', sub='pairwise-alice')}": 403,
+                f"Bearer {token(scp='Review.RequestAsUser')}": 401,  # no sub, so no user to hold tasks for
                 f"Bearer {token(idtyp='user', sub='pairwise-alice')}": 403,
             }
             for header, status in cases.items():
@@ -218,8 +219,8 @@ class ServerTest(unittest.TestCase):
         self.assertNotIn("pairwise-alice", json.dumps(entry))
 
     def test_users_of_one_client_see_only_their_own_tasks(self):
-        alice = f"Bearer {token(scp='Review.Request', sub='pairwise-alice')}"
-        bob = f"Bearer {token(scp='Review.Request', sub='pairwise-bob')}"
+        alice = f"Bearer {token(scp='Review.RequestAsUser', sub='pairwise-alice')}"
+        bob = f"Bearer {token(scp='Review.RequestAsUser', sub='pairwise-bob')}"
         app = f"Bearer {token()}"
         with self.assertLogs("hive_a2a", "DEBUG") as logs, self.client(write_config(self.root, delegated=True)) as c:
             logging.getLogger("hive_a2a").debug("start")

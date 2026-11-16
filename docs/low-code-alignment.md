@@ -132,9 +132,10 @@ way finds it.
 **Delegated tokens, for reviews only.** Copilot Studio and Gemini Enterprise sign a user in
 and send that user's token; neither documents a client-credentials option for A2A or MCP.
 So Patricia will also accept a delegated token from a registered platform client, on two
-conditions: it carries a delegated scope her API app exposes, `Review.Request`, and its
-`azp` is on the allowlist. The API app already requires assignment, so only users assigned
-to it can get one. Patricia uses the user's identity only to keep their tasks apart: a
+conditions: it carries a delegated scope her API app exposes, `Review.RequestAsUser`
+(named apart from the `Review.Request` role, since Entra refuses one value for both), and
+its `azp` is on the allowlist. The API app already requires assignment, so only users
+assigned to it can get one. Patricia uses the user's identity only to keep their tasks apart: a
 task belongs to the client and that user, so two users of one platform don't see each
 other's, and the user is held only as an opaque ID (a hash of the issuer and the token's
 pairwise `sub`), never a name or email, and isn't logged. The ledger and the client's
