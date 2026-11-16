@@ -12,3 +12,23 @@ Date: 2026-11-16. Scope: open-weight model reference, scheduled metadata collect
 - **Required before ready:** Confirm third-party Action pinning policy, execute a live metadata fetch in GitHub Actions or another network-enabled runner, run current-commit CI, and have a human review the license evidence and generated JSON. Do not represent this written checklist as an independently executed Patricia agent session.
 
 This is a charter-aligned documented assessment, not a substitute for the repository's required independent Patricia reviewer.
+
+
+## Follow-up verification — 2026-11-16
+
+Primary publisher model cards and license text were checked for four exact releases:
+
+| Model | Finding | Evidence |
+| --- | --- | --- |
+| GLM-4.5 | MIT; publisher explicitly permits commercial use; 355B total / 32B active | https://huggingface.co/zai-org/GLM-4.5 |
+| Kimi-K2-Instruct | Modified MIT; commercial use allowed, but >100M monthly active users or >$20M monthly revenue triggers prominent Kimi K2 UI attribution | https://huggingface.co/moonshotai/Kimi-K2-Instruct/blob/main/LICENSE |
+| NVIDIA-Nemotron-Nano-9B-v2 | NVIDIA Open Model License Agreement; publisher states ready for commercial use | https://huggingface.co/nvidia/NVIDIA-Nemotron-Nano-9B-v2 |
+| gpt-oss-20b | Apache-2.0; model card describes 16 GB memory footprint with MXFP4 | https://huggingface.co/openai/gpt-oss-20b |
+
+**Not yet fully verified:** Llama 3.1, Mistral 7B, Qwen2.5 7B, DeepSeek R1, Gemma 3, and Phi-4 need exact LICENSE and terms review, including commercial restrictions and hardware/runtime support.
+
+**CI:** Run #488 succeeded, including the new offline collector tests. This does not demonstrate a live network fetch or monthly review-PR creation.
+
+**Automation blocker:** The monthly workflow file is not present on the default branch. No dispatch was performed, and no monthly snapshot was generated. Do not merge merely to make testing possible while the outstanding security and licensing conditions remain unresolved.
+
+**Patricia verdict remains ALLOW WITH CONDITIONS, not approval to merge.** In particular, review third-party action pinning, bot PR permissions, all model licenses, and a live end-to-end test before changing PR status.
