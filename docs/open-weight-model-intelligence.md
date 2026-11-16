@@ -60,6 +60,19 @@ These ten are a baseline for reproducible tracking, **not** the top seven models
 
 These are documented publisher claims, not independently executed model benchmarks or legal opinions. Other model entries remain pending per-release source verification; no claim is made that every family member shares a license.
 
+## Six additional primary-source license reviews (2026-11-16)
+
+| Exact release | Publisher license evidence | Commercial-use / download assessment | Size and local inference |
+| --- | --- | --- | --- |
+| [Llama 3.1 8B Instruct](https://huggingface.co/meta-llama/Llama-3.1-8B-Instruct) | [Meta Llama 3.1 Community License](https://github.com/meta-llama/llama-models/blob/main/models/llama3_1/LICENSE) | Commercial use subject to community license, acceptable-use policy and 700M monthly active-user threshold; gated terms acceptance may apply | 8B dense; quantized variants can run locally; RAM depends on quantization and context |
+| [Mistral 7B Instruct v0.3](https://huggingface.co/mistralai/Mistral-7B-Instruct-v0.3) | Publisher card tags Apache-2.0 | Commercial use allowed under Apache-2.0 notice and attribution obligations | 7B dense; native weights approximately 14.5 GB; quantization reduces memory |
+| [Qwen2.5 7B Instruct](https://huggingface.co/Qwen/Qwen2.5-7B-Instruct) | Publisher card tags Apache-2.0 | Commercial use allowed under Apache-2.0 obligations | 7.61B parameters; vLLM and Transformers documented; local quantizations available |
+| [DeepSeek R1](https://huggingface.co/deepseek-ai/DeepSeek-R1) | Publisher card states MIT for repository and weights | Commercial use and derivatives permitted under MIT; **distilled Llama variants inherit additional base-model terms** | 671B total / 37B active; full checkpoint not suitable for typical laptop; use smaller distills for local work |
+| [Gemma 3 4B IT](https://huggingface.co/google/gemma-3-4b-it) | [Google Gemma Terms of Use](https://ai.google.dev/gemma/terms) | Commercial use is subject to Google-specific terms and prohibited-use policy; Hugging Face access requires accepting conditions | 4B text/vision; quantized local deployment supported in compatible runtimes |
+| [Phi-4](https://huggingface.co/microsoft/phi-4) | [Publisher MIT LICENSE](https://huggingface.co/microsoft/phi-4/blob/main/LICENSE) | Commercial use allowed under MIT notice obligation | 14B dense, 16K context; local inference possible with sufficient RAM and compatible quantization |
+
+These are release-specific published terms, **not** a claim that all releases in each family share the license, nor a guarantee of OSI-compliant Open Source AI. Hardware notes are sizing guidance, not measured benchmarks. License review must be repeated if an upstream revision changes.
+
 ## Selection and deployment guidance
 
 Choose by **task** (general reasoning, coding, multilingual, vision, embedding, speech), **license**, **context window**, **total/active parameters**, **quantization**, **RAM/VRAM**, **runtime compatibility**, **provenance**, and **evaluation evidence**. An organization download page is not an executable model download; use an exact repository/revision. Distinguish native weights from community quantizations and mirrors. Test performance on your own workloads; benchmark claims are not interchangeable.
