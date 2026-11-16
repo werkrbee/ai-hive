@@ -13,6 +13,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Open-weight collector offline tests
+        run: python3 -m unittest discover -s tests -p 'test_open_weight_models.py' -v
+
       - name: Installer checks (syntax + sandboxed smoke install)
         run: ./scripts/check-installers.sh
 
@@ -62,3 +65,27 @@ jobs:
 
       - name: Smoke tests (stub model, no network)
         run: python -m unittest discover -s tests -v
+
+  monthly-models-live-validation:
+    # Temporary acceptance gate for PR #324; calls the actual monthly workflow.
+    if: github.event_name == 'pull_request' && github.event.pull_request.number == 324 && github.event.pull_request.head.repo.full_name == github.repository
+    permissions:
+      contents: write
+      pull-requests: write
+    uses: ./.github/workflows/monthly-open-weight-models.yml
+
+  dispatch-models-production-check:
+    # One-time production acceptance dispatch, authorized as part of PR #324.
+    if: >-
+      github.event_name == 'push' && github.ref == 'refs/heads/main' &&
+      startsWith(github.event.head_commit.message, 'feat: open-weight model intelligence and monthly license tracking (#324)')
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write
+      contents: read
+    steps:
+      - name: Dispatch the merged monthly workflow on main
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: gh workflow run monthly-open-weight-models.yml --repo "$GH_REPO" --ref main
