@@ -32,3 +32,12 @@ Primary publisher model cards and license text were checked for four exact relea
 **Automation blocker:** The monthly workflow file is not present on the default branch. No dispatch was performed, and no monthly snapshot was generated. Do not merge merely to make testing possible while the outstanding security and licensing conditions remain unresolved.
 
 **Patricia verdict remains ALLOW WITH CONDITIONS, not approval to merge.** In particular, review third-party action pinning, bot PR permissions, all model licenses, and a live end-to-end test before changing PR status.
+
+
+## Live validation and remediation — 2026-11-16
+
+The collector was executed against Hugging Face's live public API from a network-enabled runner. All ten exact model identities resolved. An anonymous HEAD request for a weight file in each repository returned HTTP 200 for eight models and HTTP 401 for the manually gated Llama and Gemma releases. No model weights were downloaded, terms accepted, or Hugging Face credentials supplied. Kimi identifies `modified-mit` and NVIDIA identifies `nvidia-open-model-license`; the generic `other` tag alone is insufficient, so schema v2 preserves custom license names, license links, upstream revisions, download pages and an example revision-pinned weight URL.
+
+The monthly workflow now pins checkout and setup-python to resolved commit SHAs and exposes GH_TOKEN only to the PR proposal step. The proposal starts its branch at fetched main, stages only the generated snapshot, uses normal push, and never merges. Existing monthly branches are not overwritten; a branch without an open PR produces an explicit recovery error. A PR-324-only CI job calls the actual reusable monthly workflow to test live collection and review-PR creation before merge. This grant is restricted to this same-repository PR; no pull_request_target event or external token is used.
+
+Patricia review: intake and code/security review complete; verdict ALLOW WITH CONDITIONS pending the live GitHub Actions acceptance run, generated PR inspection, current CI and production dispatch. The user's request authorizes fixes, test PR creation and merging only after all validation gates pass. Do not treat this entry as a completed independent Patricia subagent review.

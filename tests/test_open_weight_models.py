@@ -27,6 +27,21 @@ class ModelTrackerTests(unittest.TestCase):
         self.assertEqual(row["license_tag_unverified"], "llama3.1")
         self.assertEqual(row["gated"], "manual")
 
+    def test_custom_license_and_revision_pinned_download(self):
+        def opener(request, timeout):
+            return FakeResponse(json.dumps({
+                "id": MODELS[-1], "sha": "abc123", "gated": False,
+                "cardData": {"license": "other", "license_name": "nvidia-open-model-license",
+                             "license_link": "https://www.nvidia.com/license"},
+                "siblings": [{"rfilename": "model.safetensors"}]
+            }).encode())
+        row = fetch_model(MODELS[-1], opener)
+        self.assertEqual(row["license_name_unverified"], "nvidia-open-model-license")
+        self.assertEqual(row["license_link_unverified"], "https://www.nvidia.com/license")
+        self.assertEqual(row["weight_file_count"], 1)
+        self.assertEqual(row["example_weight_download"],
+                         "https://huggingface.co/" + MODELS[-1] + "/resolve/abc123/model.safetensors")
+
     def test_wrong_model_id_rejected(self):
         def opener(request, timeout):
             return FakeResponse(b'{"id":"unexpected"}')

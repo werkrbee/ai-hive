@@ -34,10 +34,26 @@ def fetch_model(model_id, opener=urllib.request.urlopen):
     license_tag = card.get("license") or next(
         (tag.removeprefix("license:") for tag in tags if tag.startswith("license:")), None
     )
+    revision = item.get("sha")
+    files = [entry["rfilename"] for entry in item.get("siblings", [])
+             if entry.get("rfilename", "").endswith((".safetensors", ".bin"))]
+    license_file = next((entry["rfilename"] for entry in item.get("siblings", [])
+                         if entry.get("rfilename", "").upper() in ("LICENSE", "LICENSE.TXT", "LICENSE.MD")), None)
+    base = "https://huggingface.co/" + model_id
+    revision_path = urllib.parse.quote(revision or "main", safe="")
     return {
         "model_id": model_id,
         "model_card": "https://huggingface.co/" + model_id,
         "license_tag_unverified": license_tag,
+        "license_name_unverified": card.get("license_name"),
+        "license_link_unverified": card.get("license_link") or (
+            base + "/blob/" + revision_path + "/" + license_file if license_file else None
+        ),
+        "upstream_revision": revision,
+        "download_page": base + "/tree/" + revision_path,
+        "weight_file_count": len(files),
+        "example_weight_download": (base + "/resolve/" + revision_path + "/" +
+                                    urllib.parse.quote(files[0], safe="/")) if files else None,
         "gated": item.get("gated", "unknown"),
         "last_modified": item.get("lastModified"),
         "source_api": url,
@@ -48,7 +64,7 @@ def build_snapshot(month, fetch=fetch_model):
     # One review per calendar month; deterministic output on repeat runs.
     datetime.date.fromisoformat(month + "-01")
     return {
-        "schema_version": 1,
+        "schema_version": 2,
         "review_month_utc": month,
         "disclaimer": "Model API tags are not legal verification; check the exact LICENSE and model card.",
         "models": [fetch(model_id) for model_id in MODELS],

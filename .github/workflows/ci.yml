@@ -65,3 +65,11 @@ jobs:
 
       - name: Smoke tests (stub model, no network)
         run: python -m unittest discover -s tests -v
+
+  monthly-models-live-validation:
+    # Temporary acceptance gate for PR #324; calls the actual monthly workflow.
+    if: github.event_name == 'pull_request' && github.event.pull_request.number == 324 && github.event.pull_request.head.repo.full_name == github.repository
+    permissions:
+      contents: write
+      pull-requests: write
+    uses: ./.github/workflows/monthly-open-weight-models.yml
