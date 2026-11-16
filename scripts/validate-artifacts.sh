@@ -71,6 +71,11 @@ if ! cards_out=$(python3 hives/agents-hive/scripts/agent_card.py --check); then
   printf '%s\n' "$cards_out"; fail=1
 fi
 
+# OpenAPI documents for A2A's HTTP+JSON binding: rendered from each contract, then checked.
+if ! openapi_out=$(python3 hives/agents-hive/scripts/openapi.py --check); then
+  printf '%s\n' "$openapi_out"; fail=1
+fi
+
 # Approval policies: schema, vocabulary and the decisions in each cases.json.
 if ! policies_out=$(python3 hives/rules-hive/scripts/check_policy.py); then
   printf '%s\n' "$policies_out"; fail=1
@@ -91,6 +96,6 @@ if [ "$skills" -eq 0 ]; then
 fi
 
 if [ "$fail" -eq 0 ]; then
-  echo "OK  ${skills} SKILL.md and ${agents} AGENTS.md artifacts valid; ${contracts_out#OK  }; ${passports_out#OK  }; ${cards_out#OK  }; ${policies_out#OK  }; ${registrations_out#OK  }; ${knowledge_out#OK  }"
+  echo "OK  ${skills} SKILL.md and ${agents} AGENTS.md artifacts valid; ${contracts_out#OK  }; ${passports_out#OK  }; ${cards_out#OK  }; ${openapi_out#OK  }; ${policies_out#OK  }; ${registrations_out#OK  }; ${knowledge_out#OK  }"
 fi
 exit "$fail"

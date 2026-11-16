@@ -1,4 +1,5 @@
-"""Tests for the image: every file a deployed passport names is in it.
+"""Tests for the image: every file a deployed passport names, and every script the server
+loads, is in it.
 
 The server refuses a passport whose files are missing, so a passport that names a file the
 Dockerfile doesn't copy, or that .dockerignore keeps out of the build, deploys an app that
@@ -9,6 +10,7 @@ Standard library only. Run from the repo root:
 """
 import importlib.util
 import json
+import re
 import shutil
 import sys
 import tempfile
@@ -102,6 +104,18 @@ class Image(unittest.TestCase):
             sys.path[:] = saved
             for mod in [m for m, v in sys.modules.items() if str(root) in str(getattr(v, "__file__", "") or "")]:
                 del sys.modules[mod]
+
+    def test_every_script_the_server_loads_is_copied_into_the_image(self):
+        sources = copied((HERE.parent / "Dockerfile").read_text(encoding="utf-8"))
+        through = allowed((REPO / ".dockerignore").read_text(encoding="utf-8"))
+        app = (REPO / "hives/agents-hive/servers/a2a/hive_a2a/app.py").read_text(encoding="utf-8")
+        scripts = re.findall(r'_script\("([\w-]+)"\)', app)
+        self.assertIn("openapi", scripts)
+        for name in scripts:
+            path = f"hives/agents-hive/scripts/{name}.py"
+            with self.subTest(path=path):
+                self.assertTrue(covers(sources, path), "no COPY line in the Dockerfile copies it")
+                self.assertTrue(covers(through, path), ".dockerignore keeps it out of the build")
 
     def test_the_check_sees_a_missing_file(self):
         self.assertTrue(covers(["a/b"], "a/b/c.json"))

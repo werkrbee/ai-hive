@@ -24,7 +24,7 @@ from starlette.testclient import TestClient
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE.parent))
 
-from hive_a2a import providers, review  # noqa: E402
+from hive_a2a import app as app_module, providers, review  # noqa: E402
 from hive_a2a.app import create_app  # noqa: E402
 from hive_a2a.config import REPO_ROOT, ConfigError, Limits, load  # noqa: E402
 from hive_a2a.providers import Completion, Result, Tool, ToolCall, User  # noqa: E402
@@ -247,6 +247,103 @@ class ServerTest(unittest.TestCase):
         with self.assertRaises(ConfigError) as e:
             load(self.root / "config.toml")
         self.assertIn("delegated_scopes is for governance-review only", str(e.exception))
+
+    # --- the HTTP+JSON binding and its OpenAPI document -------------------
+
+    def rest(self, client, path, body=None, who=CALLER, auth=None, version="1.0", method="POST"):
+        headers = {"Authorization": auth if auth is not None else f"Bearer {token(who)}"}
+        if version:
+            headers["A2A-Version"] = version
+        return client.request(method, path, json=body, headers=headers)
+
+    def test_card_declares_http_json_beside_jsonrpc(self):
+        with self.client(write_config(self.root)) as c:
+            interfaces = c.get("/.well-known/agent-card.json").json()["supportedInterfaces"]
+        self.assertEqual([(i["protocolBinding"], i["url"], i["protocolVersion"]) for i in interfaces],
+                         [("JSONRPC", "http://localhost/", "1.0"), ("HTTP+JSON", "http://localhost/", "1.0")])
+
+    def test_a_review_over_http_json_matches_one_over_jsonrpc(self):
+        text = json.dumps({"verdict": "block", "reason": "r", "violation": "v"})
+        with self.client(write_config(self.root), provider=Fixed(text)) as c:
+            rpc = self.send(c)["result"]["task"]
+            r = self.rest(c, "/message:send", message(PROPOSAL))
+            self.assertEqual(r.status_code, 200, r.text)
+            task = r.json()["task"]
+            got = self.rest(c, f"/tasks/{task['id']}", method="GET").json()
+            listed = self.rpc(c, "ListTasks", {}).json()["result"]["tasks"]
+        self.assertEqual(r.headers["content-type"], "application/a2a+json")
+        for t in (task, got):
+            self.assertEqual(t["status"]["state"], "TASK_STATE_COMPLETED")
+            self.assertEqual(t["artifacts"][0]["parts"][0]["data"], rpc["artifacts"][0]["parts"][0]["data"])
+        self.assertEqual({t["id"] for t in listed}, {rpc["id"], task["id"]}, "one task store behind both bindings")
+        self.assertEqual([e["taskId"] for e in self.ledger()], [rpc["id"], task["id"]], "and one ledger")
+
+    def test_http_json_refuses_what_jsonrpc_refuses(self):
+        def reason(r):
+            return r.status_code, r.json()["error"]["details"][0]["reason"]
+
+        with self.client(write_config(self.root)) as c:
+            bad = self.rest(c, "/message:send", message([{"data": {"context": "no proposal"}}]))
+            self.assertEqual(reason(bad), (400, "INVALID_PARAMS"))
+            [violations] = [d for d in bad.json()["error"]["details"] if d["@type"].endswith("BadRequest")]
+            self.assertEqual(violations["fieldViolations"], [{"field": "input.proposal", "description": "is required"}])
+            media = self.rest(c, "/message:send", message([{"raw": "AAAA", "mediaType": "image/png"}]))
+            self.assertEqual(reason(media), (400, "CONTENT_TYPE_NOT_SUPPORTED"))
+            unversioned = self.rest(c, "/message:send", message(PROPOSAL), version=None)
+            self.assertEqual(reason(unversioned), (400, "VERSION_NOT_SUPPORTED"), "v0.3 isn't served")
+            streamed = self.rest(c, "/message:stream", message(PROPOSAL))
+            self.assertEqual(reason(streamed), (400, "UNSUPPORTED_OPERATION"), "the card declares no streaming")
+            for header, status in {"": 401, f"Bearer {token(STRANGER)}": 403,
+                                   f"Bearer {token(scp='Review.RequestAsUser', sub='u')}": 403}.items():
+                self.assertEqual(self.rest(c, "/message:send", message(PROPOSAL), auth=header).status_code, status)
+            self.assertEqual(self.rest(c, "/tasks", method="GET", auth="").status_code, 401)
+            self.assertEqual(self.rpc(c, "ListTasks", {}).json()["result"].get("tasks", []), [])
+        self.assertEqual(self.ledger(), [])
+
+    def test_the_ceiling_rejects_over_http_json_as_over_jsonrpc(self):
+        with self.client(write_config(self.root, ceiling=0.001)) as c:
+            rpc = self.send(c)["result"]["task"]
+            task = self.rest(c, "/message:send", message(PROPOSAL)).json()["task"]
+        self.assertEqual(task["status"]["state"], "TASK_STATE_REJECTED")
+        self.assertEqual(task["status"]["message"]["parts"][1]["data"], rpc["status"]["message"]["parts"][1]["data"])
+        self.assertEqual(self.ledger(), [])
+
+    def test_a_user_s_tasks_stay_theirs_over_http_json(self):
+        alice = f"Bearer {token(scp='Review.RequestAsUser', sub='pairwise-alice')}"
+        bob = f"Bearer {token(scp='Review.RequestAsUser', sub='pairwise-bob')}"
+        with self.client(write_config(self.root, delegated=True)) as c:
+            task = self.rest(c, "/message:send", message(PROPOSAL), auth=alice).json()["task"]
+            mine = self.rest(c, f"/tasks/{task['id']}", method="GET", auth=alice)
+            theirs = self.rest(c, f"/tasks/{task['id']}", method="GET", auth=bob)
+            cancel = self.rest(c, f"/tasks/{task['id']}:cancel", auth=bob)
+        self.assertEqual(task["status"]["state"], "TASK_STATE_COMPLETED")
+        self.assertEqual((mine.status_code, theirs.status_code, cancel.status_code), (200, 404, 404))
+
+    def test_the_openapi_document_is_public_and_rendered_from_the_contract(self):
+        spec = app_module._script("openapi")
+        contract = json.loads((REPO_ROOT / "hives/agents-hive/contracts/governance-review/contract.json").read_text())
+        for delegated in (False, True):
+            with self.subTest(delegated=delegated), self.client(write_config(self.root, delegated=delegated)) as c:
+                r = c.get("/openapi.json")
+                self.assertEqual(r.status_code, 200)
+                doc = r.json()
+                self.assertEqual(spec.validate(doc), [])
+                schemas = doc["components"]["schemas"]
+                self.assertEqual(schemas["Input"], spec.schema(contract["inputs"], "inputs"))
+                self.assertEqual(schemas["Output"], spec.schema(contract["output"], "output"))
+                self.assertEqual(schemas["Output"]["properties"]["verdict"]["enum"],
+                                 contract["output"]["properties"]["verdict"]["enum"])
+                self.assertEqual(doc["servers"], [{"url": "http://localhost"}])
+                self.assertEqual(list(doc["paths"]), ["/message:send"])
+                flows = doc["components"]["securitySchemes"]["entra"]["flows"]
+                self.assertEqual(flows["clientCredentials"]["tokenUrl"],
+                                 "https://login.example.test/tenant/oauth2/v2.0/token")
+                if delegated:
+                    self.assertEqual(flows["authorizationCode"]["authorizationUrl"],
+                                     "https://login.example.test/tenant/oauth2/v2.0/authorize")
+                    self.assertEqual(list(flows["authorizationCode"]["scopes"]), ["api://api-app/Review.RequestAsUser"])
+                else:
+                    self.assertNotIn("authorizationCode", flows, "only a server that takes delegated tokens offers it")
 
     # --- the contract ----------------------------------------------------
 

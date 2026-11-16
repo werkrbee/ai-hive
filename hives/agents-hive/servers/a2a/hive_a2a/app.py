@@ -1,7 +1,9 @@
 """Assemble the A2A server: the Agent Card, the JSON-RPC endpoint, auth, a durable task
 store and the executor its contract calls for: the reviewer (review.py), or for
-orchestration, hosted Barry's loop (orchestrate.py). A reviewer is also served over MCP
-(mcp.py), and holds each client to its hourly rate on both bindings (limits.py)."""
+orchestration, hosted Barry's loop (orchestrate.py). A reviewer is also served over A2A's
+HTTP+JSON binding, at the same URL, with an OpenAPI document for it (OPENAPI_PATH,
+rendered by agents-hive/scripts/openapi.py), and over MCP (mcp.py), and holds each client
+to its hourly rate on every binding (limits.py)."""
 import contextlib
 import importlib.util
 import logging
@@ -11,8 +13,10 @@ from google.protobuf.json_format import ParseDict
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import create_async_engine
 from starlette.applications import Starlette
+from starlette.responses import JSONResponse
+from starlette.routing import Mount, Route
 
-from a2a.server.routes import create_agent_card_routes, create_jsonrpc_routes
+from a2a.server.routes import create_agent_card_routes, create_jsonrpc_routes, create_rest_routes
 from a2a.server.tasks import DatabaseTaskStore
 from a2a.types import AgentCard, Role, TaskState
 
@@ -24,20 +28,24 @@ from .ledger import Ledger
 log = logging.getLogger("hive_a2a")
 
 UNFINISHED = {TaskState.TASK_STATE_SUBMITTED, TaskState.TASK_STATE_WORKING}
+OPENAPI_PATH = "/openapi.json"  # under the endpoint's path, beside HTTP+JSON's /message:send
 
 
-def _agent_card_module():
-    path = REPO_ROOT / "hives/agents-hive/scripts/agent_card.py"
-    spec = importlib.util.spec_from_file_location("agent_card", path)
+def _script(name):
+    path = REPO_ROOT / f"hives/agents-hive/scripts/{name}.py"
+    spec = importlib.util.spec_from_file_location(name, path)
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
 
 
 def card(config):
-    """The persona's card rendered for this endpoint, with its OAuth2 security scheme."""
-    agent_card = _agent_card_module()
+    """The persona's card rendered for this endpoint, with its OAuth2 security scheme. A
+    reviewer's card declares HTTP+JSON beside JSON-RPC, at the same URL."""
+    agent_card = _script("agent_card")
     rendered = agent_card.render(config.persona, config.public_url, "JSONRPC")
+    if not config.orchestration:
+        rendered["supportedInterfaces"].append({**rendered["supportedInterfaces"][0], "protocolBinding": "HTTP+JSON"})
     rendered["skills"] = [s for s in rendered["skills"] if s["id"] == config.capability]
     for s in rendered["skills"]:
         s["inputModes"] = ["application/json", "text/plain"]  # text is taken as the first required field
@@ -53,6 +61,19 @@ def card(config):
     if problems:
         raise ValueError("the rendered Agent Card is invalid: " + "; ".join(problems))
     return rendered
+
+
+def openapi(config):
+    """The OpenAPI document for the reviewer's SendMessage over HTTP+JSON, rendered from its
+    contract, with the token flows this server accepts."""
+    spec = _script("openapi")
+    oauth = {"tokenUrl": config.auth.token_url, "scope": config.auth.scope,
+             "delegated": list(config.auth.delegated_scopes)}
+    doc = spec.render(config.contract, config.public_url, oauth, config.persona)
+    problems = spec.validate(doc)
+    if problems:
+        raise ValueError("the rendered OpenAPI document is invalid: " + "; ".join(problems))
+    return doc
 
 
 async def fail_interrupted(store, resumes=lambda task_id: False,
@@ -125,21 +146,28 @@ def create_app(config, provider=None, authenticator=None, ledger_clock=None, net
             await engine.dispose()
 
     rpc_path = urlparse(config.public_url).path or "/"
-    public, challenges, extra = set(PUBLIC_PATHS), {}, []
+    prefix = rpc_path.rstrip("/")
+    public, challenges, extra, rest = set(PUBLIC_PATHS), {}, [], []
     if mcp_server:
-        public |= {mcp.CARD_PATH, *mcp.METADATA_PATHS}
+        document = openapi(config)
+        public |= {mcp.CARD_PATH, *mcp.METADATA_PATHS, prefix + OPENAPI_PATH}
         challenges[mcp.PATH] = mcp.challenge(config)
-        extra = mcp_server.routes()
+        extra = [*mcp_server.routes(),
+                 Route(prefix + OPENAPI_PATH, lambda request: JSONResponse(document), methods=["GET"])]
+        # The binding's routes at the endpoint's own path; its /{tenant} copies are left out,
+        # since the server has no tenants.
+        rest = [r for r in create_rest_routes(handler, path_prefix=prefix) if not isinstance(r, Mount)]
     app = Starlette(
         routes=[*create_agent_card_routes(agent_card, cache_control="public, max-age=300"),
-                *extra, *create_jsonrpc_routes(handler, rpc_path)],
+                *extra, *create_jsonrpc_routes(handler, rpc_path), *rest],
         lifespan=lifespan,
     )
     if mcp_server:
         # Added before auth, so it runs inside it, once the client is known.
         limiter = limits.Limiter(config.limits, **({"clock": rate_clock} if rate_clock else {}))
         app.add_middleware(limits.RateLimit, limiter=limiter,
-                           paths={rpc_path: {"SendMessage", "SendStreamingMessage"}, mcp.PATH: {"tools/call"}})
+                           paths={rpc_path: {"SendMessage", "SendStreamingMessage"}, mcp.PATH: {"tools/call"},
+                                  prefix + "/message:send": limits.REST, prefix + "/message:stream": limits.REST})
     app.add_middleware(AuthMiddleware, authenticator=authenticator or Authenticator(config.auth),
                        public=public, challenges=challenges)
     app.state.orchestrator = orchestrator

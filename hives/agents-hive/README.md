@@ -214,6 +214,15 @@ be HTTPS, which is house policy and stricter than the spec. A contract adds a sk
 card when its `fulfilledBy` names `hives/skills-hive/skills/<persona>` or
 `hives/agents-hive/agents/<persona>`. CI runs the check. The cards aren't signed yet.
 
+A persona served over A2A's HTTP+JSON binding can also be described in OpenAPI 3.0, for a
+low-code platform that imports OpenAPI. `scripts/openapi.py` renders the document from a
+contract, as the card's skills are rendered: one operation, `SendMessage`, whose request's
+data part is the contract's `inputs` and whose completed task's artifact is its `output`,
+with Entra's OAuth2 flows as its security scheme. The A2A server serves it for a reviewer
+(`servers/a2a/README.md`). `scripts/openapi.py --check` renders one for every contract
+against a stand-in endpoint and checks it against the OpenAPI 3.0.3 rules it uses; CI runs
+the check.
+
 ## A2A server
 
 [`servers/a2a/`](servers/a2a) is a reference A2A server for one contract of one persona,
@@ -336,7 +345,8 @@ agents-hive/
 │   ├── trust_eval.py             # judge drift, record evaluations, gate promotion
 │   ├── rollback.py               # find an earlier version's commit, record a rollback
 │   ├── registrations.py          # check caller registrations; resolve a tool call to a policy request
-│   └── agent_card.py             # render and check A2A Agent Cards
+│   ├── agent_card.py             # render and check A2A Agent Cards
+│   └── openapi.py                # render and check OpenAPI documents for A2A's HTTP+JSON binding
 ├── LICENSE
 └── README.md
 ```
