@@ -16,6 +16,8 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
+      - name: Run offline collector tests
+        run: python3 -m unittest discover -s tests -p 'test_open_weight_models.py' -v
       - name: Fetch official model metadata
         run: python3 scripts/update_open_weight_models.py
       - name: Propose reviewed snapshot
