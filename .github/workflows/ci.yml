@@ -73,3 +73,17 @@ jobs:
       contents: write
       pull-requests: write
     uses: ./.github/workflows/monthly-open-weight-models.yml
+
+  dispatch-models-production-check:
+    # One-time production acceptance dispatch, authorized as part of PR #324.
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && startsWith(github.event.head_commit.message, 'feat: open-weight model intelligence and monthly license tracking (#324)')
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write
+      contents: read
+    steps:
+      - name: Dispatch the merged monthly workflow on main
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: gh workflow run monthly-open-weight-models.yml --repo "$GH_REPO" --ref main

@@ -41,3 +41,25 @@ The collector was executed against Hugging Face's live public API from a network
 The monthly workflow now pins checkout and setup-python to resolved commit SHAs and exposes GH_TOKEN only to the PR proposal step. The proposal starts its branch at fetched main, stages only the generated snapshot, uses normal push, and never merges. Existing monthly branches are not overwritten; a branch without an open PR produces an explicit recovery error. A PR-324-only CI job calls the actual reusable monthly workflow to test live collection and review-PR creation before merge. This grant is restricted to this same-repository PR; no pull_request_target event or external token is used.
 
 Patricia review: intake and code/security review complete; verdict ALLOW WITH CONDITIONS pending the live GitHub Actions acceptance run, generated PR inspection, current CI and production dispatch. The user's request authorizes fixes, test PR creation and merging only after all validation gates pass. Do not treat this entry as a completed independent Patricia subagent review.
+
+
+## Acceptance evidence and independent review — 2026-11-16
+
+CI #493 (run 43973017550, head b48d19ca2dffa2fc9caa85f5d0a84e33729f27a1) passed all jobs. The actual monthly workflow's live collector and proposal step passed and created https://github.com/werkrbee/ai-hive/pull/325. Its single commit c08e99834dd4527eef271d91c8fa6ac99cca0b46 changes only the JSON snapshot. The generated blob b134f1893b972754f44ca0aea02a12d4d518ba7a exactly matches the independently generated local live snapshot. All ten records and revision-pinned sample downloads were reviewed; eight anonymous HEAD requests succeeded and two expected gated requests returned 401. Null custom license names or links mean the API does not supply them, not verified absence of terms. All metadata remains explicitly unverified legal evidence.
+
+A sixth offline integration test now checks the real proposal script against a disposable bare Git repository and simulated GitHub CLI. It confirms main and unrelated feature content stay unchanged; the generated branch contains only the snapshot; reruns preserve its commit; an existing branch without an open PR fails safely; and a synthetic token never appears in output. All six tests pass locally. Artifact validation, registry checks and architecture checks pass. Local installer smoke checks reached their final cleanliness assertion and rejected the intentionally dirty development worktree; the equivalent clean CI #493 installer check passed.
+
+Independent review task `/root/patricia_review` returned **PASS** on the supplied narrowed implementation and acceptance evidence, with final-head CI and final dispatch diff still required before merge. This was a separate read-only review of supplied context, with no shell, network, file writes, delegates or external authority; it was not the repository's hosted/model-pinned Patricia deployment. Delegation used Barry passport v5's Patricia delegate and Patricia passport v10's read-only intersection. The only identified nonblocking concern was an overly broad production-dispatch commit-message match; it was tightened to the exact PR #324 squash-title prefix.
+
+The final CI adds an explicitly authorized production acceptance dispatch on the PR #324 squash push to main. Its isolated job has actions:write and contents:read, exposes the ephemeral GitHub token only to `gh workflow run monthly-open-weight-models.yml --repo "$GH_REPO" --ref main`, and cannot merge. This creates a workflow_dispatch event on main without requiring a PAT or browser sign-in. Post-merge production results must be verified and reported separately; they are not claimed complete here. The generated PR #325 is intentionally left for human review, never automatically merged.
+
+Review audit digests (SHA-256): narrowed grant `bcaef0b3f5234efdc57cb5ff84c97246bd17a3252b09bdaf85de956c6500e555`. Artifact versions underlying the supplied review excerpts and evidence:
+
+- `scripts/propose_open_weight_review.sh`: `63fd5d7239bf228476d84f1bc4df6f8660c084c1c1c7825d65def91df479b5b7`
+- `scripts/update_open_weight_models.py`: `a4309568068c3ffcb189de3b8c0b31fc24797cca5c1f6dacead465a7192ae97a`
+- `.github/workflows/monthly-open-weight-models.yml`: `4c22b975ac24d59bd9f3443d0c4db1404471dbcee80a8fee4bf68b0a16de51ac`
+- `.github/workflows/ci.yml`: `c4fbc6b2123f333b8b8de2a395640d2b4ba5740b9f53bf62d675602c967f37ad`
+- `tests/test_open_weight_models.py`: `6fbcbb172a65c00cb8f76f97c3d0c7a3ef06cab5d53e663d802d6e47147db772`
+- `docs/open-weight-models-monthly.json`: `605b5845283290ba842050f591c173eb59daf8167f13b36d2cea13f7b37c60ee`
+
+Final dispatch-diff review by `/root/patricia_review`: **PASS**. No additional governance blockers; final-commit CI must pass before merge, and production dispatch outcome must be recorded afterward.
