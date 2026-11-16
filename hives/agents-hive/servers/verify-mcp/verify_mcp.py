@@ -7,7 +7,10 @@ the task pauses for a person, and once approved the call runs here. The tool onl
 the note in memory and says so; nothing persists, and nothing outside this process
 changes.
 
-It speaks MCP's streamable HTTP transport with plain JSON replies and no session, and
+It shares dual-era MCP handling with Patricia (hive_a2a.mcp_protocol): modern
+2026-07-28 requests are stateless, while initialize negotiates 2025-11-25 or
+2025-06-18, including for Barry's client when it asks for a modern version.
+It uses Streamable HTTP with plain JSON replies and no session, and
 serves its Server Card without a token at /.well-known/mcp/server-card.json. Every other
 request needs an app token for its own API app (entra.sh --agent verify) from a client on
 ALLOWED_CLIENTS, Barry's managed identity, carrying the Verify.Call role. It reuses the A2A
@@ -18,7 +21,6 @@ Environment: PUBLIC_URL, AZURE_TENANT_ID, API_APP_ID, ALLOWED_CLIENTS (comma-sep
   python verify_mcp.py --host 0.0.0.0 --port 8080
 """
 import argparse
-import json
 import os
 import sys
 from pathlib import Path
@@ -27,14 +29,15 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "a2a"))
 
 from starlette.applications import Starlette  # noqa: E402
 from starlette.requests import Request  # noqa: E402
-from starlette.responses import JSONResponse, Response  # noqa: E402
+from starlette.responses import JSONResponse  # noqa: E402
 from starlette.routing import Route  # noqa: E402
 
 from hive_a2a.auth import Authenticator  # noqa: E402
 from hive_a2a.config import Auth  # noqa: E402
+from hive_a2a.mcp_protocol import Protocol, MODERN, LEGACY, INVALID_PARAMS, _error, _result  # noqa: E402
 
 CARD_PATH = "/.well-known/mcp/server-card.json"
-VERSIONS = ["2026-07-28", "2025-06-18"]
+VERSIONS = [*MODERN, *LEGACY]
 ROLE = "Verify.Call"
 TOOLS = [{
     "name": "record_note",
@@ -67,59 +70,52 @@ def card(public_url):
     }
 
 
-def reply(body, result=None, error=None):
-    message = {"jsonrpc": "2.0", "id": body.get("id")}
-    message.update({"error": error} if error else {"result": result})
-    return JSONResponse(message)
+class Server(Protocol):
+    def __init__(self, public_url, authenticator):
+        super().__init__(public_url, TOOLS)
+        self.authenticator = authenticator
+        self.notes = []
+
+    def server_info(self):
+        return {"name": "barry-verify", "version": "1.0.0"}
+
+    def instructions(self):
+        return "Call record_note to record a short note in this server's memory only."
+
+    async def handle(self, request: Request):
+        who, refusal = await self.authenticator.caller(request.headers.get("authorization"))
+        if refusal:
+            status, reason = refusal
+            return JSONResponse({"error": reason}, status_code=status)
+        request.scope["verify_client"] = who[0]
+        return await super().handle(request)
+
+    async def call(self, request, id_, params, extra):
+        if params.get("name") != "record_note":
+            return _error(id_, INVALID_PARAMS, f"no tool named {params.get('name')!r}")
+        arguments = params.get("arguments", {})
+        if not isinstance(arguments, dict):
+            return _error(id_, INVALID_PARAMS, "arguments must be an object")
+        text = arguments.get("text")
+        if not isinstance(text, str) or not text or len(text) > 500:
+            return _result(id_, {**extra, "isError": True, "content": [{"type": "text", "text": "text must be 1 to 500 "
+                                                                   "characters"}]})
+        self.notes.append({"by": request.scope["verify_client"], "text": text})
+        return _result(id_, {**extra, "content": [{"type": "text", "text": f"Recorded note {len(self.notes)}, "
+                                                            f"in memory only: {text}"}]})
 
 
 def create_app(env=os.environ, authenticator=None):
     authenticator = authenticator or Authenticator(auth_from(env))
     public_url = env["PUBLIC_URL"]
-    notes = []
+    server = Server(public_url, authenticator)
 
     async def server_card(request):
         return JSONResponse(card(public_url))
 
-    async def mcp(request: Request):
-        who, refusal = await authenticator.caller(request.headers.get("authorization"))
-        if refusal:
-            status, reason = refusal
-            return JSONResponse({"error": reason}, status_code=status)
-        try:
-            body = json.loads(await request.body())
-        except ValueError:
-            return JSONResponse({"jsonrpc": "2.0", "id": None, "error": {"code": -32700, "message": "not JSON"}},
-                                status_code=400)
-        if not isinstance(body, dict) or "method" not in body:
-            return JSONResponse({"jsonrpc": "2.0", "id": None, "error": {"code": -32600, "message": "not a request"}},
-                                status_code=400)
-        if "id" not in body:  # a notification, such as notifications/initialized
-            return Response(status_code=202)
-        method, params = body["method"], body.get("params") or {}
-        if method == "initialize":
-            asked = params.get("protocolVersion")
-            return reply(body, {"protocolVersion": asked if asked in VERSIONS else VERSIONS[0],
-                                "capabilities": {"tools": {}},
-                                "serverInfo": {"name": "barry-verify", "version": "1.0.0"}})
-        if method == "ping":
-            return reply(body, {})
-        if method == "tools/list":
-            return reply(body, {"tools": TOOLS})
-        if method == "tools/call":
-            if params.get("name") != "record_note":
-                return reply(body, error={"code": -32602, "message": f"no tool named {params.get('name')!r}"})
-            text = (params.get("arguments") or {}).get("text")
-            if not isinstance(text, str) or not text or len(text) > 500:
-                return reply(body, {"isError": True, "content": [{"type": "text", "text": "text must be 1 to 500 "
-                                                                   "characters"}]})
-            notes.append({"by": who[0], "text": text})
-            return reply(body, {"content": [{"type": "text", "text": f"Recorded note {len(notes)}, in memory only: "
-                                             f"{text}"}]})
-        return reply(body, error={"code": -32601, "message": f"no method {method}"})
-
-    app = Starlette(routes=[Route(CARD_PATH, server_card, methods=["GET"]), Route("/mcp", mcp, methods=["POST"])])
-    app.state.notes = notes
+    app = Starlette(routes=[Route(CARD_PATH, server_card, methods=["GET"]),
+                            Route("/mcp", server.handle, methods=["POST", "GET", "DELETE"])])
+    app.state.notes = server.notes
     return app
 
 

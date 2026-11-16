@@ -6,6 +6,7 @@ Run from servers/a2a with the requirements installed:
   python -m unittest discover -s tests -v
 """
 import asyncio
+import base64
 import json
 import sys
 import time
@@ -26,7 +27,7 @@ sys.path.insert(0, str(HERE.parents[1] / "verify-mcp"))
 sys.dont_write_bytecode = True  # don't leave __pycache__ beside the server
 import verify_mcp  # noqa: E402
 sys.dont_write_bytecode = False
-from hive_a2a import orchestrate  # noqa: E402
+from hive_a2a import mcp_protocol, orchestrate  # noqa: E402
 from hive_a2a.auth import Authenticator  # noqa: E402
 
 KEY = rsa.generate_private_key(public_exponent=65537, key_size=2048)
@@ -52,9 +53,22 @@ class VerifyMcpTest(unittest.TestCase):
         self.client = TestClient(self.app)
 
     def rpc(self, method, params=None, tok=None, rid=1):
-        headers = {"authorization": f"Bearer {tok or token()}"}
+        headers = {"authorization": f"Bearer {tok or token()}", "MCP-Protocol-Version": "2025-06-18"}
         return self.client.post("/mcp", json={"jsonrpc": "2.0", "id": rid, "method": method, "params": params or {}},
                                 headers=headers)
+
+    def modern(self, method, params=None, version="2026-07-28", headers=None, notification=False):
+        params = {**(params or {}), "_meta": {mcp_protocol.VERSION_KEY: version,
+                  "io.modelcontextprotocol/clientInfo": {"name": "test", "version": "1"},
+                  "io.modelcontextprotocol/clientCapabilities": {}}}
+        h = {"authorization": f"Bearer {token()}", "MCP-Protocol-Version": version, "Mcp-Method": method}
+        if method == "tools/call":
+            h["Mcp-Name"] = params.get("name", "")
+        h.update(headers or {})
+        body = {"jsonrpc": "2.0", "method": method, "params": params}
+        if not notification:
+            body["id"] = 7
+        return self.client.post("/mcp", json=body, headers={k: v for k, v in h.items() if v is not None})
 
     def test_the_card_is_public_and_valid(self):
         r = self.client.get(verify_mcp.CARD_PATH)
@@ -62,6 +76,88 @@ class VerifyMcpTest(unittest.TestCase):
         cards = orchestrate._server_card_module()
         self.assertEqual(cards.validate(r.json()), [])
         self.assertEqual(cards.resolve("verify", r.json(), {})["url"], "https://verify.test/mcp")
+        self.assertEqual(r.json()["remotes"][0]["supportedProtocolVersions"],
+                         ["2026-07-28", "2025-11-25", "2025-06-18"])
+
+    def test_modern_discovery_list_ping_and_call_need_no_initialize(self):
+        discover = self.modern("server/discover")
+        self.assertEqual(discover.status_code, 200)
+        result = discover.json()["result"]
+        self.assertEqual(result["supportedVersions"], ["2026-07-28"])
+        self.assertEqual(result["capabilities"], {"tools": {}})
+        self.assertEqual(result["_meta"]["io.modelcontextprotocol/serverInfo"]["name"], "barry-verify")
+        listed = self.modern("tools/list").json()["result"]
+        self.assertEqual(listed, {"resultType": "complete", "tools": verify_mcp.TOOLS})
+        self.assertEqual(self.modern("ping").json()["result"], {"resultType": "complete"})
+        r = self.modern("tools/call", {"name": "record_note", "arguments": {"text": "modern"}})
+        self.assertNotIn("mcp-session-id", r.headers)
+        self.assertEqual(r.json()["result"]["resultType"], "complete")
+        self.assertEqual(self.app.state.notes, [{"by": "barry-mi", "text": "modern"}])
+
+    def test_modern_header_version_and_method_errors_do_not_execute_the_tool(self):
+        params = {"name": "record_note", "arguments": {"text": "must not run"}}
+        for headers in ({"MCP-Protocol-Version": None}, {"MCP-Protocol-Version": "2025-06-18"},
+                        {"Mcp-Method": None}, {"Mcp-Method": "tools/list"},
+                        {"Mcp-Name": None}, {"Mcp-Name": "other"}, {"Mcp-Name": "=?base64?bad?="}):
+            with self.subTest(headers=headers):
+                r = self.modern("tools/call", params, headers=headers)
+                self.assertEqual((r.status_code, r.json()["error"]["code"]), (400, -32020))
+        r = self.modern("tools/list", version="1900-01-01")
+        self.assertEqual(r.status_code, 400)
+        self.assertEqual(r.json()["error"]["code"], -32022)
+        self.assertEqual(r.json()["error"]["data"], {"supported": ["2026-07-28"], "requested": "1900-01-01"})
+        r = self.modern("resources/list")
+        self.assertEqual((r.status_code, r.json()["error"]["code"]), (404, -32601))
+        self.assertEqual(self.app.state.notes, [])
+        encoded = "=?base64?" + base64.b64encode(b"record_note").decode() + "?="
+        self.assertEqual(self.modern("tools/call", params, headers={"Mcp-Name": encoded}).status_code, 200)
+        self.assertEqual(len(self.app.state.notes), 1)
+
+    def test_legacy_negotiation_never_claims_modern_handshake_support(self):
+        for asked, chosen in (("2025-06-18", "2025-06-18"), ("2025-11-25", "2025-11-25"),
+                              ("2026-07-28", "2025-11-25"), ("unknown", "2025-11-25")):
+            with self.subTest(asked=asked):
+                r = self.rpc("initialize", {"protocolVersion": asked})
+                self.assertEqual(r.json()["result"]["protocolVersion"], chosen)
+                self.assertNotIn("mcp-session-id", r.headers)
+                headers = {"authorization": f"Bearer {token()}", "MCP-Protocol-Version": chosen}
+                listed = self.client.post("/mcp", json={"jsonrpc": "2.0", "id": 2, "method": "tools/list"},
+                                          headers=headers)
+                self.assertEqual(listed.json()["result"], {"tools": verify_mcp.TOOLS})
+        bare = self.client.post("/mcp", json={"jsonrpc": "2.0", "id": 1, "method": "tools/list"},
+                                headers={"authorization": f"Bearer {token()}"})
+        self.assertEqual(bare.status_code, 400)
+
+    def test_invalid_envelopes_and_arguments_are_errors_not_server_crashes(self):
+        headers = {"authorization": f"Bearer {token()}", "MCP-Protocol-Version": "2025-11-25"}
+        for body in ([], {}, {"jsonrpc": "1.0", "id": 1, "method": "ping"},
+                     {"jsonrpc": "2.0", "id": 1, "method": 3}):
+            with self.subTest(body=body):
+                r = self.client.post("/mcp", json=body, headers=headers)
+                self.assertEqual((r.status_code, r.json()["error"]["code"]), (400, -32600))
+        r = self.client.post("/mcp", content=b"not JSON", headers=headers)
+        self.assertEqual((r.status_code, r.json()["error"]["code"]), (400, -32700))
+        for value in ([], "wrong", 0, False, None):
+            r = self.client.post("/mcp", json={"jsonrpc": "2.0", "id": 1, "method": "tools/list", "params": value},
+                                 headers=headers)
+            self.assertEqual(r.json()["error"]["code"], -32602)
+            r = self.modern("tools/call", {"name": "record_note", "arguments": value})
+            self.assertEqual(r.json()["error"]["code"], -32602)
+        self.assertEqual(self.app.state.notes, [])
+
+    def test_methods_origins_and_notifications_do_not_bypass_validation(self):
+        headers = {"authorization": f"Bearer {token()}"}
+        self.assertEqual(self.client.get("/mcp", headers=headers).status_code, 405)
+        self.assertEqual(self.client.delete("/mcp", headers=headers).status_code, 405)
+        self.assertEqual(self.modern("tools/list", headers={"Origin": "https://evil.test"}).status_code, 403)
+        self.assertEqual(self.modern("tools/list", headers={"Origin": "https://verify.test"}).status_code, 200)
+        note = {"name": "record_note", "arguments": {"text": "no request id"}}
+        self.assertEqual(self.modern("tools/call", note, notification=True).status_code, 202)
+        self.assertEqual(self.modern("tools/call", note, notification=True,
+                                     headers={"Mcp-Method": "other"}).status_code, 400)
+        self.assertEqual(self.app.state.notes, [])
+        r = self.client.post("/mcp", json={"jsonrpc": "2.0", "method": "notifications/initialized"}, headers=headers)
+        self.assertEqual(r.status_code, 202)
 
     def test_a_request_without_a_valid_token_is_refused(self):
         self.assertEqual(self.client.post("/mcp", json={"jsonrpc": "2.0", "id": 1, "method": "tools/list"}).status_code,
@@ -69,6 +165,14 @@ class VerifyMcpTest(unittest.TestCase):
         self.assertEqual(self.rpc("tools/list", tok=token(client="someone-else")).status_code, 403)
         self.assertEqual(self.rpc("tools/list", tok=token(roles=())).status_code, 403)
         self.assertEqual(self.rpc("tools/list", tok=token(scp="user_impersonation")).status_code, 403)
+        for auth, status in (("", 401), (f"Bearer {token(client='someone-else')}", 403),
+                             (f"Bearer {token(roles=())}", 403),
+                             (f"Bearer {token(scp='Review.Request')}", 403)):
+            with self.subTest(status=status, auth=bool(auth)):
+                r = self.modern("tools/call", {"name": "record_note", "arguments": {"text": "denied"}},
+                                headers={"authorization": auth})
+                self.assertEqual(r.status_code, status)
+        self.assertEqual(self.app.state.notes, [])
 
     def test_the_tool_records_a_note_in_memory(self):
         r = self.rpc("tools/call", {"name": "record_note", "arguments": {"text": "hello"}}).json()
@@ -80,8 +184,11 @@ class VerifyMcpTest(unittest.TestCase):
         self.assertEqual(other["error"]["code"], -32602)
 
     def test_barrys_client_lists_and_calls_it(self):
+        requests = []
+
         def transport(request):
-            headers = {k: v for k, v in request.headers.items() if k in ("authorization", "content-type")}
+            requests.append((json.loads(request.content), dict(request.headers)))
+            headers = dict(request.headers)
             r = self.client.post(request.url.path, content=request.content, headers=headers)
             return httpx.Response(r.status_code, headers={"content-type": r.headers.get("content-type", "")},
                                   content=r.content)
@@ -105,6 +212,11 @@ class VerifyMcpTest(unittest.TestCase):
         listed, called = asyncio.run(go())
         self.assertIn("record_note", listed)
         self.assertIn("hi", called["content"][0]["text"])
+        self.assertEqual(requests[0][0]["method"], "initialize")
+        self.assertEqual(requests[0][0]["params"]["protocolVersion"], "2026-07-28")
+        for body, headers in requests[1:]:
+            self.assertEqual(headers["mcp-protocol-version"], "2025-11-25")
+        self.assertEqual(self.app.state.notes, [{"by": "barry-mi", "text": "hi"}])
 
 
 class CardColdStartTest(unittest.TestCase):

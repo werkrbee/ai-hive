@@ -163,6 +163,15 @@ reviews are calls to Patricia, so they count toward hers, and `barry.reviewShare
 default, of her ceiling is held for them (`RESERVED_CLIENTS`): her other clients share the
 rest, so a platform can't use up what his approvals need.
 
+**Verify protocol.** The verify server and Patricia share `hive_a2a/mcp_protocol.py`.
+The verify server supports stateless MCP 2026-07-28 requests and legacy 2025-11-25
+and 2025-06-18 clients. Barry still opens with `initialize`, asking for 2026-07-28;
+the server answers with 2025-11-25, and his existing client uses that negotiated
+version for listing and calling tools. It does not claim a modern version on the
+legacy handshake. Modern requests get header/body checks and `server/discover`.
+This describes the source implementation; deploying and checking that image is
+a separate gated step.
+
 **Checking him.** `./verify_barry.sh --by <actor-id> <resource-group>` checks that his
 card is served, that a call without a token is refused, and that a goal with a gated
 action pauses with Patricia's review and completes once you approve it. It sends the

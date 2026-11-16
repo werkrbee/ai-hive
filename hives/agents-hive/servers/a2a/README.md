@@ -195,7 +195,10 @@ arguments that aren't an object are a JSON-RPC error. The tool is annotated read
 not destructive. There are no resources, prompts, sampling or elicitation, and no task is
 kept: a call is metered and forgotten, so one caller never sees another's.
 
-**Transport and versions.** Streamable HTTP at `/mcp` on the server's origin, POST only,
+**Transport and versions.** The shared `mcp_protocol.py` handler also serves the verify
+MCP server used to check hosted Barry. Authentication and tool execution stay with each
+server; version negotiation, header validation, discovery and framing live in one place.
+Streamable HTTP at `/mcp` on the server's origin, POST only,
 answered with plain JSON and no session. It speaks MCP
 [2026-07-28](https://modelcontextprotocol.io/specification/2026-07-28), the current
 revision, statelessly: a request whose `_meta` carries its protocol version must send
@@ -434,6 +437,7 @@ servers/a2a/
 │   ├── ledger.py       # the usage ledger, the monthly ceiling and runs' holds
 │   ├── limits.py       # each client's hourly rate and share of the ceiling
 │   ├── mcp.py          # the review as an MCP tool, its Server Card and resource metadata
+│   ├── mcp_protocol.py # shared modern/legacy MCP handling, also used by verify-mcp
 │   ├── orchestrate.py  # hosted Barry: the loop on the engine, MCP and A2A tools
 │   ├── providers.py    # stub, Messages and Chat Completions
 │   └── review.py       # the executor: input, budget, ceiling, model, verdict
