@@ -15,6 +15,9 @@ MODELS = (
     "google/gemma-3-4b-it",
     "microsoft/phi-4",
     "openai/gpt-oss-20b",
+    "zai-org/GLM-4.5",
+    "moonshotai/Kimi-K2-Instruct",
+    "nvidia/NVIDIA-Nemotron-Nano-9B-v2",
 )
 OUTPUT = pathlib.Path("docs/open-weight-models-monthly.json")
 
