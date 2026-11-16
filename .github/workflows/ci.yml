@@ -13,6 +13,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Open-weight collector offline tests
+        run: python3 -m unittest discover -s tests -p 'test_open_weight_models.py' -v
+
       - name: Installer checks (syntax + sandboxed smoke install)
         run: ./scripts/check-installers.sh
 
