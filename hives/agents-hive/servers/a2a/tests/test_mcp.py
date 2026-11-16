@@ -192,6 +192,21 @@ class McpTest(unittest.TestCase):
             r = c.post(mcp.PATH, content=b"not json", headers=auth)
             self.assertEqual((r.status_code, r.json()["error"]["code"]), (400, -32700))
 
+    def test_shared_protocol_rejects_non_object_params_and_checks_modern_notifications(self):
+        with self.client(write_config(self.root)) as c:
+            for value in ([], "wrong", 0, False, None):
+                r = c.post(mcp.PATH, json={"jsonrpc": "2.0", "id": 1, "method": "tools/list", "params": value},
+                           headers={"Authorization": f"Bearer {token()}", "MCP-Protocol-Version": "2025-11-25"})
+                self.assertEqual(r.json()["error"]["code"], -32602)
+            body = {"jsonrpc": "2.0", "method": "tools/call", "params": {
+                "name": "review", "arguments": ARGS, "_meta": {mcp.VERSION_KEY: "2026-07-28"}}}
+            headers = {"Authorization": f"Bearer {token()}", "MCP-Protocol-Version": "2026-07-28",
+                       "Mcp-Method": "tools/list", "Mcp-Name": "review"}
+            self.assertEqual(c.post(mcp.PATH, json=body, headers=headers).status_code, 400)
+            headers["Mcp-Method"] = "tools/call"
+            self.assertEqual(c.post(mcp.PATH, json=body, headers=headers).status_code, 202)
+        self.assertEqual(self.ledger(), [], "a notification must never start a metered review")
+
     # --- the review ------------------------------------------------------
 
     def test_a_review_returns_the_verdict_and_is_metered_without_a_task(self):
