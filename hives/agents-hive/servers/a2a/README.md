@@ -5,9 +5,9 @@
 `governance-review`: another agent sends a proposal and gets back a verdict
 (`allow`, `allow-with-conditions` or `block`) in the contract's output shape. A reviewer
 is also served over A2A's HTTP+JSON binding, described in an OpenAPI document
-([HTTP+JSON](#httpjson), below), and over MCP, as one read-only tool ([MCP](#mcp), below). The same server,
-configured for Barry's `orchestration`, runs a goal as an agent loop on the
-workflows-hive engine ([Orchestration](#orchestration), below).
+([HTTP+JSON](#httpjson), below), and over MCP, as one read-only tool ([MCP](#mcp),
+below). The same server, configured for Barry's `orchestration`, runs a goal as an agent
+loop on the workflows-hive engine ([Orchestration](#orchestration), below).
 
 It is built on the official [A2A Python SDK](https://github.com/a2aproject/a2a-python)
 and needs Python 3.13 and the packages in `requirements.txt`. This directory is the
@@ -23,10 +23,11 @@ card says so. The Agent Card is served at
 `cards/<persona>/card.json` and the contract, then given this endpoint's URL and an
 OAuth2 client-credentials security scheme.
 
-**Security.** Every request except the cards, the OpenAPI document and the MCP resource metadata needs a bearer token. The token must be a JWT
-signed by a key from the configured JWKS, name the configured issuer and audience, be
-unexpired, and come from a client on `auth.allowed_clients`. App tokens from the
-client-credentials flow are accepted. A delegated (user) token, one with `scp` or an Entra
+**Security.** Every request except the cards, the OpenAPI document and the MCP resource
+metadata needs a bearer token. The token must be a JWT signed by a key from the configured
+JWKS, name the configured issuer and audience, be unexpired, and come from a client on
+`auth.allowed_clients`. App tokens from the client-credentials flow are accepted. A
+delegated (user) token, one with `scp` or an Entra
 `idtyp` other than `app`, is accepted only by a reviewer whose `auth.delegated_scopes` is
 set (hosted Patricia's is `Review.RequestAsUser`), so a platform that signs a user in can ask for
 a review: it must carry one of those scopes, come from a client on the list and name its
@@ -192,8 +193,11 @@ request needs the `A2A-Version: 1.0` header: without it the SDK takes the reques
 which isn't served, and refuses it. A refusal before any task is A2A's REST error, with
 HTTP 400 and a reason: `INVALID_PARAMS` with each problem as a field violation,
 `CONTENT_TYPE_NOT_SUPPORTED`, `VERSION_NOT_SUPPORTED`, or `UNSUPPORTED_OPERATION` for
-streaming. The reply is `application/a2a+json`. The SDK's per-tenant copies of the routes
-are left out. Orchestration doesn't serve this binding: hosted Barry is JSON-RPC only.
+streaming. An auth refusal, 401 or 403, is still the server's own `{"error": "<reason>"}`
+with `WWW-Authenticate` (#322), and the ceiling's is a 429 (Rate, under [What it
+does](#what-it-does)). The reply is `application/a2a+json`. The SDK's per-tenant copies
+of the routes are left out. Orchestration doesn't serve this binding: hosted Barry is
+JSON-RPC only.
 
 **The OpenAPI document.** `/openapi.json`, under the endpoint's path, served without a
 token. It describes the binding's one operation a platform needs, `SendMessage`, in
