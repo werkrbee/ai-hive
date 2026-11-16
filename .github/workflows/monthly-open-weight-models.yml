@@ -32,14 +32,19 @@ jobs:
             echo "No metadata changes"
             exit 0
           fi
-          branch="automation/monthly-open-weight-models"
+          branch="automation/open-weight-models-$(date -u +%Y-%m)"
+          if git ls-remote --exit-code --heads origin "$branch" >/dev/null; then
+            echo "Monthly branch already exists; no overwrite"
+            exit 0
+          fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git switch -c "$branch"
           git add docs/open-weight-models-monthly.json
           git commit -m "docs: refresh monthly open-weight model metadata"
           # Do not overwrite a concurrently updated branch or human edits.
-          git -c http.extraheader="AUTHORIZATION: basic $(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)" push origin "HEAD:refs/heads/$branch"
+          gh auth setup-git
+          git push origin "HEAD:refs/heads/$branch"
           if gh pr list --head "$branch" --base main --state open --json number --jq 'length' | grep -qx '0'; then
             gh pr create --base main --head "$branch" --title "docs: monthly open-weight model license and download review" --body "Automated model-card metadata only. Do not merge without checking upstream licenses, release changes, and download access. Update the editorial guide manually."
           else
