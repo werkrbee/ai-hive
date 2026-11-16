@@ -20,9 +20,10 @@ What the House hosts today:
 
 - **Hosted Patricia** (`governance-review`), on Azure Container Apps. A2A v1.0 over the
   JSON-RPC binding only, no streaming. Every call but the Agent Card needs an Entra app
-  token from the client-credentials flow, from a client on `auth.allowed_clients`, with
-  the `Review.Request` role; a delegated (user) token is refused. Each call is metered
-  into her ledger and held to a $5 monthly ceiling (`servers/a2a/README.md`).
+  token from a client on `auth.allowed_clients`: an app token from the client-credentials
+  flow with the `Review.Request` role, or, since 2026-11-16, a user's delegated token with
+  the `Review.RequestAsUser` scope. Each call is metered into her ledger and held to a $5
+  monthly ceiling (`servers/a2a/README.md`).
 - **Hosted Barry** (`orchestration`), beside her, with the same auth plus per-method
   roles, and approvals that a product answers as an attestation that its person decided.
 - **verify-mcp**, a stand-in for a product's MCP server that only Barry's identity may call.
@@ -131,18 +132,20 @@ way finds it.
 
 **Delegated tokens, for reviews only.** Copilot Studio and Gemini Enterprise sign a user in
 and send that user's token; neither documents a client-credentials option for A2A or MCP.
-So Patricia will also accept a delegated token from a registered platform client, on two
+So Patricia also accepts a delegated token from a registered platform client, on three
 conditions: it carries a delegated scope her API app exposes, `Review.RequestAsUser`
-(named apart from the `Review.Request` role, since Entra refuses one value for both), and
-its `azp` is on the allowlist. The API app already requires assignment, so only users
-assigned to it can get one. Patricia uses the user's identity only to keep their tasks apart: a
+(named apart from the `Review.Request` role, since Entra refuses one value for both), its
+`azp` is on the allowlist, and it names its user in `sub`. The API app already requires
+assignment, so only users assigned to it can get one. Patricia uses the user's identity
+only to keep their tasks apart: a
 task belongs to the client and that user, so two users of one platform don't see each
 other's, and the user is held only as an opaque ID (a hash of the issuer and the token's
 pairwise `sub`), never a name or email, and isn't logged. The ledger and the client's
 allowance name the client, not the user. This loosens a rule the server
-has today, and only for her: hosted Barry keeps refusing delegated tokens, because his
-approvals rest on the product client's attestation. The change is an implementation issue
-below, and it changes Entra, so it waits for the maintainer's yes.
+had, and only for her: hosted Barry keeps refusing delegated tokens, because his
+approvals rest on the product client's attestation. The scope was added in Entra and the
+change deployed on 2026-11-16 (#300); each platform's client still needs admin consent for
+the scope and its users assigned, in that platform's issue.
 
 **What stays refused.** Unauthenticated calls, and static API keys or headers, on every
 binding. A key isn't an Entra identity the allowlist and roles can check, and the server
