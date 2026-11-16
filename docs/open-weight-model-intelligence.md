@@ -46,8 +46,19 @@ These are specific upstream model-card/download pages monitored by the monthly c
 | Gemma 3 4B IT | https://huggingface.co/google/gemma-3-4b-it | Gemma terms |
 | Phi-4 | https://huggingface.co/microsoft/phi-4 | MIT |
 | gpt-oss 20B | https://huggingface.co/openai/gpt-oss-20b | Apache-2.0 / usage policy |
+| GLM-4.5 | https://huggingface.co/zai-org/GLM-4.5 | MIT (publisher model card; 355B total / 32B active) |
+| Kimi K2 Instruct | https://huggingface.co/moonshotai/Kimi-K2-Instruct | Modified MIT (publisher model card; ~1T total parameters) |
+| Nemotron Nano 9B v2 | https://huggingface.co/nvidia/NVIDIA-Nemotron-Nano-9B-v2 | NVIDIA Open Model License Agreement (commercial use stated; 9B) |
 
-These seven are a baseline for reproducible tracking, **not** the top seven models as of November 16, 2026. Expand the list by dated evaluation and add new releases after verifying the official repository.
+These ten are a baseline for reproducible tracking, **not** the top seven models as of November 16, 2026. Expand the list by dated evaluation and add new releases after verifying the official repository.
+
+## Verified primary-source findings (November 16, 2026)
+
+- **GLM-4.5:** Z.ai's model card identifies an MIT release, 355B total / 32B active parameters and an FP8 multi-GPU serving configuration. A full-featured FP8 setup is described with eight H100s or four H200s; this is not a practical 16 GB laptop model. Source: https://huggingface.co/zai-org/GLM-4.5/blob/main/README.md
+- **Kimi K2 Instruct:** Moonshot's card identifies the **Modified MIT** license, provides downloadable FP8 checkpoints, and documents vLLM/SGLang serving. The model repository is roughly 1 TB; a small local desktop is not a realistic full-weight deployment target. Source: https://huggingface.co/moonshotai/Kimi-K2-Instruct
+- **Nemotron Nano 9B v2:** NVIDIA identifies its own **Open Model License Agreement**, states commercial use is permitted, and lists HF, vLLM and TensorRT-LLM inference with A10G 24 GB, H100 80 GB and Jetson AGX Thor as tested hardware. This is not an Apache-2.0/MIT blanket license. Source: https://huggingface.co/nvidia/NVIDIA-Nemotron-Nano-9B-v2
+
+These are documented publisher claims, not independently executed model benchmarks or legal opinions. Other model entries remain pending per-release source verification; no claim is made that every family member shares a license.
 
 ## Selection and deployment guidance
 
@@ -59,7 +70,7 @@ For local use, start with a small quantized model compatible with available RAM;
 
 The companion scheduled workflow runs on the first day of every month and can be manually dispatched. It fetches live metadata for a **curated list of exact Hugging Face model repositories**, records model-card license tags and gated status, preserves source URLs, and opens a review PR when the snapshot changes. Treat API metadata as a *signal*, not legal verification. A reviewer must inspect model cards and primary LICENSE files, record exceptions, check newly released models, and update this editorial guide. If an upstream API fails, the job fails rather than presenting stale information as fresh. No automatic merge.
 
-The initial curated set intentionally samples representative releases; it is not a performance ranking or exhaustive census. The workflow's generated `docs/open-weight-models-monthly.json` records what was observed and when. Maintain source provenance and dated license evidence in the reviewed PR.
+The initial curated set intentionally samples ten representative releases; it is not a performance ranking or exhaustive census. The workflow's generated `docs/open-weight-models-monthly.json` records what was observed and when. Maintain source provenance and dated license evidence in the reviewed PR.
 
 ## Primary and secondary resources
 
