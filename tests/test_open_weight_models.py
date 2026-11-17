@@ -1,10 +1,12 @@
 """Offline unit tests for the monthly open-weight metadata collector."""
 import io
+import copy
 import hashlib
 import json
 import os
 import pathlib
 import subprocess
+import sys
 import tempfile
 import unittest
 import urllib.error
@@ -19,6 +21,43 @@ class FakeResponse(io.BytesIO):
         self.close()
 
 
+def api_metadata(model):
+    return {"id": model, "sha": "a" * 40, "gated": False, "siblings": []}
+
+
+def malformed_metadata(model):
+    cases = [("response", value) for value in (None, [], False, 42, "not an object")]
+    missing = object()
+    fields = {
+        "id": [missing, None, 42, "unexpected/model"],
+        "sha": [missing, None, "", "main", "abc123", "z" * 40, "a" * 41, 42, True, {}],
+        "gated": [missing, None, True, 0, 1, "false", "unknown", {}, []],
+        "cardData": [[], False, "", 0],
+        "tags": [None, {}, False, "tag", [None], [False], [""], ["license:"]],
+        "siblings": [missing, None, False, {}, "files", [None], [{}]],
+        "lastModified": ["", 42, [], "not-a-date", "2026-01-01", "2026-01-01T12:00:00"],
+    }
+    for field, values in fields.items():
+        for value in values:
+            item = api_metadata(model)
+            if value is missing:
+                item.pop(field)
+            else:
+                item[field] = value
+            cases.append((field, item))
+    for field in ("license", "license_name", "license_link"):
+        for value in ({"unexpected": True}, [], False, 42, "", "   "):
+            item = api_metadata(model)
+            item["cardData"] = {field: value}
+            cases.append(("cardData." + field, item))
+    for name in (None, False, 42, "", "/model.bin", "../model.bin", "a/../model.bin",
+                 "a//model.bin", "./model.bin", "a\\model.bin", "model\n.bin"):
+        item = api_metadata(model)
+        item["siblings"] = [{"rfilename": name}]
+        cases.append(("siblings[0].rfilename", item))
+    return cases
+
+
 class ModelTrackerTests(unittest.TestCase):
     def test_license_tag_and_gating(self):
         model = MODELS[0]
@@ -26,6 +65,7 @@ class ModelTrackerTests(unittest.TestCase):
             self.assertEqual(timeout, 25)
             self.assertIn(model, request.full_url)
             return FakeResponse(json.dumps({
+                **api_metadata(model),
                 "id": model, "tags": ["license:llama3.1"],
                 "gated": "manual", "lastModified": "2026-11-01T00:00:00Z"
             }).encode())
@@ -36,7 +76,7 @@ class ModelTrackerTests(unittest.TestCase):
     def test_custom_license_and_revision_pinned_download(self):
         def opener(request, timeout):
             return FakeResponse(json.dumps({
-                "id": MODELS[-1], "sha": "abc123", "gated": False,
+                **api_metadata(MODELS[-1]),
                 "cardData": {"license": "other", "license_name": "nvidia-open-model-license",
                              "license_link": "https://www.nvidia.com/license"},
                 "siblings": [{"rfilename": "model.safetensors"}]
@@ -46,7 +86,7 @@ class ModelTrackerTests(unittest.TestCase):
         self.assertEqual(row["license_link_unverified"], "https://www.nvidia.com/license")
         self.assertEqual(row["weight_file_count"], 1)
         self.assertEqual(row["example_weight_download"],
-                         "https://huggingface.co/" + MODELS[-1] + "/resolve/abc123/model.safetensors")
+                         "https://huggingface.co/" + MODELS[-1] + "/resolve/" + "a" * 40 + "/model.safetensors")
 
     def test_wrong_model_id_rejected(self):
         def opener(request, timeout):
@@ -66,6 +106,82 @@ class ModelTrackerTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             build_snapshot("2026-13", lambda model: {})
 
+    def test_invalid_metadata_identifies_model_and_field(self):
+        for field, item in malformed_metadata(MODELS[0]):
+            with self.subTest(field=field, item=item):
+                with self.assertRaises(ValueError) as caught:
+                    fetch_model(MODELS[0], lambda *a, **k: FakeResponse(json.dumps(item).encode()))
+                self.assertIn(MODELS[0], str(caught.exception))
+                self.assertIn(field, str(caught.exception))
+
+    def test_late_invalid_metadata_preserves_previous_snapshot(self):
+        for field, item in malformed_metadata(MODELS[1]):
+            with self.subTest(field=field, item=item), tempfile.TemporaryDirectory() as temporary:
+                output = pathlib.Path(temporary) / "snapshot.json"
+                previous = b'{"review_month_utc":"2026-11","models":[]}\n'
+                output.write_bytes(previous)
+                calls = []
+                def opener(request, timeout):
+                    calls.append(request.full_url)
+                    payload = api_metadata(MODELS[0]) if len(calls) == 1 else item
+                    return FakeResponse(json.dumps(payload).encode())
+                with patch.object(fetch_model, "__defaults__", (opener,)), patch(
+                    "sys.argv", ["collector", "--month", "2026-11", "--output", str(output)]
+                ):
+                    with self.assertRaises(ValueError) as caught:
+                        main()
+                self.assertIn(MODELS[1], str(caught.exception))
+                self.assertIn(field, str(caught.exception))
+                self.assertEqual(len(calls), 2)
+                self.assertEqual(output.read_bytes(), previous)
+
+    def test_optional_metadata_and_reported_gating_are_preserved(self):
+        for gated in (False, "auto", "manual"):
+            item = {**api_metadata(MODELS[0]), "gated": gated,
+                    "cardData": None, "lastModified": None}
+            row = fetch_model(MODELS[0], lambda *a, **k: FakeResponse(json.dumps(item).encode()))
+            self.assertEqual(row["gated"], gated)
+            self.assertIsNone(row["license_tag_unverified"])
+            self.assertIsNone(row["license_link_unverified"])
+
+    def test_full_revisions_pin_encoded_download_paths(self):
+        for revision in ("a" * 40, "b" * 64):
+            item = {**api_metadata(MODELS[0]), "sha": revision,
+                    "siblings": [{"rfilename": "subdir/model #1.safetensors"}]}
+            row = fetch_model(MODELS[0], lambda *a, **k: FakeResponse(json.dumps(item).encode()))
+            self.assertEqual(row["example_weight_download"], "https://huggingface.co/" +
+                             MODELS[0] + "/resolve/" + revision + "/subdir/model%20%231.safetensors")
+            self.assertEqual(row["upstream_revision"], revision)
+
+    def test_invalid_json_identifies_source(self):
+        for body in (b"not-json", b"\xff"):
+            with self.assertRaisesRegex(ValueError, "response is not valid JSON") as caught:
+                fetch_model(MODELS[0], lambda *a, **k: FakeResponse(body))
+            self.assertIn(MODELS[0], str(caught.exception))
+
+    def test_invalid_response_cli_fails_without_dumping_payload(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            output = pathlib.Path(temporary) / "snapshot.json"
+            output.write_bytes(b"previous reviewed snapshot\n")
+            payload = {**api_metadata(MODELS[0]),
+                       "cardData": {"license": {"SENSITIVE_PAYLOAD_SENTINEL": True}}}
+            # Newer Python tracebacks include inline source. Keep response data
+            # out of that source so this tests API diagnostics, not the harness.
+            code = (
+                "import io,sys; from scripts import update_open_weight_models as m; "
+                "payload=sys.stdin.buffer.read(); "
+                "m.fetch_model.__defaults__=(lambda *a,**k:io.BytesIO(payload),); "
+                "m.main()"
+            )
+            result = subprocess.run([sys.executable, "-c", code, "--month", "2026-11",
+                                     "--output", str(output)], input=json.dumps(payload),
+                                    capture_output=True, text=True)
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn(MODELS[0], result.stderr)
+            self.assertIn("cardData.license", result.stderr)
+            self.assertNotIn("SENSITIVE_PAYLOAD_SENTINEL", result.stderr)
+            self.assertEqual(output.read_bytes(), b"previous reviewed snapshot\n")
+
     def test_late_upstream_failures_preserve_previous_snapshot(self):
         errors = [urllib.error.HTTPError("https://huggingface.co/api/models/example", 503,
                                         "unavailable", {}, None),
@@ -80,11 +196,12 @@ class ModelTrackerTests(unittest.TestCase):
                     calls.append(request.full_url)
                     if len(calls) == 2:
                         raise error
-                    return FakeResponse(json.dumps({"id": MODELS[0]}).encode())
+                    return FakeResponse(json.dumps(api_metadata(MODELS[0])).encode())
                 with patch.object(fetch_model, "__defaults__", (opener,)), patch(
                     "sys.argv", ["collector", "--month", "2026-11", "--output", str(output)]
                 ):
-                    with self.assertRaises(type(error)):
+                    expected = ValueError if isinstance(error, json.JSONDecodeError) else type(error)
+                    with self.assertRaises(expected):
                         main()
                 self.assertEqual(len(calls), 2)
                 self.assertEqual(output.read_bytes(), b"previous reviewed snapshot\n")
