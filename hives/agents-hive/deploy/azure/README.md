@@ -663,16 +663,19 @@ endpoint and the verify server's `/mcp` each answered 401. With a client secret 
 `POST /message:send` without `A2A-Version` got 400 `VERSION_NOT_SUPPORTED`, and one
 review over HTTP+JSON and one over JSON-RPC each completed with a `block` verdict in the
 contract's shape, the first as `application/a2a+json`, and each wrote a ledger entry
-(`anthropic`, `messages`, `review-a`, $0.0115 and $0.0116). This session didn't run the MCP
-check from #319, a delegated review has still been checked only in the offline tests, and
-`verify_barry.sh` still hasn't been run on an image since #222.
+(`anthropic`, `messages`, `review-a`, $0.0115 and $0.0116). Claude Code's `deploy.sh` run
+didn't include the MCP check from #319, a delegated review has still been checked only in
+the offline tests, and `verify_barry.sh` still hasn't been run on an image since #222.
 
 The writes were traced on 2026-11-17: in the activity log, every one of them came from the
-maintainer's machine through the Azure CLI, and each matches, to the second, a command in
-the Codex session's log or a step of `deploy.sh`. Two agents had each been given the
-deploy and neither knew of the other. The Codex session has since stood down on hosted
-Patricia, and Claude Code owns her deploys; a hosted app changes only through `deploy.sh`,
-one rollout at a time (#330).
+maintainer's machine through the Azure CLI, and each matches a command in the Codex
+session's log, to the second, or a step of `deploy.sh`, by time or by its deployment's
+correlation id. Each agent had been given the deploy, and neither had been told the other
+owned it: the Codex session saw `deploy.sh`'s deployments and waited for them, but not
+that they were another agent's rollout of the same commits. The Codex session has since
+stood down on hosted Patricia, and Claude Code owns her deploys. A hosted app is to change
+only through `deploy.sh`, one rollout at a time; #330 is to make `deploy.sh` refuse a
+second rollout while one is under way.
 
 Record anything that differs in this README.
 
