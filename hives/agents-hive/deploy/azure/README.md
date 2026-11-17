@@ -618,14 +618,14 @@ consent for the scope yet, so a delegated review has been checked only in the of
 tests (`test_server.py`, `test_orchestrate.py`), and `verify_barry.sh` still hasn't been
 run on an image since #222.
 
-That record held only until 05:38. At 05:34 a registry build that `deploy.sh` didn't start
-pushed `hive-a2a:459df4bc1ebd`, from #319's commit, and at 05:36 to 05:38 all three apps
-were updated to it directly, under the same Azure sign-in and outside any deployment, as
-revisions `patricia-a2a--0000016`, `barry-a2a--0000012` and `barry-verify--0000012`; the
-weekly job's `HIVE_COMMIT` became `459df4bc1ebd`. So #319 has been live since then, and
-the activity log doesn't say what made the build or the updates.
+That record held only until 05:38 UTC. At 05:34 a registry build that `deploy.sh` didn't
+start pushed `hive-a2a:459df4bc1ebd`, from #319's commit, and at 05:36 to 05:38 all three
+apps were updated to it directly, under the same Azure sign-in and outside any deployment,
+as revisions `patricia-a2a--0000016`, `barry-a2a--0000012` and `barry-verify--0000012`;
+the weekly job's `HIVE_COMMIT` became `459df4bc1ebd`. So #319 has been live since then,
+and the activity log doesn't say what made the build or the updates.
 
-HTTP+JSON, on 2026-11-16 (the `main` deployment of that day at 20:47, every app and the
+HTTP+JSON, on 2026-11-16 (the `main` deployment of that day at 20:47 UTC, every app and the
 weekly job on `hive-a2a:a720bdbfd384`, built from `a720bdb`, Patricia's revision
 `patricia-a2a--0000018`, Barry's `barry-a2a--0000013` and the verify server's
 `barry-verify--0000013`): hosted Patricia serves A2A's HTTP+JSON binding beside JSON-RPC,
@@ -636,17 +636,18 @@ answered `y`, not `yes`; the second applied every step. Step 1's what-if matched
 morning's line for line, and step 4's showed only the image, the job's `HIVE_COMMIT`, and
 the `reference()`, `format()` and `join()` values and server-set properties seen before.
 
-While it ran, a second registry build that `deploy.sh` didn't start pushed the same tag
-at 20:45, as `sha256:556c5320…`, over step 3's `sha256:480c3652…`, and `barry-verify` and
+While it ran, a second registry build that `deploy.sh` didn't start pushed the same tag at
+20:45, as `sha256:556c5320…`, over step 3's `sha256:480c3652…`, and `barry-verify` and
 `patricia-a2a` were updated directly at 20:45 and 20:46, again under the same sign-in;
 that update's revision, `patricia-a2a--0000017`, was replaced by step 4's a minute later.
 The tag was then moved back to `sha256:480c3652…` with `az acr import --force` and locked
 (`--write-enabled false --delete-enabled false`), and Barry's and the verify server's
 revisions restarted. `sha256:556c5320…` is kept, untagged. Each app scales to zero, so
-each pulled the tag on its next start: the system logs record Patricia's and Barry's
-pulls at 73,573,729 bytes, which is step 3's image with its manifest, against 73,573,492
-for the other. What made the two builds and the direct updates is still unknown, and a
-deploy that rebuilds `a720bdbfd384` must unlock the tag first.
+each pulled the tag on its next start: the system logs record Patricia's and Barry's pulls
+at 73,573,729 bytes, which is step 3's image with its manifest, against 73,573,492 for the
+other; the verify server's pull line wasn't read. What made the two builds and the direct
+updates is still unknown, and a deploy that rebuilds `a720bdbfd384` must unlock the tag
+first.
 
 Plain requests found Patricia's Agent Card declaring JSON-RPC and HTTP+JSON at her URL,
 still with no streaming, and Barry's declaring JSON-RPC only; Patricia's `/openapi.json`
