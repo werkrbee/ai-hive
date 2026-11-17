@@ -61,7 +61,7 @@ def fetch_model(model_id, opener=urllib.request.urlopen):
 
 
 def build_snapshot(month, fetch=fetch_model):
-    # One review per calendar month; deterministic output on repeat runs.
+    # Month-keyed metadata; deterministic output on repeat runs.
     datetime.date.fromisoformat(month + "-01")
     return {
         "schema_version": 2,

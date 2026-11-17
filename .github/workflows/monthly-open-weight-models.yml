@@ -8,6 +8,10 @@ permissions:
   contents: read
 jobs:
   review-models:
+    # Serialize collection and proposal across scheduled, manual and reusable calls.
+    concurrency:
+      group: open-weight-model-review-${{ github.repository }}
+      cancel-in-progress: false
     runs-on: ubuntu-latest
     permissions:
       contents: write

@@ -1,13 +1,15 @@
 """Offline unit tests for the monthly open-weight metadata collector."""
 import io
+import hashlib
 import json
 import os
 import pathlib
 import subprocess
 import tempfile
 import unittest
+import urllib.error
 from unittest.mock import patch
-from scripts.update_open_weight_models import MODELS, build_snapshot, fetch_model
+from scripts.update_open_weight_models import MODELS, build_snapshot, fetch_model, main
 
 
 class FakeResponse(io.BytesIO):
@@ -64,6 +66,29 @@ class ModelTrackerTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             build_snapshot("2026-13", lambda model: {})
 
+    def test_late_upstream_failures_preserve_previous_snapshot(self):
+        errors = [urllib.error.HTTPError("https://huggingface.co/api/models/example", 503,
+                                        "unavailable", {}, None),
+                  urllib.error.URLError("timeout"),
+                  json.JSONDecodeError("invalid JSON", "not-json", 0)]
+        for error in errors:
+            with self.subTest(error=type(error).__name__), tempfile.TemporaryDirectory() as temporary:
+                output = pathlib.Path(temporary) / "snapshot.json"
+                output.write_bytes(b"previous reviewed snapshot\n")
+                calls = []
+                def opener(request, timeout):
+                    calls.append(request.full_url)
+                    if len(calls) == 2:
+                        raise error
+                    return FakeResponse(json.dumps({"id": MODELS[0]}).encode())
+                with patch.object(fetch_model, "__defaults__", (opener,)), patch(
+                    "sys.argv", ["collector", "--month", "2026-11", "--output", str(output)]
+                ):
+                    with self.assertRaises(type(error)):
+                        main()
+                self.assertEqual(len(calls), 2)
+                self.assertEqual(output.read_bytes(), b"previous reviewed snapshot\n")
+
 
 class ReviewProposalTests(unittest.TestCase):
     def test_proposal_is_scoped_and_never_overwrites(self):
@@ -83,6 +108,8 @@ class ReviewProposalTests(unittest.TestCase):
             git("commit", "-m", "initial", cwd=repo)
             git("push", "origin", "main", cwd=repo)
             main = git("rev-parse", "main", cwd=repo)
+            legacy = "refs/heads/automation/open-weight-models-2026-11"
+            git("push", "origin", main + ":" + legacy, cwd=repo)
             # Simulate feature code that must never enter the generated PR.
             git("switch", "-c", "feature", cwd=repo)
             (repo / "feature.txt").write_text("not for the snapshot PR")
@@ -97,18 +124,19 @@ set -eu
 case "$1 $2" in
   'auth setup-git') exit 0 ;;
   'pr list') if test -f "$TEST_PR_STATE"; then echo 'https://example.invalid/review/1'; fi ;;
-  'pr create') touch "$TEST_PR_STATE"; echo 'https://example.invalid/review/1' ;;
+  'pr create') touch "$TEST_PR_STATE"; echo created >> "$TEST_PR_CALLS"; echo 'https://example.invalid/review/1' ;;
   *) exit 1 ;;
 esac
 """)
             fake_gh.chmod(0o755)
             env = dict(os.environ, PATH=str(binaries) + os.pathsep + os.environ["PATH"],
-                       GH_TOKEN="secret-test-sentinel", GH_REPO="test/repo", TEST_PR_STATE=str(root / "pr"))
+                       GH_TOKEN="secret-test-sentinel", GH_REPO="test/repo", TEST_PR_STATE=str(root / "pr"), TEST_PR_CALLS=str(root / "calls"))
             def run():
                 return subprocess.run(["bash", str(script)], cwd=repo, env=env, capture_output=True, text=True)
             first = run()
             self.assertEqual(first.returncode, 0, first.stdout + first.stderr)
-            branch = "refs/heads/automation/open-weight-models-2026-11"
+            digest = hashlib.sha256((repo / "docs/open-weight-models-monthly.json").read_bytes()).hexdigest()
+            branch = "refs/heads/automation/open-weight-models-2026-11-" + digest
             head = git("--git-dir=" + str(remote), "rev-parse", branch)
             changed = git("--git-dir=" + str(remote), "diff", "--name-only", main, head)
             self.assertEqual(changed, "docs/open-weight-models-monthly.json")
@@ -117,6 +145,17 @@ esac
             self.assertEqual(again.returncode, 0, again.stderr)
             self.assertIn("Existing monthly review PR retained", again.stdout)
             self.assertEqual(git("--git-dir=" + str(remote), "rev-parse", branch), head)
+            snapshot = repo / "docs/open-weight-models-monthly.json"
+            original = snapshot.read_bytes()
+            # A newer snapshot while the first PR is open gets its own review.
+            snapshot.write_text('{"review_month_utc":"2026-11","models":[{"gated":false}]}')
+            newer_open = run()
+            self.assertEqual(newer_open.returncode, 0, newer_open.stderr)
+            self.assertEqual((root / "calls").read_text().splitlines(), ["created", "created"])
+            self.assertEqual(git("--git-dir=" + str(remote), "rev-parse", branch), head)
+            self.assertEqual(run().returncode, 0)
+            self.assertEqual((root / "calls").read_text().splitlines(), ["created", "created"])
+            snapshot.write_bytes(original)
             (root / "pr").unlink()
             orphan = run()
             self.assertNotEqual(orphan.returncode, 0)
@@ -131,6 +170,26 @@ esac
             self.assertIn("No metadata changes", unchanged.stdout)
             self.assertFalse((root / "pr").exists())
             self.assertEqual(git("--git-dir=" + str(remote), "rev-parse", branch), head)
+            # Upstream changes again after the month's first review merged.
+            snapshot = repo / "docs/open-weight-models-monthly.json"
+            snapshot.write_text('{"review_month_utc":"2026-11","models":[{"gated":"manual"}]}')
+            followup = run()
+            self.assertEqual(followup.returncode, 0, followup.stdout + followup.stderr)
+            self.assertTrue((root / "pr").exists())
+            self.assertEqual(git("--git-dir=" + str(remote), "rev-parse", branch), head)
+            new_digest = hashlib.sha256(snapshot.read_bytes()).hexdigest()
+            followup_branch = "refs/heads/automation/open-weight-models-2026-11-" + new_digest
+            followup_head = git("--git-dir=" + str(remote), "rev-parse", followup_branch)
+            self.assertNotEqual(followup_head, head)
+            self.assertEqual(git("--git-dir=" + str(remote), "diff", "--name-only", head, followup_head),
+                             "docs/open-weight-models-monthly.json")
+            self.assertEqual(git("--git-dir=" + str(remote), "rev-parse", "main"), head)
+            self.assertEqual(run().returncode, 0)
+            self.assertEqual(git("--git-dir=" + str(remote), "rev-parse", followup_branch), followup_head)
+            self.assertEqual((root / "calls").read_text().splitlines(), ["created"] * 3)
+            self.assertEqual(git("--git-dir=" + str(remote), "rev-parse", legacy), main)
+
+
 
 
 
