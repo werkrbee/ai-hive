@@ -19,7 +19,10 @@ options and the House's auth let a call through.
 What the House hosts today:
 
 - **Hosted Patricia** (`governance-review`), on Azure Container Apps. A2A v1.0 over the
-  JSON-RPC binding only, no streaming. Every call but the Agent Card needs an Entra app
+  JSON-RPC binding and, since 2026-11-16, the HTTP+JSON binding, no streaming. The
+  HTTP+JSON binding is described by an OpenAPI 3.0 document at
+  `https://patricia-a2a.kindpebble-873b1da9.eastus2.azurecontainerapps.io/openapi.json`.
+  Every call but the Agent Card and the OpenAPI document needs an Entra app
   token from a client on `auth.allowed_clients`: an app token from the client-credentials
   flow with the `Review.Request` role, or, since 2026-11-16, a user's delegated token with
   the `Review.RequestAsUser` scope. Each call is metered into her ledger and held to a $5
