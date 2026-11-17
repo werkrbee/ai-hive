@@ -82,3 +82,10 @@ Cleanup review audit: narrowed grant SHA-256 remains `bcaef0b3f5234efdc57cb5ff84
 - `.github/workflows/ci.yml`: `af12377f21ebcb2d80fbcd486b90232f756225d785e5c311f236820eb5f7450b`
 - `tests/test_open_weight_models.py`: `7c5ddb67c1a901948f95d4a9b7eb6997a52f1486c021ab7016d319ba8daa9ac0`
 - `docs/reviews/monthly-open-weight-models-status.md`: `c8c31d4b80cc1c7f4e3eeb851ae1742d4292d87125c3fceb3ed9b09f18ac9bea`
+
+
+## Fresh Node.js 24 monthly dispatch verified
+
+The pending hosted validation in the preceding cleanup entries is now resolved. User-launched workflow_dispatch [run #2](https://github.com/werkrbee/ai-hive/actions/runs/44000038564), job `133761508269`, completed successfully on main `53998f2c5bbe9d20e4d991638d57bf887a2c32ea`. The pinned checkout/setup-python v6 Actions succeeded, all six tests passed, and live collection completed. The proposal step logged `No metadata changes`. GitHub lists only the already-merged PR #325 for `automation/open-weight-models-2026-11`, whose head remains `c08e99834dd4527eef271d91c8fa6ac99cca0b46`; no duplicate PR or branch overwrite occurred. No Node.js 20 deprecation warning appeared in this job's logs. Historical pending statements above are retained as the audit trail.
+
+Cleanup PR #327 remains unmerged. CI must rerun after this documentation update, and the user's explicit separate merge approval remains required.
