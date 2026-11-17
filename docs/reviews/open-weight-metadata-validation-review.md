@@ -52,3 +52,9 @@ Review delegation uses Barry passport v5 to Patricia passport v10's read-only in
 
 - `scripts/update_open_weight_models.py`: `e5ac47f707f9ba4af58c13d58220a0cb3874dd9ca9bc55bdeedafe6e9aa426ec`
 - `tests/test_open_weight_models.py`: `a9ec69a317414b66182f91cf854fcb5691e2d16ff5965158eb4a2afde023cbab`
+
+## Test-runner compatibility follow-up
+
+Initial CI #517 failed only the CLI payload-leakage assertion: the runner's newer Python printed the test's inline source, which itself contained the synthetic sentinel. The collector was not dumping response data. The fixture now sends its JSON through stdin so the child program's source contains no payload. All thirteen local tests pass again; collector code and the successful all-ten-model live results are unchanged. Final-head CI must rerun. Earlier review digests above are retained as historical evidence.
+
+Updated test artifact SHA-256: `409138b9da92d491a0eb9b789cbe2785fcfc14f3c65cdded2d0c0074e9908f57`.

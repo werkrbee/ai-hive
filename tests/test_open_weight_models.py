@@ -163,15 +163,19 @@ class ModelTrackerTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             output = pathlib.Path(temporary) / "snapshot.json"
             output.write_bytes(b"previous reviewed snapshot\n")
+            payload = {**api_metadata(MODELS[0]),
+                       "cardData": {"license": {"SENSITIVE_PAYLOAD_SENTINEL": True}}}
+            # Newer Python tracebacks include inline source. Keep response data
+            # out of that source so this tests API diagnostics, not the harness.
             code = (
-                "import io,json; from scripts import update_open_weight_models as m; "
-                "payload={'id':m.MODELS[0],'sha':'a'*40,'gated':False,'siblings':[],"
-                "'cardData':{'license':{'SENSITIVE_PAYLOAD_SENTINEL':True}}}; "
-                "m.fetch_model.__defaults__=(lambda *a,**k:io.BytesIO(json.dumps(payload).encode()),); "
+                "import io,sys; from scripts import update_open_weight_models as m; "
+                "payload=sys.stdin.buffer.read(); "
+                "m.fetch_model.__defaults__=(lambda *a,**k:io.BytesIO(payload),); "
                 "m.main()"
             )
             result = subprocess.run([sys.executable, "-c", code, "--month", "2026-11",
-                                     "--output", str(output)], capture_output=True, text=True)
+                                     "--output", str(output)], input=json.dumps(payload),
+                                    capture_output=True, text=True)
             self.assertNotEqual(result.returncode, 0)
             self.assertIn(MODELS[0], result.stderr)
             self.assertIn("cardData.license", result.stderr)
