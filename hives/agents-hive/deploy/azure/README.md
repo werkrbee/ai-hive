@@ -620,10 +620,13 @@ run on an image since #222.
 
 That record held only until 05:38 UTC. At 05:34 a registry build that `deploy.sh` didn't
 start pushed `hive-a2a:459df4bc1ebd`, from #319's commit, and at 05:36 to 05:38 all three
-apps were updated to it directly, under the same Azure sign-in and outside any deployment,
-as revisions `patricia-a2a--0000016`, `barry-a2a--0000012` and `barry-verify--0000012`;
-the weekly job's `HIVE_COMMIT` became `459df4bc1ebd`. So #319 has been live since then,
-and the activity log doesn't say what made the build or the updates.
+apps and the weekly job were updated to it directly with `az containerapp update` and
+`az containerapp job update`, outside any deployment, as revisions
+`patricia-a2a--0000016`, `barry-a2a--0000012` and `barry-verify--0000012`; the job's
+`HIVE_COMMIT` became `459df4bc1ebd`. So #319 has been live since then. Both were a Codex
+Desktop session on the maintainer's machine, rolling #319 out by image-only updates with
+the maintainer's approval in Codex, after waiting for the `8d1fc5a` deploy to finish; it
+also ran its own MCP checks for #319 at 05:38, whose results aren't recorded here.
 
 HTTP+JSON, on 2026-11-16 (the `main` deployment of that day at 20:47 UTC, every app and the
 weekly job on `hive-a2a:a720bdbfd384`, built from `a720bdb`, Patricia's revision
@@ -636,18 +639,20 @@ answered `y`, not `yes`; the second applied every step. Step 1's what-if matched
 morning's line for line, and step 4's showed only the image, the job's `HIVE_COMMIT`, and
 the `reference()`, `format()` and `join()` values and server-set properties seen before.
 
-While it ran, a second registry build that `deploy.sh` didn't start pushed the same tag at
-20:45, as `sha256:556c5320…`, over step 3's `sha256:480c3652…`, and `barry-verify` and
-`patricia-a2a` were updated directly at 20:45 and 20:46, again under the same sign-in;
-that update's revision, `patricia-a2a--0000017`, was replaced by step 4's a minute later.
-The tag was then moved back to `sha256:480c3652…` with `az acr import --force` and locked
+While it ran, the same Codex session rolled `a720bdb` out too. Its registry build pushed
+the same tag at 20:45, as `sha256:556c5320…`, over step 3's `sha256:480c3652…`, and at
+20:46 it updated `patricia-a2a` directly to that digest, as `patricia-a2a--0000017`,
+which step 4's revision replaced a minute later. Its own baseline check had found step
+4's deployment under way, and by its account a mistake in its script let the update go
+ahead anyway; it then stopped, before the weekly job or a paid check. `barry-verify`'s
+write at 20:45 was step 4's, part of the same deployment as the others. The tag was then
+moved back to `sha256:480c3652…` with `az acr import --force` and locked
 (`--write-enabled false --delete-enabled false`), and Barry's and the verify server's
 revisions restarted. `sha256:556c5320…` is kept, untagged. Each app scales to zero, so
 each pulled the tag on its next start: the system logs record Patricia's and Barry's pulls
 at 73,573,729 bytes, which is step 3's image with its manifest, against 73,573,492 for the
-other; the verify server's pull line wasn't read. What made the two builds and the direct
-updates is still unknown, and a deploy that rebuilds `a720bdbfd384` must unlock the tag
-first.
+other; the verify server's pull line wasn't read. A deploy that rebuilds `a720bdbfd384`
+must unlock the tag first.
 
 Plain requests found Patricia's Agent Card declaring JSON-RPC and HTTP+JSON at her URL,
 still with no streaming, and Barry's declaring JSON-RPC only; Patricia's `/openapi.json`
@@ -658,9 +663,19 @@ endpoint and the verify server's `/mcp` each answered 401. With a client secret 
 `POST /message:send` without `A2A-Version` got 400 `VERSION_NOT_SUPPORTED`, and one
 review over HTTP+JSON and one over JSON-RPC each completed with a `block` verdict in the
 contract's shape, the first as `application/a2a+json`, and each wrote a ledger entry
-(`anthropic`, `messages`, `review-a`, $0.0115 and $0.0116). The MCP check from #319 wasn't
-run, a delegated review has still been checked only in the offline tests, and
-`verify_barry.sh` still hasn't been run on an image since #222.
+(`anthropic`, `messages`, `review-a`, $0.0115 and $0.0116). Claude Code's `deploy.sh` run
+didn't include the MCP check from #319, a delegated review has still been checked only in
+the offline tests, and `verify_barry.sh` still hasn't been run on an image since #222.
+
+The writes were traced on 2026-11-17: in the activity log, every one of them came from the
+maintainer's machine through the Azure CLI, and each matches a command in the Codex
+session's log, to the second, or a step of `deploy.sh`, by time or by its deployment's
+correlation id. Each agent had been given the deploy, and neither had been told the other
+owned it: the Codex session saw `deploy.sh`'s deployments and waited for them, but not
+that they were another agent's rollout of the same commits. The Codex session has since
+stood down on hosted Patricia, and Claude Code owns her deploys. A hosted app is to change
+only through `deploy.sh`, one rollout at a time; #330 is to make `deploy.sh` refuse a
+second rollout while one is under way.
 
 Record anything that differs in this README.
 
