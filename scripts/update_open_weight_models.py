@@ -4,6 +4,7 @@ import argparse
 import datetime
 import json
 import pathlib
+import re
 import urllib.parse
 import urllib.request
 
@@ -22,13 +23,73 @@ MODELS = (
 OUTPUT = pathlib.Path("docs/open-weight-models-monthly.json")
 
 
+def validate_metadata(item, model_id):
+    """Validate consumed API fields without inferring licensing or access rights."""
+    def invalid(field, reason):
+        # Identify the source and field, never dump arbitrary upstream values.
+        raise ValueError(f"Invalid metadata for {model_id}: {field} {reason}") from None
+
+    def optional_text(value, field):
+        if value is not None and (not isinstance(value, str) or not value.strip()):
+            invalid(field, "must be a nonempty string or null")
+
+    if not isinstance(item, dict):
+        invalid("response", "must be a JSON object")
+    if item.get("id") != model_id:
+        invalid("id", "must match the requested model")
+    revision = item.get("sha")
+    if not isinstance(revision, str) or not re.fullmatch(
+        r"(?:[0-9a-fA-F]{40}|[0-9a-fA-F]{64})", revision
+    ):
+        invalid("sha", "must be a full 40- or 64-character hexadecimal commit ID")
+    gated = item.get("gated")
+    if gated is not False and gated not in ("auto", "manual"):
+        invalid("gated", "must be false, 'auto', or 'manual'")
+    card = item.get("cardData")
+    if card is not None and not isinstance(card, dict):
+        invalid("cardData", "must be an object or null")
+    for field in ("license", "license_name", "license_link"):
+        optional_text((card or {}).get(field), "cardData." + field)
+    tags = item.get("tags", [])
+    if not isinstance(tags, list):
+        invalid("tags", "must be an array of nonempty strings")
+    for index, tag in enumerate(tags):
+        if not isinstance(tag, str) or not tag.strip():
+            invalid(f"tags[{index}]", "must be a nonempty string")
+        if tag.startswith("license:") and not tag.removeprefix("license:").strip():
+            invalid(f"tags[{index}]", "must contain a license value")
+    siblings = item.get("siblings")
+    if not isinstance(siblings, list):
+        invalid("siblings", "must be an array of file objects")
+    for index, entry in enumerate(siblings):
+        field = f"siblings[{index}].rfilename"
+        if not isinstance(entry, dict):
+            invalid(f"siblings[{index}]", "must be a file object")
+        name = entry.get("rfilename")
+        if (not isinstance(name, str) or not name.strip()
+                or any(part in ("", ".", "..") for part in name.split("/"))
+                or "\\" in name or any(ord(char) < 32 or ord(char) == 127 for char in name)):
+            invalid(field, "must be a nonempty relative repository file path")
+    modified = item.get("lastModified")
+    optional_text(modified, "lastModified")
+    if modified is not None:
+        try:
+            parsed = datetime.datetime.fromisoformat(modified.replace("Z", "+00:00"))
+        except ValueError:
+            invalid("lastModified", "must be an ISO 8601 timestamp with a timezone")
+        if parsed.tzinfo is None:
+            invalid("lastModified", "must include a timezone")
+
+
 def fetch_model(model_id, opener=urllib.request.urlopen):
     url = "https://huggingface.co/api/models/" + urllib.parse.quote(model_id, safe="/")
     request = urllib.request.Request(url, headers={"User-Agent": "ai-hive-open-weights-tracker/1.0"})
     with opener(request, timeout=25) as response:
-        item = json.load(response)
-    if item.get("id") != model_id:
-        raise ValueError(f"Unexpected model identity for {model_id}")
+        try:
+            item = json.load(response)
+        except (json.JSONDecodeError, UnicodeDecodeError):
+            raise ValueError(f"Invalid metadata for {model_id}: response is not valid JSON") from None
+    validate_metadata(item, model_id)
     card = item.get("cardData") or {}
     tags = item.get("tags") or []
     license_tag = card.get("license") or next(
@@ -40,7 +101,7 @@ def fetch_model(model_id, opener=urllib.request.urlopen):
     license_file = next((entry["rfilename"] for entry in item.get("siblings", [])
                          if entry.get("rfilename", "").upper() in ("LICENSE", "LICENSE.TXT", "LICENSE.MD")), None)
     base = "https://huggingface.co/" + model_id
-    revision_path = urllib.parse.quote(revision or "main", safe="")
+    revision_path = urllib.parse.quote(revision, safe="")
     return {
         "model_id": model_id,
         "model_card": "https://huggingface.co/" + model_id,
@@ -54,7 +115,7 @@ def fetch_model(model_id, opener=urllib.request.urlopen):
         "weight_file_count": len(files),
         "example_weight_download": (base + "/resolve/" + revision_path + "/" +
                                     urllib.parse.quote(files[0], safe="/")) if files else None,
-        "gated": item.get("gated", "unknown"),
+        "gated": item["gated"],
         "last_modified": item.get("lastModified"),
         "source_api": url,
     }
