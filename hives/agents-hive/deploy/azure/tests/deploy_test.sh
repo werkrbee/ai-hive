@@ -35,7 +35,16 @@
 # waited for. One that fails to activate, or is still not up when the wait ends, fails the
 # deploy, naming the app, the revision and the command that reads its logs, with only
 # reads after the apply. With hosted Barry set, his app and the verify server's are
-# waited for too. Bash 3.2 safe; run it with /bin/bash on macOS.
+# waited for too.
+#
+# One rollout at a time: with no other rollout under way it goes on, saying so at the start
+# and before each apply and the build. A deployment that hasn't finished, a registry run
+# queued or running, or an app or the weekly job on another image than the last main
+# deployment set stops it, naming what it found, before any change, at the start or at
+# whichever later point it appears; --allow-drift goes on past a drifted image, but not past
+# a deployment under way. When main set no image, the image the apps share stands in, and
+# apps on different images stop it. A tag the registry already holds stops the build unless
+# --overwrite-tag is given. Bash 3.2 safe; run it with /bin/bash on macOS.
 #
 # Usage: tests/deploy_test.sh           (from hives/agents-hive/deploy/azure, or anywhere)
 set -u
@@ -53,8 +62,14 @@ fail=0
 # $STUB/policy the audit container's retention policy, as container-rm show prints it,
 # $STUB/created the outputs the last deployment returns, when not the default, and
 # $STUB/states/<app> the states its newest revision reads in turn, one line each, the last
-# line repeating (default: up, scaled to zero). STUB_FAIL, when set, is a pattern; a call
-# whose arguments match it fails.
+# line repeating (default: up, scaled to zero). For the rollout check, $STUB/running holds
+# the deployments that haven't finished, $STUB/runs the registry's queued and running runs,
+# and $STUB/apps and $STUB/jobs the apps' and jobs' names and images, each a line per call
+# in turn, the last repeating, with rows split by ";" and "-" for none; $STUB/registries
+# names the group's registries, $STUB/image the image main's parameters set, and
+# $STUB/repositories the registry's repositories, whose hive-a2a tags include the checkout's
+# when $STUB/tag-exists is there. STUB_FAIL, when set, is a pattern; a call whose arguments
+# match it fails.
 mkdir -p "$work/bin"
 cat > "$work/bin/az" <<'STUB'
 #!/usr/bin/env bash
@@ -63,6 +78,12 @@ echo "$args" >> "$STUB/calls"
 if [ -n "${STUB_FAIL:-}" ] && printf '%s' "$args" | grep -q -- "$STUB_FAIL"; then
   echo "stub: failing: $args" >&2; exit 1
 fi
+turn() {  # FILE — this call's line of FILE, the last repeating, rows split by ";"
+  [ -s "$1" ] || return 0
+  line=$(head -n 1 "$1")
+  if [ "$(wc -l < "$1")" -gt 1 ]; then tail -n +2 "$1" > "$1.next" && mv "$1.next" "$1"; fi
+  [ "$line" = - ] || printf '%s\n' "$line" | tr ';' '\n'
+}
 case "$args" in
   "role definition list"*)
     id=$(printf '%s' "$args" | sed -n 's/.*--name \([^ ]*\).*/\1/p')
@@ -71,14 +92,24 @@ case "$args" in
   "group show"*) echo eastus2 ;;
   "bicep build-params"*) cat "$STUB/params.json" ;;
   "cognitiveservices model list"*) cat "$STUB/catalog.json" ;;
+  "deployment group list"*provisioningState*) turn "$STUB/running" ;;
   "deployment group list"*) cat "$STUB/deployed" 2>/dev/null || echo 0 ;;
+  "deployment group show"*parameters.image*) cat "$STUB/image" 2>/dev/null || true ;;
   "deployment group show"*) cat "$STUB/outputs" ;;
+  "acr list"*) cat "$STUB/registries" 2>/dev/null || true ;;
+  "acr task list-runs"*) turn "$STUB/runs" ;;
+  "acr repository list"*) cat "$STUB/repositories" 2>/dev/null || true ;;
+  "acr repository show-tags"*)
+    echo 0123456789ab
+    if [ -f "$STUB/tag-exists" ]; then git -C "$STUB/repo" rev-parse --short=12 HEAD; fi ;;
+  "containerapp list"*) turn "$STUB/apps" ;;
+  "containerapp job list"*createdAt*) cat "$STUB/job-created" 2>/dev/null || true ;;
+  "containerapp job list"*) turn "$STUB/jobs" ;;
   "storage account keys list"*) echo "s3cretkey" ;;
   "storage file download-batch"*)
     echo "${AZURE_STORAGE_KEY:-}" > "$STUB/key"
     dest=$(printf '%s' "$args" | sed -n 's/.*--destination \([^ ]*\).*/\1/p')
     if [ -d "$STUB/hosted" ]; then mkdir -p "$dest/assurance" && cp -R "$STUB/hosted/." "$dest/assurance/"; fi ;;
-  "containerapp job list"*) cat "$STUB/job-created" 2>/dev/null || true ;;
   "storage container-rm show"*) cat "$STUB/policy" 2>/dev/null || printf 'False\n' ;;
   "storage container immutability-policy create"*) printf 'True\tUnlocked\t365\tTrue\n' > "$STUB/policy" ;;
   "storage container immutability-policy show"*) echo '"etag-1"' ;;
@@ -233,10 +264,13 @@ has() { printf '%s\n' "$out" | grep -q -- "$1"; }
 # Before the role ids, deploy.sh only looks for hosted evaluations: whether the group
 # exists and whether anything is deployed in it.
 HOSTED_LOOKUPS="group exists|deployment group list"
+# The rollout check's reads, at the start: deployments, registries and their runs, and the
+# apps' and jobs' images.
+ROLLOUT_LOOKUPS="deployment group show|acr (list|task list-runs)|containerapp (job )?list"
 # Nothing but lookups ran: no what-if, no resource group, no deployment.
-only_lookups() { ! grep -qvE "^(role definition list|$HOSTED_LOOKUPS)" "$STUB/calls"; }
+only_lookups() { ! grep -qvE "^(role definition list|$HOSTED_LOOKUPS|$ROLLOUT_LOOKUPS)" "$STUB/calls"; }
 # Nothing ran past the hosted lookups: not even a role id was looked up.
-no_role_lookups() { ! grep -qvE "^($HOSTED_LOOKUPS)" "$STUB/calls"; }
+no_role_lookups() { ! grep -qvE "^($HOSTED_LOOKUPS|$ROLLOUT_LOOKUPS)" "$STUB/calls"; }
 
 bicep="$here/../main.bicep"
 
@@ -289,7 +323,7 @@ check "an assignment it can't read: refused before any lookup" \
   eval '[ "$code" -ne 0 ] && has "assigns 10 roles, but only" && no_role_lookups'
 
 # Models: the catalog is the source of truth.
-read_only() { ! grep -qvE "^(role definition list|group (exists|show)|deployment group list|bicep build-params|cognitiveservices model list)" "$STUB/calls"; }
+read_only() { ! grep -qvE "^(role definition list|group (exists|show)|deployment group list|bicep build-params|cognitiveservices model list|$ROLLOUT_LOOKUPS)" "$STUB/calls"; }
 
 run ga "$bicep"
 check "GA models: each passes, from any publisher, and deploy.sh goes on" \
@@ -503,7 +537,7 @@ ANSWER=yes run hostedsilent "$bicep"
 check "hosted: a month-old job that never recorded stops it before any change" \
   eval '[ "$code" -ne 0 ] && has "none since the job was created" && ! has "== 1/4"'
 quiet hostedjobfail 30 2
-STUB_FAIL="containerapp job list" ANSWER=yes run hostedjobfail "$bicep"
+STUB_FAIL="containerapp job list.*createdAt" ANSWER=yes run hostedjobfail "$bicep"
 check "hosted: a job it can't look up stops it, rather than skipping the check" \
   eval '[ "$code" -ne 0 ] && has "couldn.t read Patricia.s weekly evaluation job" && ! has "== 1/4"'
 
@@ -720,6 +754,123 @@ check "revisions: with hosted Barry set, outputs without verifyUrl fail the step
   eval '[ "$code" -ne 0 ] && has "hosted Barry is set, but the deployment.s outputs have no verifyUrl" \
    && has "patricia-a2a: patricia-a2a--0000002 is up" && has "barry-a2a: barry-a2a--0000002 is up" \
    && ! has "outputs have no barryUrl"'
+
+# One rollout at a time. Nothing else under way: it says so at each point and deploys.
+nothing_changed() { ! grep -qE "^(group create|deployment group (what-if|create)|acr build|storage container immutability-policy)" "$STUB/calls"; }
+creates() { grep -c "^deployment group create" "$STUB/calls"; }
+mkdir -p "$work/rollclean" && echo reg > "$work/rollclean/registries"
+ANSWER=yes run rollclean "$bicep"
+check "rollout: nothing else under way, checked at the start, before each apply and the build" \
+  eval '[ "$code" -eq 0 ] && has "no other rollout under way in rg-test (at the start)" \
+   && has "(before step 1.s apply)" && has "(before the build)" && has "(before step 4.s apply)" \
+   && [ "$(grep -c "^acr task list-runs --registry reg" "$STUB/calls")" -eq 4 ]'
+
+# At the start: a deployment that hasn't finished, or a registry run, stops it before
+# anything else, naming it.
+mkdir -p "$work/rolldeploying" && printf 'main\tRunning\n' > "$work/rolldeploying/running"
+ANSWER=yes run rolldeploying "$bicep"
+check "rollout: a deployment under way stops it at the start, naming it" \
+  eval '[ "$code" -ne 0 ] && has "another rollout may be under way in rg-test, so deploy.sh stops at the start" \
+   && has "deployment main is Running" && ! has "== hosted evaluations" && nothing_changed'
+
+mkdir -p "$work/rollqueued" && echo reg > "$work/rollqueued/registries" && printf 'cb7\tQueued\n' > "$work/rollqueued/runs"
+ANSWER=yes run rollqueued "$bicep"
+check "rollout: a queued registry run stops it at the start, naming it" \
+  eval '[ "$code" -ne 0 ] && has "registry run cb7 in reg is Queued" && nothing_changed'
+
+# An app or the job on another image than the last main deployment set.
+drift_setup() {  # CASE APPS JOBS — main deployed with image :aaa, and the apps and jobs given
+  hosted_setup "$1" '{"registry": {"value": "reg.azurecr.io"}}'
+  echo reg.azurecr.io/hive-a2a:aaa > "$work/$1/image"
+  printf '%s\n' "$2" > "$work/$1/apps"
+  printf '%s\n' "$3" > "$work/$1/jobs"
+}
+on() { printf '%s\treg.azurecr.io/hive-a2a:%s' "$1" "$2"; }
+drift_setup rollsame "$(on patricia-a2a aaa);$(on barry-a2a aaa)" "$(on patricia-eval aaa)"
+ANSWER=yes run rollsame "$bicep"
+check "rollout: apps and job on the last deployment's image go on" \
+  eval '[ "$code" -eq 0 ] && has "no other rollout under way in rg-test (at the start)"'
+
+drift_setup rolldrift "$(on patricia-a2a aaa);$(on barry-a2a bbb)" "$(on patricia-eval aaa)"
+ANSWER=yes run rolldrift "$bicep"
+check "rollout: an app on another image stops it at the start, naming it" \
+  eval '[ "$code" -ne 0 ] && has "not on reg.azurecr.io/hive-a2a:aaa, the image the last deployment named main set" \
+   && has "barry-a2a runs reg.azurecr.io/hive-a2a:bbb" && ! has "patricia-a2a runs" && has "allow-drift" && nothing_changed'
+
+drift_setup rolljob "$(on patricia-a2a aaa)" "$(on patricia-eval bbb)"
+ANSWER=yes run rolljob "$bicep"
+check "rollout: the weekly job on another image stops it too" \
+  eval '[ "$code" -ne 0 ] && has "patricia-eval runs reg.azurecr.io/hive-a2a:bbb" && nothing_changed'
+
+drift_setup rollallow "$(on patricia-a2a aaa);$(on barry-a2a bbb)" "$(on patricia-eval aaa)"
+deploy_args=(--allow-drift)
+ANSWER=yes run rollallow "$bicep"
+check "rollout: --allow-drift names the drifted app and goes on" \
+  eval '[ "$code" -eq 0 ] && has "--allow-drift goes on" && has "barry-a2a runs reg.azurecr.io/hive-a2a:bbb" \
+   && [ "$(creates)" -eq 2 ]'
+mkdir -p "$work/rollallowbusy" && printf 'main\tRunning\n' > "$work/rollallowbusy/running"
+ANSWER=yes run rollallowbusy "$bicep"
+check "rollout: --allow-drift doesn't go past a deployment under way" \
+  eval '[ "$code" -ne 0 ] && has "deployment main is Running" && nothing_changed'
+deploy_args=()
+
+# A run that stopped before its app step leaves main with no image: the apps' shared one
+# stands in, and apps that don't share one stop it.
+drift_setup rollnoimage "$(on patricia-a2a aaa)" "$(on patricia-eval aaa)" && : > "$work/rollnoimage/image"
+ANSWER=yes run rollnoimage "$bicep"
+check "rollout: main set no image, and the apps share one: it stands in, and it goes on" \
+  eval '[ "$code" -eq 0 ] && has "the last deployment named main set no image; the apps all run reg.azurecr.io/hive-a2a:aaa"'
+drift_setup rollsplit "$(on patricia-a2a aaa)" "$(on patricia-eval bbb)" && : > "$work/rollsplit/image"
+ANSWER=yes run rollsplit "$bicep"
+check "rollout: main set no image, and the apps don't share one: it stops" \
+  eval '[ "$code" -ne 0 ] && has "not on one image" && has "patricia-a2a runs" && has "patricia-eval runs" && nothing_changed'
+
+# Later: whatever appears after the start stops it at the next check, before that change.
+mkdir -p "$work/rolllate1" && printf -- '-\nother\tAccepted\n' > "$work/rolllate1/running"
+ANSWER=yes run rolllate1 "$bicep"
+check "rollout: a deployment begun after the start stops step 1 before its apply" \
+  eval '[ "$code" -ne 0 ] && has "stops before step 1.s apply" && has "deployment other is Accepted" \
+   && grep -q "^deployment group what-if" "$STUB/calls" && [ "$(creates)" -eq 0 ]'
+
+mkdir -p "$work/rolllate3" && echo reg > "$work/rolllate3/registries" && printf -- '-\n-\ncb9\tRunning\n' > "$work/rolllate3/runs"
+ANSWER=yes run rolllate3 "$bicep"
+check "rollout: a registry run begun after step 1 stops it before the build" \
+  eval '[ "$code" -ne 0 ] && has "stops before the build" && has "registry run cb9 in reg is Running" \
+   && [ "$(creates)" -eq 1 ] && ! grep -q "^acr build" "$STUB/calls"'
+
+drift_setup rolllate4 "$(on patricia-a2a aaa)" "$(on patricia-eval aaa)"
+printf '%s\n' "$(on patricia-a2a aaa)" "$(on patricia-a2a aaa)" "$(on patricia-a2a aaa)" "$(on patricia-a2a ccc)" \
+  > "$work/rolllate4/apps"
+ANSWER=yes run rolllate4 "$bicep"
+check "rollout: an app changed during the build stops step 4 before its apply" \
+  eval '[ "$code" -ne 0 ] && has "stops before step 4.s apply" && has "patricia-a2a runs reg.azurecr.io/hive-a2a:ccc" \
+   && grep -q "^acr build" "$STUB/calls" && [ "$(creates)" -eq 1 ]'
+
+STUB_FAIL="acr list" ANSWER=yes run rollunread "$bicep"
+check "rollout: registries it can't list stop it, rather than skipping the check" \
+  eval '[ "$code" -ne 0 ] && has "couldn.t list the registries in rg-test" && nothing_changed'
+
+# A tag the registry already holds isn't built over, unless --overwrite-tag says to.
+mkdir -p "$work/tagnew" && echo hive-a2a > "$work/tagnew/repositories"
+ANSWER=yes run tagnew "$bicep"
+check "tag: a new tag in an existing repository is built" \
+  eval '[ "$code" -eq 0 ] && grep -q "^acr repository show-tags --name reg --repository hive-a2a" "$STUB/calls" \
+   && grep -q "^acr build" "$STUB/calls"'
+mkdir -p "$work/tagexists" && echo hive-a2a > "$work/tagexists/repositories" && : > "$work/tagexists/tag-exists"
+ANSWER=yes run tagexists "$bicep"
+check "tag: one the registry holds stops the build, before its prompt, saying how to go on" \
+  eval '[ "$code" -ne 0 ] && has "reg already holds hive-a2a:$(git -C "$STUB/repo" rev-parse --short=12 HEAD)" \
+   && has "deploy with --overwrite-tag" && has "write-enabled true" && ! has "Build and push the image" \
+   && ! grep -q "^acr build" "$STUB/calls" && [ "$(creates)" -eq 1 ]'
+mkdir -p "$work/tagover" && echo hive-a2a > "$work/tagover/repositories" && : > "$work/tagover/tag-exists"
+deploy_args=(--overwrite-tag)
+ANSWER=yes run tagover "$bicep"
+check "tag: --overwrite-tag builds it again, saying so" \
+  eval '[ "$code" -eq 0 ] && has "--overwrite-tag builds it again" && grep -q "^acr build" "$STUB/calls"'
+deploy_args=()
+STUB_FAIL="acr repository list" ANSWER=yes run tagunread "$bicep"
+check "tag: repositories it can't list stop the build" \
+  eval '[ "$code" -ne 0 ] && has "couldn.t list reg.s repositories" && ! grep -q "^acr build" "$STUB/calls"'
 
 deploy_args=(--reason "why" rg)
 run rbusage "$bicep"

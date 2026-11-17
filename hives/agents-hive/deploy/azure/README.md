@@ -83,6 +83,23 @@ clients need it to learn how to authenticate.
 
    If a what-if fails, it stops there without asking, since there is no plan to approve.
 
+   A hosted app changes only through `deploy.sh`, one rollout at a time: no direct
+   `az containerapp update`, `az containerapp job update` or `az acr build` against the
+   deployment. On 2026-11-16 two agents rolled the same commits out at once, and for a
+   while the apps ran an image `deploy.sh` didn't build (see the record below). So before
+   anything, and again just before each apply and the build, `deploy.sh` stops, changing
+   nothing, while another rollout may be under way in the resource group: a deployment
+   there that hasn't finished, a registry run that is queued or running, or an app or the
+   weekly job on an image other than the one the last deployment named `main` set. It
+   names what it found. That image is read at the start; when `main` set none, because a
+   run stopped before its app step, the image the apps all share stands in for it. Wait for
+   a deployment or run to finish. For an image someone changed, find out who and why, then
+   deploy with `--allow-drift`, which reports the drift and goes on, to put the apps back;
+   nothing goes past a deployment or run under way. Step 3 also refuses to build a tag the
+   registry already holds, since the apps would then run whichever build pushed last;
+   `--overwrite-tag` builds it again, and a locked tag must first be unlocked with
+   `az acr repository update --write-enabled true`.
+
    Azure accepts an app's new revision before it starts, so last it waits, up to five
    minutes (`REVISION_WAIT_SECONDS`), for each app's newest revision, Patricia's and, with
    hosted Barry set, his and the verify server's, to be provisioned and healthy, running
@@ -415,7 +432,9 @@ To roll Patricia back to an earlier passport version, deploy it again with `--ro
 Her passport's history is its git history, so `deploy.sh` deploys the newest commit at
 which her passport was that version, from a temporary worktree, with the model, prompt
 files and policy it pins. Nothing is undone in place: it is a new deploy, through the
-same what-if and typed yes at each step.
+same what-if and typed yes at each step. That commit was most likely deployed before, so
+its image tag may already be in the registry, and step 3 doesn't build over a tag it
+holds; add `--overwrite-tag` to build it again.
 
 ```bash
 ./deploy.sh --rollback 6 --reason "v8 misreads the Charter" --by usr_7f3a \

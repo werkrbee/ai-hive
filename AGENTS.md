@@ -63,6 +63,10 @@ harnesses.json     the harness registry: every harness, its category, tier and i
   squash-merge to `main`.
 - **Every change is reviewable.** Run the checks in `.github/workflows/ci.yml` locally
   before shipping; a PR needs green CI and a Patricia charter-review pass.
+- **Hosted apps change only through `deploy.sh`**
+  (`hives/agents-hive/deploy/azure/`), one rollout at a time: no direct
+  `az containerapp update`, `az containerapp job update` or `az acr build` against the
+  deployment. `deploy.sh` stops while another rollout is under way.
 - **Don't commit** `.DS_Store`, `node_modules/`, secrets, or `.env` (see `.gitignore`).
 
 ## The dev team
