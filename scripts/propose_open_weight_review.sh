@@ -4,7 +4,9 @@ set -euo pipefail
 snapshot="docs/open-weight-models-monthly.json"
 month="$(python3 -c 'import json; print(json.load(open("docs/open-weight-models-monthly.json"))["review_month_utc"])')"
 [[ "$month" =~ ^[0-9]{4}-[0-9]{2}$ ]] || { echo "Invalid review month" >&2; exit 1; }
-branch="automation/open-weight-models-$month"
+# An immutable branch per exact snapshot permits later reviews in the same month.
+snapshot_digest="$(python3 -c 'import hashlib; print(hashlib.sha256(open("docs/open-weight-models-monthly.json", "rb").read()).hexdigest())')"
+branch="automation/open-weight-models-$month-$snapshot_digest"
 export GH_REPO="${GH_REPO:?GH_REPO must identify the repository}"
 export GH_TOKEN="${GH_TOKEN:?GH_TOKEN must be supplied by GitHub Actions}"
 # The credential helper uses GH_TOKEN without putting its value in a URL or file.
@@ -30,7 +32,7 @@ if git ls-remote --exit-code --heads origin "$branch" >/dev/null; then
     echo "Existing monthly review PR retained: $existing"
     exit 0
   fi
-  echo "Monthly branch exists without an open review PR; refusing to overwrite: $branch" >&2
+  echo "Snapshot branch exists without an open review PR; refusing to overwrite: $branch" >&2
   exit 1
 fi
 git config user.name "github-actions[bot]"
