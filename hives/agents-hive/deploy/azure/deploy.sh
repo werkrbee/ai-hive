@@ -22,6 +22,15 @@
 # Then it waits for each app's newest revision to come up, and fails, changing nothing,
 # if one doesn't.
 #
+# One rollout at a time: a hosted app changes only through this script. Before anything,
+# and again just before each apply and the build, it stops, changing nothing, while
+# another rollout may be under way in the resource group: an ARM deployment that hasn't
+# finished, a registry run that is queued or running, or an app or the weekly job on an
+# image other than the one the last deployment named main set. It doesn't build over a tag
+# the registry already holds, so one build can't take another's. --allow-drift goes on past
+# a drifted image, once you know who changed it, to put the apps back; --overwrite-tag
+# rebuilds an existing tag. Neither goes past a deployment or a run under way.
+#
 # Barry runs Patricia's model and is deployed with her, through the same gated steps; his
 # passport must pin that model too, and his trust evaluation, on the orchestration eval's
 # goals, gates him as hers gates her, though he has no weekly one yet. After the
@@ -38,7 +47,7 @@
 # who rolled her back (--by, or WORKFLOWS_HIVE_ACTOR) and the digest of a record, beside
 # the log, that keeps the reason.
 #
-# Usage: ./deploy.sh [--lock-audit-retention]
+# Usage: ./deploy.sh [--lock-audit-retention] [--allow-drift] [--overwrite-tag]
 #                    [--rollback VERSION --reason TEXT [--by ACTOR-ID] [--audit PATH]]
 #                    <resource-group> <location> <params.bicepparam>
 # Needs: az login; run from anywhere inside the repo, on a clean checkout of the commit
@@ -46,14 +55,17 @@
 set -euo pipefail
 
 usage() {
-  echo "usage: $0 [--lock-audit-retention] [--rollback VERSION --reason TEXT [--by ACTOR-ID]" \
-    "[--audit PATH]] <resource-group> <location> <params.bicepparam>" >&2
+  echo "usage: $0 [--lock-audit-retention] [--allow-drift] [--overwrite-tag]" \
+    "[--rollback VERSION --reason TEXT [--by ACTOR-ID] [--audit PATH]]" \
+    "<resource-group> <location> <params.bicepparam>" >&2
   exit 2
 }
-rollback='' reason='' by=${WORKFLOWS_HIVE_ACTOR:-} audit='' lock=''
+rollback='' reason='' by=${WORKFLOWS_HIVE_ACTOR:-} audit='' lock='' allow_drift='' overwrite_tag=''
 while [ "$#" -gt 0 ]; do
   case "$1" in
     --lock-audit-retention) lock=1; shift ;;
+    --allow-drift) allow_drift=1; shift ;;
+    --overwrite-tag) overwrite_tag=1; shift ;;
     --rollback|--reason|--by|--audit)
       [ "$#" -ge 2 ] || usage
       case "$1" in
@@ -117,7 +129,7 @@ output() {  # $1 = deployment outputs JSON, $2 = output name; empty when there i
     "$1" "$2"
 }
 
-deploy() {  # $1 = image ('' for infrastructure only)
+deploy() {  # $1 = image ('' for infrastructure only), $2 = the step, for one_rollout
   local args=(--resource-group "$rg" --template-file "$azure/main.bicep" --parameters "$params"
               --parameters image="$1")
   # deploy runs inside $(...), where bash doesn't apply set -e (and 3.2 has no
@@ -128,6 +140,7 @@ deploy() {  # $1 = image ('' for infrastructure only)
     exit 1
   fi
   confirm "Apply the changes above to $rg?"
+  one_rollout "before $2's apply" >&2
   az deployment group create "${args[@]}" --query properties.outputs -o json
 }
 
@@ -569,6 +582,119 @@ revisions_up() {  # $1 = deployment outputs JSON
   fi
 }
 
+# On 2026-11-16 two agents rolled the same commits out at once, one through this script
+# and one with its own registry builds and direct app updates, and for a while the apps ran
+# an image this script didn't build (README.md, "Deploys"). So a rollout stops, changing
+# nothing, while another may be under way: an ARM deployment in the resource group that
+# hasn't finished, a run in its registry that is queued or running, or an app or the
+# weekly job whose image isn't the one the last deployment named main set. That image is
+# read once, at the start: this run's own first step sets main's image to empty. When it
+# is already empty, a run that stopped before its app step, the image the apps all share
+# stands in for it. --allow-drift reports a drifted image and goes on, to put it back;
+# nothing goes past a deployment or a run under way. Only reads.
+expected='' expected_read=''
+one_rollout() {  # $1 = the point it checks at, e.g. "before the build"
+  local found='' drifted exists running registries registry runs images shared main
+  if ! exists=$(az group exists --name "$rg") || { [ "$exists" != true ] && [ "$exists" != false ]; }; then
+    echo "error: couldn't tell whether $rg exists, so another rollout can't be ruled out; nothing more was changed" >&2
+    exit 1
+  fi
+  if [ "$exists" = false ]; then
+    echo "nothing is deployed in $rg yet, so no other rollout can be under way"
+    return
+  fi
+  if ! running=$(az deployment group list --resource-group "$rg" \
+      --query "[?properties.provisioningState!='Succeeded' && properties.provisioningState!='Failed' && properties.provisioningState!='Canceled'].[name, properties.provisioningState]" \
+      -o tsv); then
+    echo "error: couldn't list the deployments in $rg, so another rollout can't be ruled out; nothing more was changed" >&2
+    exit 1
+  fi
+  if [ -n "$running" ]; then
+    found+=$(printf '%s\n' "$running" | awk -F '\t' 'NF {print "  deployment " $1 " is " $2}')$'\n'
+  fi
+  if ! registries=$(az acr list --resource-group "$rg" --query "[].name" -o tsv); then
+    echo "error: couldn't list the registries in $rg, so another rollout can't be ruled out; nothing more was changed" >&2
+    exit 1
+  fi
+  for registry in $registries; do
+    if ! runs=$(az acr task list-runs --registry "$registry" \
+        --query "[?status=='Queued' || status=='Started' || status=='Running'].[runId, status]" -o tsv); then
+      echo "error: couldn't list $registry's runs, so another rollout can't be ruled out; nothing more was changed" >&2
+      exit 1
+    fi
+    if [ -n "$runs" ]; then
+      found+=$(printf '%s\n' "$runs" | awk -F '\t' -v r="$registry" 'NF {print "  registry run " $1 " in " r " is " $2}')$'\n'
+    fi
+  done
+  if ! images=$(az containerapp list --resource-group "$rg" \
+      --query "[].[name, properties.template.containers[0].image]" -o tsv) \
+      || ! images+=$'\n'$(az containerapp job list --resource-group "$rg" \
+      --query "[].[name, properties.template.containers[0].image]" -o tsv); then
+    echo "error: couldn't read the apps' images in $rg, so another rollout can't be ruled out; nothing more was changed" >&2
+    exit 1
+  fi
+  if [ -z "$expected_read" ]; then
+    main=$(az deployment group list --resource-group "$rg" --query "length([?name=='main'])" -o tsv) || main=''
+    if [ "$main" != "0" ] && ! expected=$(az deployment group show --resource-group "$rg" --name main \
+        --query properties.parameters.image.value -o tsv); then
+      echo "error: couldn't read the image the last deployment set in $rg; nothing more was changed" >&2
+      exit 1
+    fi
+    shared=$(printf '%s\n' "$images" | awk -F '\t' 'NF {print $2}' | sort -u)
+    if [ -z "$expected" ] && [ -n "$shared" ] && [ "$(printf '%s\n' "$shared" | wc -l)" -eq 1 ]; then
+      echo "the last deployment named main set no image; the apps all run $shared, so that is the one they should"
+      expected=$shared
+    fi
+    expected_read=1
+  fi
+  drifted=$(printf '%s\n' "$images" | awk -F '\t' -v e="$expected" 'NF && $2 != e {print "  " $1 " runs " $2}')
+  if [ -n "$drifted" ] && [ -n "$allow_drift" ]; then
+    echo "warning: these don't run ${expected:-one image}, the last deployment's; --allow-drift goes on:" >&2
+    printf '%s\n' "$drifted" >&2
+    drifted=''
+  fi
+  if [ -n "$drifted" ]; then
+    found+="  not on ${expected:-one image}, the image the last deployment named main set:"$'\n'"$drifted"$'\n'
+  fi
+  if [ -n "$found" ]; then
+    printf 'error: another rollout may be under way in %s, so deploy.sh stops %s, changing nothing:\n%s' \
+      "$rg" "$1" "$found" >&2
+    echo "A hosted app changes only through deploy.sh, one rollout at a time. Wait for a deployment" \
+      "or run to finish; for an image someone changed, find out who and why, then deploy with" \
+      "--allow-drift to put the apps back." >&2
+    exit 1
+  fi
+  echo "no other rollout under way in $rg ($1)"
+}
+
+# Step 3 doesn't build over a tag the registry already holds, since the apps would then run
+# whichever build pushed last; --overwrite-tag rebuilds it. It checks before the prompt, and
+# again after it, since another build could push the tag while the prompt waits. Only reads.
+tag_check() {  # $1 = the registry's name
+  local repositories tags
+  if ! repositories=$(az acr repository list --name "$1" -o tsv); then
+    echo "error: couldn't list $1's repositories, so hive-a2a:$tag may already be there; nothing more was changed" >&2
+    exit 1
+  fi
+  printf '%s\n' "$repositories" | grep -qx hive-a2a || return 0
+  if ! tags=$(az acr repository show-tags --name "$1" --repository hive-a2a -o tsv); then
+    echo "error: couldn't list hive-a2a's tags in $1; nothing more was changed" >&2
+    exit 1
+  fi
+  printf '%s\n' "$tags" | grep -qx -- "$tag" || return 0
+  if [ -z "$overwrite_tag" ]; then
+    echo "error: $1 already holds hive-a2a:$tag, and building it again would replace that image;" \
+      "nothing more was changed. If it is this commit's build and is meant to be replaced," \
+      "deploy with --overwrite-tag; a locked tag must first be unlocked with: az acr repository" \
+      "update --name $1 --image hive-a2a:$tag --write-enabled true" >&2
+    exit 1
+  fi
+  echo "$1 already holds hive-a2a:$tag; --overwrite-tag builds it again"
+}
+
+echo "== other rollouts"
+one_rollout "at the start"
+
 if [ -z "$rollback" ]; then
   echo "== hosted evaluations"
   hosted_check
@@ -586,19 +712,22 @@ if [ "$(az group exists --name "$rg")" != "true" ]; then
   confirm "Create resource group $rg in $location?"
   az group create --name "$rg" --location "$location" -o none
 fi
-outputs=$(deploy "")
+outputs=$(deploy "" "step 1")
 registry=$(output "$outputs" registry)
 
 echo "== 2/4 audit log retention"
 retention "$outputs"
 
 echo "== 3/4 image hive-a2a:$tag in $registry"
+tag_check "${registry%%.*}"
 confirm "Build and push the image to $registry?"
+one_rollout "before the build"
+tag_check "${registry%%.*}" > /dev/null
 az acr build --registry "${registry%%.*}" --image "hive-a2a:$tag" \
   --file "$azure/Dockerfile" "$src"
 
 echo "== 4/4 app and weekly evaluation job, and hosted Barry when set"
-outputs=$(deploy "$registry/hive-a2a:$tag")
+outputs=$(deploy "$registry/hive-a2a:$tag" "step 4")
 echo "Agent Card: $(output "$outputs" agentCard)"
 barry_principal=$(output "$outputs" barryPrincipalId)
 if [ -n "$barry_principal" ]; then
