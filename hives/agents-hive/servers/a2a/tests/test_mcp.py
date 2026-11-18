@@ -90,6 +90,7 @@ class McpTest(unittest.TestCase):
         with self.client(write_config(self.root)) as c:
             missing = self.post(c, "tools/list", auth="")
             self.assertEqual(missing.status_code, 401)
+            self.assertIsInstance(missing.json()["error"], str)
             challenge = missing.headers["www-authenticate"]
             self.assertIn('resource_metadata="http://localhost/.well-known/oauth-protected-resource/mcp"', challenge)
             self.assertIn('scope="api://api-app/.default"', challenge)
@@ -102,8 +103,9 @@ class McpTest(unittest.TestCase):
                      f"Bearer {token(scp='Review.Request')}": 403,
                      f"Bearer {token(idtyp='user')}": 403}
             for header, status in cases.items():
-                self.assertEqual(self.post(c, "tools/call", {"name": "review", "arguments": ARGS},
-                                           auth=header).status_code, status, header[:20])
+                r = self.post(c, "tools/call", {"name": "review", "arguments": ARGS}, auth=header)
+                self.assertEqual(r.status_code, status, header[:20])
+                self.assertIsInstance(r.json()["error"], str, "the server's own refusal, not A2A's REST error")
             # The A2A endpoint's challenge is unchanged.
             self.assertEqual(c.post("/", json={}).headers["www-authenticate"], 'Bearer error="invalid_token"')
         self.assertEqual(self.ledger(), [])

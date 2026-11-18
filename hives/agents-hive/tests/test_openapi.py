@@ -45,6 +45,10 @@ class OpenApiTest(unittest.TestCase):
         op = doc["paths"]["/message:send"]["post"]
         self.assertEqual(op["operationId"], "SendMessage")
         self.assertEqual(op["parameters"][0]["schema"]["enum"], ["1.0"], "the A2A-Version header is required")
+        for code in ("400", "401", "403", "429"):
+            self.assertEqual(op["responses"][code]["content"]["application/json"]["schema"],
+                             {"$ref": "#/components/schemas/Error"}, f"{code} is A2A's REST error")
+        self.assertIn("WWW-Authenticate", op["responses"]["401"]["headers"])
         self.assertEqual(doc["security"], [{"entra": ["api://app/.default"]}])
 
     def test_a_delegated_scope_adds_the_authorization_code_flow(self):

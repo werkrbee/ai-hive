@@ -169,6 +169,6 @@ def create_app(config, provider=None, authenticator=None, ledger_clock=None, net
                            paths={rpc_path: {"SendMessage", "SendStreamingMessage"}, mcp.PATH: {"tools/call"},
                                   prefix + "/message:send": limits.REST, prefix + "/message:stream": limits.REST})
     app.add_middleware(AuthMiddleware, authenticator=authenticator or Authenticator(config.auth),
-                       public=public, challenges=challenges)
+                       public=public, challenges=challenges, rest=[r.path_regex for r in rest])
     app.state.orchestrator = orchestrator
     return app
