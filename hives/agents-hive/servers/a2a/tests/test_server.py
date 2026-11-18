@@ -300,6 +300,31 @@ class ServerTest(unittest.TestCase):
             self.assertEqual(self.rpc(c, "ListTasks", {}).json()["result"].get("tasks", []), [])
         self.assertEqual(self.ledger(), [])
 
+    def test_an_auth_refusal_over_http_json_is_a2a_s_rest_error(self):
+        with self.client(write_config(self.root)) as c:
+            for header, (code, status) in {"": (401, "UNAUTHENTICATED"),
+                                           f"Bearer {token(key=WRONG_KEY)}": (401, "UNAUTHENTICATED"),
+                                           f"Bearer {token(STRANGER)}": (403, "PERMISSION_DENIED")}.items():
+                for method, path in (("POST", "/message:send"), ("GET", "/tasks"), ("GET", "/tasks/t1"),
+                                     ("POST", "/tasks/t1:cancel")):
+                    with self.subTest(header=header[:20], path=path):
+                        r = self.rest(c, path, message(PROPOSAL) if method == "POST" else None, auth=header,
+                                      method=method)
+                        self.assertEqual(r.status_code, code)
+                        error = r.json()["error"]
+                        self.assertEqual((error["code"], error["status"]), (code, status))
+                        self.assertTrue(error["message"])
+                        self.assertEqual(error["details"][0]["reason"], status)
+                        self.assertEqual(r.headers.get("www-authenticate") is not None, code == 401)
+            # JSON-RPC's refusals are the server's own, as before.
+            for header, code in {"": 401, f"Bearer {token(STRANGER)}": 403}.items():
+                r = self.rpc(c, "ListTasks", {}, auth=header)
+                self.assertEqual(r.status_code, code)
+                self.assertIsInstance(r.json()["error"], str)
+                self.assertEqual(r.headers.get("www-authenticate"), 'Bearer error="invalid_token"' if code == 401
+                                 else None)
+        self.assertEqual(self.ledger(), [])
+
     def test_the_ceiling_rejects_over_http_json_as_over_jsonrpc(self):
         with self.client(write_config(self.root, ceiling=0.001)) as c:
             rpc = self.send(c)["result"]["task"]

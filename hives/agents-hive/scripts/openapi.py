@@ -175,7 +175,6 @@ def render(contract, url, oauth, persona=None):
                                                "message": {"type": "string"},
                                                "details": {"type": "array", "items": {
                                                    "type": "object", "additionalProperties": True}}}}}},
-        "AuthError": {"type": "object", "required": ["error"], "properties": {"error": {"type": "string"}}},
     }
 
     def body(name, media="application/json"):
@@ -200,10 +199,10 @@ def render(contract, url, oauth, persona=None):
             "400": {"description": "Refused before any task: input that breaks the contract, a media type the "
                                    "Agent Card doesn't declare, or an unsupported A2A-Version.",
                     **body("Error")},
-            "401": {"description": "No valid token.", **body("AuthError"),
+            "401": {"description": "No valid token: UNAUTHENTICATED.", **body("Error"),
                     "headers": {"WWW-Authenticate": {"schema": {"type": "string"}}}},
-            "403": {"description": "The token's client isn't allowlisted, or it lacks the role or scope.",
-                    **body("AuthError")},
+            "403": {"description": "The token's client isn't allowlisted, or it lacks the role or scope: "
+                                   "PERMISSION_DENIED.", **body("Error")},
             "429": {"description": "Past the client's hourly rate. Nothing was sent to the model.", **body("Error"),
                     "headers": {"Retry-After": {"description": "Seconds until the client may send again.",
                                                 "schema": {"type": "integer"}}}},

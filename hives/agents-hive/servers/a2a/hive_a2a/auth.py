@@ -22,6 +22,10 @@ Only the Agent Card is served without a token, because a client has to read it t
 how to authenticate. It holds no secrets. The MCP endpoint (mcp.py) adds its Server Card and
 Protected Resource Metadata to the public paths, for the same reason, and a challenge that
 points a client at the metadata when its token is missing or invalid.
+
+A refusal is `{"error": "<reason>"}`, except on the HTTP+JSON binding's paths, where it is
+A2A's REST error like the binding's other refusals: UNAUTHENTICATED for 401,
+PERMISSION_DENIED for 403. A 401 carries WWW-Authenticate either way.
 """
 import hashlib
 import json
@@ -124,15 +128,26 @@ def task_owner(context):
     return f"{client}/user/{auth['user']}" if auth.get("user") else client
 
 
+def rest_error(status, reason):
+    """A2A's REST error for an auth refusal. Its ErrorInfo reason repeats the status, where
+    the rate limit's (limits.py) is RATE_LIMITED."""
+    code = "UNAUTHENTICATED" if status == 401 else "PERMISSION_DENIED"
+    info = {"@type": "type.googleapis.com/google.rpc.ErrorInfo", "reason": code, "domain": "hive-a2a",
+            "metadata": {}}
+    return {"error": {"code": status, "status": code, "message": reason, "details": [info]}}
+
+
 class AuthMiddleware:
     """ASGI middleware: authenticate every HTTP request except the public paths."""
 
-    def __init__(self, app, authenticator, public=PUBLIC_PATHS, challenges=None):
-        """public: paths served without a token; challenges: WWW-Authenticate values by path."""
+    def __init__(self, app, authenticator, public=PUBLIC_PATHS, challenges=None, rest=()):
+        """public: paths served without a token; challenges: WWW-Authenticate values by path;
+        rest: compiled patterns of the HTTP+JSON binding's paths, refused with A2A's REST error."""
         self.app = app
         self.authenticator = authenticator
         self.public = set(public)
         self.challenges = challenges or {}
+        self.rest = tuple(rest)
 
     async def __call__(self, scope, receive, send):
         if scope["type"] == "lifespan" or (
@@ -149,7 +164,8 @@ class AuthMiddleware:
             else:
                 challenge = 'Bearer error="invalid_token"'
             headers = {"www-authenticate": challenge} if status == 401 else {}
-            return await JSONResponse({"error": reason}, status_code=status, headers=headers)(scope, receive, send)
+            body = rest_error(status, reason) if any(p.match(scope["path"]) for p in self.rest) else {"error": reason}
+            return await JSONResponse(body, status_code=status, headers=headers)(scope, receive, send)
         client, roles, user = who
         scope["user"] = Caller(client)
         scope["auth"] = {"client": client, "roles": roles, "user": user}

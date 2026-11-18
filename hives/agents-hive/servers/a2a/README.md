@@ -193,8 +193,9 @@ request needs the `A2A-Version: 1.0` header: without it the SDK takes the reques
 which isn't served, and refuses it. A refusal before any task is A2A's REST error, with
 HTTP 400 and a reason: `INVALID_PARAMS` with each problem as a field violation,
 `CONTENT_TYPE_NOT_SUPPORTED`, `VERSION_NOT_SUPPORTED`, or `UNSUPPORTED_OPERATION` for
-streaming. An auth refusal, 401 or 403, is still the server's own `{"error": "<reason>"}`
-with `WWW-Authenticate` (#322), and the ceiling's is a 429 (Rate, under [What it
+streaming. An auth refusal is A2A's REST error too, `UNAUTHENTICATED` with HTTP 401 and
+`WWW-Authenticate`, or `PERMISSION_DENIED` with 403, where JSON-RPC and MCP keep the
+server's own `{"error": "<reason>"}`. The ceiling's is a 429 (Rate, under [What it
 does](#what-it-does)). The reply is `application/a2a+json`. The SDK's per-tenant copies
 of the routes are left out. Orchestration doesn't serve this binding: hosted Barry is
 JSON-RPC only.
