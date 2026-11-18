@@ -68,7 +68,8 @@ fail=0
 # in turn, the last repeating, with rows split by ";" and "-" for none; $STUB/registries
 # names the group's registries, $STUB/image the image main's parameters set, and
 # $STUB/repositories the registry's repositories, whose hive-a2a tags include the checkout's
-# when $STUB/tag-exists is there. STUB_FAIL, when set, is a pattern; a call whose arguments
+# when $STUB/tag-exists is there, from the second lookup on when it says "later".
+# STUB_GROUP is what group exists prints (default true). STUB_FAIL, when set, is a pattern; a call whose arguments
 # match it fails.
 mkdir -p "$work/bin"
 cat > "$work/bin/az" <<'STUB'
@@ -88,7 +89,7 @@ case "$args" in
   "role definition list"*)
     id=$(printf '%s' "$args" | sed -n 's/.*--name \([^ ]*\).*/\1/p')
     awk -v i="$id" '$1==i{$1=""; sub(/^ /, ""); print}' "$STUB/roles" ;;
-  "group exists"*) echo true ;;
+  "group exists"*) echo "${STUB_GROUP:-true}" ;;
   "group show"*) echo eastus2 ;;
   "bicep build-params"*) cat "$STUB/params.json" ;;
   "cognitiveservices model list"*) cat "$STUB/catalog.json" ;;
@@ -101,7 +102,8 @@ case "$args" in
   "acr repository list"*) cat "$STUB/repositories" 2>/dev/null || true ;;
   "acr repository show-tags"*)
     echo 0123456789ab
-    if [ -f "$STUB/tag-exists" ]; then git -C "$STUB/repo" rev-parse --short=12 HEAD; fi ;;
+    if [ "$(cat "$STUB/tag-exists" 2>/dev/null)" = later ]; then : > "$STUB/tag-exists"
+    elif [ -f "$STUB/tag-exists" ]; then git -C "$STUB/repo" rev-parse --short=12 HEAD; fi ;;
   "containerapp list"*) turn "$STUB/apps" ;;
   "containerapp job list"*createdAt*) cat "$STUB/job-created" 2>/dev/null || true ;;
   "containerapp job list"*) turn "$STUB/jobs" ;;
@@ -849,6 +851,21 @@ check "rollout: an app changed during the build stops step 4 before its apply" \
 STUB_FAIL="acr list" ANSWER=yes run rollunread "$bicep"
 check "rollout: registries it can't list stop it, rather than skipping the check" \
   eval '[ "$code" -ne 0 ] && has "couldn.t list the registries in rg-test" && nothing_changed'
+mkdir -p "$work/rollruns" && echo reg > "$work/rollruns/registries"
+STUB_FAIL="acr task list-runs" ANSWER=yes run rollruns "$bicep"
+check "rollout: registry runs it can't list stop it" \
+  eval '[ "$code" -ne 0 ] && has "couldn.t list reg.s runs" && nothing_changed'
+hosted_setup rollimage '{"registry": {"value": "reg.azurecr.io"}}'
+STUB_FAIL="parameters.image" ANSWER=yes run rollimage "$bicep"
+check "rollout: the last deployment's image it can't read stops it" \
+  eval '[ "$code" -ne 0 ] && has "couldn.t read the image the last deployment set in rg-test" && nothing_changed'
+STUB_FAIL="group exists" ANSWER=yes run rollgroupfail "$bicep"
+check "rollout: a group lookup that fails stops it, rather than taking the group as new" \
+  eval '[ "$code" -ne 0 ] && has "couldn.t tell whether rg-test exists" && ! has "nothing is deployed in rg-test yet, so no other" \
+   && nothing_changed'
+STUB_GROUP=maybe ANSWER=yes run rollgroupodd "$bicep"
+check "rollout: a group lookup that prints neither true nor false stops it" \
+  eval '[ "$code" -ne 0 ] && has "couldn.t tell whether rg-test exists" && nothing_changed'
 
 # A tag the registry already holds isn't built over, unless --overwrite-tag says to.
 mkdir -p "$work/tagnew" && echo hive-a2a > "$work/tagnew/repositories"
@@ -862,6 +879,12 @@ check "tag: one the registry holds stops the build, before its prompt, saying ho
   eval '[ "$code" -ne 0 ] && has "reg already holds hive-a2a:$(git -C "$STUB/repo" rev-parse --short=12 HEAD)" \
    && has "deploy with --overwrite-tag" && has "write-enabled true" && ! has "Build and push the image" \
    && ! grep -q "^acr build" "$STUB/calls" && [ "$(creates)" -eq 1 ]'
+mkdir -p "$work/taglate" && echo hive-a2a > "$work/taglate/repositories" && echo later > "$work/taglate/tag-exists"
+ANSWER=yes run taglate "$bicep"
+check "tag: one pushed while the build's prompt waits stops the build" \
+  eval '[ "$code" -ne 0 ] && has "(before the build)" && has "reg already holds hive-a2a:" \
+   && [ "$(grep -c "^acr repository show-tags" "$STUB/calls")" -eq 2 ] \
+   && ! grep -q "^acr build" "$STUB/calls"'
 mkdir -p "$work/tagover" && echo hive-a2a > "$work/tagover/repositories" && : > "$work/tagover/tag-exists"
 deploy_args=(--overwrite-tag)
 ANSWER=yes run tagover "$bicep"

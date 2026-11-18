@@ -594,8 +594,12 @@ revisions_up() {  # $1 = deployment outputs JSON
 # nothing goes past a deployment or a run under way. Only reads.
 expected='' expected_read=''
 one_rollout() {  # $1 = the point it checks at, e.g. "before the build"
-  local found='' drifted running registries registry runs images shared main
-  if [ "$(az group exists --name "$rg")" != "true" ]; then
+  local found='' drifted exists running registries registry runs images shared main
+  if ! exists=$(az group exists --name "$rg") || { [ "$exists" != true ] && [ "$exists" != false ]; }; then
+    echo "error: couldn't tell whether $rg exists, so another rollout can't be ruled out; nothing more was changed" >&2
+    exit 1
+  fi
+  if [ "$exists" = false ]; then
     echo "nothing is deployed in $rg yet, so no other rollout can be under way"
     return
   fi
@@ -664,7 +668,8 @@ one_rollout() {  # $1 = the point it checks at, e.g. "before the build"
 }
 
 # Step 3 doesn't build over a tag the registry already holds, since the apps would then run
-# whichever build pushed last; --overwrite-tag rebuilds it. Only reads.
+# whichever build pushed last; --overwrite-tag rebuilds it. It checks before the prompt, and
+# again after it, since another build could push the tag while the prompt waits. Only reads.
 tag_check() {  # $1 = the registry's name
   local repositories tags
   if ! repositories=$(az acr repository list --name "$1" -o tsv); then
@@ -717,6 +722,7 @@ echo "== 3/4 image hive-a2a:$tag in $registry"
 tag_check "${registry%%.*}"
 confirm "Build and push the image to $registry?"
 one_rollout "before the build"
+tag_check "${registry%%.*}" > /dev/null
 az acr build --registry "${registry%%.*}" --image "hive-a2a:$tag" \
   --file "$azure/Dockerfile" "$src"
 
