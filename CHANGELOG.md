@@ -1,5 +1,67 @@
 # Changelog
 
+## [0.13.0](https://github.com/werkrbee/ai-hive/compare/v0.12.1...v0.13.0) (2026-11-18)
+
+
+### Features
+
+* add the harness capability and price matrix ([#263](https://github.com/werkrbee/ai-hive/issues/263)) ([e890dd1](https://github.com/werkrbee/ai-hive/commit/e890dd146e7d7861fa2b17391c7ad3969eb21517)), closes [#232](https://github.com/werkrbee/ai-hive/issues/232)
+* **agents-hive:** accept delegated tokens for Patricia's reviews ([#317](https://github.com/werkrbee/ai-hive/issues/317)) ([196442a](https://github.com/werkrbee/ai-hive/commit/196442ae7b1edb1362f004d701d95ea87cc8a214)), closes [#300](https://github.com/werkrbee/ai-hive/issues/300) [#229](https://github.com/werkrbee/ai-hive/issues/229)
+* **agents-hive:** rate-limit and cap each client on hosted Patricia ([#308](https://github.com/werkrbee/ai-hive/issues/308)) ([82326da](https://github.com/werkrbee/ai-hive/commit/82326dafbc6189b9025c3c53b5af1a08258864d9)), closes [#304](https://github.com/werkrbee/ai-hive/issues/304) [#229](https://github.com/werkrbee/ai-hive/issues/229)
+* **agents-hive:** serve A2A's HTTP+JSON binding and its OpenAPI document ([#321](https://github.com/werkrbee/ai-hive/issues/321)) ([a720bdb](https://github.com/werkrbee/ai-hive/commit/a720bdbfd3849fedac569a43164cd272d3cda053)), closes [#299](https://github.com/werkrbee/ai-hive/issues/299) [#229](https://github.com/werkrbee/ai-hive/issues/229)
+* **agents-hive:** serve Patricia's review over MCP ([#306](https://github.com/werkrbee/ai-hive/issues/306)) ([26f6494](https://github.com/werkrbee/ai-hive/commit/26f649409da5aecec732a5b3a443cebe69688b0b)), closes [#298](https://github.com/werkrbee/ai-hive/issues/298)
+* align Claude Code ([#265](https://github.com/werkrbee/ai-hive/issues/265)) ([13c23ba](https://github.com/werkrbee/ai-hive/commit/13c23bafef9159b34dd64e7eafc8d492c99b645a)), closes [#234](https://github.com/werkrbee/ai-hive/issues/234)
+* align Cline ([#293](https://github.com/werkrbee/ai-hive/issues/293)) ([0366575](https://github.com/werkrbee/ai-hive/commit/03665752848db64066fef9d1a81883fa440f9e29)), closes [#241](https://github.com/werkrbee/ai-hive/issues/241)
+* align Codex ([#267](https://github.com/werkrbee/ai-hive/issues/267)) ([edc3494](https://github.com/werkrbee/ai-hive/commit/edc34943da3ef7d2d4e0beb9d1e35a2f7f23a718)), closes [#236](https://github.com/werkrbee/ai-hive/issues/236)
+* align Cursor ([#269](https://github.com/werkrbee/ai-hive/issues/269)) ([c1535e8](https://github.com/werkrbee/ai-hive/commit/c1535e8f6d004f20946b12304aa75d8e9c159bde)), closes [#237](https://github.com/werkrbee/ai-hive/issues/237)
+* align Devin Desktop ([#275](https://github.com/werkrbee/ai-hive/issues/275)) ([9823629](https://github.com/werkrbee/ai-hive/commit/9823629767bda200149fd0245f2311577eb4f815)), closes [#239](https://github.com/werkrbee/ai-hive/issues/239)
+* align Gemini CLI and Antigravity ([#272](https://github.com/werkrbee/ai-hive/issues/272)) ([ce013aa](https://github.com/werkrbee/ai-hive/commit/ce013aa3c41d4c810b3d6adb1e8e8e12db22508f)), closes [#238](https://github.com/werkrbee/ai-hive/issues/238)
+* align GitHub Copilot ([#266](https://github.com/werkrbee/ai-hive/issues/266)) ([768ef33](https://github.com/werkrbee/ai-hive/commit/768ef33d80f08ec13c13df8533b608ee9945f8d7)), closes [#235](https://github.com/werkrbee/ai-hive/issues/235)
+* align Goose ([#296](https://github.com/werkrbee/ai-hive/issues/296)) ([7342356](https://github.com/werkrbee/ai-hive/commit/73423564042cbd559a563916dbf3393f1702b994)), closes [#243](https://github.com/werkrbee/ai-hive/issues/243)
+* align Kiro ([#277](https://github.com/werkrbee/ai-hive/issues/277)) ([e77712c](https://github.com/werkrbee/ai-hive/commit/e77712cc879a27ccd08767c957079b87731353c0)), closes [#240](https://github.com/werkrbee/ai-hive/issues/240)
+* align OpenCode ([#295](https://github.com/werkrbee/ai-hive/issues/295)) ([d1f109f](https://github.com/werkrbee/ai-hive/commit/d1f109f50bcad5a77f018f59b3a5cecd418ba618)), closes [#242](https://github.com/werkrbee/ai-hive/issues/242)
+* open-weight model intelligence and monthly license tracking ([#324](https://github.com/werkrbee/ai-hive/issues/324)) ([6c285eb](https://github.com/werkrbee/ai-hive/commit/6c285eb9803319e88a4a720040fb2e5c68c7bca9))
+* record low-code runs in the harness registry ([#315](https://github.com/werkrbee/ai-hive/issues/315)) ([a01e208](https://github.com/werkrbee/ai-hive/commit/a01e2085f1d75eef59938c85111660934d5245af)), closes [#302](https://github.com/werkrbee/ai-hive/issues/302) [#229](https://github.com/werkrbee/ai-hive/issues/229)
+
+
+### Bug fixes
+
+* **agents-hive:** classify scoped and delegating tools as possible writers ([#316](https://github.com/werkrbee/ai-hive/issues/316)) ([5148133](https://github.com/werkrbee/ai-hive/commit/51481334472fabd79774d7481305d647d530e1c5))
+* **agents-hive:** drop unread message metadata and tie reviews to their ledger entries ([#312](https://github.com/werkrbee/ai-hive/issues/312)) ([905d96f](https://github.com/werkrbee/ai-hive/commit/905d96f29a9d5be1d5d994c04a02494091662612)), closes [#301](https://github.com/werkrbee/ai-hive/issues/301) [#229](https://github.com/werkrbee/ai-hive/issues/229)
+* **agents-hive:** fail closed on unmapped native tools ([#313](https://github.com/werkrbee/ai-hive/issues/313)) ([d510d62](https://github.com/werkrbee/ai-hive/commit/d510d62e031ea8fe6d05c64ddc9f2f9c2c512ad0))
+* **agents-hive:** let deploy.sh run only one rollout at a time ([#333](https://github.com/werkrbee/ai-hive/issues/333)) ([bb3c16c](https://github.com/werkrbee/ai-hive/commit/bb3c16cd04d4d0eb86b1e5f87505db682b75fab0)), closes [#330](https://github.com/werkrbee/ai-hive/issues/330) [#229](https://github.com/werkrbee/ai-hive/issues/229)
+* **agents-hive:** name Patricia's delegated scope apart from her app role ([#318](https://github.com/werkrbee/ai-hive/issues/318)) ([8d1fc5a](https://github.com/werkrbee/ai-hive/commit/8d1fc5a10b8a3161655255c65832fe2ee8c47335)), closes [#300](https://github.com/werkrbee/ai-hive/issues/300) [#229](https://github.com/werkrbee/ai-hive/issues/229)
+* **agents-hive:** share dual-era MCP handling with verify server ([#319](https://github.com/werkrbee/ai-hive/issues/319)) ([459df4b](https://github.com/werkrbee/ai-hive/commit/459df4bc1ebde555023a18bdd595ea26baf321d5))
+* preserve separate reviews for changing monthly model snapshots ([#329](https://github.com/werkrbee/ai-hive/issues/329)) ([90ef2bf](https://github.com/werkrbee/ai-hive/commit/90ef2bf5afa53f347d56b0c60d05b5f0b443baa9))
+* validate upstream model metadata before writing snapshots ([#332](https://github.com/werkrbee/ai-hive/issues/332)) ([556a431](https://github.com/werkrbee/ai-hive/commit/556a4313963b75518811cc23cad90a321c392a12))
+
+
+### Refactoring
+
+* add one harness registry for every installer ([#259](https://github.com/werkrbee/ai-hive/issues/259)) ([aa27c86](https://github.com/werkrbee/ai-hive/commit/aa27c865399d58529ec6e0f1b0eb637dab5bcc92)), closes [#231](https://github.com/werkrbee/ai-hive/issues/231)
+* move Windows and MCP installers onto harness registry ([#323](https://github.com/werkrbee/ai-hive/issues/323)) ([dd44adf](https://github.com/werkrbee/ai-hive/commit/dd44adf51abf4813618a9e6d18ee1aed2bea459a))
+
+
+### Documentation
+
+* decide the low-code alignment pattern ([#297](https://github.com/werkrbee/ai-hive/issues/297)) ([4ed6c5c](https://github.com/werkrbee/ai-hive/commit/4ed6c5c98dda2db4db774f6ca6bfa0de99c5ffdd)), closes [#244](https://github.com/werkrbee/ai-hive/issues/244)
+* link the low-code implementation issues ([#303](https://github.com/werkrbee/ai-hive/issues/303)) ([666506e](https://github.com/werkrbee/ai-hive/commit/666506ebc4f9c38fb9337074dd76ca400efc5ddd)), closes [#229](https://github.com/werkrbee/ai-hive/issues/229)
+* mark hosted Barry over A2A done in ROADMAP.md ([#227](https://github.com/werkrbee/ai-hive/issues/227)) ([4ab525f](https://github.com/werkrbee/ai-hive/commit/4ab525f42b246bdad1dc80fce95f04802ff31bb7)), closes [#106](https://github.com/werkrbee/ai-hive/issues/106)
+* monthly open-weight model license and download review ([#325](https://github.com/werkrbee/ai-hive/issues/325)) ([53998f2](https://github.com/werkrbee/ai-hive/commit/53998f2c5bbe9d20e4d991638d57bf887a2c32ea))
+* name the Codex rollouts in the deploy record ([#331](https://github.com/werkrbee/ai-hive/issues/331)) ([67679db](https://github.com/werkrbee/ai-hive/commit/67679db0200554cfd133420cd1cd64d50b023424)), closes [#330](https://github.com/werkrbee/ai-hive/issues/330) [#229](https://github.com/werkrbee/ai-hive/issues/229)
+* record hosted Patricia's MCP endpoint as live ([#307](https://github.com/werkrbee/ai-hive/issues/307)) ([ead129c](https://github.com/werkrbee/ai-hive/commit/ead129c584239d01dc28d54db5193247661b7f85)), closes [#229](https://github.com/werkrbee/ai-hive/issues/229)
+* record hosted Patricia's metadata dropping as live ([#314](https://github.com/werkrbee/ai-hive/issues/314)) ([0b98d64](https://github.com/werkrbee/ai-hive/commit/0b98d64111bb87cd5062a9480267260867bc277d)), closes [#301](https://github.com/werkrbee/ai-hive/issues/301) [#229](https://github.com/werkrbee/ai-hive/issues/229)
+* record hosted Patricia's per-client limits as live ([#309](https://github.com/werkrbee/ai-hive/issues/309)) ([0b25075](https://github.com/werkrbee/ai-hive/commit/0b25075e46a746bd3f3bbffac329d03dbbc5bddc)), closes [#304](https://github.com/werkrbee/ai-hive/issues/304) [#229](https://github.com/werkrbee/ai-hive/issues/229)
+* record Patricia's delegated tokens as live ([#320](https://github.com/werkrbee/ai-hive/issues/320)) ([6bfcc7b](https://github.com/werkrbee/ai-hive/commit/6bfcc7b70444640db0c38b026d86a81517989f7e)), closes [#300](https://github.com/werkrbee/ai-hive/issues/300) [#229](https://github.com/werkrbee/ai-hive/issues/229)
+* record the harness ecosystem ([#258](https://github.com/werkrbee/ai-hive/issues/258)) ([aabb698](https://github.com/werkrbee/ai-hive/commit/aabb6985ebd42e2516c47c6bf0da946f6b39201b)), closes [#230](https://github.com/werkrbee/ai-hive/issues/230)
+* record the HTTP+JSON deploy and [#319](https://github.com/werkrbee/ai-hive/issues/319)'s earlier go-live ([#328](https://github.com/werkrbee/ai-hive/issues/328)) ([69772f7](https://github.com/werkrbee/ai-hive/commit/69772f78565fb6bf1e508d4a98ccee4348fba3b9)), closes [#299](https://github.com/werkrbee/ai-hive/issues/299) [#229](https://github.com/werkrbee/ai-hive/issues/229)
+
+
+### CI
+
+* check harness installs land and fail stale harness rows ([#264](https://github.com/werkrbee/ai-hive/issues/264)) ([f9eed67](https://github.com/werkrbee/ai-hive/commit/f9eed678ae094349fb1655cf2a2a7c7df00be17f)), closes [#233](https://github.com/werkrbee/ai-hive/issues/233)
+* upgrade checkout and Python Actions to Node.js 24 ([#326](https://github.com/werkrbee/ai-hive/issues/326)) ([0a860f8](https://github.com/werkrbee/ai-hive/commit/0a860f89ad6732dcffc7e926f3bda6f1de45b032))
+
 ## [0.12.1](https://github.com/werkrbee/ai-hive/compare/v0.12.0...v0.12.1) (2026-11-08)
 
 
