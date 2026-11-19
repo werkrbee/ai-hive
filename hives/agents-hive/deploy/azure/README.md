@@ -696,6 +696,32 @@ stood down on hosted Patricia, and Claude Code owns her deploys. A hosted app is
 only through `deploy.sh`, one rollout at a time; #330 is to make `deploy.sh` refuse a
 second rollout while one is under way.
 
+Auth refusals over HTTP+JSON, on 2026-11-18 (the `main` deployment of that day at 22:34
+UTC, every app and the weekly job on `hive-a2a:a9ea2a26c867`, built from `a9ea2a2` as
+registry run `chn`, `sha256:eac762f3…`, Patricia's revision `patricia-a2a--0000019`,
+Barry's `barry-a2a--0000014` and the verify server's `barry-verify--0000014`, and the
+job's `HIVE_COMMIT` `a9ea2a26c867`): on hosted Patricia's HTTP+JSON paths a 401 or 403 is
+A2A's REST error, `UNAUTHENTICATED` or `PERMISSION_DENIED`, while JSON-RPC and MCP keep
+the server's own `{"error": "<reason>"}` (#322). Claude Code ran `deploy.sh`, answering
+each step's prompt only after the maintainer's yes to its what-if. It was the first
+rollout with #330's check, which found no other rollout under way at the start, before
+step 1's apply, before the build and before step 4's apply; ARM deployments, registry
+runs, the apps' images and the Codex session's log, checked by hand beforehand, agreed.
+Step 2 changed nothing: the retention policy was already 365 days, unlocked. Step 1's
+what-if, and step 4's besides the image on each app and the job and the job's
+`HIVE_COMMIT`, showed only the `reference()`, `format()` and `join()` values, server-set
+properties and the budget's date format seen before. `entra.sh` and `verify_barry.sh`
+didn't run, since nothing about Entra changed.
+
+Plain requests without a token found `POST /message:send` answering 401 with
+`UNAUTHENTICATED` and `WWW-Authenticate: Bearer error="invalid_token"`, and `GET /tasks`
+with a malformed token 401 with `UNAUTHENTICATED`; the A2A endpoint's JSON-RPC and
+`POST /mcp` still answered 401 with `{"error": "a bearer token is required"}` and their
+usual challenges; and `/openapi.json` pointed 401 and 403 at `Error`, with no `AuthError`.
+No tokened call was made, so a 403 over HTTP+JSON has been checked only in the offline
+tests (`servers/a2a/tests/test_server.py`), and `verify_barry.sh` still hasn't been run on
+an image since #222.
+
 Record anything that differs in this README.
 
 ## Files
