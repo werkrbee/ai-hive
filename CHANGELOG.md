@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.13.1](https://github.com/werkrbee/ai-hive/compare/v0.13.0...v0.13.1) (2026-11-19)
+
+
+### Bug fixes
+
+* **agents-hive:** return A2A's REST error for auth refusals over HTTP+JSON ([#334](https://github.com/werkrbee/ai-hive/issues/334)) ([a9ea2a2](https://github.com/werkrbee/ai-hive/commit/a9ea2a26c867650cbdab0f00d1c129b104970d91)), closes [#322](https://github.com/werkrbee/ai-hive/issues/322) [#229](https://github.com/werkrbee/ai-hive/issues/229)
+
+
+### Documentation
+
+* record the HTTP+JSON auth-refusal rollout ([#336](https://github.com/werkrbee/ai-hive/issues/336)) ([848d1ee](https://github.com/werkrbee/ai-hive/commit/848d1ee415bf50618669b41d1d14283806457df9)), closes [#322](https://github.com/werkrbee/ai-hive/issues/322) [#229](https://github.com/werkrbee/ai-hive/issues/229)
+
 ## [0.13.0](https://github.com/werkrbee/ai-hive/compare/v0.12.1...v0.13.0) (2026-11-18)
 
 
