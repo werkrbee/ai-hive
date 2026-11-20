@@ -236,6 +236,9 @@ this repository.
 Building a product on the House? [`docs/product-adoption.md`](docs/product-adoption.md)
 covers pinning this repo at a release, installing from the pin, Barry and Patricia's
 roles in a product, the execution contracts and Agent Cards, and calling hosted Patricia.
+To choose where the product's agents run, [`docs/harness-guides.md`](docs/harness-guides.md)
+lists the twenty harnesses the House aligns with, each with its guide, what works in it,
+what it costs and the runs recorded in it.
 
 ## Roadmap
 

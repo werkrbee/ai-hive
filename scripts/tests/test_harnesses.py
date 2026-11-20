@@ -65,6 +65,25 @@ class CheckTest(unittest.TestCase):
     def test_the_table_is_current(self):
         self.assertRefused(lambda r: r["models"]["gpt-5-5"].update(output=31), "harness-matrix.md is out of date")
 
+    def test_the_guides_index_is_current(self):
+        self.assertRefused(lambda r: self.harness(r, "dify")["cost"].update(unit="Message credit, $0.02"),
+                           "harness-guides.md is out of date")
+
+    def test_the_guides_index_shows_each_of_the_twenty_and_says_what_is_missing(self):
+        with tempfile.TemporaryDirectory() as guides:
+            (Path(guides) / "claude-code.md").write_text("# Barry on Claude Code\n")
+            page = harnesses.render_guides(self.registry, guides)
+        rows = [line for line in page.splitlines() if line.startswith("| ") and line[2].isdigit()]
+        self.assertEqual(len(rows), 20)
+        claude = next(line for line in rows if "Claude Code" in line)
+        self.assertIn("[`claude-code.md`](../hives/skills-hive/skills/barry/references/harnesses/claude-code.md)",
+                      claude)
+        self.assertIn("Barry 2026-11-10, Patricia 2026-11-10", claude)
+        self.assertIn("[verified](harness-matrix.md#pro-code)", claude)
+        kiro = next(line for line in rows if "Kiro" in line)
+        self.assertEqual(kiro.count("none yet"), 2, "no guide in this directory, and no run")
+        self.assertIn("1 of 10 have a guide", page)
+
     def test_an_own_key_row_states_no_fee_it_cannot_source(self):
         text = harnesses.effective(self.harness(self.registry, "n8n"), self.registry)
         self.assertNotIn("no harness fee", text)
@@ -142,7 +161,7 @@ class LowCodeRunTest(unittest.TestCase):
     def test_a_well_formed_run_passes(self):
         problems, registry = self.problems(lambda h: None)
         # Only the table, which is now behind the registry, is out of step.
-        self.assertEqual([p for p in problems if "harness-matrix.md" not in p], [])
+        self.assertEqual([p for p in problems if "is out of date" not in p], [])
 
     def test_a_run_lacks_no_field(self):
         for key in harnesses.LOW_CODE_RUN_FIELDS:
@@ -157,13 +176,13 @@ class LowCodeRunTest(unittest.TestCase):
     def test_known_platform_tokens_pass(self):
         problems, _ = self.problems(lambda h: h["runs"][0]["tokens"].update(
             input=5200, cache_write=None, cached=0, output=610))
-        self.assertEqual([p for p in problems if "harness-matrix.md" not in p], [])
+        self.assertEqual([p for p in problems if "is out of date" not in p], [])
 
     def test_units_not_reported_are_null_not_zero(self):
         self.assertRefused(lambda h: h["runs"][0]["units"].update(basis="not-reported", amount=0),
                            "a null amount, never zero")
         problems, _ = self.problems(lambda h: h["runs"][0]["units"].update(basis="not-reported", amount=None))
-        self.assertEqual([p for p in problems if "harness-matrix.md" not in p], [])
+        self.assertEqual([p for p in problems if "is out of date" not in p], [])
         self.assertRefused(lambda h: h["runs"][0]["units"].update(basis="estimated", amount=None),
                            "estimated units have an amount")
         self.assertRefused(lambda h: h["runs"][0]["units"].pop("source"), "units name their source")
@@ -177,7 +196,7 @@ class LowCodeRunTest(unittest.TestCase):
         self.assertRefused(lambda h: h["runs"][0]["house"].pop("usd"), "the House's tokens and usd")
         self.assertRefused(lambda h: h["runs"][0]["house"].update(tokens=0), "the House's tokens and usd")
         problems, _ = self.problems(lambda h: h["runs"][0]["house"].pop("taskId"))
-        self.assertEqual([p for p in problems if "harness-matrix.md" not in p], [])
+        self.assertEqual([p for p in problems if "is out of date" not in p], [])
 
     def verify(self, h):
         for c in h["capabilities"].values():
@@ -191,7 +210,7 @@ class LowCodeRunTest(unittest.TestCase):
             h.pop("runs")
         self.assertRefused(verified_without_a_run, "a verified low-code row records a run of patricia")
         problems, _ = self.problems(self.verify)
-        self.assertEqual([p for p in problems if "harness-matrix.md" not in p], [])
+        self.assertEqual([p for p in problems if "is out of date" not in p], [])
 
     def test_the_matrix_shows_low_code_runs_in_their_own_table(self):
         registry = copy.deepcopy(self.registry)
