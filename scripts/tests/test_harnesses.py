@@ -250,6 +250,8 @@ class LowCodeRunTest(unittest.TestCase):
 
 
 class StaleTest(unittest.TestCase):
+    """Every date is pinned to 2026-01-01, so these don't start failing as time passes."""
+
     def setUp(self):
         self.registry = copy.deepcopy(harnesses.load())
         for h in self.registry["harnesses"]:
@@ -260,26 +262,85 @@ class StaleTest(unittest.TestCase):
                 h["cost"]["checked"] = "2026-01-01"
         for m in self.registry["models"].values():
             m["checked"] = "2026-01-01"
+            m.pop("until", None)
+            m.pop("then", None)
 
-    def test_a_row_is_stale_after_ninety_days(self):
+    def kinds(self, today, where=None):
+        return {(w, kind) for w, kind, _, _, _ in harnesses.stale(self.registry, today)
+                if where is None or w == where}
+
+    def test_a_price_is_stale_after_thirty_days(self):
+        self.assertEqual(harnesses.stale(self.registry, datetime.date(2026, 1, 31)), [])  # 30 days
+        stale = harnesses.stale(self.registry, datetime.date(2026, 2, 1))  # 31 days
+        self.assertIn(("Claude Code", "price", "2026-01-01", 31, 30), stale)
+        self.assertEqual({kind for _, kind, _, _, _ in stale}, {"price"}, "capabilities have 90 days")
+        rows = {w for w, _, _, _, _ in stale if not w.startswith("model ")}
+        self.assertEqual(len(rows), 20)
+        self.assertEqual(sum(w.startswith("model ") for w, _, _, _, _ in stale), len(self.registry["models"]))
+
+    def test_capabilities_are_stale_after_ninety_days(self):
+        for h in self.registry["harnesses"]:
+            if "cost" in h:
+                h["cost"]["checked"] = "2026-03-31"
+        for m in self.registry["models"].values():
+            m["checked"] = "2026-03-31"
         self.assertEqual(harnesses.stale(self.registry, datetime.date(2026, 4, 1)), [])  # 90 days
         stale = harnesses.stale(self.registry, datetime.date(2026, 4, 2))  # 91 days
-        self.assertEqual(len(stale), 20)
-        self.assertIn(("Claude Code", "2026-01-01", 91), stale)
+        self.assertIn(("Claude Code", "capabilities", "2026-01-01", 91, 90), stale)
+        self.assertEqual({kind for _, kind, _, _, _ in stale}, {"capabilities"})
 
-    def test_a_stale_model_price_makes_its_rows_stale(self):
+    def test_a_stale_model_price_names_the_rows_that_quote_it(self):
         model = harnesses.get("codex", self.registry)["cost"]["tokens"]["models"][0]
-        quoting = {h["name"] for h in self.registry["harnesses"]
-                   if model in h.get("cost", {}).get("tokens", {}).get("models", [])}
+        quoting = [h["name"] for h in self.registry["harnesses"]
+                   if model in h.get("cost", {}).get("tokens", {}).get("models", [])]
+        self.assertIn("Codex", quoting)
         self.registry["models"][model]["checked"] = "2025-12-01"
-        stale = {name for name, _, _ in harnesses.stale(self.registry, datetime.date(2026, 3, 15))}
-        self.assertIn("Codex", stale)
-        self.assertEqual(stale, quoting)
+        [(where, kind, oldest, days, limit)] = harnesses.stale(self.registry, datetime.date(2026, 1, 20))
+        self.assertEqual((where, kind, oldest, days, limit),
+                         (f"model {model!r} (quoted by {', '.join(quoting)})", "price", "2025-12-01", 50, 30))
+        self.registry["models"]["gpt-5-5"]["checked"] = "2025-12-01"  # quoted by no row, still listed
+        self.assertIn(("model 'gpt-5-5'", "price"), self.kinds(datetime.date(2026, 1, 20)))
 
-    def test_check_fails_a_stale_row(self):
+    def test_check_says_which_kind_of_date_went_stale(self):
         problems = harnesses.check(self.registry, datetime.date(2026, 4, 2))
-        self.assertTrue(any("Claude Code: its row was last checked 2026-01-01, 91 days ago" in p
-                            for p in problems), problems)
+        self.assertIn("Claude Code: its price was last checked 2026-01-01, 91 days ago (over 30); re-verify it, "
+                      "as CONTRIBUTING.md describes", problems)
+        self.assertIn("Claude Code: its capabilities were last checked 2026-01-01, 91 days ago (over 90); "
+                      "re-verify them, as CONTRIBUTING.md describes", problems)
+
+    def test_a_launch_price_fails_the_check_the_day_after_its_last_day(self):
+        """until is the launch price's last day: the price changes the day after."""
+        self.registry["models"]["gemini-4-argon"].update(until="2026-01-10",
+                                                         then={"input": 4, "cached": 0.2, "output": 20})
+        ended = "model 'gemini-4-argon': its launch price ended on 2026-01-10"
+        on_last_day = harnesses.check(self.registry, datetime.date(2026, 1, 10))
+        self.assertFalse(any(ended in p for p in on_last_day), on_last_day)
+        day_after = harnesses.check(self.registry, datetime.date(2026, 1, 11))
+        self.assertTrue(any(ended in p for p in day_after), day_after)
+        self.assertEqual(self.kinds(datetime.date(2026, 1, 11)), set(), "inside 30 days, and still failing")
+
+    def test_the_launch_price_shows_in_the_model_s_name(self):
+        launch = {"name": "Gemini 4 Argon", "until": "2026-11-30", "then": {"input": 4, "cached": 0.2, "output": 20}}
+        self.assertEqual(harnesses.model_name(launch),
+                         "Gemini 4 Argon (launch price to 2026-11-30, then $4 · $0.20 · $20)")
+        self.assertEqual(harnesses.model_name({"name": "X", "until": "2026-11-30"}), "X (launch price to 2026-11-30)")
+        self.assertEqual(harnesses.model_name({"name": "X"}), "X")
+
+    def test_until_and_then_are_validated(self):
+        def refused(mutate, text):
+            registry = copy.deepcopy(self.registry)
+            mutate(registry)
+            problems = harnesses.check(registry, datetime.date(2026, 1, 2))
+            self.assertTrue(any(text in p for p in problems), problems)
+
+        argon = lambda r: r["models"]["gemini-4-argon"]  # noqa: E731
+        refused(lambda r: argon(r).update(until="end of November"), "until is the launch price's last day")
+        refused(lambda r: argon(r).update(then={"input": 4, "cached": 0.2, "output": 20}),
+                "then is the price after until, and goes with it")
+        refused(lambda r: argon(r).update(until="2026-11-30", then={"input": 4}),
+                "then gives input, cached, output, each a price or null")
+        refused(lambda r: next(h for h in r["harnesses"] if h["id"] == "codex")["cost"].update(until="2026-11-30"),
+                "until goes on a model's price, not a row's cost")
 
 
 class ConformanceTest(unittest.TestCase):
