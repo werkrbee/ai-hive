@@ -253,18 +253,23 @@ class LowCodeRunTest(unittest.TestCase):
 class StaleTest(unittest.TestCase):
     """Every date is pinned to 2026-01-01, so these don't start failing as time passes."""
 
-    def setUp(self):
-        self.registry = copy.deepcopy(harnesses.load())
-        for h in self.registry["harnesses"]:
+    @staticmethod
+    def registry_pinned():
+        registry = copy.deepcopy(harnesses.load())
+        for h in registry["harnesses"]:
             for c in h.get("capabilities", {}).values():
                 if "checked" in c:
                     c["checked"] = "2026-01-01"
             if "cost" in h:
                 h["cost"]["checked"] = "2026-01-01"
-        for m in self.registry["models"].values():
+        for m in registry["models"].values():
             m["checked"] = "2026-01-01"
             m.pop("until", None)
             m.pop("then", None)
+        return registry
+
+    def setUp(self):
+        self.registry = self.registry_pinned()
 
     def kinds(self, today, where=None):
         return {(w, kind) for w, kind, _, _, _ in harnesses.stale(self.registry, today)
@@ -395,6 +400,56 @@ class DueTest(unittest.TestCase):
                       "Read again: <https://developers.openai.com/api/docs/pricing>", lines)
         self.assertFalse(any(re.search(r"(?i)\b(close[sd]?|fix(e[sd])?|resolve[sd]?)\b", line) for line in lines),
                          "the issue body closes nothing")
+
+
+class ImpossibleDateTest(unittest.TestCase):
+    """A date written YYYY-MM-DD that isn't on the calendar is a problem check names, never a
+    crash. Dates are pinned to 2026-01-01; the reading helpers get a registry of their own."""
+
+    def setUp(self):
+        self.registry = StaleTest.registry_pinned()
+        self.today = datetime.date(2026, 1, 2)
+
+    def check(self, mutate):
+        mutate(self.registry)
+        return harnesses.check(self.registry, self.today)
+
+    def test_an_impossible_checked_is_named_where_it_is(self):
+        claude = harnesses.get("claude-code", self.registry)
+        cap = next(k for k, c in claude["capabilities"].items() if c["supported"] != "unknown")
+        problems = self.check(lambda r: (claude["capabilities"][cap].update(checked="2026-02-30"),
+                                         claude["cost"].update(checked="2026-13-01"),
+                                         r["models"]["gpt-5-5"].update(checked="2026-04-31")))
+        self.assertIn(f"harness 'claude-code': {cap}: checked is 2026-02-30, a day that doesn't exist", problems)
+        self.assertIn("harness 'claude-code': cost: checked is 2026-13-01, a day that doesn't exist", problems)
+        self.assertIn("model 'gpt-5-5': checked is 2026-04-31, a day that doesn't exist", problems)
+
+    def test_an_impossible_until_is_named_on_its_model(self):
+        problems = self.check(lambda r: r["models"]["gemini-4-argon"].update(
+            until="2026-11-31", then={"input": 4, "cached": 0.2, "output": 20}))
+        self.assertIn("model 'gemini-4-argon': until is 2026-11-31, a day that doesn't exist", problems)
+
+    def test_an_impossible_run_date_is_named_on_its_run(self):
+        claude = harnesses.get("claude-code", self.registry)
+        problems = self.check(lambda r: claude["runs"][0].update(date="2026-02-29"))
+        self.assertIn("harness 'claude-code': run 1 date is 2026-02-29, a day that doesn't exist", problems)
+        low_code = dict(LowCodeRunTest.run_of_patricia(), date="2026-06-31")
+        self.assertEqual([p for p in harnesses.run_problems(low_code, "low-code", {}) if "date" in p],
+                         ["date is 2026-06-31, a day that doesn't exist"])
+
+    def test_due_stale_and_launch_ended_pass_over_an_impossible_date(self):
+        registry = {"harnesses": [], "models": {
+            "real": {"checked": "2026-01-01", "until": "2026-01-05", "source": "https://example.test/real"},
+            "impossible": {"checked": "2026-02-30", "until": "2026-02-31", "source": "https://example.test/x"}}}
+        today = datetime.date(2026, 3, 1)
+        self.assertEqual(harnesses.due(registry, 7, today), [
+            (datetime.date(2026, 1, 6), "model 'real'", "launch price ends on 2026-01-05",
+             ["https://example.test/real"]),
+            (datetime.date(2026, 2, 1), "model 'real'", "price last checked 2026-01-01, stale after 30 days",
+             ["https://example.test/real"])])
+        self.assertEqual(harnesses.stale(registry, today), [("model 'real'", "price", "2026-01-01", 59, 30)])
+        self.assertEqual(harnesses.launch_ended(registry, today), [("real", "2026-01-05")])
+        self.assertEqual(len(harnesses.due_lines(registry, 7, today)), 2)
 
 
 class ConformanceTest(unittest.TestCase):

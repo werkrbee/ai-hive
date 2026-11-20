@@ -385,8 +385,8 @@ def run_problems(r, category, models):
         if missing:
             return [f"lacks {', '.join(missing)}"]
         problems = []
-        if not DATE.match(str(r["date"])):
-            problems.append("has no date (YYYY-MM-DD)")
+        if p := date_problem(r["date"], "date", "has no date (YYYY-MM-DD)"):
+            problems.append(p)
         if r["model"] not in models:
             problems.append(f"names model {r['model']!r}, which isn't in models")
         if not all(isinstance(r["tokens"].get(k), int) for k in RUN_TOKENS):
@@ -399,8 +399,8 @@ def run_problems(r, category, models):
     problems = []
     if r["agent"] != LOW_CODE_RUN_AGENT:
         problems.append(f"is of {r['agent']!r}; a low-code run is of {LOW_CODE_RUN_AGENT}")
-    if not DATE.match(str(r["date"])):
-        problems.append("has no date (YYYY-MM-DD)")
+    if p := date_problem(r["date"], "date", "has no date (YYYY-MM-DD)"):
+        problems.append(p)
     if r["version"] is not None and not (isinstance(r["version"], str) and r["version"]):
         problems.append("names the platform's version, or null where it shows none")
     if r["binding"] not in BINDINGS:
@@ -440,6 +440,26 @@ def run_problems(r, category, models):
     return problems
 
 
+def as_date(v):
+    """V as a date when it's a day that exists, written YYYY-MM-DD; otherwise None."""
+    if isinstance(v, str) and DATE.match(v):
+        try:
+            return datetime.date.fromisoformat(v)
+        except ValueError:
+            pass
+    return None
+
+
+def date_problem(v, field, missing):
+    """What check says of a date: MISSING when it isn't written YYYY-MM-DD, that the day
+    doesn't exist when it's written so but isn't on the calendar, and None when it's fine."""
+    if as_date(v):
+        return None
+    if DATE.match(str(v)):
+        return f"{field} is {v}, a day that doesn't exist"
+    return missing
+
+
 def number(v):
     """A finite, non-negative number, and not a bool."""
     return isinstance(v, (int, float)) and not isinstance(v, bool) and v >= 0 and v == v and v != float("inf")
@@ -462,7 +482,7 @@ def row_dates(h, registry):
         m = registry.get("models", {}).get(mid)
         if m and "checked" in m:
             dates.append(m["checked"])
-    return [d for d in dates if DATE.match(str(d))]
+    return [d for d in dates if as_date(d)]
 
 
 def dated(registry):
@@ -473,7 +493,7 @@ def dated(registry):
     out = []
 
     def add(where, kind, dates, limit, sources):
-        dates = [d for d in dates if DATE.match(str(d))]
+        dates = [d for d in dates if as_date(d)]
         if dates:
             out.append((where, kind, min(dates), limit, sources))
 
@@ -504,7 +524,7 @@ def stale(registry, today=None):
     today = today or datetime.date.today()
     out = []
     for where, kind, oldest, limit, _ in dated(registry):
-        days = (today - datetime.date.fromisoformat(oldest)).days
+        days = (today - as_date(oldest)).days
         if days > limit:
             out.append((where, kind, oldest, days, limit))
     return out
@@ -520,12 +540,12 @@ def due(registry, within, today=None):
     out = []
     for where, kind, oldest, limit, sources in dated(registry):
         if kind == "price":
-            when = datetime.date.fromisoformat(oldest) + datetime.timedelta(days=limit + 1)
+            when = as_date(oldest) + datetime.timedelta(days=limit + 1)
             what = "price" if where.startswith("model ") else "cost"
             out.append((when, where, f"{what} last checked {oldest}, stale after {limit} days", sources))
     for mid, m in registry.get("models", {}).items():
-        if DATE.match(str(m.get("until", ""))):
-            when = datetime.date.fromisoformat(m["until"]) + datetime.timedelta(days=1)
+        if until := as_date(m.get("until")):
+            when = until + datetime.timedelta(days=1)
             out.append((when, model_where(mid, registry), f"launch price ends on {m['until']}",
                         [m["source"]] if m.get("source") else []))
     return sorted((e for e in out if e[0] <= horizon), key=lambda e: (e[0], e[1]))
@@ -534,8 +554,12 @@ def due(registry, within, today=None):
 def launch_ended(registry, today=None):
     """[(model id, its launch price's last day)] for each model whose launch price has ended."""
     today = today or datetime.date.today()
-    return [(mid, m["until"]) for mid, m in registry.get("models", {}).items()
-            if DATE.match(str(m.get("until", ""))) and datetime.date.fromisoformat(m["until"]) < today]
+    out = []
+    for mid, m in registry.get("models", {}).items():
+        until = as_date(m.get("until"))
+        if until and until < today:
+            out.append((mid, m["until"]))
+    return out
 
 
 def due_lines(registry, within, today=None):
@@ -641,13 +665,14 @@ def check(registry=None, today=None):
             problems.append(f"{where}: names no source")
         elif not all(x.startswith("https://") or (ROOT / x).exists() for x in sources):
             problems.append(f"{where}: a source is neither an https URL nor a file in the repo")
-        if not DATE.match(str(item.get("checked", ""))):
-            problems.append(f"{where}: no date checked (YYYY-MM-DD)")
+        if p := date_problem(item.get("checked"), "checked", "no date checked (YYYY-MM-DD)"):
+            problems.append(f"{where}: {p}")
 
     for mid, m in reg.get("models", {}).items():
         evidence(f"model {mid!r}", m)
-        if "until" in m and not DATE.match(str(m["until"])):
-            problems.append(f"model {mid!r}: until is the launch price's last day (YYYY-MM-DD)")
+        if "until" in m:
+            if p := date_problem(m["until"], "until", "until is the launch price's last day (YYYY-MM-DD)"):
+                problems.append(f"model {mid!r}: {p}")
         if "then" in m:
             then = m["then"] if isinstance(m["then"], dict) else {}
             if "until" not in m:
