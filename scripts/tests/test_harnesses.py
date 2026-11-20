@@ -320,8 +320,9 @@ class StaleTest(unittest.TestCase):
         self.assertEqual(self.kinds(datetime.date(2026, 1, 11)), set(), "inside 30 days, and still failing")
 
     def test_the_launch_price_shows_in_the_model_s_name(self):
-        name = harnesses.model_name(harnesses.load()["models"]["gemini-4-argon"])
-        self.assertEqual(name, "Gemini 4 Argon (launch price to 2026-11-30, then $4 · $0.20 · $20)")
+        launch = {"name": "Gemini 4 Argon", "until": "2026-11-30", "then": {"input": 4, "cached": 0.2, "output": 20}}
+        self.assertEqual(harnesses.model_name(launch),
+                         "Gemini 4 Argon (launch price to 2026-11-30, then $4 · $0.20 · $20)")
         self.assertEqual(harnesses.model_name({"name": "X", "until": "2026-11-30"}), "X (launch price to 2026-11-30)")
         self.assertEqual(harnesses.model_name({"name": "X"}), "X")
 
