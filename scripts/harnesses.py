@@ -5,12 +5,15 @@ The registry is the only place a harness, its category and tier, its install pat
 its capability and price row are written down (docs/harness-ecosystem.md). Python
 installers import this module; shell installers call it. `matrix` writes the readable
 table, docs/harness-matrix.md, and the index of harness guides, docs/harness-guides.md.
-`check` is what CI runs: the registry is well formed, every claim in a row names its source and the date it was checked, each recorded run has
-its category's shape, a verified row has no unknowns and records its runs, no row in either ten was checked more than 90 days ago,
-the table and the guides index are current, each hive's adapters/ matches the registry, and each README that
-draws an adapters/ tree names every adapter. `conformance` is what check-installers.sh
-runs: it installs the House for every harness with install paths into a sandbox and
-looks for each file where the registry says it lands.
+`check` is what CI runs: the registry is well formed, every claim in a row names its
+source and the date it was checked, each recorded run has its category's shape, a verified
+row has no unknowns and records its runs, no price was checked more than 30 days ago (or
+outlived its launch price) and no capability more than 90, the table and the guides index
+are current, each hive's adapters/ matches the registry, and each README that draws an
+adapters/ tree names every adapter. `due` lists the prices about to go stale, for the
+daily workflow that opens an issue for them (.github/workflows/price-due.yml).
+`conformance` is what check-installers.sh runs: it installs the House for every harness
+with install paths into a sandbox and looks for each file where the registry says it lands.
 
 Standard library only.
 
@@ -23,6 +26,9 @@ Usage:
   python3 scripts/harnesses.py matrix
       rewrite docs/harness-matrix.md and docs/harness-guides.md from the registry
   python3 scripts/harnesses.py check
+  python3 scripts/harnesses.py due --within N
+      list, as a Markdown list, each price that falls due within N days or already has,
+      with its due date and the pages to read again; print nothing when none is
   python3 scripts/harnesses.py conformance SANDBOX
       install into SANDBOX for every harness with install paths; fail if a top-ten
       harness's file is missing, and report the rest
@@ -459,34 +465,70 @@ def row_dates(h, registry):
     return [d for d in dates if DATE.match(str(d))]
 
 
-def stale(registry, today=None):
-    """[(where, kind, oldest date, days ago, limit)] for each date gone stale: a top-ten row's
-    capabilities checked more than STALE_AFTER_DAYS ago, its cost or a model's list price
-    checked more than PRICE_STALE_AFTER_DAYS ago. Kind is "capabilities" or "price"; where is
-    the harness's name, or the model's id and the rows that quote it."""
-    today = today or datetime.date.today()
+def dated(registry):
+    """[(where, kind, oldest date, limit, sources)] for each date a top-ten row or a model price
+    rests on: a row's capabilities (kind "capabilities", STALE_AFTER_DAYS) and its cost, and
+    each model's list price (kind "price", PRICE_STALE_AFTER_DAYS). Where is the harness's
+    name, or the model's id and the rows that quote it; sources are the pages to read again."""
     out = []
 
-    def judge(where, kind, dates, limit):
+    def add(where, kind, dates, limit, sources):
         dates = [d for d in dates if DATE.match(str(d))]
         if dates:
-            oldest = min(dates)
-            days = (today - datetime.date.fromisoformat(oldest)).days
-            if days > limit:
-                out.append((where, kind, oldest, days, limit))
+            out.append((where, kind, min(dates), limit, sources))
 
     for h in registry["harnesses"]:
         if h["tier"] != "top-ten":
             continue
-        judge(h["name"], "capabilities", [c.get("checked") for c in h.get("capabilities", {}).values()],
-              STALE_AFTER_DAYS)
-        judge(h["name"], "price", [h.get("cost", {}).get("checked")], PRICE_STALE_AFTER_DAYS)
+        caps = h.get("capabilities", {}).values()
+        add(h["name"], "capabilities", [c.get("checked") for c in caps], STALE_AFTER_DAYS,
+            list(dict.fromkeys(c["source"] for c in caps if c.get("source"))))
+        cost = h.get("cost", {})
+        add(h["name"], "price", [cost.get("checked")], PRICE_STALE_AFTER_DAYS, cost.get("sources", []))
     for mid, m in registry.get("models", {}).items():
-        quoting = [h["name"] for h in registry["harnesses"]
-                   if mid in h.get("cost", {}).get("tokens", {}).get("models", [])]
-        where = f"model {mid!r}" + (f" (quoted by {', '.join(quoting)})" if quoting else "")
-        judge(where, "price", [m.get("checked")], PRICE_STALE_AFTER_DAYS)
+        add(model_where(mid, registry), "price", [m.get("checked")], PRICE_STALE_AFTER_DAYS,
+            [m["source"]] if m.get("source") else [])
     return out
+
+
+def model_where(mid, registry):
+    """A model as check names it: its id, and the rows that quote it."""
+    quoting = [h["name"] for h in registry["harnesses"]
+               if mid in h.get("cost", {}).get("tokens", {}).get("models", [])]
+    return f"model {mid!r}" + (f" (quoted by {', '.join(quoting)})" if quoting else "")
+
+
+def stale(registry, today=None):
+    """[(where, kind, oldest date, days ago, limit)] for each date in dated() checked more than
+    its limit ago."""
+    today = today or datetime.date.today()
+    out = []
+    for where, kind, oldest, limit, _ in dated(registry):
+        days = (today - datetime.date.fromisoformat(oldest)).days
+        if days > limit:
+            out.append((where, kind, oldest, days, limit))
+    return out
+
+
+def due(registry, within, today=None):
+    """[(due date, where, why, sources)] for each price that falls due by WITHIN days from
+    today, or already has, soonest first: a row's cost or a model's price on the first day
+    check counts it stale, and a launch price on the day after its until. Capabilities, on
+    their 90 days, aren't listed."""
+    today = today or datetime.date.today()
+    horizon = today + datetime.timedelta(days=within)
+    out = []
+    for where, kind, oldest, limit, sources in dated(registry):
+        if kind == "price":
+            when = datetime.date.fromisoformat(oldest) + datetime.timedelta(days=limit + 1)
+            what = "price" if where.startswith("model ") else "cost"
+            out.append((when, where, f"{what} last checked {oldest}, stale after {limit} days", sources))
+    for mid, m in registry.get("models", {}).items():
+        if DATE.match(str(m.get("until", ""))):
+            when = datetime.date.fromisoformat(m["until"]) + datetime.timedelta(days=1)
+            out.append((when, model_where(mid, registry), f"launch price ends on {m['until']}",
+                        [m["source"]] if m.get("source") else []))
+    return sorted((e for e in out if e[0] <= horizon), key=lambda e: (e[0], e[1]))
 
 
 def launch_ended(registry, today=None):
@@ -494,6 +536,15 @@ def launch_ended(registry, today=None):
     today = today or datetime.date.today()
     return [(mid, m["until"]) for mid, m in registry.get("models", {}).items()
             if DATE.match(str(m.get("until", ""))) and datetime.date.fromisoformat(m["until"]) < today]
+
+
+def due_lines(registry, within, today=None):
+    """due() as Markdown list items, the lines `due` prints and the workflow's issue lists."""
+    lines = []
+    for when, where, why, sources in due(registry, within, today):
+        pages = ", ".join(f"<{u}>" if u.startswith("http") else f"`{u}`" for u in sources) or "no source recorded"
+        lines.append(f"- **{when}** {where}: {why}. Read again: {pages}")
+    return lines
 
 
 def check(registry=None, today=None):
@@ -788,7 +839,7 @@ def main(argv):
     rest = []
     while args:
         a = args.pop(0)
-        if a in ("--name", "--surface", "--category") and args:
+        if a in ("--name", "--surface", "--category", "--within") and args:
             opts[a[2:]] = args.pop(0)
         else:
             rest.append(a)
@@ -823,6 +874,10 @@ def main(argv):
             return 1
         print(f"OK  {len(checked)} installs across {len({c[0] for c in checked})} harnesses landed "
               f"where the registry says")
+        return 0
+    if cmd == "due" and not rest and opts.get("within", "").isdigit():
+        for line in due_lines(load(), int(opts["within"])):
+            print(line)
         return 0
     if cmd == "check" and not rest:
         problems = check()

@@ -2,6 +2,7 @@
 table that has fallen behind the registry."""
 import copy
 import datetime
+import re
 import sys
 import tempfile
 import unittest
@@ -341,6 +342,59 @@ class StaleTest(unittest.TestCase):
                 "then gives input, cached, output, each a price or null")
         refused(lambda r: next(h for h in r["harnesses"] if h["id"] == "codex")["cost"].update(until="2026-11-30"),
                 "until goes on a model's price, not a row's cost")
+
+
+class DueTest(unittest.TestCase):
+    """Every price is pinned to 2026-01-01 and every capability to 2025-12-01, so these don't
+    start failing as time passes."""
+
+    def setUp(self):
+        self.registry = copy.deepcopy(harnesses.load())
+        for h in self.registry["harnesses"]:
+            for c in h.get("capabilities", {}).values():
+                if "checked" in c:
+                    c["checked"] = "2025-12-01"
+            if "cost" in h:
+                h["cost"]["checked"] = "2026-01-01"
+        for m in self.registry["models"].values():
+            m["checked"] = "2026-01-01"
+            m.pop("until", None)
+            m.pop("then", None)
+
+    def test_a_price_is_listed_from_a_week_before_it_falls_due(self):
+        # Checked 2026-01-01, a price is stale from 2026-02-01, its 31st day.
+        self.assertEqual(harnesses.due(self.registry, 7, datetime.date(2026, 1, 24)), [])
+        listed = harnesses.due(self.registry, 7, datetime.date(2026, 1, 25))
+        self.assertEqual({when for when, _, _, _ in listed}, {datetime.date(2026, 2, 1)})
+        self.assertIn((datetime.date(2026, 2, 1), "Claude Code", "cost last checked 2026-01-01, stale after 30 days",
+                       harnesses.get("claude-code", self.registry)["cost"]["sources"]), listed)
+        self.assertEqual(len(listed), 20 + len(self.registry["models"]), "every row's cost and every model")
+
+    def test_capabilities_are_not_listed(self):
+        listed = harnesses.due(self.registry, 7, datetime.date(2026, 1, 25))
+        self.assertFalse(any("capabilities" in why for _, _, why, _ in listed))
+
+    def test_a_price_already_due_stays_listed(self):
+        self.assertEqual(len(harnesses.due(self.registry, 7, datetime.date(2026, 3, 1))),
+                         20 + len(self.registry["models"]))
+
+    def test_a_launch_price_is_listed_for_the_day_after_its_last_day(self):
+        self.registry["models"]["gemini-4-argon"]["until"] = "2026-01-10"
+        listed = harnesses.due(self.registry, 7, datetime.date(2026, 1, 4))
+        self.assertEqual(listed, [(datetime.date(2026, 1, 11),
+                                   "model 'gemini-4-argon' (quoted by Gemini CLI and Antigravity)",
+                                   "launch price ends on 2026-01-10", ["https://aistudio.google.com/docs/pricing"])])
+        self.assertEqual(harnesses.due(self.registry, 7, datetime.date(2026, 1, 3)), [])
+
+    def test_nothing_due_lists_nothing(self):
+        self.assertEqual(harnesses.due_lines(self.registry, 7, datetime.date(2026, 1, 2)), [])
+
+    def test_the_list_is_markdown_naming_the_date_where_and_pages(self):
+        lines = harnesses.due_lines(self.registry, 7, datetime.date(2026, 1, 30))
+        self.assertIn("- **2026-02-01** model 'gpt-5-5': price last checked 2026-01-01, stale after 30 days. "
+                      "Read again: <https://developers.openai.com/api/docs/pricing>", lines)
+        self.assertFalse(any(re.search(r"(?i)\b(close[sd]?|fix(e[sd])?|resolve[sd]?)\b", line) for line in lines),
+                         "the issue body closes nothing")
 
 
 class ConformanceTest(unittest.TestCase):

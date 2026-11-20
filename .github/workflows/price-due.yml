@@ -1,0 +1,32 @@
+name: Prices due for re-verification
+# Daily, so a price is listed a full week before CI fails on it and the issue follows each
+# price as it's re-dated; one run reads a file and makes at most two API calls.
+on:
+  schedule:
+    - cron: '23 8 * * *'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  list-due-prices:
+    concurrency:
+      group: price-due-${{ github.repository }}
+      cancel-in-progress: false
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: '3.12'
+      - name: Open or update the issue listing prices due within a week
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          PRICE_DUE_MILESTONE: "P2.3 — harness alignment"
+          PRICE_DUE_WITHIN: "7"
+        run: bash scripts/open_price_due_issue.sh
