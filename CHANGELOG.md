@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.14.0](https://github.com/werkrbee/ai-hive/compare/v0.13.2...v0.14.0) (2026-11-20)
+
+
+### Features
+
+* open an issue a week before a price falls due ([#345](https://github.com/werkrbee/ai-hive/issues/345)) ([9fcbd58](https://github.com/werkrbee/ai-hive/commit/9fcbd580b7b5b15f5f1123618df634e642350c32)), closes [#343](https://github.com/werkrbee/ai-hive/issues/343) [#229](https://github.com/werkrbee/ai-hive/issues/229)
+* re-verify harness and model prices monthly instead of quarterly ([#341](https://github.com/werkrbee/ai-hive/issues/341)) ([45a86c7](https://github.com/werkrbee/ai-hive/commit/45a86c75be9fd32591e7f2e4a235ce55b408f747))
+
+
+### Bug fixes
+
+* report an impossible date in harnesses.json instead of crashing check ([#352](https://github.com/werkrbee/ai-hive/issues/352)) ([8a4e930](https://github.com/werkrbee/ai-hive/commit/8a4e9305b682ec6bf412fd49eeeb244b40623ffd)), closes [#344](https://github.com/werkrbee/ai-hive/issues/344) [#229](https://github.com/werkrbee/ai-hive/issues/229)
+
 ## [0.13.2](https://github.com/werkrbee/ai-hive/compare/v0.13.1...v0.13.2) (2026-11-20)
 
 
