@@ -2,7 +2,7 @@
 
 _Generated from `harnesses.json` by `python3 scripts/harnesses.py matrix`; edit the registry, not this file._
 
-What works in each harness the House commits to, and what it costs, with the source and the date behind every claim. Why these harnesses, what aligned means and how cost is compared: [`harness-ecosystem.md`](harness-ecosystem.md). A row is unverified until its harness's alignment issue checks every field against the vendor's own docs and price page; until then, read it as a lead, not a fact. A field nobody has evidence for says unknown.
+What works in each harness the House commits to, and what it costs, with the source and the date behind every claim. Why these harnesses, what aligned means and how cost is compared: [`harness-ecosystem.md`](harness-ecosystem.md). A row is unverified until its harness's alignment issue checks every field against the vendor's own docs and price page; until then, read it as a lead, not a fact. A field nobody has evidence for says unknown. Prices change faster than features, so a row's cost and every model's list price are re-read every 30 days, and a launch price as soon as it ends; capabilities every 90. CI fails on any date older than that.
 
 ## Pro-code
 

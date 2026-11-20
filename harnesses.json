@@ -1,5 +1,5 @@
 {
-  "$comment": "The harness registry: the only place a harness, its category and tier, its install paths, and its capability and price row are written down. Read through scripts/harnesses.py, which renders the row as docs/harness-matrix.md. Ranking, categories and the cost unit: docs/harness-ecosystem.md. Paths use ~ for the home directory and {name} for the ruleset or agent name; a capability's path is where the harness reads it, in the harness's own placeholders such as <project>, or for headless the command that runs it. A capability is supported true, false or \"unknown\"; anything but unknown names its source and the date checked. Model prices are dollars per million tokens. A row is verified once every field is checked against the vendor's docs; a verified pro-code row records one run each of Barry and Patricia in the harness, and a verified low-code row records one run of Patricia called from the platform, in the shape CONTRIBUTING.md describes.",
+  "$comment": "The harness registry: the only place a harness, its category and tier, its install paths, and its capability and price row are written down. Read through scripts/harnesses.py, which renders the row as docs/harness-matrix.md. Ranking, categories and the cost unit: docs/harness-ecosystem.md. Paths use ~ for the home directory and {name} for the ruleset or agent name; a capability's path is where the harness reads it, in the harness's own placeholders such as <project>, or for headless the command that runs it. A capability is supported true, false or \"unknown\"; anything but unknown names its source and the date checked. Model prices are dollars per million tokens; a launch price that ends names its last day as until, and the price after it as then. Capabilities go stale 90 days after they're checked, and a row's cost and every model's price after 30. A row is verified once every field is checked against the vendor's docs; a verified pro-code row records one run each of Barry and Patricia in the harness, and a verified low-code row records one run of Patricia called from the platform, in the shape CONTRIBUTING.md describes.",
   "version": 1,
   "categories": {
     "pro-code": "Coding agents that read a repository; the House installs its artifacts into them.",
@@ -61,18 +61,22 @@
       "checked": "2026-11-10"
     },
     "gemini-4-argon": {
-      "name": "Gemini 4 Argon (launch price to 2026-11-30, then $4 · $0.20 · $20)",
+      "name": "Gemini 4 Argon",
       "input": 2,
       "cached": 0.1,
       "output": 10,
+      "until": "2026-11-30",
+      "then": {"input": 4, "cached": 0.2, "output": 20},
       "source": "https://aistudio.google.com/docs/pricing",
       "checked": "2026-11-11"
     },
     "gemini-3-8-flash": {
-      "name": "Gemini 3.8 Flash (launch price to 2026-12-31, then $1.50 · $0.15 · $7.50)",
+      "name": "Gemini 3.8 Flash",
       "input": 0.75,
       "cached": 0.075,
       "output": 3.75,
+      "until": "2026-12-31",
+      "then": {"input": 1.5, "cached": 0.15, "output": 7.5},
       "source": "https://aistudio.google.com/docs/pricing",
       "checked": "2026-11-11"
     },

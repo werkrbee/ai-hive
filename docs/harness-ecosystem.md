@@ -212,10 +212,14 @@ the effective rate there will come from measured reference tasks, not from price
 ## Keeping it current
 
 The ranking and the prices are advice about AI, so they carry their evidence and their
-date and go stale like any other guide. Both are checked every quarter, as P3's "keeping
-current" item describes: the surveys, vendor docs and price pages are read again, each
-row older than 90 days is re-verified, and the twenty change only through a reviewed edit
-to this note. A price is re-checked before any decision rests on it, whatever its age.
+date and go stale like any other guide. Prices move fastest: since this note was written,
+Cursor changed its plans, Google moved consumers to Antigravity, and two Gemini models
+launched at prices that rise within weeks. So every harness's cost and every model's list
+price is re-read monthly, and a launch price as soon as it ends; CI fails on a price older
+than 30 days. The ranking and the capabilities are checked every quarter, as P3's "keeping
+current" item describes: the surveys and vendor docs are read again, each capability older
+than 90 days is re-verified, and the twenty change only through a reviewed edit to this
+note. A price is re-checked before any decision rests on it, whatever its age.
 
 ## Sources
 

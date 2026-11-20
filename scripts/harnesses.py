@@ -57,8 +57,13 @@ CAPABILITY_SURFACE = {"rules": "rules", "skills": "skills", "subagents": "agents
 # key at list price, or at a rate it doesn't publish.
 BASES = ("list", "own-key", "not-published")
 DATE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
-# A row in either ten checked longer ago than this is stale: CI fails until it's re-verified.
+# A row in either ten whose capabilities were checked longer ago than this is stale: CI
+# fails until they're re-verified.
 STALE_AFTER_DAYS = 90
+# Prices change faster, so a row's cost and every model's list price go stale sooner. A
+# model's launch price also ends on the day after its `until`, the launch price's last day.
+PRICE_STALE_AFTER_DAYS = 30
+MODEL_PRICES = ("input", "cached", "output")
 # What conformance installs, one of each, and what a file it writes is named.
 SKILL, RULESET, AGENT = "barry", "queen-charter", "explore"
 # Who a pro-code harness's recorded run is of: alignment runs each once in the real harness.
@@ -155,6 +160,17 @@ def fee_for(t, m):
     return 0 if m["cached"] < below else fee
 
 
+def model_name(m):
+    """A model as the tables name it: its name, and when its launch price ends and what it
+    becomes, if the registry records that."""
+    if not m.get("until"):
+        return m["name"]
+    then = m.get("then")
+    after = (", then " + " · ".join("unknown" if then[k] is None else money(then[k]) for k in MODEL_PRICES)
+             if then else "")
+    return f"{m['name']} (launch price to {m['until']}{after})"
+
+
 def effective(h, registry):
     """[(model name, input, cached, output)] in dollars per million tokens, as strings, or a
     sentence when no rate can be derived."""
@@ -168,7 +184,7 @@ def effective(h, registry):
         m = registry["models"][mid]
         fee = fee_for(t, m)
         if fee is None:
-            rows.append((m["name"], "unknown", "unknown", "unknown"))
+            rows.append((model_name(m), "unknown", "unknown", "unknown"))
             continue
         # Unknown, not "not published": a fee the row doesn't say covers cached tokens
         # (fee_cached), or a cached rate nobody has recorded yet, is a gap in the row, not a
@@ -177,7 +193,7 @@ def effective(h, registry):
             cached = "unknown"
         else:
             cached = money(m["cached"] + fee)
-        rows.append((m["name"], money(m["input"] + fee), cached, money(m["output"] + fee)))
+        rows.append((model_name(m), money(m["input"] + fee), cached, money(m["output"] + fee)))
     return rows
 
 
@@ -198,7 +214,10 @@ def render_matrix(registry=None):
            "the date behind every claim. Why these harnesses, what aligned means and how cost is "
            "compared: [`harness-ecosystem.md`](harness-ecosystem.md). A row is unverified until its harness's alignment issue "
            "checks every field against the vendor's own docs and price page; until then, read it as "
-           "a lead, not a fact. A field nobody has evidence for says unknown.", ""]
+           "a lead, not a fact. A field nobody has evidence for says unknown. Prices change faster "
+           "than features, so a row's cost and every model's list price are re-read every 30 days, "
+           "and a launch price as soon as it ends; capabilities every 90. CI fails on any date "
+           "older than that.", ""]
     for cat, title in (("pro-code", "Pro-code"), ("low-code", "Low-code")):
         rows = sorted((h for h in reg["harnesses"] if h["category"] == cat and h["tier"] == "top-ten"),
                       key=lambda h: h["rank"])
@@ -261,7 +280,7 @@ def render_matrix(registry=None):
                     "|---|---|---|---|---|---|---|---|---|"]
             for h, r in ran:
                 t = " · ".join(f"{r['tokens'][k]:,}" for k in RUN_TOKENS)
-                model = reg["models"].get(r["model"], {}).get("name", r["model"])
+                model = model_name(reg["models"][r["model"]]) if r["model"] in reg["models"] else r["model"]
                 out.append(f"| {h['name']} | {r['agent'].capitalize()} | {r['date']} | {r['version']} | "
                            f"{model} | {t} | {r['cost']} | `{r['how']}` | {r['result']} |")
             out.append("")
@@ -270,7 +289,7 @@ def render_matrix(registry=None):
             "| Model | Input | Cached input | Output | Source | Checked |", "|---|---|---|---|---|---|"]
     for m in reg["models"].values():
         cached = "unknown" if m["cached"] is None else money(m["cached"])
-        out.append(f"| {m['name']} | {money(m['input'])} | {cached} | {money(m['output'])} | "
+        out.append(f"| {model_name(m)} | {money(m['input'])} | {cached} | {money(m['output'])} | "
                    f"{link(m['source'])} | {m['checked']} |")
     out += ["", "## Sources", ""]
     for cat in ("pro-code", "low-code"):
@@ -441,20 +460,40 @@ def row_dates(h, registry):
 
 
 def stale(registry, today=None):
-    """[(harness name, oldest date, days ago)] for each top-ten row checked more than
-    STALE_AFTER_DAYS ago."""
+    """[(where, kind, oldest date, days ago, limit)] for each date gone stale: a top-ten row's
+    capabilities checked more than STALE_AFTER_DAYS ago, its cost or a model's list price
+    checked more than PRICE_STALE_AFTER_DAYS ago. Kind is "capabilities" or "price"; where is
+    the harness's name, or the model's id and the rows that quote it."""
     today = today or datetime.date.today()
     out = []
-    for h in registry["harnesses"]:
-        if h["tier"] != "top-ten":
-            continue
-        dates = row_dates(h, registry)
+
+    def judge(where, kind, dates, limit):
+        dates = [d for d in dates if DATE.match(str(d))]
         if dates:
             oldest = min(dates)
             days = (today - datetime.date.fromisoformat(oldest)).days
-            if days > STALE_AFTER_DAYS:
-                out.append((h["name"], oldest, days))
+            if days > limit:
+                out.append((where, kind, oldest, days, limit))
+
+    for h in registry["harnesses"]:
+        if h["tier"] != "top-ten":
+            continue
+        judge(h["name"], "capabilities", [c.get("checked") for c in h.get("capabilities", {}).values()],
+              STALE_AFTER_DAYS)
+        judge(h["name"], "price", [h.get("cost", {}).get("checked")], PRICE_STALE_AFTER_DAYS)
+    for mid, m in registry.get("models", {}).items():
+        quoting = [h["name"] for h in registry["harnesses"]
+                   if mid in h.get("cost", {}).get("tokens", {}).get("models", [])]
+        where = f"model {mid!r}" + (f" (quoted by {', '.join(quoting)})" if quoting else "")
+        judge(where, "price", [m.get("checked")], PRICE_STALE_AFTER_DAYS)
     return out
+
+
+def launch_ended(registry, today=None):
+    """[(model id, its launch price's last day)] for each model whose launch price has ended."""
+    today = today or datetime.date.today()
+    return [(mid, m["until"]) for mid, m in registry.get("models", {}).items()
+            if DATE.match(str(m.get("until", ""))) and datetime.date.fromisoformat(m["until"]) < today]
 
 
 def check(registry=None, today=None):
@@ -556,6 +595,14 @@ def check(registry=None, today=None):
 
     for mid, m in reg.get("models", {}).items():
         evidence(f"model {mid!r}", m)
+        if "until" in m and not DATE.match(str(m["until"])):
+            problems.append(f"model {mid!r}: until is the launch price's last day (YYYY-MM-DD)")
+        if "then" in m:
+            then = m["then"] if isinstance(m["then"], dict) else {}
+            if "until" not in m:
+                problems.append(f"model {mid!r}: then is the price after until, and goes with it")
+            if set(then) != set(MODEL_PRICES) or not all(v is None or number(v) for v in then.values()):
+                problems.append(f"model {mid!r}: then gives {', '.join(MODEL_PRICES)}, each a price or null")
     for h in entries:
         where = f"harness {h['id']!r}"
         if h["tier"] != "top-ten":
@@ -587,6 +634,8 @@ def check(registry=None, today=None):
                 problems.append(f"{where}: fee_cached is true or false, and goes with a fee")
             if "fee_exempt_below" in t and (not number(t["fee_exempt_below"]) or not t.get("fee")):
                 problems.append(f"{where}: fee_exempt_below is a non-negative number, and goes with a fee")
+            if "until" in cost or "until" in t:
+                problems.append(f"{where}: until goes on a model's price, not a row's cost")
             if t.get("basis") == "list" and not t.get("models"):
                 problems.append(f"{where}: a list-price basis names the models it's quoted for")
         for i, r in enumerate(h.get("runs", [])):
@@ -605,9 +654,13 @@ def check(registry=None, today=None):
             if h["category"] == "low-code" and LOW_CODE_RUN_AGENT not in ran:
                 problems.append(f"{where}: a verified low-code row records a run of {LOW_CODE_RUN_AGENT}")
 
-    for name, oldest, days in stale(reg, today):
-        problems.append(f"{name}: its row was last checked {oldest}, {days} days ago (over "
-                        f"{STALE_AFTER_DAYS}); re-verify it, as CONTRIBUTING.md describes")
+    for where, kind, oldest, days, limit in stale(reg, today):
+        what = "its capabilities were" if kind == "capabilities" else "its price was"
+        problems.append(f"{where}: {what} last checked {oldest}, {days} days ago (over {limit}); "
+                        f"re-verify {'them' if kind == 'capabilities' else 'it'}, as CONTRIBUTING.md describes")
+    for mid, until in launch_ended(reg, today):
+        problems.append(f"model {mid!r}: its launch price ended on {until}; read the price page again "
+                        f"and record the price it has now, as CONTRIBUTING.md describes")
 
     if not problems:
         if not MATRIX.is_file() or MATRIX.read_text() != render_matrix(reg):
