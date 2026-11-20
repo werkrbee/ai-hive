@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.13.2](https://github.com/werkrbee/ai-hive/compare/v0.13.1...v0.13.2) (2026-11-20)
+
+
+### Bug fixes
+
+* model Cursor's Token Rate exemption for cheap cache reads ([#340](https://github.com/werkrbee/ai-hive/issues/340)) ([d704fb9](https://github.com/werkrbee/ai-hive/commit/d704fb9347ecc0f6699a245123b6dfc2bc62acf7)), closes [#271](https://github.com/werkrbee/ai-hive/issues/271) [#229](https://github.com/werkrbee/ai-hive/issues/229)
+
+
+### Documentation
+
+* add the harness guides index ([#338](https://github.com/werkrbee/ai-hive/issues/338)) ([9f1d47e](https://github.com/werkrbee/ai-hive/commit/9f1d47e9cc90fe485509454e6d4a33842b54c5b9)), closes [#257](https://github.com/werkrbee/ai-hive/issues/257) [#229](https://github.com/werkrbee/ai-hive/issues/229)
+
 ## [0.13.1](https://github.com/werkrbee/ai-hive/compare/v0.13.0...v0.13.1) (2026-11-19)
 
 
