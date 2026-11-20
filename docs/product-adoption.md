@@ -55,6 +55,10 @@ pack is more than you want; their READMEs list the options. A brand-new product 
 from projects-hive's `werkrbee-initiative` scaffold, which creates the project and installs
 the pack in one step.
 
+Each harness reads the installs from its own paths. To pick the ones your team works
+in, read [`harness-guides.md`](harness-guides.md): for each of the twenty the House
+aligns with, its guide, its row in the matrix, what it costs and the runs recorded in it.
+
 Re-run the installs after each upgrade, and commit what they write. The installed Charter
 is a copy, so a product sees changes to it only when it upgrades.
 

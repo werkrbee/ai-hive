@@ -230,7 +230,7 @@ last checked.
   is good and bad at, context, caching, tool use and price, linked to its eval results.
 - **Harness guides (skills-hive).** Grow Barry's harness references into a guide per
   harness: skills, rules, memory, sub-agents, hooks and MCP, and how to get the most from
-  each. P2.3 delivers them for its twenty harnesses.
+  each. P2.3 delivers them for its twenty harnesses, indexed in `docs/harness-guides.md`.
 - **Memory (knowledge-hive).** What an agent remembers, where, for how long and for whom;
   how memory is consolidated, corrected and forgotten; and how it stays inside its trust
   boundary. Builds on lessons in the passport (#147) and the sub-agent boundary (#130).

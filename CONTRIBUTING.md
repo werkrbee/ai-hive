@@ -47,8 +47,8 @@ capabilities, its cost and the list prices of the models its cost is quoted for,
 `python3 scripts/harnesses.py check` then fails. Re-verify each stale field against the
 vendor's own docs or price page. Change what has changed, set its source to the page you
 read and its date to today, and run `python3 scripts/harnesses.py matrix` to redraw
-`docs/harness-matrix.md`. A field you can't confirm goes back to unknown; it isn't
-re-dated without being re-read.
+`docs/harness-matrix.md` and `docs/harness-guides.md`, the index of harness guides. A
+field you can't confirm goes back to unknown; it isn't re-dated without being re-read.
 
 A row becomes verified in its harness's alignment issue. Every field is checked against
 the vendor's docs, none is left unknown, and for a pro-code harness Barry and Patricia

@@ -4,10 +4,10 @@
 The registry is the only place a harness, its category and tier, its install paths, and
 its capability and price row are written down (docs/harness-ecosystem.md). Python
 installers import this module; shell installers call it. `matrix` writes the readable
-table, docs/harness-matrix.md. `check` is what CI runs: the registry is well formed,
-every claim in a row names its source and the date it was checked, each recorded run has
+table, docs/harness-matrix.md, and the index of harness guides, docs/harness-guides.md.
+`check` is what CI runs: the registry is well formed, every claim in a row names its source and the date it was checked, each recorded run has
 its category's shape, a verified row has no unknowns and records its runs, no row in either ten was checked more than 90 days ago,
-the table is current, each hive's adapters/ matches the registry, and each README that
+the table and the guides index are current, each hive's adapters/ matches the registry, and each README that
 draws an adapters/ tree names every adapter. `conformance` is what check-installers.sh
 runs: it installs the House for every harness with install paths into a sandbox and
 looks for each file where the registry says it lands.
@@ -21,7 +21,7 @@ Usage:
   python3 scripts/harnesses.py list [--surface SURFACE] [--category CATEGORY]
       print harness ids, one per line, in registry order
   python3 scripts/harnesses.py matrix
-      rewrite docs/harness-matrix.md from the registry
+      rewrite docs/harness-matrix.md and docs/harness-guides.md from the registry
   python3 scripts/harnesses.py check
   python3 scripts/harnesses.py conformance SANDBOX
       install into SANDBOX for every harness with install paths; fail if a top-ten
@@ -39,6 +39,9 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 REGISTRY = ROOT / "harnesses.json"
 MATRIX = ROOT / "docs" / "harness-matrix.md"
+GUIDES = ROOT / "docs" / "harness-guides.md"
+# Where a harness's guide is, named for its id: Barry's harness references (P3's harness guides).
+GUIDE_DIR = ROOT / "hives" / "skills-hive" / "skills" / "barry" / "references" / "harnesses"
 SURFACES = ("skills", "rules", "agents", "mcp")
 SCOPES = ("global", "project")
 
@@ -252,6 +255,48 @@ def render_matrix(registry=None):
             parts = [f"{', '.join(names)}: {link(src)}, {when}" for (src, when), names in caps.items()]
             parts.append("cost: " + ", ".join(link(u) for u in h["cost"]["sources"]) + f", {h['cost']['checked']}")
             out.append(f"- **{h['name']}.** " + "; ".join(parts) + ".")
+    return "\n".join(out) + "\n"
+
+
+def render_guides(registry=None, guide_dir=None):
+    """docs/harness-guides.md, generated from the registry: for each of the twenty, its guide,
+    matrix row, price and recorded runs, and plainly none yet where one doesn't exist. Guides
+    are looked for in GUIDE_DIR, or in guide_dir when tests pass one, and linked where they're
+    committed."""
+    reg = registry or load()
+    guide_dir = Path(guide_dir or GUIDE_DIR)
+    out = ["# The harness guides", "",
+           "_Generated from `harnesses.json` by `python3 scripts/harnesses.py matrix`; edit the "
+           "registry or the guides, not this file._", "",
+           "One page for picking a harness: for each of the twenty the House aligns with, the guide "
+           "to using the House in it, its row in the [harness matrix](harness-matrix.md), what it "
+           "costs and the runs recorded in it. Why these twenty: "
+           "[`harness-ecosystem.md`](harness-ecosystem.md). A guide explains the surfaces and how to "
+           "get the most from them; the matrix holds the paths, sources and effective rates, and an "
+           "unverified row is a lead, not a fact. A price is as of the date beside it, so check it "
+           "again before a decision rests on it. Where a guide or a run doesn't exist yet, the page "
+           "says none yet; each harness's alignment issue adds them.", ""]
+    for cat, title in (("pro-code", "Pro-code"), ("low-code", "Low-code")):
+        rows = sorted((h for h in reg["harnesses"] if h["category"] == cat and h["tier"] == "top-ten"),
+                      key=lambda h: h["rank"])
+        guides = sum((guide_dir / f"{h['id']}.md").is_file() for h in rows)
+        ran = sum(bool(h.get("runs")) for h in rows)
+        verified = sum(h["verified"] for h in rows)
+        out += [f"## {title}", "",
+                f"{guides} of {len(rows)} have a guide, {ran} a recorded run and {verified} a verified row.", "",
+                "| Harness | Guide | Matrix row | Billing unit and retail price | Price checked | Recorded runs |",
+                "|---|---|---|---|---|---|"]
+        for h in rows:
+            name = f"{h['id']}.md"
+            guide = (f"[`{name}`](../{(GUIDE_DIR / name).relative_to(ROOT).as_posix()})"
+                     if (guide_dir / name).is_file() else "none yet")
+            row = f"[{'verified' if h['verified'] else 'unverified'}](harness-matrix.md#{cat})"
+            runs = ", ".join(f"{r['agent'].capitalize()} {r['date']}" +
+                             (f" over {r['binding']}" if cat == "low-code" else "") for r in h.get("runs", []))
+            vendor = "" if h["vendor"] in h["name"] else f" ({h['vendor']})"
+            out.append(f"| {h['rank']}. {h['name']}{vendor} | {guide} | {row} | "
+                       f"{h['cost']['unit']} | {h['cost']['checked']} | {runs or 'none yet'} |")
+        out.append("")
     return "\n".join(out) + "\n"
 
 
@@ -537,6 +582,8 @@ def check(registry=None, today=None):
     if not problems:
         if not MATRIX.is_file() or MATRIX.read_text() != render_matrix(reg):
             problems.append(f"{MATRIX.relative_to(ROOT)} is out of date: run python3 scripts/harnesses.py matrix")
+        if not GUIDES.is_file() or GUIDES.read_text() != render_guides(reg):
+            problems.append(f"{GUIDES.relative_to(ROOT)} is out of date: run python3 scripts/harnesses.py matrix")
 
     expected = set(adapters(reg))
     nested = {h["adapter"] for h in entries if h.get("adapter") and "/" in h["adapter"]}
@@ -680,7 +727,8 @@ def main(argv):
         return 0
     if cmd == "matrix" and not rest:
         MATRIX.write_text(render_matrix())
-        print(f"wrote {MATRIX.relative_to(ROOT)}")
+        GUIDES.write_text(render_guides())
+        print(f"wrote {MATRIX.relative_to(ROOT)} and {GUIDES.relative_to(ROOT)}")
         return 0
     if cmd == "conformance" and len(rest) == 1:
         failures, reports, checked = conformance(rest[0])
@@ -699,7 +747,7 @@ def main(argv):
             print(f"FAIL  {p}")
         if problems:
             return 1
-        print(f"OK  {REGISTRY.name}, its matrix and the adapters/ trees agree")
+        print(f"OK  {REGISTRY.name}, its matrix, the guides index and the adapters/ trees agree")
         return 0
     print(__doc__.strip(), file=sys.stderr)
     return 2
