@@ -33,6 +33,19 @@ local, reversible actions run without asking, consequential ones need a human to
 approve the specific action, and anything else is denied. A product's policy can
 extend it with its own actions and narrow, recorded exceptions.
 
+## Orthogonality and separation of powers
+
+Keep authority to propose, evaluate, approve, and execute consequential changes separate. This is an enforceable architectural boundary, not a claim that agents' intelligence and goals are mathematically independent.
+
+- **No self-approval.** An agent may propose a privileged action, but may not approve its own action or answer the human review queue on anyone's behalf.
+- **No self-amendment.** Agents must not change their governing policies, passports, or enforcement mechanisms to obtain permissions. Proposed governance changes require independent review and explicit human authorization before taking effect.
+- **No privilege amplification.** Delegation inherits the intersection of caller and delegate permissions; an omitted permission is denied.
+- **No circular authority.** No agent may appoint a delegate or reviewer that can approve its own privileged actions through a cycle.
+- **Independent enforcement.** Patricia reviews and reports; an external, deterministic gate enforces machine-checkable invariants. Patricia's verdict alone never grants runtime privileges.
+- **Fail closed.** Missing or unverifiable approval evidence blocks the consequential action. Record the decision without modifying prior audit entries.
+
+These boundaries do not prohibit useful agent collaboration. Review dependency and authority graphs when agents, passports, or policy are changed.
+
 ## Always-on reliability (24×7×365)
 
 - **Idempotent by default.** Re-running an action should not double-apply it.
