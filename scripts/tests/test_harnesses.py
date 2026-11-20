@@ -93,6 +93,30 @@ class CheckTest(unittest.TestCase):
         [(name, inp, cached, out)] = harnesses.effective(self.harness(self.registry, "cursor"), self.registry)
         self.assertEqual((inp, cached, out), ("$2.25", "$0.35", "$10.25"))
 
+    def test_a_model_with_cache_reads_under_the_threshold_is_exempt_from_the_fee(self):
+        registry = copy.deepcopy(self.registry)
+        tokens = self.harness(registry, "cursor")["cost"]["tokens"]
+        tokens["models"] = ["claude-sonnet-5-5", "gpt-6-luna"]  # cache reads $0.10 and $0.01
+        sonnet, luna = harnesses.effective(self.harness(registry, "cursor"), registry)
+        self.assertEqual(sonnet[1:], ("$2.25", "$0.35", "$10.25"), "$0.10 isn't strictly under $0.10")
+        self.assertEqual(luna[1:], ("$0.10", "$0.01", "$0.50"), "no fee on any token of an exempt model")
+        matrix = harnesses.render_matrix(registry)
+        self.assertIn("GPT-6 Luna (prompts up to 272,000 tokens): $0.10 · $0.01 · $0.50 (list; exempt from the "
+                      "fee, cache reads under $0.10)", matrix)
+        self.assertIn("$10.25 (Teams and Enterprise, list + $0.25)", matrix)
+
+    def test_an_exemption_needs_a_recorded_cached_rate(self):
+        registry = copy.deepcopy(self.registry)
+        registry["models"]["claude-sonnet-5-5"]["cached"] = None
+        [row] = harnesses.effective(self.harness(registry, "cursor"), registry)
+        self.assertEqual(row[1:], ("unknown", "unknown", "unknown"))
+
+    def test_an_exemption_is_a_number_and_goes_with_a_fee(self):
+        self.assertRefused(lambda r: self.harness(r, "cursor")["cost"]["tokens"].update(fee_exempt_below="cheap"),
+                           "fee_exempt_below is a non-negative number")
+        self.assertRefused(lambda r: self.harness(r, "codex")["cost"]["tokens"].update(fee_exempt_below=0.1),
+                           "fee_exempt_below is a non-negative number, and goes with a fee")
+
     def test_a_fee_leaves_cached_unknown_unless_the_row_says_it_covers_it(self):
         registry = copy.deepcopy(self.registry)
         self.harness(registry, "cursor")["cost"]["tokens"].pop("fee_cached")

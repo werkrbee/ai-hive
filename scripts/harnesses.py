@@ -140,6 +140,21 @@ def money(v):
     return "$" + (text[:-3] if text.endswith(".00") else text)
 
 
+def fee_for(t, m):
+    """The fee a row's tokens add to model M: the row's fee, 0 when M is exempt because its
+    cached rate is under the row's fee_exempt_below (Cursor's Token Rate spares a model
+    whose cache reads cost under $0.10), or None when that can't be told because M's cached
+    rate isn't recorded. Cursor asks for every pricing tier to be under the threshold; a
+    model's row records one tier, the one its name gives, so check a model's other tiers
+    before quoting it as exempt."""
+    fee, below = t.get("fee", 0), t.get("fee_exempt_below")
+    if not fee or below is None:
+        return fee
+    if m["cached"] is None:
+        return None
+    return 0 if m["cached"] < below else fee
+
+
 def effective(h, registry):
     """[(model name, input, cached, output)] in dollars per million tokens, as strings, or a
     sentence when no rate can be derived."""
@@ -148,10 +163,13 @@ def effective(h, registry):
         return "Not published"
     if t["basis"] == "own-key":
         return "The model's list price, on your own key" + (f"; {t['note']}" if t.get("note") else "")
-    fee = t.get("fee", 0)
     rows = []
     for mid in t["models"]:
         m = registry["models"][mid]
+        fee = fee_for(t, m)
+        if fee is None:
+            rows.append((m["name"], "unknown", "unknown", "unknown"))
+            continue
         # Unknown, not "not published": a fee the row doesn't say covers cached tokens
         # (fee_cached), or a cached rate nobody has recorded yet, is a gap in the row, not a
         # claim about the vendor.
@@ -217,9 +235,19 @@ def render_matrix(registry=None):
             if isinstance(eff, str):
                 cell = eff
             else:
-                fee = c["tokens"].get("fee")
-                note = f" ({c['tokens']['fee_applies']}, list + {money(fee)})" if fee else ""
-                cell = "<br>".join(f"{n}: {i} · {ca} · {o}{note}" for n, i, ca, o in eff)
+                t = c["tokens"]
+                notes = []
+                for mid in t["models"]:
+                    fee = fee_for(t, reg["models"][mid])
+                    if fee:
+                        notes.append(f" ({t['fee_applies']}, list + {money(fee)})")
+                    elif fee == 0 and t.get("fee"):
+                        notes.append(f" (list; exempt from the fee, cache reads under {money(t['fee_exempt_below'])})")
+                    elif fee is None:
+                        notes.append(" (whether the fee applies turns on a cached rate not recorded)")
+                    else:
+                        notes.append("")
+                cell = "<br>".join(f"{n}: {i} · {ca} · {o}{note}" for (n, i, ca, o), note in zip(eff, notes))
             out.append(f"| {h['name']} | {c['unit']} | {cell} | {c['checked']} |")
         out.append("")
         ran = [(h, r) for h in rows for r in h.get("runs", [])]
@@ -557,6 +585,8 @@ def check(registry=None, today=None):
                 problems.append(f"{where}: a cost note goes with the own-key basis")
             if "fee_cached" in t and (not isinstance(t["fee_cached"], bool) or not t.get("fee")):
                 problems.append(f"{where}: fee_cached is true or false, and goes with a fee")
+            if "fee_exempt_below" in t and (not number(t["fee_exempt_below"]) or not t.get("fee")):
+                problems.append(f"{where}: fee_exempt_below is a non-negative number, and goes with a fee")
             if t.get("basis") == "list" and not t.get("models"):
                 problems.append(f"{where}: a list-price basis names the models it's quoted for")
         for i, r in enumerate(h.get("runs", [])):

@@ -455,10 +455,11 @@
           "fee": 0.25,
           "fee_applies": "Teams and Enterprise",
           "fee_cached": true,
+          "fee_exempt_below": 0.1,
           "models": ["claude-sonnet-5-5"]
         },
         "sources": ["https://cursor.com/docs/models-and-pricing", "https://cursor.com/docs/account/teams/pricing"],
-        "checked": "2026-11-10"
+        "checked": "2026-11-19"
       },
       "runs": [
         {
