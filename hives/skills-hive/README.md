@@ -25,18 +25,22 @@ One repo. Install into Cursor, Claude Code, Codex, GitHub Copilot, Gemini CLI, G
 ## Harnesses
 
 <p align="center">
-  <img src="assets/skills-hive-fleet.svg" alt="skills-hive fleet — Barry orchestrating every harness" width="380">
+  <img src="assets/skills-hive-fleet.svg" alt="skills-hive fleet — Barry at the center of the ten pro-code harnesses, in rank order" width="380">
 </p>
 
 skills-hive installs into every major agent harness that reads the `SKILL.md`
-standard. Barry is the king; each cell is a harness he orchestrates:
+standard. Barry is the king; the art's cells are the ten pro-code harnesses in
+`harnesses.json`'s rank order, and the installers reach these:
 
 - **Frontier labs** — Claude Code (Anthropic), Codex (OpenAI), Gemini CLI (Google)
-- **Hyperscalers** — GitHub Copilot (Microsoft), Kiro (AWS). Microsoft 365
-  Copilot's Autopilot, formerly Scout, has no skills folder to install into; it
-  takes a skill as an uploaded `SKILL.md` folder or ZIP
+- **Hyperscalers** — GitHub Copilot (Microsoft), Kiro (AWS)
 - **Data & analytics** — Databricks Genie Code, Snowflake Cortex Code
-- **Open source & independent** — Cursor, Goose (Block), OpenCode
+- **Open source & independent** — Cursor, Devin Desktop (Cognition), Cline,
+  Goose, OpenCode
+
+Microsoft 365 Copilot is a separate harness from GitHub Copilot, with its own
+concerns: Home (chat and cowork), Autopilot and Code. It has no skills folder to
+install into; Autopilot takes a skill as an uploaded `SKILL.md` folder or ZIP.
 
 See [Harness paths](#harness-paths) for exact install locations per harness.
 

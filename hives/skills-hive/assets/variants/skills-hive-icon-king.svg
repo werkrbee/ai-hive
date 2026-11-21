@@ -1,8 +1,6 @@
-<svg viewBox="0 0 300 250" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="skills-hive">
+<svg viewBox="0 0 250 250" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="skills-hive">
   <title>skills-hive — Barry the king bee orchestrating a fleet of harness cells</title>
-
-  <!-- umbilical: GitHub Copilot -> Scout (sub-harness) -->
-  <rect x="232.5" y="121.5" width="11" height="7" rx="3" fill="#E1901A"/>
+  <desc>A honeycomb: Barry the king bee in the dark center cell, ringed by six harness cells, each holding skill dots.</desc>
 
   <!-- Harness fleet cells -->
   <g fill="#F7EFDD" stroke="#17140F" stroke-width="4.5" stroke-linejoin="round">
@@ -13,10 +11,6 @@
     <polygon transform="translate(87.75,189.5)"  points="34.64,20 0,40 -34.64,20 -34.64,-20 0,-40 34.64,-20"/>
     <polygon transform="translate(50.5,125)"     points="34.64,20 0,40 -34.64,20 -34.64,-20 0,-40 34.64,-20"/>
   </g>
-
-  <!-- Scout: child cell of GitHub Copilot -->
-  <polygon transform="translate(261,125)" points="19.05,11 0,22 -19.05,11 -19.05,-11 0,-22 19.05,-11"
-           fill="#F7EFDD" stroke="#17140F" stroke-width="3.5" stroke-linejoin="round"/>
 
   <!-- Center cell: the king's chamber -->
   <polygon transform="translate(125,125)" points="34.64,20 0,40 -34.64,20 -34.64,-20 0,-40 34.64,-20"
@@ -30,7 +24,6 @@
     <circle cx="162.25" cy="181.5" r="3.8"/><circle cx="154.25" cy="195.5" r="3.8"/><circle cx="170.25" cy="195.5" r="3.8"/>
     <circle cx="79.75" cy="189.5" r="3.8"/><circle cx="95.75" cy="189.5" r="3.8"/>
     <circle cx="50.5" cy="117" r="3.8"/><circle cx="42.5" cy="131" r="3.8"/><circle cx="58.5" cy="131" r="3.8"/>
-    <circle cx="255" cy="125" r="2.6"/><circle cx="267" cy="125" r="2.6"/>
   </g>
 
   <!-- Barry: the king bee -->

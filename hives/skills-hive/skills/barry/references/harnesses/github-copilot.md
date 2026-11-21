@@ -98,5 +98,6 @@ sources.
 **Other Microsoft surfaces.** **Microsoft Foundry agents** and **Copilot Studio** can run
 these same `SKILL.md` files but load them from a project or deployment `skills/` folder
 (you publish, not junction). **Microsoft 365 Copilot** is a separate harness, on the
-low-code watch list: its Autopilot, formerly Scout, takes a `SKILL.md` folder or ZIP as an
-upload and has no skills folder on your machine (see [`m365-copilot.md`](m365-copilot.md)).
+low-code watch list, with its own concerns: Home (chat and cowork), Autopilot, and a Code
+that is separate from GitHub Copilot. Its Autopilot takes a `SKILL.md` folder or ZIP as
+an upload and has no skills folder on your machine (see [`m365-copilot.md`](m365-copilot.md)).

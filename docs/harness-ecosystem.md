@@ -107,9 +107,11 @@ product asks for them.
 Each category has a watch list, each harness on it one monthly check's evidence away
 from its ten. For pro-code: JetBrains Junie, Amp, Factory's Droid and Zed. For low-code:
 Make, Botpress, Langflow, IBM watsonx Orchestrate and Microsoft 365 Copilot. Microsoft 365
-Copilot is one harness in the Copilot app, spanning Home (chat and cowork), Code and
-Autopilot, formerly Scout, which began rolling out to Frontier customers at Ignite on
-2026-11-17. Autopilot is a cloud-hosted agent that can't read local folders: a skill is
+Copilot is one harness in the Copilot app with separate concerns: Home (chat and cowork),
+Autopilot, and Code, which is separate from the pro-code GitHub Copilot harness. Autopilot
+began rolling out to Frontier customers at Ignite on 2026-11-17. Microsoft says it was
+previously called Scout, but it isn't like for like: Scout installed skills from a local
+folder, while Autopilot is a cloud-hosted agent that can't read local folders. A skill is
 uploaded to it as a folder or ZIP holding a `SKILL.md`, or comes in a plugin, so the House
 has no install path for it and reaches it as it reaches the other low-code harnesses
 (Microsoft Learn, "Autopilot (Frontier) overview" and "Customize and extend what

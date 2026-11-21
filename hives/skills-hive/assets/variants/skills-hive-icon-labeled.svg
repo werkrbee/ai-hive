@@ -1,7 +1,6 @@
-<svg viewBox="0 0 300 250" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="skills-hive — labeled harness fleet">
+<svg viewBox="0 0 250 250" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="skills-hive — labeled harness fleet">
   <title>skills-hive — Barry orchestrating labeled harness cells</title>
-
-  <rect x="232.5" y="121.5" width="11" height="7" rx="3" fill="#E1901A"/>
+  <desc>Barry the king bee in the center of a honeycomb, ringed by the first six of the pro-code ten in harnesses.json's rank order, clockwise from the top left: Claude Code, GitHub Copilot, Codex, Cursor, Gemini CLI and Devin Desktop.</desc>
 
   <g fill="#F7EFDD" stroke="#17140F" stroke-width="4.5" stroke-linejoin="round">
     <polygon transform="translate(87.75,60.5)"  points="34.64,20 0,40 -34.64,20 -34.64,-20 0,-40 34.64,-20"/>
@@ -12,18 +11,15 @@
     <polygon transform="translate(50.5,125)"     points="34.64,20 0,40 -34.64,20 -34.64,-20 0,-40 34.64,-20"/>
   </g>
 
-  <polygon transform="translate(261,125)" points="19.05,11 0,22 -19.05,11 -19.05,-11 0,-22 19.05,-11"
-           fill="#F7EFDD" stroke="#17140F" stroke-width="3.5" stroke-linejoin="round"/>
-
   <g font-family="'Poppins','Helvetica Neue',Arial,sans-serif" font-weight="700" fill="#17140F" text-anchor="middle">
     <text x="87.75" y="62" font-size="11.5">Claude</text>
-    <text x="162.25" y="62" font-size="11.5">Cursor</text>
-    <text x="199.5" y="121" font-size="10.5">GitHub</text>
-    <text x="199.5" y="133" font-size="10.5">Copilot</text>
-    <text x="162.25" y="192" font-size="11.5">Codex</text>
+    <text x="162.25" y="54" font-size="10.5">GitHub</text>
+    <text x="162.25" y="65" font-size="10.5">Copilot</text>
+    <text x="199.5" y="126" font-size="11.5">Codex</text>
+    <text x="162.25" y="192" font-size="11.5">Cursor</text>
     <text x="87.75" y="192" font-size="11.5">Gemini</text>
-    <text x="50.5" y="128" font-size="11.5">Goose</text>
-    <text x="261" y="128" font-size="8.5">Scout</text>
+    <text x="50.5" y="118" font-size="10.5">Devin</text>
+    <text x="50.5" y="129" font-size="10.5">Desktop</text>
   </g>
 
   <g fill="#E1901A">
@@ -32,6 +28,7 @@
     <circle cx="154.25" cy="201.5" r="2.3"/><circle cx="162.25" cy="201.5" r="2.3"/><circle cx="170.25" cy="201.5" r="2.3"/>
     <circle cx="79.75" cy="201.5" r="2.3"/><circle cx="87.75" cy="201.5" r="2.3"/><circle cx="95.75" cy="201.5" r="2.3"/>
     <circle cx="42.5" cy="137" r="2.3"/><circle cx="50.5" cy="137" r="2.3"/><circle cx="58.5" cy="137" r="2.3"/>
+    <circle cx="191.5" cy="137" r="2.3"/><circle cx="199.5" cy="137" r="2.3"/><circle cx="207.5" cy="137" r="2.3"/>
   </g>
 
   <polygon transform="translate(125,125)" points="34.64,20 0,40 -34.64,20 -34.64,-20 0,-40 34.64,-20"
