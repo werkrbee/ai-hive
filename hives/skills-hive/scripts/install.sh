@@ -42,8 +42,7 @@ Examples:
   ./scripts/install.sh --global --all --harness cursor --harness claude-code
   npx skills add https://github.com/werkrbee/ai-hive/tree/main/hives/skills-hive -g -a cursor -y   # preferred when available
 
-Note: for Microsoft Scout on Windows, use scripts/install.ps1 (junctions +
-m-settings.json), not this script.
+Note: on Windows, use scripts/install.ps1 (junctions), not this script.
 
 Harnesses with a skills path (from harnesses.json):
 EOF

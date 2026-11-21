@@ -105,13 +105,15 @@ marked "verify". They stay installable and aren't held to the conformance check 
 product asks for them.
 
 Each category has a watch list, each harness on it one monthly check's evidence away
-from its ten. For pro-code: JetBrains Junie, Amp, Factory's Droid and Zed, and two from
-Microsoft whose shape is still moving. Scout, in private and public preview, is due to be renamed
-Autopilot at Microsoft Ignite in November 2026, and which harness it belongs to isn't
-confirmed. Microsoft 365 Copilot is the likely answer: one harness spanning Home (chat
-and cowork), Code and Autopilot. Both stay on the watch list until Microsoft says what
-Autopilot is part of, and Scout's install path stays usable meanwhile. For low-code: Make,
-Botpress, Langflow and IBM watsonx Orchestrate. A harness on a watch list is promoted
+from its ten. For pro-code: JetBrains Junie, Amp, Factory's Droid and Zed. For low-code:
+Make, Botpress, Langflow, IBM watsonx Orchestrate and Microsoft 365 Copilot. Microsoft 365
+Copilot is one harness in the Copilot app, spanning Home (chat and cowork), Code and
+Autopilot, formerly Scout, which began rolling out to Frontier customers at Ignite on
+2026-11-17. Autopilot is a cloud-hosted agent that can't read local folders: a skill is
+uploaded to it as a folder or ZIP holding a `SKILL.md`, or comes in a plugin, so the House
+has no install path for it and reaches it as it reaches the other low-code harnesses
+(Microsoft Learn, "Autopilot (Frontier) overview" and "Customize and extend what
+Autopilot can do", checked 2026-11-21). A harness on a watch list is promoted
 when it passes one already in its ten on the evidence above, and the one it passes moves
 to the watch list; nothing is dropped without a note saying why.
 

@@ -930,28 +930,6 @@
       "surfaces": {}
     },
     {
-      "id": "scout",
-      "name": "Scout",
-      "vendor": "Microsoft",
-      "category": "pro-code",
-      "tier": "watch",
-      "rank": null,
-      "adapter": null,
-      "note": "In private and public preview; to be renamed Autopilot at Microsoft Ignite (November 2026). Which harness it belongs to is unconfirmed, likely Microsoft 365 Copilot rather than GitHub Copilot. Its skills path stays installable meanwhile.",
-      "surfaces": {"skills": {"global": "~/.scout/skills", "project": ".agents/skills", "windows_order": 1}}
-    },
-    {
-      "id": "m365-copilot",
-      "name": "Microsoft 365 Copilot",
-      "vendor": "Microsoft",
-      "category": "pro-code",
-      "tier": "watch",
-      "rank": null,
-      "adapter": null,
-      "note": "Likely to become one harness spanning Home (chat and cowork), Code and Autopilot (formerly Scout). Its category settles once its surfaces are known.",
-      "surfaces": {}
-    },
-    {
       "id": "copilot-studio",
       "name": "Copilot Studio",
       "vendor": "Microsoft",
@@ -1225,6 +1203,17 @@
       "tier": "watch",
       "rank": null,
       "adapter": null,
+      "surfaces": {}
+    },
+    {
+      "id": "m365-copilot",
+      "name": "Microsoft 365 Copilot",
+      "vendor": "Microsoft",
+      "category": "low-code",
+      "tier": "watch",
+      "rank": null,
+      "adapter": null,
+      "note": "One harness in the Copilot app: Home (chat and cowork), Code, and Autopilot, formerly Scout, which Microsoft began rolling out to Frontier customers at Ignite on 2026-11-17. Autopilot is cloud-hosted and can't read local folders; a skill is uploaded to it as a folder or ZIP holding a SKILL.md, or comes in a plugin, so the House has no install path for it. Checked 2026-11-21 against learn.microsoft.com/copilot/autopilot/overview and /plugins.",
       "surfaces": {}
     },
     {
