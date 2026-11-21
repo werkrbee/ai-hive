@@ -215,8 +215,8 @@ unit and retail price.
 - **Align the low-code ten.** A design note for the pattern, then one issue per platform
   in two sprints: verified row, a no-code guide and a recorded call to hosted Patricia
   over MCP, A2A or OpenAPI (`docs/low-code-alignment.md`).
-- **Keep it current (docs).** Cost per reference task, a quarterly check of rankings and
-  prices, and one index of the harness guides.
+- **Keep it current (docs).** Cost per reference task, a monthly check of prices,
+  rankings and capabilities, and one index of the harness guides.
 
 ## P3 — how to use AI
 

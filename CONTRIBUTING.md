@@ -42,11 +42,10 @@ harness has moved a path, confirm the new one in the vendor's docs, change the p
 fix it; installers read their paths from the registry, so they shouldn't need a path of
 their own. A harness outside the tens is only reported.
 
-Prices change faster than features, so they go stale sooner. A row's cost and every
-model's list price go stale 30 days after they were checked, and a row's capabilities 90
-days after the oldest of them was. A model on a launch price records the price's last day
-as `until`, and the price after it as `then`; it goes stale the day after `until`, however
-recently it was checked. Once any of these dates is stale, `python3 scripts/harnesses.py
+A row's cost and every model's list price go stale 30 days after they were checked, and a
+row's capabilities 30 days after the oldest of them was. A model on a launch price records
+the price's last day as `until`, and the price after it as `then`; it goes stale the day
+after `until`, however recently it was checked. Once any of these dates is stale, `python3 scripts/harnesses.py
 check` fails and says whether a price or the capabilities went stale, and where. A stale
 model price names the rows that quote it. Re-verify each stale field against the
 vendor's own docs or price page. When a launch price has ended, record the new price and
@@ -55,12 +54,14 @@ read and its date to today, and run `python3 scripts/harnesses.py matrix` to red
 `docs/harness-matrix.md` and `docs/harness-guides.md`, the index of harness guides. A
 field you can't confirm goes back to unknown; it isn't re-dated without being re-read.
 
-Prices are listed a week before they go stale. `python3 scripts/harnesses.py due --within 7`
-lists each one with its due date and the pages to read again, and a daily workflow
-(`.github/workflows/price-due.yml`) opens one issue, "Prices due for re-verification", or
-updates the open one, with that list. The workflow never changes the repo. Re-verification
-stays a reviewed PR that reads each page again; close the issue once its prices are
-recorded.
+Prices and capabilities are listed a week before they go stale. `python3
+scripts/harnesses.py due --within 7` lists each price, and each row's capabilities, with
+the due date and the pages to read again, and a daily workflow
+(`.github/workflows/price-due.yml`) opens one issue, "Prices and capabilities due for
+re-verification", or updates the open one, with that list. The workflow never changes the
+repo. Re-verification stays a reviewed PR that reads each page again; close the issue once
+its dates are recorded. The ranking, the watch lists and the capabilities are checked monthly too, as
+`docs/harness-ecosystem.md`, "Keeping it current", sets out.
 
 A row becomes verified in its harness's alignment issue. Every field is checked against
 the vendor's docs, none is left unknown, and for a pro-code harness Barry and Patricia

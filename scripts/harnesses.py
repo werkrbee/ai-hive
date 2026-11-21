@@ -7,11 +7,11 @@ installers import this module; shell installers call it. `matrix` writes the rea
 table, docs/harness-matrix.md, and the index of harness guides, docs/harness-guides.md.
 `check` is what CI runs: the registry is well formed, every claim in a row names its
 source and the date it was checked, each recorded run has its category's shape, a verified
-row has no unknowns and records its runs, no price was checked more than 30 days ago (or
-outlived its launch price) and no capability more than 90, the table and the guides index
+row has no unknowns and records its runs, no price or capability was checked more than 30
+days ago and no price has outlived its launch price, the table and the guides index
 are current, each hive's adapters/ matches the registry, and each README that draws an
-adapters/ tree names every adapter. `due` lists the prices about to go stale, for the
-daily workflow that opens an issue for them (.github/workflows/price-due.yml).
+adapters/ tree names every adapter. `due` lists the prices and capabilities about to go
+stale, for the daily workflow that opens an issue for them (.github/workflows/price-due.yml).
 `conformance` is what check-installers.sh runs: it installs the House for every harness
 with install paths into a sandbox and looks for each file where the registry says it lands.
 
@@ -27,8 +27,9 @@ Usage:
       rewrite docs/harness-matrix.md and docs/harness-guides.md from the registry
   python3 scripts/harnesses.py check
   python3 scripts/harnesses.py due --within N
-      list, as a Markdown list, each price that falls due within N days or already has,
-      with its due date and the pages to read again; print nothing when none is
+      list, as a Markdown list, each price or row's capabilities that fall due within N
+      days or already have, with the due date and the pages to read again; print
+      nothing when none is
   python3 scripts/harnesses.py conformance SANDBOX
       install into SANDBOX for every harness with install paths; fail if a top-ten
       harness's file is missing, and report the rest
@@ -63,12 +64,10 @@ CAPABILITY_SURFACE = {"rules": "rules", "skills": "skills", "subagents": "agents
 # key at list price, or at a rate it doesn't publish.
 BASES = ("list", "own-key", "not-published")
 DATE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
-# A row in either ten whose capabilities were checked longer ago than this is stale: CI
-# fails until they're re-verified.
-STALE_AFTER_DAYS = 90
-# Prices change faster, so a row's cost and every model's list price go stale sooner. A
-# model's launch price also ends on the day after its `until`, the launch price's last day.
-PRICE_STALE_AFTER_DAYS = 30
+# A top-ten row's capabilities or cost, or a model's list price, checked longer ago than
+# this is stale: CI fails until it's re-verified. A model's launch price also ends on the
+# day after its `until`, the launch price's last day.
+STALE_AFTER_DAYS = 30
 MODEL_PRICES = ("input", "cached", "output")
 # What conformance installs, one of each, and what a file it writes is named.
 SKILL, RULESET, AGENT = "barry", "queen-charter", "explore"
@@ -220,10 +219,9 @@ def render_matrix(registry=None):
            "the date behind every claim. Why these harnesses, what aligned means and how cost is "
            "compared: [`harness-ecosystem.md`](harness-ecosystem.md). A row is unverified until its harness's alignment issue "
            "checks every field against the vendor's own docs and price page; until then, read it as "
-           "a lead, not a fact. A field nobody has evidence for says unknown. Prices change faster "
-           "than features, so a row's cost and every model's list price are re-read every 30 days, "
-           "and a launch price as soon as it ends; capabilities every 90. CI fails on any date "
-           "older than that.", ""]
+           "a lead, not a fact. A field nobody has evidence for says unknown. A row's capabilities "
+           "and cost and every model's list price are re-read every 30 days, and a launch price as "
+           "soon as it ends. CI fails on any date older than that.", ""]
     for cat, title in (("pro-code", "Pro-code"), ("low-code", "Low-code")):
         rows = sorted((h for h in reg["harnesses"] if h["category"] == cat and h["tier"] == "top-ten"),
                       key=lambda h: h["rank"])
@@ -385,8 +383,8 @@ def run_problems(r, category, models):
         if missing:
             return [f"lacks {', '.join(missing)}"]
         problems = []
-        if not DATE.match(str(r["date"])):
-            problems.append("has no date (YYYY-MM-DD)")
+        if p := date_problem(r["date"], "date", "has no date (YYYY-MM-DD)"):
+            problems.append(p)
         if r["model"] not in models:
             problems.append(f"names model {r['model']!r}, which isn't in models")
         if not all(isinstance(r["tokens"].get(k), int) for k in RUN_TOKENS):
@@ -399,8 +397,8 @@ def run_problems(r, category, models):
     problems = []
     if r["agent"] != LOW_CODE_RUN_AGENT:
         problems.append(f"is of {r['agent']!r}; a low-code run is of {LOW_CODE_RUN_AGENT}")
-    if not DATE.match(str(r["date"])):
-        problems.append("has no date (YYYY-MM-DD)")
+    if p := date_problem(r["date"], "date", "has no date (YYYY-MM-DD)"):
+        problems.append(p)
     if r["version"] is not None and not (isinstance(r["version"], str) and r["version"]):
         problems.append("names the platform's version, or null where it shows none")
     if r["binding"] not in BINDINGS:
@@ -440,6 +438,26 @@ def run_problems(r, category, models):
     return problems
 
 
+def as_date(v):
+    """V as a date when it's a day that exists, written YYYY-MM-DD; otherwise None."""
+    if isinstance(v, str) and DATE.match(v):
+        try:
+            return datetime.date.fromisoformat(v)
+        except ValueError:
+            pass
+    return None
+
+
+def date_problem(v, field, missing):
+    """What check says of a date: MISSING when it isn't written YYYY-MM-DD, that the day
+    doesn't exist when it's written so but isn't on the calendar, and None when it's fine."""
+    if as_date(v):
+        return None
+    if DATE.match(str(v)):
+        return f"{field} is {v}, a day that doesn't exist"
+    return missing
+
+
 def number(v):
     """A finite, non-negative number, and not a bool."""
     return isinstance(v, (int, float)) and not isinstance(v, bool) and v >= 0 and v == v and v != float("inf")
@@ -462,18 +480,18 @@ def row_dates(h, registry):
         m = registry.get("models", {}).get(mid)
         if m and "checked" in m:
             dates.append(m["checked"])
-    return [d for d in dates if DATE.match(str(d))]
+    return [d for d in dates if as_date(d)]
 
 
 def dated(registry):
     """[(where, kind, oldest date, limit, sources)] for each date a top-ten row or a model price
-    rests on: a row's capabilities (kind "capabilities", STALE_AFTER_DAYS) and its cost, and
-    each model's list price (kind "price", PRICE_STALE_AFTER_DAYS). Where is the harness's
+    rests on: a row's capabilities (kind "capabilities") and its cost, and each model's list
+    price (kind "price"), each with STALE_AFTER_DAYS as its limit. Where is the harness's
     name, or the model's id and the rows that quote it; sources are the pages to read again."""
     out = []
 
     def add(where, kind, dates, limit, sources):
-        dates = [d for d in dates if DATE.match(str(d))]
+        dates = [d for d in dates if as_date(d)]
         if dates:
             out.append((where, kind, min(dates), limit, sources))
 
@@ -484,9 +502,9 @@ def dated(registry):
         add(h["name"], "capabilities", [c.get("checked") for c in caps], STALE_AFTER_DAYS,
             list(dict.fromkeys(c["source"] for c in caps if c.get("source"))))
         cost = h.get("cost", {})
-        add(h["name"], "price", [cost.get("checked")], PRICE_STALE_AFTER_DAYS, cost.get("sources", []))
+        add(h["name"], "price", [cost.get("checked")], STALE_AFTER_DAYS, cost.get("sources", []))
     for mid, m in registry.get("models", {}).items():
-        add(model_where(mid, registry), "price", [m.get("checked")], PRICE_STALE_AFTER_DAYS,
+        add(model_where(mid, registry), "price", [m.get("checked")], STALE_AFTER_DAYS,
             [m["source"]] if m.get("source") else [])
     return out
 
@@ -504,28 +522,30 @@ def stale(registry, today=None):
     today = today or datetime.date.today()
     out = []
     for where, kind, oldest, limit, _ in dated(registry):
-        days = (today - datetime.date.fromisoformat(oldest)).days
+        days = (today - as_date(oldest)).days
         if days > limit:
             out.append((where, kind, oldest, days, limit))
     return out
 
 
 def due(registry, within, today=None):
-    """[(due date, where, why, sources)] for each price that falls due by WITHIN days from
-    today, or already has, soonest first: a row's cost or a model's price on the first day
-    check counts it stale, and a launch price on the day after its until. Capabilities, on
-    their 90 days, aren't listed."""
+    """[(due date, where, why, sources)] for each date in dated() that falls due by WITHIN
+    days from today, or already has, soonest first: a row's capabilities or cost, or a
+    model's price, on the first day check counts it stale, and a launch price on the day
+    after its until."""
     today = today or datetime.date.today()
     horizon = today + datetime.timedelta(days=within)
     out = []
     for where, kind, oldest, limit, sources in dated(registry):
-        if kind == "price":
-            when = datetime.date.fromisoformat(oldest) + datetime.timedelta(days=limit + 1)
+        when = as_date(oldest) + datetime.timedelta(days=limit + 1)
+        if kind == "capabilities":
+            what = "capabilities"
+        else:
             what = "price" if where.startswith("model ") else "cost"
-            out.append((when, where, f"{what} last checked {oldest}, stale after {limit} days", sources))
+        out.append((when, where, f"{what} last checked {oldest}, stale after {limit} days", sources))
     for mid, m in registry.get("models", {}).items():
-        if DATE.match(str(m.get("until", ""))):
-            when = datetime.date.fromisoformat(m["until"]) + datetime.timedelta(days=1)
+        if until := as_date(m.get("until")):
+            when = until + datetime.timedelta(days=1)
             out.append((when, model_where(mid, registry), f"launch price ends on {m['until']}",
                         [m["source"]] if m.get("source") else []))
     return sorted((e for e in out if e[0] <= horizon), key=lambda e: (e[0], e[1]))
@@ -534,8 +554,12 @@ def due(registry, within, today=None):
 def launch_ended(registry, today=None):
     """[(model id, its launch price's last day)] for each model whose launch price has ended."""
     today = today or datetime.date.today()
-    return [(mid, m["until"]) for mid, m in registry.get("models", {}).items()
-            if DATE.match(str(m.get("until", ""))) and datetime.date.fromisoformat(m["until"]) < today]
+    out = []
+    for mid, m in registry.get("models", {}).items():
+        until = as_date(m.get("until"))
+        if until and until < today:
+            out.append((mid, m["until"]))
+    return out
 
 
 def due_lines(registry, within, today=None):
@@ -641,13 +665,14 @@ def check(registry=None, today=None):
             problems.append(f"{where}: names no source")
         elif not all(x.startswith("https://") or (ROOT / x).exists() for x in sources):
             problems.append(f"{where}: a source is neither an https URL nor a file in the repo")
-        if not DATE.match(str(item.get("checked", ""))):
-            problems.append(f"{where}: no date checked (YYYY-MM-DD)")
+        if p := date_problem(item.get("checked"), "checked", "no date checked (YYYY-MM-DD)"):
+            problems.append(f"{where}: {p}")
 
     for mid, m in reg.get("models", {}).items():
         evidence(f"model {mid!r}", m)
-        if "until" in m and not DATE.match(str(m["until"])):
-            problems.append(f"model {mid!r}: until is the launch price's last day (YYYY-MM-DD)")
+        if "until" in m:
+            if p := date_problem(m["until"], "until", "until is the launch price's last day (YYYY-MM-DD)"):
+                problems.append(f"model {mid!r}: {p}")
         if "then" in m:
             then = m["then"] if isinstance(m["then"], dict) else {}
             if "until" not in m:

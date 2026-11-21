@@ -1,5 +1,5 @@
 {
-  "$comment": "The harness registry: the only place a harness, its category and tier, its install paths, and its capability and price row are written down. Read through scripts/harnesses.py, which renders the row as docs/harness-matrix.md. Ranking, categories and the cost unit: docs/harness-ecosystem.md. Paths use ~ for the home directory and {name} for the ruleset or agent name; a capability's path is where the harness reads it, in the harness's own placeholders such as <project>, or for headless the command that runs it. A capability is supported true, false or \"unknown\"; anything but unknown names its source and the date checked. Model prices are dollars per million tokens; a launch price that ends names its last day as until, and the price after it as then. Capabilities go stale 90 days after they're checked, and a row's cost and every model's price after 30. A row is verified once every field is checked against the vendor's docs; a verified pro-code row records one run each of Barry and Patricia in the harness, and a verified low-code row records one run of Patricia called from the platform, in the shape CONTRIBUTING.md describes.",
+  "$comment": "The harness registry: the only place a harness, its category and tier, its install paths, and its capability and price row are written down. Read through scripts/harnesses.py, which renders the row as docs/harness-matrix.md. Ranking, categories and the cost unit: docs/harness-ecosystem.md. Paths use ~ for the home directory and {name} for the ruleset or agent name; a capability's path is where the harness reads it, in the harness's own placeholders such as <project>, or for headless the command that runs it. A capability is supported true, false or \"unknown\"; anything but unknown names its source and the date checked. Model prices are dollars per million tokens; a launch price that ends names its last day as until, and the price after it as then. A row's capabilities and cost, and every model's price, go stale 30 days after they're checked. A row is verified once every field is checked against the vendor's docs; a verified pro-code row records one run each of Barry and Patricia in the harness, and a verified low-code row records one run of Patricia called from the platform, in the shape CONTRIBUTING.md describes.",
   "version": 1,
   "categories": {
     "pro-code": "Coding agents that read a repository; the House installs its artifacts into them.",
@@ -9,7 +9,7 @@
   },
   "tiers": {
     "top-ten": "One of the ten its category commits to, held to the conformance check.",
-    "watch": "One quarter's evidence from its category's ten."
+    "watch": "One monthly check's evidence from its category's ten."
   },
   "models": {
     "claude-sonnet-5-5": {
