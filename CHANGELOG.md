@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.15.0](https://github.com/werkrbee/ai-hive/compare/v0.14.0...v0.15.0) (2026-11-21)
+
+
+### Features
+
+* check harness rankings and capabilities monthly ([#355](https://github.com/werkrbee/ai-hive/issues/355)) ([12eb0cc](https://github.com/werkrbee/ai-hive/commit/12eb0cc90e0b8aadb747cb11044f34146dc9970c)), closes [#256](https://github.com/werkrbee/ai-hive/issues/256) [#229](https://github.com/werkrbee/ai-hive/issues/229)
+* list capabilities a week before they fall due, alongside prices ([#357](https://github.com/werkrbee/ai-hive/issues/357)) ([31385ef](https://github.com/werkrbee/ai-hive/commit/31385effcb684c03b320af23ae2024f6576882e2)), closes [#354](https://github.com/werkrbee/ai-hive/issues/354) [#229](https://github.com/werkrbee/ai-hive/issues/229)
+
 ## [0.14.0](https://github.com/werkrbee/ai-hive/compare/v0.13.2...v0.14.0) (2026-11-20)
 
 
