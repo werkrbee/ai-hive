@@ -279,20 +279,19 @@ class StaleTest(unittest.TestCase):
         self.assertEqual(harnesses.stale(self.registry, datetime.date(2026, 1, 31)), [])  # 30 days
         stale = harnesses.stale(self.registry, datetime.date(2026, 2, 1))  # 31 days
         self.assertIn(("Claude Code", "price", "2026-01-01", 31, 30), stale)
-        self.assertEqual({kind for _, kind, _, _, _ in stale}, {"price"}, "capabilities have 90 days")
-        rows = {w for w, _, _, _, _ in stale if not w.startswith("model ")}
+        rows = {w for w, kind, _, _, _ in stale if kind == "price" and not w.startswith("model ")}
         self.assertEqual(len(rows), 20)
         self.assertEqual(sum(w.startswith("model ") for w, _, _, _, _ in stale), len(self.registry["models"]))
 
-    def test_capabilities_are_stale_after_ninety_days(self):
+    def test_capabilities_are_stale_after_thirty_days_too(self):
         for h in self.registry["harnesses"]:
             if "cost" in h:
-                h["cost"]["checked"] = "2026-03-31"
+                h["cost"]["checked"] = "2026-01-31"
         for m in self.registry["models"].values():
-            m["checked"] = "2026-03-31"
-        self.assertEqual(harnesses.stale(self.registry, datetime.date(2026, 4, 1)), [])  # 90 days
-        stale = harnesses.stale(self.registry, datetime.date(2026, 4, 2))  # 91 days
-        self.assertIn(("Claude Code", "capabilities", "2026-01-01", 91, 90), stale)
+            m["checked"] = "2026-01-31"
+        self.assertEqual(harnesses.stale(self.registry, datetime.date(2026, 1, 31)), [])  # 30 days
+        stale = harnesses.stale(self.registry, datetime.date(2026, 2, 1))  # 31 days
+        self.assertIn(("Claude Code", "capabilities", "2026-01-01", 31, 30), stale)
         self.assertEqual({kind for _, kind, _, _, _ in stale}, {"capabilities"})
 
     def test_a_stale_model_price_names_the_rows_that_quote_it(self):
@@ -308,10 +307,10 @@ class StaleTest(unittest.TestCase):
         self.assertIn(("model 'gpt-5-5'", "price"), self.kinds(datetime.date(2026, 1, 20)))
 
     def test_check_says_which_kind_of_date_went_stale(self):
-        problems = harnesses.check(self.registry, datetime.date(2026, 4, 2))
-        self.assertIn("Claude Code: its price was last checked 2026-01-01, 91 days ago (over 30); re-verify it, "
+        problems = harnesses.check(self.registry, datetime.date(2026, 2, 1))
+        self.assertIn("Claude Code: its price was last checked 2026-01-01, 31 days ago (over 30); re-verify it, "
                       "as CONTRIBUTING.md describes", problems)
-        self.assertIn("Claude Code: its capabilities were last checked 2026-01-01, 91 days ago (over 90); "
+        self.assertIn("Claude Code: its capabilities were last checked 2026-01-01, 31 days ago (over 30); "
                       "re-verify them, as CONTRIBUTING.md describes", problems)
 
     def test_a_launch_price_fails_the_check_the_day_after_its_last_day(self):

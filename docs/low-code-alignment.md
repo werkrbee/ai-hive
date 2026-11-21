@@ -121,7 +121,7 @@ without touching another's. Its secret or certificate lives in the platform's co
 store (a Power Platform connection, a Salesforce named credential, a Workato connection),
 never in the repository, a prompt or an agent's instructions. Patricia never sees it:
 the platform presents a token, and the token is all the server reads. A platform client
-stays on the allowlist while its platform issue and the quarterly check need it. Keeping
+stays on the allowlist while its platform issue and the monthly harness check need it. Keeping
 one there for real users is the ROADMAP's public-access item, not alignment.
 
 **App tokens first.** A platform that can fetch a client-credentials token uses that, and
