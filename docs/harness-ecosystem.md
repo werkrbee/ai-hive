@@ -43,7 +43,7 @@ order (Claude Code 66%, Copilot 59%, Codex 30%, Cursor 26%) with Google's Antigr
 Gemini tools next. Below the top five, and across the whole low-code list, no survey
 separates the field well, so those places rest on the installed base of each vendor's
 platform, openness and distinctness. That is the weakest part of this ranking, and the
-first thing the quarterly check should revisit.
+first thing the monthly check revisits ("Keeping it current").
 
 ## The pro-code ten
 
@@ -104,9 +104,9 @@ data workspace harnesses, used inside one platform, and their install paths are 
 marked "verify". They stay installable and aren't held to the conformance check until a
 product asks for them.
 
-Each category has a watch list, each harness on it one quarter's evidence away from its
-ten. For pro-code: JetBrains Junie, Amp, Factory's Droid and Zed, and two from Microsoft
-whose shape is still moving. Scout, in private and public preview, is due to be renamed
+Each category has a watch list, each harness on it one monthly check's evidence away
+from its ten. For pro-code: JetBrains Junie, Amp, Factory's Droid and Zed, and two from
+Microsoft whose shape is still moving. Scout, in private and public preview, is due to be renamed
 Autopilot at Microsoft Ignite in November 2026, and which harness it belongs to isn't
 confirmed. Microsoft 365 Copilot is the likely answer: one harness spanning Home (chat
 and cowork), Code and Autopilot. Both stay on the watch list until Microsoft says what
@@ -214,12 +214,46 @@ the effective rate there will come from measured reference tasks, not from price
 The ranking and the prices are advice about AI, so they carry their evidence and their
 date and go stale like any other guide. Prices move fastest: since this note was written,
 Cursor changed its plans, Google moved consumers to Antigravity, and two Gemini models
-launched at prices that rise within weeks. So every harness's cost and every model's list
-price is re-read monthly, and a launch price as soon as it ends; CI fails on a price older
-than 30 days. The ranking and the capabilities are checked every quarter, as P3's "keeping
-current" item describes: the surveys and vendor docs are read again, each capability older
-than 90 days is re-verified, and the twenty change only through a reviewed edit to this
-note. A price is re-checked before any decision rests on it, whatever its age.
+launched at prices that rise within weeks, and the harnesses ship features as often. So
+everything is checked monthly, and a price is re-checked before any decision rests on
+it, whatever its age.
+
+**Prices.** Every harness's cost and every model's list price is re-read monthly, and a
+launch price as soon as it ends; CI fails on a price older than 30 days.
+`python3 scripts/harnesses.py due --within 7` lists each price a week before it falls
+due, and a daily workflow keeps one issue open with that list. CONTRIBUTING.md, "Harness
+rows", says how a price is re-verified.
+
+**The ranking and the capabilities.** In the first two weeks of each month, someone runs
+the harness check, in four steps. CI fails on a capability checked more than 30 days ago.
+
+1. Read the evidence for reach again. Start with the newest editions of the surveys
+   under Sources, and look for any survey that separates the field below the top five
+   pro-code harnesses or across the low-code ten, since those places rest on the
+   weakest evidence. Note what moved, with its source and date.
+2. Weigh each harness on a watch list against the lowest-ranked harness in its ten, on
+   reach, then openness, then distinctness, as "How the twenty were chosen" sets out. A
+   watched harness that passes one in its ten is promoted, and the one it passes moves
+   to the watch list. A harness leaves a watch list only with a note in "What changes in
+   the current list" saying why. A harness that has appeared since the last check joins
+   a watch list on the same terms.
+3. Re-verify each top-ten row's capabilities that are older than 30 days, or will be by
+   the next check, against the vendor's own docs. `python3 scripts/harnesses.py check`
+   names the rows already stale. A capability that can't be confirmed goes back to
+   unknown; nothing is re-dated without being re-read.
+4. Propose every change as one reviewed pull request, titled for the month (for
+   example `docs: harness check, 2026-12`). It edits this note, the rank and tier in
+   `harnesses.json`, and the generated matrix (`python3 scripts/harnesses.py matrix`),
+   and dates the check under Sources. A harness that enters either ten gets its own
+   alignment issue; one that leaves keeps its install paths. If nothing changes, the
+   pull request says so and only dates the check.
+
+This is the first instance of P3's "keeping current" (ROADMAP.md). The same four steps
+apply to any guide that names its evidence and its date: re-read the evidence, apply the
+rule for what is in and what is out, re-verify each claim older than its limit, and
+propose the result as a reviewed edit. A model guide would read the vendors' model
+tables and the benchmarks it cites in step 1, and its list prices are already checked
+monthly.
 
 ## Sources
 
