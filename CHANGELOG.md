@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.15.1](https://github.com/werkrbee/ai-hive/compare/v0.15.0...v0.15.1) (2026-11-21)
+
+
+### Bug fixes
+
+* **skills-hive:** place Autopilot, formerly Scout, in Microsoft 365 Copilot ([#358](https://github.com/werkrbee/ai-hive/issues/358)) ([f02975e](https://github.com/werkrbee/ai-hive/commit/f02975eea8223057a6bdd897ee5b166822e2bdb8)), closes [#261](https://github.com/werkrbee/ai-hive/issues/261) [#229](https://github.com/werkrbee/ai-hive/issues/229)
+
+
+### Documentation
+
+* **skills-hive:** draw the pro-code ten in the fleet art ([#361](https://github.com/werkrbee/ai-hive/issues/361)) ([9422b2b](https://github.com/werkrbee/ai-hive/commit/9422b2b14fdc18adc12cb1ee13d3aedef5dcba38)), closes [#262](https://github.com/werkrbee/ai-hive/issues/262) [#229](https://github.com/werkrbee/ai-hive/issues/229)
+
 ## [0.15.0](https://github.com/werkrbee/ai-hive/compare/v0.14.0...v0.15.0) (2026-11-21)
 
 
