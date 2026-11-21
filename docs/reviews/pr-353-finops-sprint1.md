@@ -10,7 +10,7 @@ Date: 2026-11-20. Scope: Sprint 1 FinOps planning documentation, pure Decimal ca
 - **No blocking security issue observed in reviewed changes:** No network calls, credentials, customer data, runtime budget modification, shell execution or infrastructure mutation. Inputs are deterministic, using Decimal for currency arithmetic. Invalid amounts, zero successes and over-utilization are rejected.
 - **Compatibility:** Existing knowledge-hive append-only ledger remains authoritative. Sprint 1 describes a derived planning view, not a replacement billing ledger. Existing workflows-hive and rules-hive budgets remain unchanged.
 - **Truthfulness:** Rates and outcomes are labeled synthetic; no measured ROI, savings or current provider pricing is claimed.
-- **Follow-up:** The planning view is a documented contract, not yet a machine-validated schema or full invoice reconciliation engine. Those would require separate scope and acceptance tests before real spend attribution.
+- **Follow-up:** The planning view now has an offline-validated schema and a reusable forecast worksheet. Cross-source reconciliation would require separate scope and acceptance tests before real spend attribution.
 
 ## Merge gate
 
