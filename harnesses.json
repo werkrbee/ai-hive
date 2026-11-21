@@ -1213,7 +1213,7 @@
       "tier": "watch",
       "rank": null,
       "adapter": null,
-      "note": "One harness in the Copilot app: Home (chat and cowork), Code, and Autopilot, formerly Scout, which Microsoft began rolling out to Frontier customers at Ignite on 2026-11-17. Autopilot is cloud-hosted and can't read local folders; a skill is uploaded to it as a folder or ZIP holding a SKILL.md, or comes in a plugin, so the House has no install path for it. Checked 2026-11-21 against learn.microsoft.com/copilot/autopilot/overview and /plugins.",
+      "note": "One harness in the Copilot app with separate concerns: Home (chat and cowork), Autopilot, and Code, which is separate from the pro-code GitHub Copilot harness. Autopilot began rolling out to Frontier customers at Ignite on 2026-11-17; Microsoft says it was previously called Scout, but it isn't like for like: Scout installed skills from a local folder, and Autopilot is cloud-hosted and can't read local folders; a skill is uploaded to it as a folder or ZIP holding a SKILL.md, or comes in a plugin, so the House has no install path for it. Checked 2026-11-21 against learn.microsoft.com/copilot/autopilot/overview and /plugins.",
       "surfaces": {}
     },
     {

@@ -1,9 +1,8 @@
 <svg viewBox="0 0 780 240" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="skills-hive — portable agent skills">
   <title>skills-hive — Barry the king bee orchestrating a fleet of harnesses</title>
-  <desc>A honeycomb: Barry the king bee at the center, six harness cells each holding skill dots, GitHub Copilot with an attached Scout child cell, and the wordmark skills-hive.</desc>
+  <desc>A honeycomb: Barry the king bee at the center, six harness cells each holding skill dots, and the wordmark skills-hive.</desc>
   <rect x="1.5" y="1.5" width="777" height="237" rx="30" fill="#FBF6EA" stroke="#EADFC6" stroke-width="2.5"/>
-  <g transform="translate(24,15) scale(0.8)">
-    <rect x="232.5" y="121.5" width="11" height="7" rx="3" fill="#E1901A"/>
+  <g transform="translate(54,15) scale(0.8)">
     <g fill="#F7EFDD" stroke="#17140F" stroke-width="4.5" stroke-linejoin="round">
       <polygon transform="translate(87.75,60.5)"  points="34.64,20 0,40 -34.64,20 -34.64,-20 0,-40 34.64,-20"/>
       <polygon transform="translate(162.25,60.5)" points="34.64,20 0,40 -34.64,20 -34.64,-20 0,-40 34.64,-20"/>
@@ -12,8 +11,6 @@
       <polygon transform="translate(87.75,189.5)"  points="34.64,20 0,40 -34.64,20 -34.64,-20 0,-40 34.64,-20"/>
       <polygon transform="translate(50.5,125)"     points="34.64,20 0,40 -34.64,20 -34.64,-20 0,-40 34.64,-20"/>
     </g>
-    <polygon transform="translate(261,125)" points="19.05,11 0,22 -19.05,11 -19.05,-11 0,-22 19.05,-11"
-             fill="#F7EFDD" stroke="#17140F" stroke-width="3.5" stroke-linejoin="round"/>
     <polygon transform="translate(125,125)" points="34.64,20 0,40 -34.64,20 -34.64,-20 0,-40 34.64,-20"
              fill="#17140F" stroke="#17140F" stroke-width="4.5" stroke-linejoin="round"/>
     <g fill="#E1901A">
@@ -23,7 +20,6 @@
       <circle cx="162.25" cy="181.5" r="3.8"/><circle cx="154.25" cy="195.5" r="3.8"/><circle cx="170.25" cy="195.5" r="3.8"/>
       <circle cx="79.75" cy="189.5" r="3.8"/><circle cx="95.75" cy="189.5" r="3.8"/>
       <circle cx="50.5" cy="117" r="3.8"/><circle cx="42.5" cy="131" r="3.8"/><circle cx="58.5" cy="131" r="3.8"/>
-      <circle cx="255" cy="125" r="2.6"/><circle cx="267" cy="125" r="2.6"/>
     </g>
     <g>
       <ellipse cx="116" cy="120" rx="9" ry="5.4" fill="#F7EFDD" opacity="0.92" transform="rotate(-28 116 120)"/>

@@ -154,7 +154,7 @@ class PowerShellParity(unittest.TestCase):
             out = self.run_ps('skills-hive', '-Only', alias, '-DryRun').stdout
             self.assertIn('deprecated', out); self.assertIn('-> '+canonical, out)
         self.run_ps('skills-hive', '-Only', 'unknown', '-DryRun', success=False)
-        # Autopilot, formerly Scout, takes skills as uploads, so there's no folder to link.
+        # Scout's local skills folder is gone; Autopilot takes skills as uploads, so there's nothing to link.
         self.run_ps('skills-hive', '-Only', 'scout', '-DryRun', success=False)
 
     def test_skills_skip_installed_conflict_and_force(self):
