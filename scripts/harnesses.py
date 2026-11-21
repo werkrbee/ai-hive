@@ -10,8 +10,8 @@ source and the date it was checked, each recorded run has its category's shape, 
 row has no unknowns and records its runs, no price or capability was checked more than 30
 days ago and no price has outlived its launch price, the table and the guides index
 are current, each hive's adapters/ matches the registry, and each README that draws an
-adapters/ tree names every adapter. `due` lists the prices about to go stale, for the
-daily workflow that opens an issue for them (.github/workflows/price-due.yml).
+adapters/ tree names every adapter. `due` lists the prices and capabilities about to go
+stale, for the daily workflow that opens an issue for them (.github/workflows/price-due.yml).
 `conformance` is what check-installers.sh runs: it installs the House for every harness
 with install paths into a sandbox and looks for each file where the registry says it lands.
 
@@ -27,8 +27,9 @@ Usage:
       rewrite docs/harness-matrix.md and docs/harness-guides.md from the registry
   python3 scripts/harnesses.py check
   python3 scripts/harnesses.py due --within N
-      list, as a Markdown list, each price that falls due within N days or already has,
-      with its due date and the pages to read again; print nothing when none is
+      list, as a Markdown list, each price or row's capabilities that fall due within N
+      days or already have, with the due date and the pages to read again; print
+      nothing when none is
   python3 scripts/harnesses.py conformance SANDBOX
       install into SANDBOX for every harness with install paths; fail if a top-ten
       harness's file is missing, and report the rest
@@ -528,18 +529,20 @@ def stale(registry, today=None):
 
 
 def due(registry, within, today=None):
-    """[(due date, where, why, sources)] for each price that falls due by WITHIN days from
-    today, or already has, soonest first: a row's cost or a model's price on the first day
-    check counts it stale, and a launch price on the day after its until. Capabilities
-    aren't listed."""
+    """[(due date, where, why, sources)] for each date in dated() that falls due by WITHIN
+    days from today, or already has, soonest first: a row's capabilities or cost, or a
+    model's price, on the first day check counts it stale, and a launch price on the day
+    after its until."""
     today = today or datetime.date.today()
     horizon = today + datetime.timedelta(days=within)
     out = []
     for where, kind, oldest, limit, sources in dated(registry):
-        if kind == "price":
-            when = as_date(oldest) + datetime.timedelta(days=limit + 1)
+        when = as_date(oldest) + datetime.timedelta(days=limit + 1)
+        if kind == "capabilities":
+            what = "capabilities"
+        else:
             what = "price" if where.startswith("model ") else "cost"
-            out.append((when, where, f"{what} last checked {oldest}, stale after {limit} days", sources))
+        out.append((when, where, f"{what} last checked {oldest}, stale after {limit} days", sources))
     for mid, m in registry.get("models", {}).items():
         if until := as_date(m.get("until")):
             when = until + datetime.timedelta(days=1)

@@ -1,6 +1,7 @@
-name: Prices due for re-verification
-# Daily, so a price is listed a full week before CI fails on it and the issue follows each
-# price as it's re-dated; one run reads a file and makes at most two API calls.
+name: Prices and capabilities due for re-verification
+# Daily, so a price or a row's capabilities is listed a full week before CI fails on it and
+# the issue follows each as it's re-dated; one run reads a file and makes at most two API
+# calls. The file keeps its name, price-due.yml, so its run history stays in one place.
 on:
   schedule:
     - cron: '23 8 * * *'
@@ -23,7 +24,7 @@ jobs:
       - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
         with:
           python-version: '3.12'
-      - name: Open or update the issue listing prices due within a week
+      - name: Open or update the issue listing prices and capabilities due within a week
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}

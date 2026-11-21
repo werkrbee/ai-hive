@@ -225,7 +225,8 @@ due, and a daily workflow keeps one issue open with that list. CONTRIBUTING.md, 
 rows", says how a price is re-verified.
 
 **The ranking and the capabilities.** In the first two weeks of each month, someone runs
-the harness check, in four steps. CI fails on a capability checked more than 30 days ago.
+the harness check, in four steps. CI fails on a capability checked more than 30 days ago,
+and `due` and the daily workflow list each row's capabilities a week before then.
 
 1. Read the evidence for reach again. Start with the newest editions of the surveys
    under Sources, and look for any survey that separates the field below the top five

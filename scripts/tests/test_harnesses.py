@@ -349,15 +349,15 @@ class StaleTest(unittest.TestCase):
 
 
 class DueTest(unittest.TestCase):
-    """Every price is pinned to 2026-01-01 and every capability to 2025-12-01, so these don't
-    start failing as time passes."""
+    """Every price is pinned to 2026-01-01 and every capability to 2026-01-10, so these don't
+    start failing as time passes, and the two fall due on different days."""
 
     def setUp(self):
         self.registry = copy.deepcopy(harnesses.load())
         for h in self.registry["harnesses"]:
             for c in h.get("capabilities", {}).values():
                 if "checked" in c:
-                    c["checked"] = "2025-12-01"
+                    c["checked"] = "2026-01-10"
             if "cost" in h:
                 h["cost"]["checked"] = "2026-01-01"
         for m in self.registry["models"].values():
@@ -374,13 +374,10 @@ class DueTest(unittest.TestCase):
                        harnesses.get("claude-code", self.registry)["cost"]["sources"]), listed)
         self.assertEqual(len(listed), 20 + len(self.registry["models"]), "every row's cost and every model")
 
-    def test_capabilities_are_not_listed(self):
-        listed = harnesses.due(self.registry, 7, datetime.date(2026, 1, 25))
-        self.assertFalse(any("capabilities" in why for _, _, why, _ in listed))
-
     def test_a_price_already_due_stays_listed(self):
-        self.assertEqual(len(harnesses.due(self.registry, 7, datetime.date(2026, 3, 1))),
-                         20 + len(self.registry["models"]))
+        prices = [e for e in harnesses.due(self.registry, 7, datetime.date(2026, 3, 1))
+                  if not e[2].startswith("capabilities")]
+        self.assertEqual(len(prices), 20 + len(self.registry["models"]))
 
     def test_a_launch_price_is_listed_for_the_day_after_its_last_day(self):
         self.registry["models"]["gemini-4-argon"]["until"] = "2026-01-10"
@@ -392,6 +389,37 @@ class DueTest(unittest.TestCase):
 
     def test_nothing_due_lists_nothing(self):
         self.assertEqual(harnesses.due_lines(self.registry, 7, datetime.date(2026, 1, 2)), [])
+
+    @staticmethod
+    def two_rows():
+        """A registry of its own: two top-ten rows whose oldest capability differs."""
+        def row(name, checked):
+            return {"name": name, "tier": "top-ten", "cost": {},
+                    "capabilities": {"rules": {"checked": checked[0], "source": f"https://example.test/{name}/rules"},
+                                     "skills": {"checked": checked[1], "source": f"https://example.test/{name}/skills"},
+                                     "mcp": {"supported": "unknown"}}}
+        return {"harnesses": [row("A", ("2026-01-10", "2026-01-20")), row("B", ("2026-01-15", "2026-01-15")),
+                              {"name": "Watched", "tier": "watch", "capabilities": {
+                                  "rules": {"checked": "2025-01-01", "source": "https://example.test/w"}}}],
+                "models": {}}
+
+    def test_capabilities_are_listed_from_a_week_before_they_fall_due(self):
+        # A's oldest capability was checked 2026-01-10, so they're stale from 2026-02-10.
+        self.assertEqual(harnesses.due(self.two_rows(), 7, datetime.date(2026, 2, 2)), [])
+        self.assertEqual(harnesses.due(self.two_rows(), 7, datetime.date(2026, 2, 3)), [
+            (datetime.date(2026, 2, 10), "A", "capabilities last checked 2026-01-10, stale after 30 days",
+             ["https://example.test/A/rules", "https://example.test/A/skills"])])
+
+    def test_capabilities_already_due_stay_listed(self):
+        listed = harnesses.due(self.two_rows(), 7, datetime.date(2026, 3, 1))
+        self.assertEqual([(when, where) for when, where, _, _ in listed],
+                         [(datetime.date(2026, 2, 10), "A"), (datetime.date(2026, 2, 15), "B")],
+                         "soonest first, and a row outside the tens isn't listed")
+
+    def test_a_capability_line_names_the_row_and_its_pages(self):
+        lines = harnesses.due_lines(self.two_rows(), 7, datetime.date(2026, 2, 3))
+        self.assertEqual(lines, ["- **2026-02-10** A: capabilities last checked 2026-01-10, stale after 30 days. "
+                                 "Read again: <https://example.test/A/rules>, <https://example.test/A/skills>"])
 
     def test_the_list_is_markdown_naming_the_date_where_and_pages(self):
         lines = harnesses.due_lines(self.registry, 7, datetime.date(2026, 1, 30))
