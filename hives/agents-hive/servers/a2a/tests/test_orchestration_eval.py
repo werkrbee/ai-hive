@@ -260,7 +260,8 @@ class TrustEvaluationTest(unittest.TestCase):
     def test_a_run_within_his_baseline_is_recorded_audited_and_offered_as_the_baseline(self):
         code, entry = self.trust(())
         self.assertEqual((code, entry["outcome"], entry["eval"]["passport"]), (0, "passed", "barry"))
-        self.assertEqual(entry["eval"]["baseline"], "2026-11-03-barry-eval")
+        passport = json.loads((REPO_ROOT / "hives/agents-hive/passports/barry/passport.json").read_text())
+        self.assertEqual(entry["eval"]["baseline"], passport["eval"]["baseline"]["result"].split("#")[1])
         self.assertEqual((entry["eval"]["deployment"], len(entry["eval"]["runs"])), ("review-a", 1))
         self.assertIn('"met": 15, "of": 15', self.out)
         audit = [json.loads(line) for line in (self.tmp / "audit.jsonl").read_text().splitlines()]

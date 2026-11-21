@@ -21,7 +21,7 @@ spec = importlib.util.spec_from_file_location('mcp_installer_260', MCP / 'instal
 installer = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(installer)
 BASELINE = json.loads((Path(__file__).parent / 'fixtures/installer-paths-260.json').read_text())
-WINDOWS = [('scout', '.scout/skills'), ('github-copilot', '.copilot/skills'),
+WINDOWS = [('github-copilot', '.copilot/skills'),
            ('claude-code', '.claude/skills'), ('cursor', '.cursor/skills'),
            ('codex', '.agents/skills'), ('gemini-cli', '.gemini/skills'), ('kiro', '.kiro/skills')]
 RULES = {'agents': 'AGENTS.md', 'opencode': 'AGENTS.md', 'codex': 'AGENTS.md',
@@ -139,13 +139,11 @@ class PowerShellParity(unittest.TestCase):
         else: self.assertNotEqual(out.returncode, 0)
         return out
 
-    def test_skills_defaults_preserve_targets_order_and_scout_setting(self):
+    def test_skills_defaults_preserve_targets_and_order(self):
         for _, rel in WINDOWS: (self.home / rel).parent.mkdir(parents=True, exist_ok=True)
         out = self.run_ps('skills-hive', '-DryRun').stdout
         lines = [line for line in out.splitlines() if line.startswith('-> ')]
         self.assertEqual(lines, [f'-> {h} ({self.home / p})' for h, p in WINDOWS])
-        self.assertIn('would set loadCopilotCliSkills = true', out)
-        self.assertFalse((self.home / '.scout/m-settings.json').exists())
         self.assertFalse(any(self.home.rglob('SKILL.md')))
 
     def test_skills_canonical_ids_and_deprecated_aliases_keep_paths(self):
@@ -156,15 +154,16 @@ class PowerShellParity(unittest.TestCase):
             out = self.run_ps('skills-hive', '-Only', alias, '-DryRun').stdout
             self.assertIn('deprecated', out); self.assertIn('-> '+canonical, out)
         self.run_ps('skills-hive', '-Only', 'unknown', '-DryRun', success=False)
+        # Autopilot, formerly Scout, takes skills as uploads, so there's no folder to link.
+        self.run_ps('skills-hive', '-Only', 'scout', '-DryRun', success=False)
 
-    def test_skills_skip_installed_conflict_force_and_existing_scout_setting(self):
+    def test_skills_skip_installed_conflict_and_force(self):
         out = self.run_ps('skills-hive', '-DryRun').stdout
         self.assertNotIn('-> ', out)
-        dest = self.home / '.scout/skills/barry'; dest.mkdir(parents=True)
-        settings = self.home / '.scout/m-settings.json'; settings.write_text('{"loadCopilotCliSkills":true}')
-        out = self.run_ps('skills-hive', '-Only', 'scout', '-DryRun').stdout
-        self.assertIn('barry exists (skip;', out); self.assertIn('already true', out)
-        out = self.run_ps('skills-hive', '-Only', 'scout', '-DryRun', '-Force').stdout
+        dest = self.home / '.copilot/skills/barry'; dest.mkdir(parents=True)
+        out = self.run_ps('skills-hive', '-Only', 'github-copilot', '-DryRun').stdout
+        self.assertIn('barry exists (skip;', out)
+        out = self.run_ps('skills-hive', '-Only', 'github-copilot', '-DryRun', '-Force').stdout
         self.assertIn('barry (would link)', out); self.assertTrue(dest.exists())
 
     def test_missing_registry_destination_fails_before_installing(self):

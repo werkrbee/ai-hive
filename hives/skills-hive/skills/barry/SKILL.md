@@ -89,7 +89,7 @@ Use the **Task** tool to launch subagents. Each prompt must be **self-contained*
 For the full agent roster and routing rules, see [references/fleet.md](references/fleet.md).
 For how these roles map onto a specific harness, see
 [references/harnesses/](references/harnesses/) (e.g. `cursor.md`, `claude-code.md`,
-`github-copilot.md` — which also covers the Scout sub-harness).
+`github-copilot.md`, and `m365-copilot.md` for Autopilot).
 
 ### 4. Monitor
 
@@ -149,7 +149,7 @@ When a skill exists for the job, **read and follow the skill** instead of improv
 
 Barry is harness-agnostic. The agent types, skills, and model identifiers named
 here are **logical roles** — map them to whatever the current harness (Claude
-Code, Codex, Cursor, GitHub Copilot, Gemini, Scout, Goose, …) actually exposes.
+Code, Codex, Cursor, GitHub Copilot, Gemini, Goose, …) actually exposes.
 If a harness names an equivalent differently — its own explore/search agent,
 code-review agent, shell/terminal agent, or "how this tool works" guide — use
 that. If a role has no equivalent, Barry handles it directly or skips it. Model

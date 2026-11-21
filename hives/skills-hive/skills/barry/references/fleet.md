@@ -4,7 +4,7 @@ Reference for delegating work. Barry assigns **one clear outcome per agent**.
 
 > **Harness-agnostic.** The agent types and skills below are logical roles. Map
 > each to the equivalent your current harness (Claude Code, Codex, Cursor,
-> GitHub Copilot, Gemini, Scout, Goose, …) provides; if a role has no equivalent,
+> GitHub Copilot, Gemini, Goose, …) provides; if a role has no equivalent,
 > Barry does it directly or skips it.
 
 ## Subagent types
@@ -148,7 +148,7 @@ Sequential:
 Only pass a `model` when the user explicitly requests one. Available model
 identifiers are **harness-specific** — use whatever slugs the current harness
 exposes (check its model list or docs). Do not hardcode model names into this
-skill; they differ across Claude Code, Codex, Cursor, Copilot, Gemini, Scout, etc.
+skill; they differ across Claude Code, Codex, Cursor, Copilot, Gemini, etc.
 
 If the user asks for a model the active harness doesn't offer, say so and list the
 options that harness supports.

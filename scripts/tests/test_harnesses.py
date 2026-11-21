@@ -491,8 +491,8 @@ class ConformanceTest(unittest.TestCase):
                 prepare=lambda house: (house / "hives/skills-hive/skills/barry/SKILL.md").unlink())
         self.assertIn("claude-code: skills (global) didn't land at "
                       "home/claude-code/.claude/skills/barry/SKILL.md (nothing written there)", failures)
-        self.assertFalse(any(f.startswith("scout:") for f in failures))
-        self.assertTrue(any(r.startswith("scout: skills (global)") for r in reports))
+        self.assertFalse(any(f.startswith("databricks-genie-code:") for f in failures))
+        self.assertTrue(any(r.startswith("databricks-genie-code: skills (global)") for r in reports))
         self.assertIn("goose: no install paths yet", reports)
         self.assertEqual({f.split(": ", 1)[1].split(" ", 1)[0] for f in failures}, {"skills"})
 

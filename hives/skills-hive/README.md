@@ -13,7 +13,7 @@
 
 Personal agent skills for [werkrbee](https://github.com/werkrbee), packaged for **multiple AI coding harnesses** using the open [Agent Skills](https://agentskills.io) standard (`SKILL.md`).
 
-One repo. Install into Cursor, Claude Code, Codex, GitHub Copilot, Gemini CLI, Goose, Kiro, Scout, Databricks Genie Code, Snowflake Cortex Code, and more.
+One repo. Install into Cursor, Claude Code, Codex, GitHub Copilot, Gemini CLI, Goose, Kiro, Databricks Genie Code, Snowflake Cortex Code, and more.
 
 ## Skills
 
@@ -32,9 +32,9 @@ skills-hive installs into every major agent harness that reads the `SKILL.md`
 standard. Barry is the king; each cell is a harness he orchestrates:
 
 - **Frontier labs** — Claude Code (Anthropic), Codex (OpenAI), Gemini CLI (Google)
-- **Hyperscalers** — GitHub Copilot (Microsoft), Kiro (AWS), and Microsoft's
-  Scout (Windows, in preview; to be renamed Autopilot), on the watch list until
-  its harness is confirmed
+- **Hyperscalers** — GitHub Copilot (Microsoft), Kiro (AWS). Microsoft 365
+  Copilot's Autopilot, formerly Scout, has no skills folder to install into; it
+  takes a skill as an uploaded `SKILL.md` folder or ZIP
 - **Data & analytics** — Databricks Genie Code, Snowflake Cortex Code
 - **Open source & independent** — Cursor, Goose (Block), OpenCode
 
@@ -62,7 +62,7 @@ skills-hive/
 │               ├── databricks-genie-code.md
 │               ├── snowflake-cortex-code.md
 │               ├── github-copilot.md
-│               └── scout.md            # watch list: becoming Autopilot
+│               └── m365-copilot.md     # watch list: Autopilot, by upload
 ├── adapters/                     # WHERE skills run — harness taxonomy & overrides
 │   ├── README.md
 │   ├── claude-code/
@@ -79,7 +79,7 @@ skills-hive/
 │   └── github-copilot/
 ├── scripts/
 │   ├── install.sh                # macOS/Linux: copy skills into harness dirs
-│   └── install.ps1               # Windows/Scout: junctions + m-settings.json
+│   └── install.ps1               # Windows: junctions
 ├── LICENSE
 └── README.md
 ```
@@ -144,17 +144,15 @@ The script is written for macOS's default Bash 3.2 (no associative arrays). It r
 the House's harness registry (`harnesses.json`) with `python3`, which ships with git on
 macOS and with most Linux distributions.
 
-### Option 3 — install script (Windows / Scout)
+### Option 3 — install script (Windows)
 
 Windows harnesses use directory **junctions** instead of copies/symlinks — they
-match how Scout and Copilot already link skills and need no Admin or Developer
-Mode. For Scout, the script also enables `loadCopilotCliSkills` in
-`m-settings.json`.
+match how Copilot already links skills and need no Admin or Developer Mode.
 
 ```powershell
 .\scripts\install.ps1                 # link into every installed Windows harness
 .\scripts\install.ps1 -DryRun         # preview only
-.\scripts\install.ps1 -Only scout     # just Scout
+.\scripts\install.ps1 -Only cursor    # just Cursor
 .\scripts\install.ps1 -Force          # replace an existing target
 ```
 
@@ -178,7 +176,6 @@ cp -R skills/barry ~/.cursor/skills/barry
 | Goose | `~/.agents/skills/` | `.agents/skills/` |
 | OpenCode | `~/.config/opencode/skills/` | `.opencode/skills/` |
 | Kiro (AWS) | `~/.kiro/skills/` | `.kiro/skills/` |
-| Scout (Windows) | `%USERPROFILE%\.scout\skills\` | — |
 | Databricks Genie Code | workspace-based ‡ | `.agents/skills/` ‡ |
 | Snowflake Cortex Code | workspace-based ‡ | `.agents/skills/` ‡ |
 
