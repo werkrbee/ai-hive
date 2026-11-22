@@ -66,7 +66,8 @@ skills-hive/
 │               ├── databricks-genie-code.md
 │               ├── snowflake-cortex-code.md
 │               ├── github-copilot.md
-│               └── m365-copilot.md     # watch list: Autopilot, by upload
+│               ├── m365-copilot.md     # watch list: Autopilot, by upload
+│               └── copilot-studio.md   # low-code: Patricia's hosted review over MCP
 ├── adapters/                     # WHERE skills run — harness taxonomy & overrides
 │   ├── README.md
 │   ├── claude-code/
@@ -197,12 +198,16 @@ cloud) that reads file-based skills from `~/.copilot/skills` and `.github/skills
 Microsoft's other AI surfaces are different products with different extension
 models, so they're intentionally not in the install scripts:
 
-- **Microsoft Foundry agents** and **Copilot Studio** (GitHub Copilot harness)
-  can run these same portable `SKILL.md` files, but they load them from a
-  project/deployment `skills/` folder at session start — you *publish* skills to
-  them rather than linking into a home directory.
-- **Microsoft 365 Copilot** extends via declarative agents / Graph connectors,
-  not file-based skills, so it's out of scope here.
+- **Microsoft Foundry agents** can run these same portable `SKILL.md` files, but
+  they load them from a project/deployment `skills/` folder at session start — you
+  *publish* skills to them rather than linking into a home directory.
+- **Copilot Studio** is a low-code harness where people build agents of their own.
+  It reaches the House through Patricia's hosted review, connected as an MCP
+  server ([`copilot-studio.md`](skills/barry/references/harnesses/copilot-studio.md));
+  agents on its Microsoft Copilot harness can also take an uploaded skill package.
+- **Microsoft 365 Copilot** is its own harness, with Home, Autopilot and Code;
+  Autopilot takes a skill as an uploaded `SKILL.md` folder or ZIP
+  ([`m365-copilot.md`](skills/barry/references/harnesses/m365-copilot.md)).
 
 ## Using Barry
 

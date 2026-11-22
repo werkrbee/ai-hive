@@ -23,11 +23,11 @@ One page for picking a harness: for each of the twenty the House aligns with, th
 
 ## Low-code
 
-0 of 10 have a guide, 0 a recorded run and 0 a verified row.
+1 of 10 have a guide, 0 a recorded run and 0 a verified row.
 
 | Harness | Guide | Matrix row | Billing unit and retail price | Price checked | Recorded runs |
 |---|---|---|---|---|---|
-| 1. Copilot Studio (Microsoft) | none yet | [unverified](harness-matrix.md#low-code) | Copilot Credit, $0.01 pay-as-you-go or $0.008 in a $200 pack of 25,000; a reasoning response can take 100 credits; internal use included with a $30 Microsoft 365 Copilot seat | 2026-11-10 | none yet |
+| 1. Copilot Studio (Microsoft) | [`copilot-studio.md`](../hives/skills-hive/skills/barry/references/harnesses/copilot-studio.md) | [unverified](harness-matrix.md#low-code) | Copilot Credit, $0.01 pay-as-you-go or $200 a month for a pack of 25,000 ($0.008). On the standard harness: 1 a classic answer, 2 a generative answer, 5 an agent action, 10 tenant graph grounding, 13 per 100 agent-flow actions, plus 10 per 1,000 billed tokens when a reasoning model orchestrates; no charge to a user with a $30 Microsoft 365 Copilot seat, within fair use. The Microsoft Copilot harness bills tokens, tools and runtime from the first build, at no published rate | 2026-11-21 | none yet |
 | 2. Agentforce (Salesforce) | none yet | [unverified](harness-matrix.md#low-code) | Flex Credit, $0.005 ($500 for 100,000); a standard action is 20 credits ($0.10), a voice action 30; or $2 a conversation | 2026-11-10 | none yet |
 | 3. Gemini Enterprise (Google) | none yet | [unverified](harness-matrix.md#low-code) | Seat, $21 to $50 a month; agent usage billed separately | 2026-11-10 | none yet |
 | 4. ServiceNow AI Agents | none yet | [unverified](harness-matrix.md#low-code) | Assist, from a pool per seat; about 25 for a summary, 150 for an agentic action; no dollar price published | 2026-11-10 | none yet |
