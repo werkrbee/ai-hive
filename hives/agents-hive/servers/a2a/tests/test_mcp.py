@@ -181,8 +181,10 @@ class McpTest(unittest.TestCase):
                                headers={"MCP-Protocol-Version": "2025-11-25"}).json()["result"]
             self.assertNotIn("isError", called)
             self.assertIn(called["structuredContent"]["verdict"], ("allow", "allow-with-conditions", "block"))
-            bare = self.post(c, "tools/list", version=None)
-            self.assertEqual((bare.status_code, bare.json()["error"]["code"]), (400, -32600))
+            bare = self.post(c, "tools/list", version=None)  # Copilot Studio sends no header after initialize
+            self.assertEqual(bare.json()["result"]["tools"][0]["name"], "review")
+            unserved = self.post(c, "tools/list", version=None, headers={"MCP-Protocol-Version": "2025-03-26"})
+            self.assertEqual((unserved.status_code, unserved.json()["error"]["code"]), (400, -32600))
 
     def test_only_post_from_no_or_this_origin_is_served(self):
         with self.client(write_config(self.root)) as c:

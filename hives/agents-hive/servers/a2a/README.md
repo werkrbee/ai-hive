@@ -245,9 +245,11 @@ or it gets 400 and `HeaderMismatch` (-32020); a version it doesn't serve gets 40
 `UnsupportedProtocolVersionError` (-32022); an unknown method gets 404. It offers
 `server/discover`, `tools/list`, `tools/call` and `ping`. Because the low-code platforms'
 clients still open with the `initialize` handshake, it also answers 2025-11-25 and
-2025-06-18 that way, without minting a session, and then expects their
-`MCP-Protocol-Version` header. GET and DELETE get 405, and a request with an `Origin`
-other than the server's own gets 403.
+2025-06-18 that way, without minting a session. After that, a request naming a version
+in its `MCP-Protocol-Version` header must name one of those two; a request with no header
+is served, since a server without a session can't tell the version otherwise, and
+Copilot Studio's client sends none after `initialize`. GET and DELETE get 405, and a
+request with an `Origin` other than the server's own gets 403.
 
 **Auth.** The A2A server's, on every request to `/mcp`: an app token from an allowlisted
 client with the required role, or a delegated token with a scope the server accepts, as
