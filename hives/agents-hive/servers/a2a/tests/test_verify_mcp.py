@@ -126,7 +126,10 @@ class VerifyMcpTest(unittest.TestCase):
                 self.assertEqual(listed.json()["result"], {"tools": verify_mcp.TOOLS})
         bare = self.client.post("/mcp", json={"jsonrpc": "2.0", "id": 1, "method": "tools/list"},
                                 headers={"authorization": f"Bearer {token()}"})
-        self.assertEqual(bare.status_code, 400)
+        self.assertEqual(bare.json()["result"], {"tools": verify_mcp.TOOLS}, "no header after initialize is served")
+        unserved = self.client.post("/mcp", json={"jsonrpc": "2.0", "id": 1, "method": "tools/list"},
+                                    headers={"authorization": f"Bearer {token()}", "MCP-Protocol-Version": "2025-03-26"})
+        self.assertEqual(unserved.status_code, 400)
 
     def test_invalid_envelopes_and_arguments_are_errors_not_server_crashes(self):
         headers = {"authorization": f"Bearer {token()}", "MCP-Protocol-Version": "2025-11-25"}

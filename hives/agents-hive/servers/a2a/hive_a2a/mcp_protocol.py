@@ -102,10 +102,13 @@ class Protocol:
             return _result(id_, {"protocolVersion": asked if asked in LEGACY else LEGACY[0],
                                  "capabilities": {"tools": {}}, "serverInfo": self.server_info(),
                                  "instructions": self.instructions()})
+        # The spec's server SHOULD assume an older revision when the header is missing and it
+        # can't tell otherwise; holding no session, this one can't, and Copilot Studio's client
+        # sends none after initialize. A version it doesn't serve is still refused.
         version = request.headers.get("mcp-protocol-version")
-        if version not in LEGACY:
+        if version is not None and version not in LEGACY:
             return _error(id_, INVALID_REQUEST, "send the MCP-Protocol-Version header with a supported version "
-                                                f"({', '.join([*MODERN, *LEGACY])})", status=400)
+                                                f"({', '.join([*MODERN, *LEGACY])}), or none", status=400)
         if method == "tools/list":
             return _result(id_, {"tools": self.tools})
         if method == "tools/call":
