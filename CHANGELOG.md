@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.16.0](https://github.com/werkrbee/ai-hive/compare/v0.15.1...v0.16.0) (2026-11-24)
+
+
+### Features
+
+* **harnesses:** align Copilot Studio, verify its row and record its call of Patricia ([#365](https://github.com/werkrbee/ai-hive/issues/365)) ([4ae98a2](https://github.com/werkrbee/ai-hive/commit/4ae98a23fbbecd145f34ca90ca1d998dd89824f9))
+* **harnesses:** record Copilot Studio's call of Patricia and verify its row ([4ae98a2](https://github.com/werkrbee/ai-hive/commit/4ae98a23fbbecd145f34ca90ca1d998dd89824f9)), closes [#245](https://github.com/werkrbee/ai-hive/issues/245) [#229](https://github.com/werkrbee/ai-hive/issues/229)
+* **harnesses:** verify Copilot Studio's row and write its guide ([4ae98a2](https://github.com/werkrbee/ai-hive/commit/4ae98a23fbbecd145f34ca90ca1d998dd89824f9))
+
+
+### Bug fixes
+
+* **a2a:** serve an MCP request without a version header after initialize ([#363](https://github.com/werkrbee/ai-hive/issues/363)) ([8c61f13](https://github.com/werkrbee/ai-hive/commit/8c61f13d699f35f813ffaac9e77af9ad8bbd8b91)), closes [#245](https://github.com/werkrbee/ai-hive/issues/245)
+
 ## [0.15.1](https://github.com/werkrbee/ai-hive/compare/v0.15.0...v0.15.1) (2026-11-21)
 
 
