@@ -196,7 +196,7 @@ below summarize it as of 2026-11-12, and the matrix is the one to trust when the
 
 | Harness | Native unit and retail price | Tokens billed at | Effective $/1M in · out |
 |---|---|---|---|
-| Copilot Studio | Copilot Credit, $0.01 pay-as-you-go or $0.008 in a $200 pack of 25,000; a reasoning response can take 100 credits; internal use included with a $30 Microsoft 365 Copilot seat | Not published | Not published |
+| Copilot Studio | Copilot Credit, $0.01 pay-as-you-go or $0.008 in a $200 pack of 25,000; per feature on the standard harness, at no charge to a $30 Microsoft 365 Copilot seat (checked 2026-11-21) | 10 credits per 1,000 tokens for a reasoning model | Reasoning model: $100 · $100 |
 | Agentforce | Flex Credit, $0.005 ($500 for 100,000); a standard action is 20 credits ($0.10), a voice action 30; or $2 a conversation | Not published | Not published |
 | Gemini Enterprise | Seat, $21 to $50 a month; agent usage billed separately | Not published | Not published |
 | ServiceNow AI Agents | Assist, from a pool per seat; about 25 for a summary, 150 for an agentic action; no dollar price published | Not published | Not published |
@@ -210,7 +210,7 @@ below summarize it as of 2026-11-12, and the matrix is the one to trust when the
 What the tables show: every pro-code harness that bills by token passes the model's list
 price through, and only Cursor's team plans add a fee. So for pro-code the choice of model
 moves cost far more than the choice of harness, and the harness's real price is its seat
-against the usage it includes. In low-code, eight of ten publish no tokens per unit, so
+against the usage it includes. In low-code, seven of ten publish no tokens per unit, so
 the effective rate there will come from measured reference tasks, not from price pages.
 
 ## Keeping it current

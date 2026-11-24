@@ -722,6 +722,32 @@ No tokened call was made, so a 403 over HTTP+JSON has been checked only in the o
 tests (`servers/a2a/tests/test_server.py`), and `verify_barry.sh` still hasn't been run on
 an image since #222.
 
+Copilot Studio's client, on 2026-11-22 and 2026-11-23. `entra.sh --agent patricia
+copilot-studio` registered `copilot-studio-patricia-client`, which was then given the
+`Review.RequestAsUser` delegated permission with admin consent, a client secret the
+maintainer made in the portal and pasted into Copilot Studio, and Copilot Studio's
+callback URL as its one web redirect URI; the maintainer's user was assigned to
+Patricia's API app. The `main` deployment of 2026-11-23 at 01:44 UTC, from `690750c`,
+put every app and the weekly job on `hive-a2a:690750ce014a` (registry run `chp`,
+`sha256:2b7df3ed…`, Patricia's revision `patricia-a2a--0000020`, Barry's
+`barry-a2a--0000015` and the verify server's `barry-verify--0000015`), adding the client
+to Patricia's `allowedClients` and moving hosted Barry to passport v6. Its first two runs
+stopped before step 1's apply with nothing changed: the parameters file was passed from
+another checkout, whose `using` named a different `main.bicep`, and then its prompt went
+unanswered. Copilot Studio's MCP client then got 400 on the request after `initialize`,
+which carried no `MCP-Protocol-Version` header; #363 serves one without it, and the
+`main` deployment of 2026-11-23 at 15:42 UTC, from `8c61f13`, put every app and the job
+on `hive-a2a:8c61f13d699f` (registry run `chq`, `sha256:712218e5…`, revisions
+`patricia-a2a--0000021`, `barry-a2a--0000016` and `barry-verify--0000016`). Both times
+Claude Code ran `deploy.sh`, answering each prompt only after the maintainer's yes, its
+check found no other rollout under way, step 2 changed nothing, and the what-ifs showed
+only the noise seen before besides the images, the job's `HIVE_COMMIT` and, the first
+time, the new client. A request to `/mcp` without a token still answered 401. From a
+standard-harness agent in a Copilot Studio trial, a delegated review over MCP then
+returned `block` for the reference task, and her ledger recorded it under the client's
+ID, 4,726 tokens and $0.0124, at 23:41 UTC. `verify_barry.sh` didn't run, so hosted Barry
+on v6 hasn't been checked end to end.
+
 Record anything that differs in this README.
 
 ## Files

@@ -939,21 +939,55 @@
       "adapter": null,
       "surfaces": {},
       "capabilities": {
-        "mcp": {"supported": "unknown"},
-        "a2a": {"supported": "unknown"},
-        "openapi": {"supported": "unknown"},
-        "auth": {"supported": "unknown"}
+        "mcp": {"supported": true, "path": "Tools > Add a tool > New tool > Model Context Protocol",
+                "source": "https://learn.microsoft.com/en-us/microsoft-copilot-studio/mcp-add-existing-server-to-agent", "checked": "2026-11-21"},
+        "a2a": {"supported": true, "path": "Agents > Add agent > A2A agent",
+                "source": "https://learn.microsoft.com/en-us/microsoft-copilot-studio/add-agent-agent-to-agent", "checked": "2026-11-21"},
+        "openapi": {"supported": true, "path": "Tools > Add a tool > New tool > Custom connector (OpenAPI 2.0 only)",
+                    "source": "https://learn.microsoft.com/en-us/connectors/custom-connectors/define-openapi-definition", "checked": "2026-11-21"},
+        "auth": {"supported": true, "path": "OAuth 2.0 with user sign-in (delegated); no client credentials",
+                 "source": "https://learn.microsoft.com/en-us/microsoft-copilot-studio/mcp-add-existing-server-to-agent", "checked": "2026-11-21"}
       },
       "cost": {
-        "unit": "Copilot Credit, $0.01 pay-as-you-go or $0.008 in a $200 pack of 25,000; a reasoning response can take 100 credits; internal use included with a $30 Microsoft 365 Copilot seat",
-        "tokens": {"basis": "not-published"},
+        "unit": "Copilot Credit, $0.01 pay-as-you-go or $200 a month for a pack of 25,000 ($0.008). On the standard harness: 1 a classic answer, 2 a generative answer, 5 an agent action, 10 tenant graph grounding, 13 per 100 agent-flow actions, plus 10 per 1,000 billed tokens when a reasoning model orchestrates; no charge to a user with a $30 Microsoft 365 Copilot seat, within fair use. The Microsoft Copilot harness bills tokens, tools and runtime from the first build, at no published rate",
+        "tokens": {"basis": "platform", "rate": {"input": 100, "cached": 0, "output": 100},
+                   "applies": "A reasoning model on the standard harness, such as Claude Opus 4.7, pay-as-you-go, on top of each feature's credits"},
         "sources": [
-          "https://cdn-dynmedia-1.microsoft.com/is/content/microsoftcorp/microsoft/bade/documents/products-and-services/en-us/ai/CopilotCreditsGuideSeptember2026.pdf",
-          "https://www.cloudzero.com/blog/copilot-studio-pricing/"
+          "https://learn.microsoft.com/en-us/microsoft-copilot-studio/requirements-messages-management",
+          "https://cdn-dynmedia-1.microsoft.com/is/content/microsoftcorp/microsoft/bade/documents/products-and-services/en-us/ai/CopilotCreditsGuide.pdf",
+          "https://www.microsoft.com/en-us/microsoft-365-copilot/pricing/copilot-studio",
+          "https://learn.microsoft.com/en-us/microsoft-copilot-studio/agents-experience/billing-credit-overview"
         ],
-        "checked": "2026-11-10"
+        "checked": "2026-11-21"
       },
-      "verified": false
+      "runs": [
+        {
+          "agent": "patricia",
+          "date": "2026-11-23",
+          "version": null,
+          "binding": "mcp",
+          "auth": "delegated",
+          "units": {
+            "amount": 7,
+            "unit": "Copilot Credits",
+            "basis": "estimated",
+            "source": "the Copilot Credits rates for one agent action (5) and one generative answer (2), requirements-messages-management, checked 2026-11-21; test chat on the standard harness isn't billed, so no usage report shows it"
+          },
+          "tokens": {
+            "input": null,
+            "cache_write": null,
+            "cached": null,
+            "output": null
+          },
+          "house": {
+            "tokens": 4726,
+            "usd": 0.01242
+          },
+          "cost": "$0.00 in test chat on a trial; about $0.07 a turn at pay-as-you-go once published",
+          "result": "block, with her reasons; the agent took no action and offered git revert instead"
+        }
+      ],
+      "verified": true
     },
     {
       "id": "agentforce",

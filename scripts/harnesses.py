@@ -61,8 +61,9 @@ CAPABILITIES = {
 # Where a capability's path comes from when the installers already write it down.
 CAPABILITY_SURFACE = {"rules": "rules", "skills": "skills", "subagents": "agents"}
 # How a harness bills tokens: at the model's list price (plus any fee), on the person's own
-# key at list price, or at a rate it doesn't publish.
-BASES = ("list", "own-key", "not-published")
+# key at list price, at a rate of its own that it publishes for the models `applies` names
+# (`rate`, dollars per million tokens), or at a rate it doesn't publish.
+BASES = ("list", "own-key", "platform", "not-published")
 DATE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 # A top-ten row's capabilities or cost, or a model's list price, checked longer ago than
 # this is stale: CI fails until it's re-verified. A model's launch price also ends on the
@@ -184,6 +185,8 @@ def effective(h, registry):
         return "Not published"
     if t["basis"] == "own-key":
         return "The model's list price, on your own key" + (f"; {t['note']}" if t.get("note") else "")
+    if t["basis"] == "platform":
+        return [(t["applies"],) + tuple(money(t["rate"][k]) for k in MODEL_PRICES)]
     rows = []
     for mid in t["models"]:
         m = registry["models"][mid]
@@ -257,6 +260,8 @@ def render_matrix(registry=None):
             eff = effective(h, reg)
             if isinstance(eff, str):
                 cell = eff
+            elif c["tokens"]["basis"] == "platform":
+                cell = "<br>".join(f"{n}: {i} · {ca} · {o}" for n, i, ca, o in eff)
             else:
                 t = c["tokens"]
                 notes = []
@@ -714,6 +719,14 @@ def check(registry=None, today=None):
                 problems.append(f"{where}: until goes on a model's price, not a row's cost")
             if t.get("basis") == "list" and not t.get("models"):
                 problems.append(f"{where}: a list-price basis names the models it's quoted for")
+            if t.get("basis") == "platform":
+                rate = t.get("rate") if isinstance(t.get("rate"), dict) else {}
+                if (set(rate) != set(MODEL_PRICES) or not all(number(v) for v in rate.values())
+                        or not isinstance(t.get("applies"), str) or not t["applies"] or t.get("models")):
+                    problems.append(f"{where}: a platform basis gives a rate ({', '.join(MODEL_PRICES)}, each "
+                                    "a price) and says which models it applies to, in place of models")
+            elif "rate" in t or "applies" in t:
+                problems.append(f"{where}: a rate and what it applies to go with the platform basis")
         for i, r in enumerate(h.get("runs", [])):
             for p in run_problems(r, h["category"], reg.get("models", {})):
                 problems.append(f"{where}: run {i + 1} {p}")

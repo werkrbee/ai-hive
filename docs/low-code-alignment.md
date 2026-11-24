@@ -216,7 +216,8 @@ the run did and marked estimated; where neither is possible, they are recorded a
 reported, never as zero. Their cost is the units at the row's retail price. Tokens come
 from the platform only where it reports them, which on own-key platforms (n8n, Dify) means
 the model provider's usage for the run; elsewhere they are unknown, not zero, which is why
-eight of the ten publish no effective rate.
+seven of the ten publish no effective rate; Copilot Studio publishes one only for a
+reasoning model on its standard harness (checked 2026-11-21).
 
 **The House's meter** is what Patricia's review cost werkrbee: her ledger entry for the
 call, with its tokens and estimated dollars. It is recorded beside the run but never added

@@ -94,6 +94,22 @@ class CheckTest(unittest.TestCase):
         [(name, inp, cached, out)] = harnesses.effective(self.harness(self.registry, "cursor"), self.registry)
         self.assertEqual((inp, cached, out), ("$2.25", "$0.35", "$10.25"))
 
+    def test_a_platform_rate_is_quoted_for_what_it_applies_to(self):
+        [(applies, inp, cached, out)] = harnesses.effective(self.harness(self.registry, "copilot-studio"),
+                                                            self.registry)
+        self.assertIn("reasoning model", applies)
+        self.assertEqual((inp, cached, out), ("$100", "$0", "$100"))
+        self.assertIn(f"{applies}: $100 · $0 · $100", harnesses.render_matrix(self.registry))
+
+    def test_a_platform_basis_gives_a_rate_and_what_it_applies_to(self):
+        rule = "a platform basis gives a rate"
+        self.assertRefused(lambda r: self.harness(r, "copilot-studio")["cost"]["tokens"]["rate"].pop("cached"), rule)
+        self.assertRefused(lambda r: self.harness(r, "copilot-studio")["cost"]["tokens"].pop("applies"), rule)
+        self.assertRefused(lambda r: self.harness(r, "copilot-studio")["cost"]["tokens"].update(
+            models=["claude-opus-5-5"]), rule)
+        self.assertRefused(lambda r: self.harness(r, "agentforce")["cost"]["tokens"].update(
+            rate={"input": 1, "cached": 0, "output": 1}), "go with the platform basis")
+
     def test_a_model_with_cache_reads_under_the_threshold_is_exempt_from_the_fee(self):
         registry = copy.deepcopy(self.registry)
         tokens = self.harness(registry, "cursor")["cost"]["tokens"]
