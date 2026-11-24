@@ -13,8 +13,8 @@ Preconditions: CI green on `main`, and the latest Release workflow run on `main`
    report that nothing releasable has landed since the last tag (`chore`, `test`, `build`, and
    `style` commits don't release) and stop.
 2. Show the proposed version and the `CHANGELOG.md` entries from `gh pr diff <number>`. Check
-   the diff touches only `CHANGELOG.md`, `.release-please-manifest.json`, `version.txt`, and
-   the version line of `assets/architecture.svg`.
+   the diff touches only `CHANGELOG.md`, `.release-please-manifest.json` and the version line
+   of `assets/architecture.svg`, the one extra file in `release-please-config.json`.
    Then check the architecture diagram against the changelog. CI catches a hive, harness or
    Azure resource it doesn't draw, but not a box whose words no longer hold. If a change in
    this release makes one wrong, stop: fix it in `scripts/architecture.py` on its own branch
