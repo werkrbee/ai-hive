@@ -1,0 +1,30 @@
+[
+  {
+    "record_id": "synthetic-api-input",
+    "source_record_id": "synthetic-charge-input",
+    "period": "2026-11",
+    "scenario": "api-base",
+    "category": "inference",
+    "quantity": "2",
+    "unit": "million input tokens",
+    "unit_rate_usd": "2.00",
+    "amount_usd": "4.00",
+    "basis": "estimated",
+    "team": "unallocated",
+    "source": "Sprint 1 API example, invented usage and rate",
+    "source_date": "2026-11-20"
+  },
+  {
+    "record_id": "synthetic-host-storage",
+    "source_record_id": "synthetic-charge-storage",
+    "period": "2026-11",
+    "scenario": "host-base",
+    "category": "storage_observability",
+    "unit": "charge",
+    "amount_usd": "20.00",
+    "direct_amount_reason": "Synthetic flat storage charge for the period",
+    "basis": "estimated",
+    "source": "Sprint 1 hosted inference example, invented storage charge",
+    "source_date": "2026-11-20"
+  }
+]
