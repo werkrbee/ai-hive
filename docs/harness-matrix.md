@@ -64,7 +64,7 @@ Barry and Patricia run once in the real harness when it's aligned. The run doubl
 
 | Harness | MCP | A2A | OpenAPI connectors | Auth | Row |
 |---|---|---|---|---|---|
-| Copilot Studio | yes<br>`Tools > Add a tool > New tool > Model Context Protocol` | yes<br>`Agents > Add agent > A2A agent` | yes<br>`Tools > Add a tool > New tool > Custom connector (OpenAPI 2.0 only)` | yes<br>`OAuth 2.0 with user sign-in (delegated); no client credentials` | unverified |
+| Copilot Studio | yes<br>`Tools > Add a tool > New tool > Model Context Protocol` | yes<br>`Agents > Add agent > A2A agent` | yes<br>`Tools > Add a tool > New tool > Custom connector (OpenAPI 2.0 only)` | yes<br>`OAuth 2.0 with user sign-in (delegated); no client credentials` | verified |
 | Agentforce | unknown | unknown | unknown | unknown | unverified |
 | Gemini Enterprise | unknown | unknown | unknown | unknown | unverified |
 | ServiceNow AI Agents | unknown | unknown | unknown | unknown | unverified |
@@ -89,6 +89,14 @@ Barry and Patricia run once in the real harness when it's aligned. The run doubl
 | n8n | Execution, €0.008 (Starter, €20 for 2,500) to €0.005 (Pro); models on your own key | The model's list price, on your own key; plus each execution | 2026-11-10 |
 | Zapier Agents | Activity, about $0.022 (Pro, about $33 a month for 1,500) | Not published | 2026-11-10 |
 | Dify | Message credit, about $0.01 (Professional, $590 a year for 5,000 a month), or your own key | The model's list price, on your own key; or message credits on Dify's plans | 2026-11-10 |
+
+### Recorded runs
+
+Patricia is called once from an agent built in the platform when it's aligned. The platform's units and cost are the harness's own figures; the House's tokens and dollars are her ledger's, recorded beside the run and never added to its cost.
+
+| Harness | Agent | Date | Version | Binding | Auth | Platform units | Platform tokens: input · cache write · cached · output | Cost | The House's tokens · $ | Result |
+|---|---|---|---|---|---|---|---|---|---|---|
+| Copilot Studio | Patricia | 2026-11-23 | not shown | mcp | delegated | 7 Copilot Credits, estimated (the Copilot Credits rates for one agent action (5) and one generative answer (2), requirements-messages-management, checked 2026-11-21; test chat on the standard harness isn't billed, so no usage report shows it) | unknown · unknown · unknown · unknown | $0.00 in test chat on a trial; about $0.07 a turn at pay-as-you-go once published | 4,726 · $0.0124 | block, with her reasons; the agent took no action and offered git revert instead |
 
 ## Model list prices
 

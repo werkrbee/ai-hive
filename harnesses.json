@@ -960,7 +960,34 @@
         ],
         "checked": "2026-11-21"
       },
-      "verified": false
+      "runs": [
+        {
+          "agent": "patricia",
+          "date": "2026-11-23",
+          "version": null,
+          "binding": "mcp",
+          "auth": "delegated",
+          "units": {
+            "amount": 7,
+            "unit": "Copilot Credits",
+            "basis": "estimated",
+            "source": "the Copilot Credits rates for one agent action (5) and one generative answer (2), requirements-messages-management, checked 2026-11-21; test chat on the standard harness isn't billed, so no usage report shows it"
+          },
+          "tokens": {
+            "input": null,
+            "cache_write": null,
+            "cached": null,
+            "output": null
+          },
+          "house": {
+            "tokens": 4726,
+            "usd": 0.01242
+          },
+          "cost": "$0.00 in test chat on a trial; about $0.07 a turn at pay-as-you-go once published",
+          "result": "block, with her reasons; the agent took no action and offered git revert instead"
+        }
+      ],
+      "verified": true
     },
     {
       "id": "agentforce",

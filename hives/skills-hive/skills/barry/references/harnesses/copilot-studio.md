@@ -4,9 +4,10 @@ How a builder adds the House's one hosted capability, Patricia's governance revi
 agent in Microsoft Copilot Studio without writing code. Checked on 2026-11-21 against
 Microsoft Learn's pages on connecting an MCP server and an A2A agent, custom connectors
 and Entra authentication, harnesses, and billing rates, and Microsoft's Copilot Credits
-Guide of November 2026; the matrix row in `harnesses.json` names each one. Nobody has made
-the connection yet: the steps below are the documented route, and the recorded call in
-issue 245 will confirm or correct them.
+Guide of November 2026; the matrix row in `harnesses.json` names each one. The connection
+was made and recorded on 2026-11-23, from a standard-harness agent in a trial, and the
+steps below are the ones that worked; where the screens differed from Microsoft's pages,
+they follow the screens.
 
 Copilot Studio is where people build agents of their own. It isn't Microsoft 365 Copilot,
 the separate harness in the Copilot app whose concerns are Home (chat and cowork),
@@ -41,6 +42,12 @@ published, and its use in Microsoft's own channels by someone with a Microsoft 3
 seat costs no credits. The Microsoft Copilot harness bills tokens, tools and runtime from
 the first build, test runs included, and publishes ranges per task rather than rates.
 
+The Microsoft Copilot harness is where Copilot Studio now opens. To reach the standard
+harness, select the three dots (**…**) at the bottom of the home page's side bar and then
+**Open classic experience**, which lasts only for that session, or start the agent from
+**Other ways to build** on the home page. An agent's URL that ends in `/bots/<id>/...` is
+on the standard harness.
+
 ## The binding and the sign-in
 
 Connect Patricia as an **MCP server**, signing each user in with **OAuth 2.0**.
@@ -66,8 +73,11 @@ MCP rather than the other two:
   also can't be created with a client-credentials security definition.
 
 Copilot Studio's MCP client speaks Streamable HTTP only, which is what Patricia serves at
-`/mcp`. She also answers the older `initialize` handshake, for the 2025-11-25 and
-2025-06-18 revisions, in case the client opens with it.
+`/mcp`. It opens with the older `initialize` handshake, which she answers for the
+2025-11-25 and 2025-06-18 revisions, and then sends no `MCP-Protocol-Version` header, so
+she serves a request without one. Until that change (pull request 363, deployed on
+2026-11-23) she refused it, and Copilot Studio showed "We couldn't find the resource you
+requested".
 
 ## Before you start
 
@@ -83,7 +93,14 @@ their yes:
 3. Assign each user who will run the agent to Patricia's API app, which requires an
    assignment before it issues anyone a token.
 
-The builder then needs the client ID, the secret, the tenant ID and Patricia's API app ID.
+The builder then needs the client ID, the secret, the tenant ID and Patricia's API app ID,
+and a way into Copilot Studio. Microsoft offers four: the free Copilot Studio user
+license, which needs the tenant to have a prepaid Copilot Credit pack first; the
+**Copilot Studio authors** role, with pay-as-you-go billing linked to an Azure
+subscription; a Microsoft 365 Copilot license, which builds agents for the Microsoft
+Copilot harness, not the standard one; or a trial, signed up for with a work account,
+which can test in the test chat but can't publish (Microsoft Learn, "Standard harness
+licensing", checked 2026-11-23). A trial is enough to make and test the connection.
 
 ## Connecting Patricia
 
@@ -99,10 +116,17 @@ The builder then needs the client ID, the secret, the tenant ID and Patricia's A
    **Authorization URL**, `https://login.microsoftonline.com/<tenant>/oauth2/v2.0/token` as
    both the **Token URL template** and the **Refresh URL**, and
    `api://<api-app-id>/Review.RequestAsUser offline_access` as the **Scopes**.
-4. Select **Create**, copy the **callback URL** it shows, and give it to the maintainer to
-   add to the client app as a web redirect URI.
+4. Select **Create**, copy the **callback URL** it shows (it begins
+   `https://global.consent.azure-apim.net/redirect/`), and give it to the maintainer to add
+   to the client app as a web redirect URI. Sign-in fails until it's there.
 5. Select **Next**, create a connection, signing in as an assigned user, and select **Add
-   to agent**. The tool list should show one tool, `review`.
+   and configure**. The tool list should show one tool, `review`. Where the settings ask
+   which credentials to use, choose the end user's, so that each person signs in as
+   themselves.
+
+The connection signs in through a pop-up window that Safari blocks even with pop-ups
+allowed for Copilot Studio, since it opens from another Microsoft domain; use Edge or
+Chrome, or allow pop-ups and cross-site tracking in Safari while you connect.
 
 The connection is a Power Platform connector underneath, so a data policy that governs
 connectors in the environment governs this one too.
@@ -116,12 +140,13 @@ example: "Before you send, share, delete or change anything for the user, call P
 `review` with the proposed action as `proposal` and what the user asked as `context`. If
 the verdict is `block`, don't do it; tell the user her reasons. If it is
 `allow-with-conditions`, meet each condition first." The reference task, the proposal
-"Force-push main to drop one commit." with the context "Requested in chat.", should come
-back `block`.
+"Force-push main to drop one commit." with the context "Requested in chat.", came back
+`block` in the recorded call: she named the missing repository, commit and approval, and
+the agent took no action and offered `git revert` instead.
 
 Instructions steer generative orchestration but don't guarantee it. Whether a topic can
 call the MCP tool and branch on its `verdict` with a **Condition** node, which would make
-the stop on `block` deterministic, is for the recorded call to find out.
+the stop on `block` deterministic, the recorded call didn't test.
 
 ## What this can't do
 
@@ -144,4 +169,6 @@ one action on a non-reasoning model is 7 credits, 7 cents, and a reasoning model
 dollar for every 10,000 tokens it's billed for. Test-chat turns aren't billed
 on the standard harness, and a user with a Microsoft 365 Copilot seat pays nothing in
 Microsoft's channels, within fair use. The House's meter is Patricia's ledger, about a
-cent a review, kept apart from the platform's cost.
+cent a review, kept apart from the platform's cost; the recorded call's entry was 4,726
+tokens and $0.0124, under the client app's ID, and over MCP it has no task, so it is found
+by time.
