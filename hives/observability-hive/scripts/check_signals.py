@@ -13,9 +13,11 @@ Standard library only, so it runs anywhere the hives do. A signal is one JSON ob
     labels, never IDs or measures; a content attribute needs a capture exception naming
     it; and no string value reads as a secret, an address, a home path or a URL with a
     query or credentials
+  - only a span carries sampling, and no number is NaN or infinite
   - a span ends no earlier than it starts and isn't its own parent, a window ends no
     earlier than it starts, and a metric's value is null exactly when its basis is unknown
-  - it was written under the pinned conventions, or under ones a migration reads
+  - it was written under the pinned conventions, or under ones a migration reads; a
+    name an older release used that the pins gave another meaning is refused
   - a later minor of the contract may add fields, which are warnings, not errors; and a
     signal observed after it was ingested, past the skew tolerance, is a warning
 
@@ -30,10 +32,12 @@ Usage:
 import argparse
 import copy
 import json
+import math
 import re
 import sys
 from datetime import datetime
 from pathlib import Path
+from urllib.parse import unquote
 
 HIVE = Path(__file__).resolve().parent.parent
 SCHEMA = json.loads((HIVE / "schema" / "signal.schema.json").read_text())
@@ -96,6 +100,9 @@ def shape(value, node, where, errors):
             errors.append(f"{where}: {value!r} doesn't match {node['pattern']}")
         if len(value) > node.get("maxLength", len(value)) or len(value) < node.get("minLength", 0):
             errors.append(f"{where}: length out of range")
+    if isinstance(value, float) and not math.isfinite(value):
+        errors.append(f"{where}: must be a finite number")
+        return
     if isinstance(value, (int, float)) and not isinstance(value, bool):
         if "minimum" in node and value < node["minimum"]:
             errors.append(f"{where}: below {node['minimum']}")
@@ -146,6 +153,16 @@ def sensitive(value):
     return None
 
 
+def typed(value, spec):
+    """Whether a value has its attribute's type. Only content, typed any, may be structured,
+    as the pinned GenAI conventions require of message attributes."""
+    if spec["type"] == "any":
+        return value is not None
+    if isinstance(value, bool):
+        return spec["type"] == "boolean"
+    return isinstance(value, TYPES[spec["type"]]) and not (isinstance(value, float) and not math.isfinite(value))
+
+
 def check(signal):
     """A signal's errors and warnings, as two lists of strings."""
     errors, warnings = [], []
@@ -170,8 +187,11 @@ def check(signal):
         if migration(conv) is None:
             return errors + [f"conventions: {json.dumps(conv, sort_keys=True)} isn't pinned and no migration "
                              f"reads it"], warnings
+        try:
+            signal = migrate(signal)
+        except Unreadable as e:
+            return errors + [f"conventions: {e}"], warnings
         warnings.append(f"conventions: written under core {conv['core']}; read through its migration")
-        signal = migrate(signal)
 
     kind, name = signal["kind"], signal["name"]
     operation = name.split(" ", 1)[0]
@@ -186,6 +206,8 @@ def check(signal):
     elif operation not in NAMES[kind] or (" " in name and kind != "span"):
         errors.append(f"name: {name} isn't a {kind} name in conventions.json")
 
+    if "sampling" in signal and kind != "span":
+        errors.append(f"sampling: only spans are sampled; a {kind} is kept whole")
     if kind == "span":
         if parse_time(signal["endAt"]) < parse_time(signal["startAt"]):
             errors.append("endAt: before startAt")
@@ -209,8 +231,7 @@ def check(signal):
         if spec is None:
             errors.append(f"attributes: {key} isn't in conventions.json")
             continue
-        if spec["type"] != "any" and (not isinstance(value, TYPES[spec["type"]])
-                                      or (spec["type"] != "boolean" and isinstance(value, bool))):
+        if not typed(value, spec):
             errors.append(f"attributes: {key} must be {spec['type']}")
         if kind == "metric" and spec["class"] != "label":
             errors.append(f"attributes: {key} is {spec['class']}, and a metric takes labels only")
@@ -239,8 +260,14 @@ def migration(conv):
     return None
 
 
+class Unreadable(Exception):
+    """An older record used a name the pinned conventions gave another meaning, with no
+    faithful replacement."""
+
+
 def migrate(signal):
-    """A copy of an older signal, read under the pinned conventions. Unchanged if current."""
+    """A copy of an older signal, read under the pinned conventions. Unchanged if current;
+    Unreadable if a name it used now means something else and nothing replaces it."""
     m = migration(signal.get("conventions", {}))
     if m is None:
         return signal
@@ -249,9 +276,16 @@ def migrate(signal):
     for old, new in m["attributes"].items():
         if old in attrs:
             attrs[new] = attrs.pop(old)
+    for key, renames in m.get("values", {}).items():
+        if attrs.get(key) in renames:
+            attrs[key] = renames[attrs[key]]
     rule = m["metrics"].get(out.get("name"))
     if out.get("kind") == "metric" and rule:
-        out["name"] = rule["values"].get(attrs.pop(rule["by"], None), out["name"])
+        by = attrs.pop(rule["by"], None) if rule["drop"] else attrs.get(rule["by"])
+        if by not in rule["values"]:
+            raise Unreadable(f"{out['name']} with {rule['by']} {by!r}, written under core "
+                             f"{out['conventions']['core']}, has no faithful name under the pins")
+        out["name"] = rule["values"][by]
     out["migratedFrom"] = out["conventions"]
     out["conventions"] = dict(m["to"])
     return out
@@ -285,21 +319,23 @@ def baggage(header, allow=()):
         return kept
     for member in header.split(","):
         key, sep, value = member.split(";", 1)[0].partition("=")
-        key, value = key.strip(), value.strip()
+        key, value = key.strip(), unquote(value.strip())
         if sep and key in allow and len(value) <= MAX_STRING and not sensitive(value):
             kept[key] = value
     return kept
 
 
 def sanitize(attributes, kind="span", capture=None):
-    """The attributes a signal may carry, and the names of those dropped (never values)."""
+    """The attributes a signal may carry, and the names of those dropped (never values).
+    What it keeps always passes check: a known name, its type, no content on a metric and
+    none elsewhere without its capture exception, and no string that reads as sensitive."""
     fields = set((capture or {}).get("fields", []))
     kept, dropped = {}, []
     for key, value in (attributes or {}).items():
         spec = ATTRIBUTES.get(key)
-        ok = spec is not None and isinstance(value, (str, int, float, bool))
+        ok = spec is not None and typed(value, spec)
         if ok and spec["class"] == "content":
-            ok = key in fields
+            ok = kind != "metric" and key in fields
         elif ok and kind == "metric":
             ok = spec["class"] == "label"
         if ok and isinstance(value, str) and spec["class"] != "content":
@@ -323,6 +359,7 @@ class CrossTenant(Exception):
 
 
 def scoped(signals, tenant):
+    signals = list(signals)  # read twice; an iterator would come back empty
     others = sorted({s.get("tenant") for s in signals} - {tenant})
     if others:
         raise CrossTenant(f"signals of {len(others)} other tenant(s) given to a read for {tenant}")

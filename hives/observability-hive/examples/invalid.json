@@ -765,6 +765,147 @@
         "status": "ok"
       },
       "error": "signal.observedAt"
+    },
+    {
+      "name": "an older retrieval duration, which v0.1.0 no longer reports there",
+      "signal": {
+        "contract": "1.0",
+        "kind": "metric",
+        "name": "gen_ai.client.operation.duration",
+        "tenant": "tenant-a",
+        "source": {
+          "producer": "agents-hive/a2a",
+          "version": "7c8e2cf"
+        },
+        "conventions": {
+          "core": "v1.41.0"
+        },
+        "observedAt": "2026-06-01T10:00:00Z",
+        "basis": "measured",
+        "value": 3.2,
+        "unit": "s",
+        "window": {
+          "start": "2026-06-01T09:00:00Z",
+          "end": "2026-06-01T10:00:00Z"
+        },
+        "attributes": {
+          "gen_ai.operation.name": "retrieval"
+        }
+      },
+      "error": "has no faithful name under the pins"
+    },
+    {
+      "name": "an older duration with no operation name",
+      "signal": {
+        "contract": "1.0",
+        "kind": "metric",
+        "name": "gen_ai.client.operation.duration",
+        "tenant": "tenant-a",
+        "source": {
+          "producer": "agents-hive/a2a",
+          "version": "7c8e2cf"
+        },
+        "conventions": {
+          "core": "v1.41.0"
+        },
+        "observedAt": "2026-06-01T10:00:00Z",
+        "basis": "measured",
+        "value": 3.2,
+        "unit": "s",
+        "window": {
+          "start": "2026-06-01T09:00:00Z",
+          "end": "2026-06-01T10:00:00Z"
+        },
+        "attributes": {}
+      },
+      "error": "has no faithful name under the pins"
+    },
+    {
+      "name": "sampling on a metric",
+      "signal": {
+        "contract": "1.0",
+        "kind": "metric",
+        "name": "io.werkrbee.cost",
+        "tenant": "tenant-a",
+        "source": {
+          "producer": "agents-hive/a2a",
+          "version": "7c8e2cf"
+        },
+        "conventions": {
+          "genai": "v0.1.0",
+          "core": "v1.45.0"
+        },
+        "observedAt": "2026-11-27T15:00:00Z",
+        "basis": "measured",
+        "value": 0.0124,
+        "unit": "USD",
+        "window": {
+          "start": "2026-11-27T14:00:00Z",
+          "end": "2026-11-27T15:00:00Z"
+        },
+        "sampling": {
+          "rate": 0.5
+        }
+      },
+      "error": "only spans are sampled"
+    },
+    {
+      "name": "a structured value on a non-content attribute",
+      "signal": {
+        "contract": "1.0",
+        "kind": "span",
+        "name": "io.werkrbee.step",
+        "tenant": "tenant-a",
+        "source": {
+          "producer": "workflows-hive/engine",
+          "version": "7c8e2cf"
+        },
+        "conventions": {
+          "genai": "v0.1.0",
+          "core": "v1.45.0"
+        },
+        "observedAt": "2026-11-27T14:00:10Z",
+        "basis": "measured",
+        "startAt": "2026-11-27T14:00:10Z",
+        "endAt": "2026-11-27T14:00:38Z",
+        "status": "ok",
+        "trace": {
+          "traceId": "4bf92f3577b34da6a3ce929d0e0e4736",
+          "spanId": "b7ad6b7169203331"
+        },
+        "attributes": {
+          "gen_ai.request.model": {
+            "name": "model-b"
+          }
+        }
+      },
+      "error": "must be string"
+    },
+    {
+      "name": "a metric value that isn't a finite number",
+      "signal": {
+        "contract": "1.0",
+        "kind": "metric",
+        "name": "io.werkrbee.cost",
+        "tenant": "tenant-a",
+        "source": {
+          "producer": "agents-hive/a2a",
+          "version": "7c8e2cf"
+        },
+        "conventions": {
+          "genai": "v0.1.0",
+          "core": "v1.45.0"
+        },
+        "observedAt": "2026-11-27T15:00:00Z",
+        "basis": "measured",
+        "value": NaN,
+        "unit": "USD",
+        "window": {
+          "start": "2026-11-27T14:00:00Z",
+          "end": "2026-11-27T15:00:00Z"
+        }
+      },
+      "error": "must be a finite number"
     }
   ]
 }

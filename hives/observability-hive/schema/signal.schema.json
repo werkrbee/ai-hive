@@ -16,9 +16,9 @@
       "additionalProperties": false,
       "required": ["producer", "version"],
       "properties": {
-        "producer": { "description": "What emitted it, as <hive>/<component>, or a backend adapter's name.", "type": "string", "pattern": "^[a-z0-9]+(-[a-z0-9]+)*/[a-z0-9]+(-[a-z0-9]+)*$" },
+        "producer": { "description": "What emitted it, as <hive>/<component>.", "type": "string", "pattern": "^[a-z0-9]+(-[a-z0-9]+)*/[a-z0-9]+(-[a-z0-9]+)*$" },
         "version": { "description": "The producer's version or commit.", "type": "string", "pattern": "^[A-Za-z0-9._+-]{1,64}$" },
-        "adapter": { "description": "The adapter that translated it, when it didn't come from the producer directly.", "type": "string", "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$" }
+        "adapter": { "description": "The importer that translated it from another format, such as a backend's, when it didn't come from the producer directly. Not a harness adapter.", "type": "string", "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$" }
       }
     },
     "conventions": {
@@ -68,17 +68,17 @@
       }
     },
     "sampling": {
-      "description": "The share of such signals kept. null when unknown; absent when nothing was sampled out.",
+      "description": "A span's: the share of such spans kept. null when unknown; absent when nothing was sampled out. Only spans are sampled.",
       "type": "object",
       "additionalProperties": false,
       "required": ["rate"],
       "properties": { "rate": { "type": ["number", "null"], "exclusiveMinimum": 0, "maximum": 1 } }
     },
     "attributes": {
-      "description": "Only names in conventions.json; a metric's only of class label. Scalars only.",
+      "description": "Only names in conventions.json, each with its type; a metric's only of class label. Scalars, except captured content, which the pinned conventions require to be structured.",
       "type": "object",
       "propertyNames": { "pattern": "^[a-z0-9_]+(\\.[a-z0-9_-]+)+$" },
-      "additionalProperties": { "type": ["string", "integer", "number", "boolean"] }
+      "additionalProperties": { "type": ["string", "integer", "number", "boolean", "object", "array"] }
     },
     "capture": {
       "description": "A policy-controlled exception that lets named content attributes through. Absent by default.",

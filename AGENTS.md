@@ -26,20 +26,20 @@ span hives atomically.
 
 ```
 hives/
-  skills-hive/     capabilities — portable SKILL.md (Barry, Patricia live here)
-  rules-hive/      instructions — AGENTS.md guardrails (the Queen Bee's Charter)
-  mcp-hive/        tools — MCP server configs / registry
-  agents-hive/     actors — subagent & persona definitions
-  plugins-hive/    composition — installable packs
-  projects-hive/   containers — scaffolds that assemble the House per initiative
-  workflows-hive/  orchestration — durable, resumable workflows and a reference engine
-  knowledge-hive/  state — STATE.md, memory, results and usage ledgers
+  skills-hive/         capabilities — portable SKILL.md (Barry, Patricia live here)
+  rules-hive/          instructions — AGENTS.md guardrails (the Queen Bee's Charter)
+  mcp-hive/            tools — MCP server configs / registry
+  agents-hive/         actors — subagent & persona definitions
+  plugins-hive/        composition — installable packs
+  projects-hive/       containers — scaffolds that assemble the House per initiative
+  workflows-hive/      orchestration — durable, resumable workflows and a reference engine
+  knowledge-hive/      state — STATE.md, memory, results and usage ledgers
   observability-hive/  observability — opt-in signal and privacy contract; owns no record
-docs/              factory-thesis, interface-independence, product-adoption, prompts, sprints
-.claude/           Claude Code adapter: commands, subagents, settings (see CLAUDE.md)
-.github/           OSS health, issue/PR templates, CI
-ROADMAP.md         P0–P2 refactor plan; sprints draw from here
-harnesses.json     the harness registry: every harness, its category, tier and install paths
+docs/                  factory-thesis, interface-independence, product-adoption, prompts, sprints
+.claude/               Claude Code adapter: commands, subagents, settings (see CLAUDE.md)
+.github/               OSS health, issue/PR templates, CI
+ROADMAP.md             P0–P2 refactor plan; sprints draw from here
+harnesses.json         the harness registry: every harness, its category, tier and install paths
 ```
 
 ## Conventions (do not break)

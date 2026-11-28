@@ -50,7 +50,8 @@
   "names": {
     "span": ["invoke_agent", "chat", "execute_tool", "io.werkrbee.run", "io.werkrbee.step", "io.werkrbee.turn", "io.werkrbee.task"],
     "metric": {
-      "gen_ai.client.operation.duration":                 { "source": "genai", "unit": "s" },
+      "gen_ai.client.inference.duration":                 { "source": "genai", "unit": "s" },
+      "gen_ai.client.invoke_agent.duration":              { "source": "genai", "unit": "s" },
       "gen_ai.invoke_agent.duration":                     { "source": "genai", "unit": "s" },
       "gen_ai.execute_tool.duration":                     { "source": "genai", "unit": "s" },
       "gen_ai.client.inference.operation.input_tokens":   { "source": "genai", "unit": "{token}" },
@@ -65,14 +66,42 @@
   },
   "migrations": [
     {
-      "from": { "core": "v1.41.0" },
-      "to": { "genai": "v0.1.0", "core": "v1.45.0" },
-      "$comment": "GenAI left the core conventions after v1.41.0; v0.1.0's release notes list these breaking changes.",
-      "attributes": { "gen_ai.workflow.name": "gen_ai.agent.name" },
+      "from": {
+        "core": "v1.41.0"
+      },
+      "to": {
+        "genai": "v0.1.0",
+        "core": "v1.45.0"
+      },
+      "$comment": "GenAI left the core conventions after v1.41.0. This covers v0.1.0's breaking changes to names the House uses; a record that used a name v0.1.0 gave a different meaning, with no faithful replacement, is refused.",
+      "attributes": {
+        "gen_ai.workflow.name": "gen_ai.agent.name",
+        "gen_ai.usage.cache_creation.input_tokens": "gen_ai.usage.cache_write.input_tokens"
+      },
+      "values": {
+        "gen_ai.provider.name": {
+          "mistral_ai": "mistral"
+        }
+      },
       "metrics": {
         "gen_ai.client.token.usage": {
           "by": "gen_ai.token.type",
-          "values": { "input": "gen_ai.client.inference.operation.input_tokens", "output": "gen_ai.client.inference.operation.output_tokens" }
+          "drop": true,
+          "values": {
+            "input": "gen_ai.client.inference.operation.input_tokens",
+            "output": "gen_ai.client.inference.operation.output_tokens"
+          }
+        },
+        "gen_ai.client.operation.duration": {
+          "by": "gen_ai.operation.name",
+          "drop": false,
+          "values": {
+            "chat": "gen_ai.client.inference.duration",
+            "generate_content": "gen_ai.client.inference.duration",
+            "text_completion": "gen_ai.client.inference.duration",
+            "invoke_agent": "gen_ai.client.invoke_agent.duration",
+            "execute_tool": "gen_ai.execute_tool.duration"
+          }
         }
       }
     }

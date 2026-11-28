@@ -73,17 +73,37 @@ class Rules(unittest.TestCase):
         self.assertEqual(len(sum(groups.values(), [])), len(SLICE) + 1)
 
     def test_old_records_read_through_their_migration(self):
-        span, metric = (cs.migrate(s) for s in OLD)
-        self.assertEqual(span["attributes"], {"gen_ai.agent.name": "word-count"})
+        span, metric, duration = (cs.migrate(s) for s in OLD)
+        self.assertEqual(span["attributes"], {"gen_ai.agent.name": "word-count", "gen_ai.provider.name": "mistral",
+                                              "gen_ai.usage.cache_write.input_tokens": 120})
+        self.assertEqual(duration["name"], "gen_ai.client.inference.duration")
+        self.assertEqual(duration["attributes"], {"gen_ai.operation.name": "chat"})
         self.assertEqual(metric["name"], "gen_ai.client.inference.operation.input_tokens")
         self.assertNotIn("gen_ai.token.type", metric["attributes"])
         self.assertEqual(span["migratedFrom"], {"core": "v1.41.0"})
         self.assertEqual(span["conventions"], cs.PINS)
-        self.assertEqual(OLD[0]["attributes"], {"gen_ai.workflow.name": "word-count"}, "migrate copies")
+        self.assertIn("gen_ai.workflow.name", OLD[0]["attributes"], "migrate copies")
         for s in OLD:
             errors, warnings = cs.check(s)
             self.assertEqual(errors, [])
             self.assertTrue(any("migration" in w for w in warnings))
+
+    def test_a_name_that_changed_meaning_is_refused_not_read(self):
+        for op in ("retrieval", "embeddings", None):
+            old = copy.deepcopy(OLD[2])
+            old["attributes"] = {"gen_ai.operation.name": op} if op else {}
+            with self.assertRaises(cs.Unreadable):
+                cs.migrate(old)
+            errors, _ = cs.check(old)
+            self.assertTrue(any("no faithful name" in e for e in errors), op)
+
+    def test_only_spans_are_sampled_and_numbers_are_finite(self):
+        metric = copy.deepcopy(next(s for s in SLICE if s["name"] == "io.werkrbee.cost"))
+        self.assertEqual(cs.check(metric), ([], []))
+        self.assertTrue(cs.check({**metric, "sampling": {"rate": 0.5}})[0])
+        for bad in (float("nan"), float("inf")):
+            self.assertTrue(any("finite" in e for e in cs.check({**metric, "value": bad})[0]))
+        self.assertEqual(cs.check(signal(sampling={"rate": 0.25})), ([], []))
 
     def test_a_newer_minor_adds_fields_as_warnings(self):
         errors, warnings = cs.check(signal(contract="1.1", priority="low"))
@@ -120,6 +140,8 @@ class TrustBoundary(unittest.TestCase):
         self.assertEqual(cs.baggage(header), {})
         self.assertEqual(cs.baggage(header, allow={"region", "userId"}), {"region": "eu"}, "a kept value is still checked")
         self.assertEqual(cs.baggage("region=eu," * 2000, allow={"region"}), {}, "an oversized header is dropped")
+        self.assertEqual(cs.baggage("u=a%40b.example.com,region=e%75", allow={"u", "region"}), {"region": "eu"},
+                         "values are decoded before they're checked")
 
     def test_sanitize_drops_by_name_and_reports_names_only(self):
         kept, dropped = cs.sanitize({
@@ -133,9 +155,20 @@ class TrustBoundary(unittest.TestCase):
         self.assertEqual(dropped, ["a2a.task.id", "gen_ai.input.messages", "gen_ai.tool.name",
                                    "http.request.header.authorization"])
         self.assertNotIn("hunter2", json.dumps([kept, dropped]))
-        kept, _ = cs.sanitize({"a2a.task.id": "task-1", "gen_ai.input.messages": "x"}, "span",
-                              {"fields": ["gen_ai.input.messages"]})
+        messages = [{"role": "user", "parts": [{"type": "text", "content": "x"}]}]
+        capture = {"fields": ["gen_ai.input.messages"]}
+        kept, _ = cs.sanitize({"a2a.task.id": "task-1", "gen_ai.input.messages": messages}, "span", capture)
         self.assertEqual(set(kept), {"a2a.task.id", "gen_ai.input.messages"})
+        kept, dropped = cs.sanitize({"gen_ai.input.messages": messages}, "metric", capture)
+        self.assertEqual((kept, dropped), ({}, ["gen_ai.input.messages"]), "never content on a metric")
+
+    def test_what_sanitize_keeps_always_passes_check(self):
+        kept, dropped = cs.sanitize({"gen_ai.usage.input_tokens": "12", "gen_ai.request.model": True,
+                                     "io.werkrbee.cost.usd": float("nan"), "gen_ai.tool.name": {"x": 1},
+                                     "gen_ai.usage.output_tokens": 312})
+        self.assertEqual(kept, {"gen_ai.usage.output_tokens": 312})
+        self.assertEqual(len(dropped), 4)
+        self.assertEqual(cs.check(signal(attributes=kept)), ([], []))
 
     def test_an_exception_keeps_its_class_never_its_message(self):
         exc = PermissionError("/Users/someone/.ssh/id_ed25519: token sk-live-0123456789abcdef")
@@ -152,6 +185,7 @@ class TrustBoundary(unittest.TestCase):
         with self.assertRaises(cs.CrossTenant):
             cs.freshness([STEP, theirs], "tenant-a", ["barry"], datetime.now(timezone.utc), 3600)
         self.assertEqual(cs.join([theirs], "tenant-b"), {("run", STEP["correlation"]["runId"]): [theirs]})
+        self.assertEqual(cs.join(iter(SLICE), "tenant-a"), cs.join(SLICE, "tenant-a"), "an iterator reads whole")
 
     def test_no_evidence_is_unknown_not_healthy(self):
         now = datetime(2026, 11, 27, 15, 0, tzinfo=timezone.utc)

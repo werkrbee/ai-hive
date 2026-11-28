@@ -92,7 +92,10 @@ covers.
 counted it (the ledger's `metered`), `estimated` when it was computed (the ledger's
 `estimated`), and `unknown` when nobody knows. An unknown metric has a `value` of `null`,
 never `0`, and a `null` value is always unknown. No evidence about an agent is unknown,
-never healthy.
+never healthy. The pinned GenAI token metrics differ: they record `0` when a response has
+no usage. A House signal keeps `null`, and an exporter (#376, #382) that writes those
+metrics must carry the unknown alongside, such as with `error.type`, rather than let it
+read as zero tokens.
 
 Three house metrics say how good the evidence is:
 
@@ -128,9 +131,13 @@ The pins are in `conventions.json`:
 Each attribute in `conventions.json` records where it comes from and how stable it is. On
 these pins every GenAI, MCP and A2A attribute the House uses is `development`, and only
 `error.type`, from the core conventions, is `stable`. Development means a release can
-rename or remove an attribute, and v0.1.0 did: it replaced `gen_ai.workflow.name` with
-`gen_ai.agent.name`, and the `gen_ai.client.token.usage` metric with separate input and
-output token metrics.
+rename or remove an attribute, or change what a name counts, and v0.1.0 did all three. It
+replaced `gen_ai.workflow.name` with `gen_ai.agent.name` and
+`gen_ai.usage.cache_creation.input_tokens` with `gen_ai.usage.cache_write.input_tokens`,
+renamed the provider `mistral_ai` to `mistral`, split `gen_ai.client.token.usage` into
+input and output token metrics, and stopped reporting inference, agent, tool, embeddings
+and retrieval operations on `gen_ai.client.operation.duration`, giving most of them a
+metric of their own.
 
 What the conventions don't name goes under the House's namespace, `io.werkrbee.`: the
 run, step, turn and task spans, the house events, the cost, coverage and freshness
@@ -139,12 +146,20 @@ the A2A server already uses in MCP `_meta`, as `io.werkrbee/idempotency-key`. A 
 is replaced by a convention's when a pinned release defines one, through a migration.
 
 **Moving the pins** is a reviewed change to `conventions.json`. It moves the pins, adds a
-migration with each rename the new release makes, and adds the older record to
-`examples/`. A record names the conventions it was written under, and a reader reads an
-older record through its migration (`migrate` in the checker), which renames attributes
-and metrics, keeps what it was written under in `migratedFrom`, and never edits the
-record it read. A record whose conventions nothing pins or migrates is refused, not read
-by guesswork.
+migration covering every breaking change the new release makes to a name the House uses,
+and adds an older record to `examples/`. A record names the conventions it was written
+under, and a reader reads an older record through its migration (`migrate` in the
+checker). The migration renames attributes, attribute values and metrics, keeps what the
+record was written under in `migratedFrom`, and never edits the record it read.
+
+The migration from core v1.41.0 covers exactly the changes listed above. An old duration
+on `gen_ai.client.operation.duration` moves to the metric v0.1.0 gives its operation:
+inference to `gen_ai.client.inference.duration`, agent calls to
+`gen_ai.client.invoke_agent.duration`, tool calls to `gen_ai.execute_tool.duration`. One
+whose operation has no replacement the House uses (embeddings, retrieval), or that names
+no operation, can't be read under the pins and is refused. So is a record whose
+conventions nothing pins or migrates. Neither is read by guesswork. Any other name a
+v1.41.0 record used that the House doesn't list is refused like any unknown name.
 
 **The contract's own version** is `MAJOR.MINOR`. A minor release only adds optional
 fields; a reader reads any minor of its major, and keeps a field from a newer minor with
@@ -192,7 +207,10 @@ No quality or security signal in this hive needs any of them.
   by name. A signal carries one only under a **capture exception**: a `capture` object
   naming the product policy that allows it, the exact fields, and a retention of 1 to 400
   days. The exception belongs to a product's own policy and its storage's access rules;
-  this hive ships none and turns none on.
+  this hive ships none and turns none on. A captured value is structured, as the pinned
+  conventions require of message attributes on spans and events, so it can't be checked
+  as a string; that is why capturing is a policy decision, not a default. Every other
+  attribute is a scalar. Content never goes on a metric.
 - **Sanitizing happens first** (`sanitize`), before a signal is queued, written or
   exported. It drops by name and returns the dropped names, never their values. Any
   string value that reads as one of these is dropped, and is refused by the checker:
@@ -223,7 +241,7 @@ No quality or security signal in this hive needs any of them.
 | A skewed clock reorders events | Warned; ordering is within one producer |
 | A telemetry outage hides a failing agent | No evidence reads unknown, never healthy |
 | A dashboard is mistaken for proof | Signals are derived; gates read their owners' records, never signals |
-| A convention rename silently breaks a view | Pinned versions; a migration per rename; unpinned records refused |
+| A convention rename or change of meaning silently breaks a view | Pinned versions; a migration for every breaking change to a name the House uses; a changed meaning with no replacement, and unpinned records, refused |
 
 ## What the checker holds you to
 
@@ -232,12 +250,15 @@ No quality or security signal in this hive needs any of them.
 - its name is one `conventions.json` gives for its kind, and a metric's unit is the one
   given for it;
 - every attribute is in `conventions.json`, with its type;
-- a metric's attributes are labels, and its correlation names only its agent;
+- a metric's attributes are labels, and its correlation names only its agent and its
+  version;
+- only a span carries sampling, and no number is NaN or infinite;
 - content needs a capture exception that names it;
 - no string reads as sensitive;
 - a span ends no earlier than it starts and isn't its own parent;
 - a metric's value is `null` exactly when its basis is `unknown`;
-- the conventions are pinned or migrate.
+- the conventions are pinned or migrate, and a name that changed meaning with no
+  replacement is refused.
 
 A newer minor's fields and a skewed clock are warnings. With no arguments it checks
 `examples/`: every signal in a `.jsonl` file must pass, and every case in
