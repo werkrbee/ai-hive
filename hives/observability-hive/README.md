@@ -90,7 +90,8 @@ the examples, and runs the tests in [`tests/`](tests).
 [`scripts/signals.py`](scripts/signals.py) is the seam producers call. The workflows-hive
 engine sends a span per run, step and turn through it, and the A2A server one per task, MCP
 call and model call (#144). `from_env()` returns no tracer unless an OTLP endpoint is
-configured, so with observability off nothing is sent and nothing more is loaded. Turned
+configured, so with observability off nothing is sent and no package is needed; the seam's
+two standard-library scripts are still loaded with the engine and the server. Turned
 on, a `Tracer` sanitizes each span's attributes before anything is queued, checks the span
 against the contract, and hands it to a sink:
 

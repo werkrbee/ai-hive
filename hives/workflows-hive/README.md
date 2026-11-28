@@ -275,8 +275,9 @@ The IDs are derived from the run's own, so a run resumed in another process cont
 same trace, and a step that calls another agent names its span as the parent in
 `traceparent`.
 
-It is off by default. With no OTLP endpoint configured, nothing is sent and nothing more
-is loaded. Set `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT` (or `OTEL_EXPORTER_OTLP_ENDPOINT`) to an
+It is off by default. With no OTLP endpoint configured, nothing is sent and no package is
+needed. The engine loads observability-hive's two standard-library scripts either way, as
+it loads rules-hive's, knowledge-hive's and agents-hive's. Set `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT` (or `OTEL_EXPORTER_OTLP_ENDPOINT`) to an
 https collector, or one on localhost, to turn it on, and `OBSERVABILITY_TENANT` to the
 opaque tenant the spans belong to. A library caller can pass `tracer=` to `Engine`
 instead. Sending is best effort and never changes what a run does

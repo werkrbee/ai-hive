@@ -401,7 +401,9 @@ contract](../../../observability-hive/DESIGN.md) over OTLP:
 
 A caller's valid `traceparent` is continued, and a missing or malformed one starts a new
 trace. No span holds the proposal, the context, the prompt or the verdict, and an error
-keeps its class, never its message.
+keeps its class, never its message. Patricia's spans name her by persona, and a task's
+by its task and client, the keys her ledger entry has; her server isn't configured with
+her passport, so they don't yet carry its version or digest as the engine's spans do.
 
 It is off by default: with no OTLP endpoint set, nothing is sent and no request carries
 `traceparent`. Set `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT` (or `OTEL_EXPORTER_OTLP_ENDPOINT`)

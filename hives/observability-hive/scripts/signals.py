@@ -2,8 +2,8 @@
 """Emit signals: the seam a producer calls, off unless configured.
 
 Standard library only. A producer asks for a Tracer once, with from_env(), and gets None
-when nothing is configured, so with observability off it does nothing and imports nothing
-more. Configured, a Tracer builds spans of the signal contract (DESIGN.md), sanitizes their
+when nothing is configured, so with observability off it sends nothing and needs no
+package; only this module and check_signals.py, both standard library, are loaded. Configured, a Tracer builds spans of the signal contract (DESIGN.md), sanitizes their
 attributes before anything is queued, and hands them to a sink:
 
   - MemorySink keeps them in a list, for tests and for a reader in the same process.
@@ -40,7 +40,6 @@ import os
 import queue
 import re
 import threading
-import urllib.error
 import urllib.request
 from datetime import datetime, timezone
 from pathlib import Path
@@ -152,6 +151,17 @@ def to_otlp(signals):
     return {"resourceSpans": out}
 
 
+class _NoRedirect(urllib.request.HTTPRedirectHandler):
+    """Refuse every redirect: urllib would follow one with the credential headers attached,
+    to wherever it points, so a 3xx is a failed send instead."""
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        return None
+
+
+_OPENER = urllib.request.build_opener(_NoRedirect)
+
+
 class OtlpSink:
     """Spans to an OTLP/HTTP endpoint, best effort. put() never blocks and never raises: a
     full queue drops the span, a failed send drops its batch, and both are counted."""
@@ -183,18 +193,23 @@ class OtlpSink:
                     batch.append(self.queue.get(timeout=0.05))
                 except queue.Empty:
                     break
-            self._send(batch)
-            for _ in batch:
-                self.queue.task_done()
+            try:
+                self._send(batch)
+            finally:
+                for _ in batch:
+                    self.queue.task_done()
 
     def _send(self, batch):
-        body = json.dumps(to_otlp(batch)).encode("utf-8")
-        request = urllib.request.Request(self.endpoint, data=body, method="POST",
-                                         headers={"content-type": "application/json", **self.headers})
+        """Send one batch; anything that goes wrong counts the batch as failed, so the
+        sender thread never dies and tracing never stops for good."""
+        ok = False
         try:
-            with urllib.request.urlopen(request, timeout=SEND_TIMEOUT) as r:
+            body = json.dumps(to_otlp(batch)).encode("utf-8")
+            request = urllib.request.Request(self.endpoint, data=body, method="POST",
+                                             headers={"content-type": "application/json", **self.headers})
+            with _OPENER.open(request, timeout=SEND_TIMEOUT) as r:
                 ok = 200 <= r.status < 300
-        except (urllib.error.URLError, OSError, ValueError):
+        except Exception:  # a refused redirect is an HTTPError, like any other non-2xx reply
             ok = False
         self._count("sent" if ok else "failed", len(batch))
 

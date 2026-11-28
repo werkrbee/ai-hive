@@ -177,8 +177,9 @@ server's tokens and the approval policy.
   first four fields, as the spec says. A receiver may also start a new trace on any call
   from outside its trust boundary and link the incoming one, so a caller can't attach its
   work to another tenant's trace.
-- **`tracestate`** is passed on unread, and the House writes nothing personal into it, as
-  the spec requires.
+- **`tracestate`** is neither read nor forwarded: a receiver continues only the IDs in
+  `traceparent`, and the House writes nothing into `tracestate`, so nothing personal can
+  travel in it, as the spec requires.
 - **Baggage** is dropped by default (`baggage`). A product can allow keys by name, and a
   kept value is checked like an attribute.
 - **Tenants.** Every signal has an opaque `tenant`, and every read takes one. A read

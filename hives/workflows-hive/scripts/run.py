@@ -100,6 +100,8 @@ check_audit = load_script("knowledge-hive", "check_audit")            # the audi
 validate_passports = load_script("agents-hive", "validate_passports")  # check, digest
 signals = load_script("observability-hive", "signals")                # spans, off unless configured
 SOURCE_VERSION = os.environ.get("HIVE_SOURCE_VERSION", "local")       # the commit a deployment runs
+SPAN_KINDS = {"run.completed", "run.failed", "run.cancelled", "run.expired", "step.ran", "step.failed",
+              "budget.refused", "turn.completed", "turn.failed"}            # the audit entries that end a span
 CRASH_EXIT = 75
 WAITING_EXIT = 2
 
@@ -579,13 +581,18 @@ class Engine:
         written = self.append_audit(entry)
         run["audit"] = {"seq": written["seq"], "hash": written["hash"]}
         if self.tracer:
-            self.trace(run, kind, fields)
+            try:
+                self.trace(run, kind, fields)
+            except Exception:  # best effort: a span never stops the run it describes
+                self.tracer.dropped += 1
 
     def trace(self, run, kind, fields):
         """A span for what an audit entry ends: a run, a step or a turn, from the times and
         cost in its record. IDs come from the run's own, so a resumed run continues its trace
         and a step's outgoing calls can name its span as their parent. Content-free: no
         input, output, message or reason goes in."""
+        if kind not in SPAN_KINDS:
+            return
         t, rid = self.tracer, run["runId"]
         agent = run.get("agent") or {}
         corr = {"runId": rid, "agent": agent.get("passport"), "agentVersion": agent.get("version"),
@@ -598,11 +605,10 @@ class Engine:
         def cost(c):
             return {"io.werkrbee.cost.usd": float(c.get("usd", 0.0)), "io.werkrbee.usage.tokens": int(c.get("tokens", 0))}
 
-        if kind in ("run.completed", "run.failed", "run.cancelled"):
-            status = kind.split(".")[1]
+        if kind in ("run.completed", "run.failed", "run.cancelled", "run.expired"):
             t.emit("io.werkrbee.run", trace=trace, span=root, start=run["createdAt"], end=now(), correlation=corr,
                    attributes={**base, "gen_ai.operation.name": "invoke_agent", **cost(run["cost"])},
-                   error=None if status == "completed" else f"run.{status}")
+                   error=None if kind == "run.completed" else kind)
         elif fields.get("step") and kind in ("step.ran", "step.failed", "budget.refused"):
             state = run["steps"].get(fields["step"]) or {}
             if kind == "budget.refused" and state.get("status") != "failed":

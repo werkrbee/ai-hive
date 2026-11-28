@@ -185,8 +185,11 @@ class Reviewer:
 
     def span(self, trace, key, began, completion=None, usd=None, error=None):
         if self.tracer and trace:
-            telemetry.model_span(self.tracer, self.config, self.provider, trace[0], trace[1], key, began,
-                                 telemetry.signals.now(), completion, usd, error)
+            try:
+                telemetry.model_span(self.tracer, self.config, self.provider, trace[0], trace[1], key, began,
+                                     telemetry.signals.now(), completion, usd, error)
+            except Exception:  # best effort: a span never changes the review it describes
+                self.tracer.dropped += 1
 
     def verdict(self, text):
         """(output, None), or (None, why the model's reply doesn't meet the contract)."""
@@ -265,9 +268,12 @@ class Executor(AgentExecutor):
         client = user.user_name if user and user.is_authenticated else None
         trace, began = None, telemetry.signals.now()
         if r.tracer:
-            headers = context.call_context.state.get("headers") if context.call_context else None
-            trace_id, parent = telemetry.incoming(r.tracer, headers, context.task_id)
-            trace = (trace_id, r.tracer.span_id("task", context.task_id))
+            try:
+                headers = context.call_context.state.get("headers") if context.call_context else None
+                trace_id, parent = telemetry.incoming(r.tracer, headers, context.task_id)
+                trace = (trace_id, r.tracer.span_id("task", context.task_id))
+            except Exception:  # best effort: no trace, and the review goes on
+                trace = None
         outcome = await r.review(plan, context.task_id, started=updater.start_work, client=client,
                                  task=context.task_id, trace=trace)
         if trace:

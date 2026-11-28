@@ -134,8 +134,11 @@ class Server(Protocol):
         log.info("review %s for %s over MCP", key, client)
         tracer, trace, began = self.reviewer.tracer, None, telemetry.signals.now()
         if tracer:
-            trace_id, parent = telemetry.incoming(tracer, request.headers, key)
-            trace = (trace_id, tracer.span_id("tool", key))
+            try:
+                trace_id, parent = telemetry.incoming(tracer, request.headers, key)
+                trace = (trace_id, tracer.span_id("tool", key))
+            except Exception:  # best effort: no trace, and the review goes on
+                trace = None
         outcome = await self.reviewer.review(plan, key, client=client, trace=trace)
         if trace:
             tracer.emit(f"execute_tool {TOOL}", trace=trace[0], span=trace[1], parent=parent, start=began,

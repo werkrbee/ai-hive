@@ -163,6 +163,45 @@ class Export(unittest.TestCase):
         self.assertTrue(refused.flush(10))
         self.assertEqual(refused.counts["failed"], 1)
 
+    def test_a_redirect_is_a_failed_send_and_never_carries_the_credential(self):
+        landed = Collector()
+        self.addCleanup(landed.close)
+
+        class Redirecting(http.server.BaseHTTPRequestHandler):
+            def do_POST(self):
+                self.rfile.read(int(self.headers["content-length"]))
+                self.send_response(302)
+                self.send_header("location", landed.url)
+                self.end_headers()
+
+            def do_GET(self):
+                self.send_response(500)
+                self.end_headers()
+
+            def log_message(self, *a):
+                pass
+        server = http.server.HTTPServer(("127.0.0.1", 0), Redirecting)
+        threading.Thread(target=server.serve_forever, daemon=True).start()
+        self.addCleanup(server.server_close)
+        self.addCleanup(server.shutdown)
+        sink = signals.OtlpSink(f"http://127.0.0.1:{server.server_port}/v1/traces", {"authorization": "Bearer secret"})
+        emit(signals.Tracer("p/q", "1", sink, "tenant-a"))
+        self.assertTrue(sink.flush(5))
+        self.assertEqual(sink.counts["failed"], 1)
+        self.assertEqual(landed.received, [], "the redirect wasn't followed")
+
+    def test_an_encoding_failure_counts_and_the_sender_lives_on(self):
+        c = Collector()
+        self.addCleanup(c.close)
+        sink = signals.OtlpSink(c.url)
+        sink.put({"kind": "span", "not": "a valid signal"})  # to_otlp raises on it
+        self.assertTrue(sink.flush(5))
+        tracer = signals.Tracer("p/q", "1", sink, "tenant-a")
+        emit(tracer)
+        self.assertTrue(sink.flush(5))
+        self.assertEqual((sink.counts["failed"], sink.counts["sent"]), (1, 1))
+        self.assertTrue(sink.thread.is_alive())
+
     def test_a_full_queue_drops_instead_of_blocking(self):
         sink = signals.OtlpSink.__new__(signals.OtlpSink)  # no sender thread: the queue only fills
         sink.queue = signals.queue.Queue(maxsize=2)

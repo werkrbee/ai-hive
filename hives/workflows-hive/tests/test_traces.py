@@ -105,6 +105,29 @@ class Traces(unittest.TestCase):
         self.assertEqual(root["correlation"]["passportSha256"], run["agent"]["sha256"])
         self.assertEqual(root["attributes"]["gen_ai.agent.version"], str(run["agent"]["version"]))
 
+    def test_an_expired_run_still_ends_its_trace(self):
+        e = self.make()
+        run = e.open("loop")
+        e.append(run, {"id": "push", "worker": "echo", "input": {}, "actions": [{"action": "vcs.push"}]})
+        run = e.execute(run)
+        self.assertEqual(run["status"], "input_required")
+        e.clock = lambda: engine.parse_time(run["pending"]["expiresAt"]) + engine.timedelta(seconds=1)
+        self.assertTrue(e.expire_if_due(e.load(run["runId"])))
+        root, = self.spans()
+        self.assertEqual((root["name"], root["attributes"]["error.type"]), ("io.werkrbee.run", "run.expired"))
+
+    def test_a_span_that_fails_to_build_never_stops_the_run(self):
+        e = self.make()
+
+        def broken(run_id):
+            raise KeyError("createdAt")  # what a span is built from, missing before emit is reached
+        e.tracer.trace_id = broken
+        run = e.open("loop")
+        e.append(run, {"id": "a", "worker": "echo", "input": {}})
+        run = e.execute(run)
+        self.assertEqual(e.finish(run, {})["status"], "completed")
+        self.assertEqual(e.tracer.dropped, 2)
+
     def test_untraced_by_default_and_unchanged(self):
         e = engine.Engine(self.tmp / "plain", workers=dict(engine.WORKERS, echo=echo), log=lambda *a: None)
         self.assertIsNone(e.tracer)
