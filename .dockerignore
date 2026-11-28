@@ -23,6 +23,9 @@
 !hives/agents-hive/deploy/azure/audit_blob.py
 !hives/workflows-hive/scripts/run.py
 !hives/knowledge-hive/scripts/check_audit.py
+!hives/observability-hive/scripts/signals.py
+!hives/observability-hive/scripts/check_signals.py
+!hives/observability-hive/schema
 !hives/rules-hive/scripts/check_policy.py
 !hives/rules-hive/schema
 !hives/rules-hive/rules/queen-charter/policy.json

@@ -264,6 +264,25 @@ python3 ../knowledge-hive/scripts/check_audit.py ~/.local/state/workflows-hive/a
   --runs ~/.local/state/workflows-hive/runs
 ```
 
+## Traces
+
+The engine can send a span for each run, step and model turn as it ends, as spans of
+observability-hive's [signal contract](../observability-hive/DESIGN.md): `io.werkrbee.run`,
+`io.werkrbee.step` and `io.werkrbee.turn`. Each one carries the run's ID, its step or
+turn, the passport it runs under, its status and its cost, and nothing the run read or
+wrote. A failure keeps where it happened (`step.failed`, `run.failed`), never its message.
+The IDs are derived from the run's own, so a run resumed in another process continues the
+same trace, and a step that calls another agent names its span as the parent in
+`traceparent`.
+
+It is off by default. With no OTLP endpoint configured, nothing is sent and no package is
+needed. The engine loads observability-hive's two standard-library scripts either way, as
+it loads rules-hive's, knowledge-hive's and agents-hive's. Set `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT` (or `OTEL_EXPORTER_OTLP_ENDPOINT`) to an
+https collector, or one on localhost, to turn it on, and `OBSERVABILITY_TENANT` to the
+opaque tenant the spans belong to. A library caller can pass `tracer=` to `Engine`
+instead. Sending is best effort and never changes what a run does
+([`signals.py`](../observability-hive/scripts/signals.py)).
+
 ## Use the engine as a library
 
 `run.py` is also a module. `Engine` offers the commands above (`start`, `resume`,

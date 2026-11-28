@@ -386,6 +386,32 @@ expiry sweep, which nothing waits on, awaits its pushes, so they don't pile up b
 endpoint. A failed push is logged and the next one catches up; the run it records isn't
 affected.
 
+## Traces
+
+The server can send spans of observability-hive's [signal
+contract](../../../observability-hive/DESIGN.md) over OTLP:
+
+- **Patricia over A2A:** an `io.werkrbee.task` span per task, with its state, the client
+  and the task ID, and beneath it a `chat <model>` span per model call, with the model,
+  its input and output tokens and its cost.
+- **Patricia over MCP:** an `execute_tool review` span per call, with the model call
+  beneath it.
+- **Hosted Barry:** the run engine's run, step and turn spans. His delegation to Patricia
+  carries `traceparent` naming the step's span, so one trace crosses both servers.
+
+A caller's valid `traceparent` is continued, and a missing or malformed one starts a new
+trace. No span holds the proposal, the context, the prompt or the verdict, and an error
+keeps its class, never its message. Patricia's spans name her by persona, and a task's
+by its task and client, the keys her ledger entry has; her server isn't configured with
+her passport, so they don't yet carry its version or digest as the engine's spans do.
+
+It is off by default: with no OTLP endpoint set, nothing is sent and no request carries
+`traceparent`. Set `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT` (or `OTEL_EXPORTER_OTLP_ENDPOINT`)
+and `OBSERVABILITY_TENANT` to turn it on. The sink speaks OTLP over HTTP with JSON, to an
+https endpoint or one on localhost. A configuration it can't honour, such as a gRPC
+endpoint a platform injects, leaves tracing off with a warning, and the server still
+starts. For sending hosted traces to Azure Monitor, see the deploy README.
+
 ## Run it
 
 ```bash
@@ -484,8 +510,9 @@ servers/a2a/
 │   ├── mcp_protocol.py # shared modern/legacy MCP handling, also used by verify-mcp
 │   ├── orchestrate.py  # hosted Barry: the loop on the engine, MCP and A2A tools
 │   ├── providers.py    # stub, Messages and Chat Completions
-│   └── review.py       # the executor: input, budget, ceiling, model, verdict
-├── tests/              # test_server.py, test_mcp.py, test_limits.py, test_orchestrate.py, the eval runners' tests
+│   ├── review.py       # the executor: input, budget, ceiling, model, verdict
+│   └── telemetry.py    # task, tool and model-call spans, off unless configured
+├── tests/              # test_server.py, test_mcp.py, test_limits.py, test_orchestrate.py, test_traces.py, the eval runners' tests
 ├── conformance/        # the TCK runner and the recorded run
 ├── config.example.toml
 └── requirements.txt

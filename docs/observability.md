@@ -186,7 +186,8 @@ down with fixtures that try to break each one.
 
 ## The first vertical slice
 
-The smallest piece that proves the design, built after #375 and #376:
+The smallest piece that proves the design. Its first two parts came with the spans (#144);
+the local reader comes with #376:
 
 1. **Two producers.** The workflows-hive engine, running hosted Barry's orchestration
    (a run, its turns and steps), and the A2A server's review executor, running Patricia's

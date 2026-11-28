@@ -98,6 +98,10 @@ def load_script(hive, name):
 check_policy = load_script("rules-hive", "check_policy")              # check, resolve, decide
 check_audit = load_script("knowledge-hive", "check_audit")            # the audit log's format
 validate_passports = load_script("agents-hive", "validate_passports")  # check, digest
+signals = load_script("observability-hive", "signals")                # spans, off unless configured
+SOURCE_VERSION = os.environ.get("HIVE_SOURCE_VERSION", "local")       # the commit a deployment runs
+SPAN_KINDS = {"run.completed", "run.failed", "run.cancelled", "run.expired", "step.ran", "step.failed",
+              "budget.refused", "turn.completed", "turn.failed"}            # the audit entries that end a span
 CRASH_EXIT = 75
 WAITING_EXIT = 2
 
@@ -519,12 +523,14 @@ class Engine:
     audit is the audit log's path (default: audit.jsonl beside state_dir), queue the review
     queue's directory (default: queue/ beside state_dir), and actor the opaque ID recorded
     for an answer or cancel that names no one else. clock returns the current UTC time, for
-    expiry. log receives each progress line the CLI prints.
+    expiry. log receives each progress line the CLI prints. tracer receives a span for each
+    run, step and turn as it ends (observability-hive's signals.Tracer); by default it comes
+    from the environment, and with nothing configured there is none and nothing is emitted.
     """
 
     def __init__(self, state_dir=DEFAULT_STATE_DIR, workflows_dir=WORKFLOWS_DIR,
                  contracts_dir=CONTRACTS_DIR, workers=None, log=print, audit=None, actor=None,
-                 passports_dir=PASSPORTS_DIR, queue=None, clock=None):
+                 passports_dir=PASSPORTS_DIR, queue=None, clock=None, tracer=False):
         self.state_dir = Path(state_dir).expanduser()
         self.state_dir.mkdir(parents=True, exist_ok=True)
         self.workflows_dir = Path(workflows_dir).expanduser()
@@ -537,6 +543,7 @@ class Engine:
         self.actor = actor
         self.workers = dict(WORKERS if workers is None else workers)
         self.log = log
+        self.tracer = signals.from_env("workflows-hive/engine", SOURCE_VERSION) if tracer is False else tracer
 
     # Records
 
@@ -573,6 +580,54 @@ class Engine:
         entry.update((k, v) for k, v in fields.items() if v is not None)
         written = self.append_audit(entry)
         run["audit"] = {"seq": written["seq"], "hash": written["hash"]}
+        if self.tracer:
+            try:
+                self.trace(run, kind, fields)
+            except Exception:  # best effort: a span never stops the run it describes
+                self.tracer.dropped += 1
+
+    def trace(self, run, kind, fields):
+        """A span for what an audit entry ends: a run, a step or a turn, from the times and
+        cost in its record. IDs come from the run's own, so a resumed run continues its trace
+        and a step's outgoing calls can name its span as their parent. Content-free: no
+        input, output, message or reason goes in."""
+        if kind not in SPAN_KINDS:
+            return
+        t, rid = self.tracer, run["runId"]
+        agent = run.get("agent") or {}
+        corr = {"runId": rid, "agent": agent.get("passport"), "agentVersion": agent.get("version"),
+                "passportSha256": agent.get("sha256")}
+        base = {"gen_ai.agent.name": agent.get("passport"),
+                "gen_ai.agent.version": str(agent["version"]) if agent.get("version") else None}
+        base = {k: v for k, v in base.items() if v is not None}
+        trace, root = t.trace_id(rid), t.span_id(rid)
+
+        def cost(c):
+            return {"io.werkrbee.cost.usd": float(c.get("usd", 0.0)), "io.werkrbee.usage.tokens": int(c.get("tokens", 0))}
+
+        if kind in ("run.completed", "run.failed", "run.cancelled", "run.expired"):
+            t.emit("io.werkrbee.run", trace=trace, span=root, start=run["createdAt"], end=now(), correlation=corr,
+                   attributes={**base, "gen_ai.operation.name": "invoke_agent", **cost(run["cost"])},
+                   error=None if kind == "run.completed" else kind)
+        elif fields.get("step") and kind in ("step.ran", "step.failed", "budget.refused"):
+            state = run["steps"].get(fields["step"]) or {}
+            if kind == "budget.refused" and state.get("status") != "failed":
+                return  # the step ended already, and its span with it
+            end = state.get("endedAt") or now()
+            t.emit("io.werkrbee.step", trace=trace, span=t.span_id(state.get("idempotencyKey", rid)), parent=root,
+                   start=state.get("startedAt") or end, end=end, correlation={**corr, "step": fields["step"]},
+                   attributes={**base, "io.werkrbee.step.status": state.get("status", "failed"),
+                               **cost(state.get("cost", {}))},
+                   error=None if kind == "step.ran" else kind)
+        elif fields.get("turn") and kind in ("turn.completed", "turn.failed"):
+            state = run.get("turns", {}).get(fields["turn"]) or {}
+            n = re.fullmatch(r"t?(\d+)", str(fields["turn"]))
+            end = state.get("endedAt") or now()
+            t.emit("io.werkrbee.turn", trace=trace, span=t.span_id(state.get("idempotencyKey", rid)), parent=root,
+                   start=state.get("startedAt") or end, end=end,
+                   correlation={**corr, "turn": int(n.group(1)) if n else None},
+                   attributes={**base, **cost(state.get("cost", {}))},
+                   error=None if kind == "turn.completed" else kind)
 
     def append_audit(self, entry):
         try:

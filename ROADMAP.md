@@ -175,7 +175,7 @@ shareholder letter against the repo (`docs/frontier-ecosystem.md`).
   agent and capability. (#142)
 - **Agent inventory (agents-hive).** Every agent with its owner, version, spend, eval
   status and open review items, in one view. (#143)
-- **Traces (workflows-hive, agents-hive).** OpenTelemetry spans for runs, steps, tasks and
+- **Traces (workflows-hive, agents-hive) (done).** OpenTelemetry spans for runs, steps, tasks and
   model calls, off by default and vendor-neutral. (#144)
 - **Steering (workflows-hive).** A person's answer to a paused run can carry direction
   that narrows what it does next, never widens it. (#145)

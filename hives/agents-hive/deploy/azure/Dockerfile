@@ -24,7 +24,9 @@ COPY hives/agents-hive/deploy/azure/render_config.py /usr/local/bin/render_confi
 
 # And what the weekly trust evaluation reads (eval/weekly.sh): the runner and its suite,
 # the results her baseline is in, the scripts that check her passport and pins and record
-# the evaluation, the policy and schemas they read, and the audit log's blob copier.
+# the evaluation, the policy and schemas they read, and the audit log's blob copier. The
+# run engine loads observability-hive's signal seam, which sends nothing unless an OTLP
+# endpoint is configured, and the deployment configures none.
 COPY hives/agents-hive/schema hives/agents-hive/schema
 COPY hives/agents-hive/scripts/trust_eval.py hives/agents-hive/scripts/trust_eval.py
 COPY hives/agents-hive/scripts/validate_passports.py hives/agents-hive/scripts/validate_passports.py
@@ -35,6 +37,9 @@ COPY hives/agents-hive/deploy/azure/eval/weekly.sh hives/agents-hive/deploy/azur
 COPY hives/agents-hive/deploy/azure/audit_blob.py hives/agents-hive/deploy/azure/audit_blob.py
 COPY hives/workflows-hive/scripts/run.py hives/workflows-hive/scripts/run.py
 COPY hives/knowledge-hive/scripts/check_audit.py hives/knowledge-hive/scripts/check_audit.py
+COPY hives/observability-hive/scripts/signals.py hives/observability-hive/scripts/signals.py
+COPY hives/observability-hive/scripts/check_signals.py hives/observability-hive/scripts/check_signals.py
+COPY hives/observability-hive/schema hives/observability-hive/schema
 COPY hives/rules-hive/scripts/check_policy.py hives/rules-hive/scripts/check_policy.py
 COPY hives/rules-hive/schema hives/rules-hive/schema
 COPY hives/rules-hive/rules/queen-charter/policy.json hives/rules-hive/rules/queen-charter/policy.json

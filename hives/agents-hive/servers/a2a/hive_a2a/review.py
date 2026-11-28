@@ -36,7 +36,7 @@ from a2a.server.tasks import TaskUpdater
 from a2a.utils.errors import InvalidParamsError
 from a2a.utils.input_mode_validator import validate_input_modes
 
-from . import contract, limits
+from . import contract, limits, telemetry
 from .providers import ProviderError
 
 log = logging.getLogger("hive_a2a")
@@ -101,10 +101,11 @@ class Reviewer:
     earlier message. So a provider's prompt cache can only ever hold the shared prefix,
     and nothing one caller sent reaches another's call."""
 
-    def __init__(self, config, ledger, provider):
+    def __init__(self, config, ledger, provider, tracer=None):
         self.config = config
         self.ledger = ledger
         self.provider = provider
+        self.tracer = tracer  # observability-hive's signals.Tracer, or None: nothing is emitted
         c = config.contract
         for where in ("inputs", "output"):
             problems = contract.supported(c[where], where)
@@ -182,15 +183,24 @@ class Reviewer:
                 "api": self.provider.name, "model": self.provider.model, **({"client": client} if client else {}),
                 **({"taskId": task} if task else {})}
 
+    def span(self, trace, key, began, completion=None, usd=None, error=None):
+        if self.tracer and trace:
+            try:
+                telemetry.model_span(self.tracer, self.config, self.provider, trace[0], trace[1], key, began,
+                                     telemetry.signals.now(), completion, usd, error)
+            except Exception:  # best effort: a span never changes the review it describes
+                self.tracer.dropped += 1
+
     def verdict(self, text):
         """(output, None), or (None, why the model's reply doesn't meet the contract)."""
         return contract.parse_output(text, self.config.contract["output"])
 
-    async def review(self, plan, key, started=None, client=None, task=None):
+    async def review(self, plan, key, started=None, client=None, task=None, trace=None):
         """Hold the plan's cost against the ceiling and client's allowance, ask the model,
         check its reply and record what it cost, under key in the ledger's calls in flight,
         naming the A2A task it was made for, if any. started() is awaited once the call is
-        about to go out. Returns an Outcome."""
+        about to go out. trace, (trace ID, parent span ID), puts the model call's span in a
+        trace when there is a tracer. Returns an Outcome."""
         check = limits.allowance(self.config, client) if client else None
         refusal = await self.ledger.reserve(plan.max_usd, client=client, check=check)
         if refusal:
@@ -206,18 +216,22 @@ class Reviewer:
             if started:
                 await started()
             budget = self.config.contract.get("budget", {})
+            began = telemetry.signals.now()
             try:
                 completion = await asyncio.wait_for(
                     self.provider.complete(self.system, plan.user_prompt, plan.max_output_tokens),
                     timeout=budget.get("seconds"))
-            except TimeoutError:
+            except TimeoutError as e:
+                self.span(trace, key, began, error=e)
                 return Outcome("failed", f"The review ran past the contract's {budget['seconds']}-second budget "
                                          "and was stopped.")
             except ProviderError as e:
                 entry = self.entry(e.completion, client, task) if e.completion else entry if e.sent else None
                 log.warning("provider error on %s: %s", key, e)
+                self.span(trace, key, began, e.completion, error=e)
                 return Outcome("failed", f"The model provider failed: {e}")
             entry = self.entry(completion, client, task)
+            self.span(trace, key, began, completion, entry["usd"])
             verdict, problems = self.verdict(completion.text)
             if problems:
                 return Outcome("failed", "The model's reply doesn't match the contract's output: " + problems)
@@ -252,8 +266,23 @@ class Executor(AgentExecutor):
 
         user = context.call_context.user if context.call_context else None
         client = user.user_name if user and user.is_authenticated else None
+        trace, began = None, telemetry.signals.now()
+        if r.tracer:
+            try:
+                headers = context.call_context.state.get("headers") if context.call_context else None
+                trace_id, parent = telemetry.incoming(r.tracer, headers, context.task_id)
+                trace = (trace_id, r.tracer.span_id("task", context.task_id))
+            except Exception:  # best effort: no trace, and the review goes on
+                trace = None
         outcome = await r.review(plan, context.task_id, started=updater.start_work, client=client,
-                                 task=context.task_id)
+                                 task=context.task_id, trace=trace)
+        if trace:
+            state = {"rejected": "rejected", "failed": "failed"}.get(outcome.state, "completed")
+            r.tracer.emit("io.werkrbee.task", trace=trace[0], span=trace[1], parent=parent, start=began,
+                          end=telemetry.signals.now(),
+                          correlation={"agent": r.config.persona, "taskId": context.task_id, "client": client},
+                          attributes={"a2a.task.state": state, "io.werkrbee.capability": r.config.capability},
+                          error=None if state == "completed" else f"task.{state}")
         if outcome.state == "rejected":
             await updater.reject(_message(updater, outcome.text, outcome.data))
         elif outcome.state == "failed":
