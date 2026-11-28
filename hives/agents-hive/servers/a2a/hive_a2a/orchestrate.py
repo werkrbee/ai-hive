@@ -238,6 +238,7 @@ class Network:
         self._now = now or (lambda: asyncio.get_running_loop().time())
         self._sleep = sleep or asyncio.sleep
         self.credential = None
+        self.tracer = None  # the engine's, set by the Orchestrator: when set, calls carry traceparent
         self.endpoints, self.sessions, self.listed = {}, {}, {}
         self.ids = itertools.count(1)
 
@@ -360,6 +361,12 @@ class Network:
         body = {"jsonrpc": "2.0", "id": message_id, "method": "SendMessage", "params": {
             "message": {"messageId": message_id, "role": "ROLE_USER", "parts": [{"data": data}]}}}
         headers = {"A2A-Version": "1.0", "authorization": f"Bearer {await self.token(d.token_scope)}"}
+        if self.tracer:
+            # A step's message ID is its idempotency key, the ID its span is derived from; a
+            # review the executor asks for hangs off the run's own span.
+            run_id = message_id.split(":", 1)[0]
+            headers["traceparent"] = self.tracer.traceparent(
+                run_id, run_id if ":review:" in message_id else message_id)
         try:
             r = await self.client.post(d.url, json=body, headers=headers)
             reply = r.json() if r.status_code == 200 else None
@@ -439,7 +446,7 @@ def working_seconds(run):
 class Orchestrator:
     """Everything a run needs that doesn't change between runs, and the runs in progress."""
 
-    def __init__(self, config, ledger, provider, store, network=None, clock=None):
+    def __init__(self, config, ledger, provider, store, network=None, clock=None, tracer=False):
         self.config, self.ledger, self.provider, self.store = config, ledger, provider, store
         self.o = config.orchestration
         c = config.contract
@@ -458,7 +465,8 @@ class Orchestrator:
         self.by_name = {r["registration"]: r for r in self.o.registrations.values()}
         self.network = network or Network()
         self.engine = engine.Engine(self.o.state_dir, workers={"mcp": self._mcp_step, "a2a": self._a2a_step},
-                                    log=log.info, clock=clock)
+                                    log=log.info, clock=clock, tracer=tracer)
+        self.network.tracer = self.engine.tracer
         self.system = "\n\n".join(
             [f"<!-- {p.name} -->\n{p.read_text(encoding='utf-8')}" for p in config.prompt_files] + [HOSTED])
         self.loop = None

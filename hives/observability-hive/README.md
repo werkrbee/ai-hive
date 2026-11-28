@@ -85,12 +85,39 @@ the trust boundary: `parse_traceparent`, `baggage`, `sanitize` and `error_type`.
 the reads that stay inside one tenant too, `join` and `freshness`. CI runs the checker on
 the examples, and runs the tests in [`tests/`](tests).
 
+## Emit spans
+
+[`scripts/signals.py`](scripts/signals.py) is the seam producers call. The workflows-hive
+engine sends a span per run, step and turn through it, and the A2A server one per task, MCP
+call and model call (#144). `from_env()` returns no tracer unless an OTLP endpoint is
+configured, so with observability off nothing is sent and nothing more is loaded. Turned
+on, a `Tracer` sanitizes each span's attributes before anything is queued, checks the span
+against the contract, and hands it to a sink:
+
+- `MemorySink` keeps spans in a list, for tests.
+- `OtlpSink` posts them in the OTLP JSON encoding from a background thread, best effort.
+
+Correlation IDs travel as `io.werkrbee.<field>` span attributes, and the tenant as a
+resource attribute. A run's trace and span IDs are derived from the tenant and the run's
+own IDs, so a resumed run continues its trace, and a step's outgoing `traceparent` names
+its span.
+
+```bash
+OTEL_EXPORTER_OTLP_TRACES_ENDPOINT=http://localhost:4318/v1/traces OBSERVABILITY_TENANT=local \
+  python3 hives/workflows-hive/scripts/run.py start word-count --input path=README.md
+```
+
+The endpoint must be https, or http to localhost. A configuration the seam can't honour,
+such as a gRPC endpoint or an endpoint in the clear, leaves it off with a warning, and the
+producer still starts.
+
 ## What comes next
 
-These issues come after the contract, in the order set in
+These issues come after the contract and the spans, in the order set in
 [`docs/sprints/p2.4.md`](../../docs/sprints/p2.4.md):
 
-- the emit seam, a local file sink and optional OTLP export (#376);
+- bounded export with a local file sink, retries, sampling and volume budgets, and export
+  health (#376);
 - projections for ownership and lifecycle, health, performance and quality, security
   warnings, drift and outcomes (#377 to #381);
 - backend capability maps (#382), in `backends/<backend>/`;
@@ -105,7 +132,7 @@ new dependency.
 observability-hive/
 ├── DESIGN.md      # the signal contract, the trust boundary, privacy and threats
 ├── schema/        # signal.schema.json and conventions.json
-├── scripts/       # check_signals.py: the checker and the boundary helpers (stdlib)
+├── scripts/       # check_signals.py: the checker and boundary helpers; signals.py: the emit seam (stdlib)
 ├── examples/      # synthetic signals, valid, old and invalid
 ├── tests/
 └── assets/

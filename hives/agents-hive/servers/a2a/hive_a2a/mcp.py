@@ -32,6 +32,7 @@ from starlette.routing import Route
 
 from a2a.utils.errors import InvalidParamsError
 
+from . import telemetry
 from .mcp_protocol import (Protocol, MODERN, LEGACY, VERSION_KEY, INVALID_PARAMS,
                            _error, _result)
 
@@ -131,7 +132,17 @@ class Server(Protocol):
         key = f"mcp-{uuid.uuid4()}"
         client = request.scope.get("auth", {}).get("client")
         log.info("review %s for %s over MCP", key, client)
-        outcome = await self.reviewer.review(plan, key, client=client)
+        tracer, trace, began = self.reviewer.tracer, None, telemetry.signals.now()
+        if tracer:
+            trace_id, parent = telemetry.incoming(tracer, request.headers, key)
+            trace = (trace_id, tracer.span_id("tool", key))
+        outcome = await self.reviewer.review(plan, key, client=client, trace=trace)
+        if trace:
+            tracer.emit(f"execute_tool {TOOL}", trace=trace[0], span=trace[1], parent=parent, start=began,
+                        end=telemetry.signals.now(), correlation={"agent": self.config.persona, "client": client},
+                        attributes={"gen_ai.tool.name": TOOL, "mcp.method.name": "tools/call",
+                                    "io.werkrbee.capability": self.config.capability},
+                        error=None if outcome.state == "completed" else f"tool.{outcome.state}")
         if outcome.state == "completed":
             return _result(id_, {**extra, "content": [{"type": "text", "text": json.dumps(outcome.verdict)}],
                                  "structuredContent": outcome.verdict})

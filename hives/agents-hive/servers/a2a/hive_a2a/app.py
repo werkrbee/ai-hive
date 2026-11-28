@@ -20,7 +20,7 @@ from a2a.server.routes import create_agent_card_routes, create_jsonrpc_routes, c
 from a2a.server.tasks import DatabaseTaskStore
 from a2a.types import AgentCard, Role, TaskState
 
-from . import limits, mcp, orchestrate, providers, review
+from . import limits, mcp, orchestrate, providers, review, telemetry
 from .auth import PUBLIC_PATHS, Authenticator, AuthMiddleware, task_owner
 from .config import REPO_ROOT
 from .ledger import Ledger
@@ -105,9 +105,11 @@ async def fail_interrupted(store, resumes=lambda task_id: False,
 
 
 def create_app(config, provider=None, authenticator=None, ledger_clock=None, network=None, clock=None,
-               rate_clock=None):
+               rate_clock=None, tracer=False, engine_tracer=False):
     """network (orchestrate.Network), clock (the run engine's, for expiry) and rate_clock (the
-    rate limit's, in seconds) are for tests."""
+    rate limit's, in seconds) are for tests, and so are tracer and engine_tracer
+    (observability-hive's signals.Tracer, for the server's spans and the run engine's). By
+    default both come from the environment, and with nothing configured there are none."""
     config.database.parent.mkdir(parents=True, exist_ok=True)
     engine = create_async_engine(f"sqlite+aiosqlite:///{config.database}")
     store = DatabaseTaskStore(engine, owner_resolver=task_owner)
@@ -119,11 +121,11 @@ def create_app(config, provider=None, authenticator=None, ledger_clock=None, net
     orchestrator = None
     mcp_server = None
     if config.orchestration:
-        orchestrator = orchestrate.Orchestrator(config, ledger, provider, store, network, clock)
+        orchestrator = orchestrate.Orchestrator(config, ledger, provider, store, network, clock, engine_tracer)
         handler = orchestrate.Handler(orchestrator, agent_executor=orchestrate.Executor(orchestrator),
                                       task_store=store, agent_card=agent_card)
     else:
-        reviewer = review.Reviewer(config, ledger, provider)
+        reviewer = review.Reviewer(config, ledger, provider, telemetry.from_env() if tracer is False else tracer)
         handler = review.Handler(reviewer, agent_executor=review.Executor(reviewer), task_store=store,
                                  agent_card=agent_card)
         mcp_server = mcp.Server(config, reviewer, rendered["version"])

@@ -266,8 +266,30 @@ A newer minor's fields and a skewed clock are warnings. With no arguments it che
 [`tests/`](tests) cover missing IDs, old records, clock skew, tenant collision, malicious
 attributes and baggage, and sensitive exception messages.
 
+## Emitting spans
+
+`scripts/signals.py` is the emit seam (#144). The engine and the A2A server ask it for a
+`Tracer` once, and get none unless an OTLP endpoint is configured. A `Tracer` sanitizes a
+span's attributes, builds it as a signal of this contract, checks it, and hands it to a
+sink. A span that fails its check is dropped and counted, and a sink that fails is ignored.
+So telemetry never changes what a run, a task or a model call does, and it never raises
+into one.
+
+**IDs.** A run's trace ID is a hash of the tenant and the run's ID, and each span's ID a
+hash of the tenant and what it is a span of: the run, a step's idempotency key, a turn's
+key. So the same run gets the same trace in any process that resumes it. A step that calls
+another agent sends `traceparent` naming its own span, and the callee, which parses it
+strictly, puts its task beneath it. A call with no valid `traceparent` starts a trace of
+its own. The hash includes the tenant, so the same run ID in two tenants is two traces.
+
+**On the wire.** The OTLP sink posts the OTLP JSON encoding to an https endpoint, or http
+on localhost, with headers from the environment for a credential kept outside the repo.
+Correlation IDs become `io.werkrbee.<field>` span attributes and the tenant a resource
+attribute. Its queue holds 1,024 spans; a full queue or a failed send drops and counts.
+Retries, sampling, a file sink, volume budgets and export health come with #376.
+
 ## Out of scope here
 
-Emitting and exporting signals (#376), projections and views (#377 to #381), and backend
-mappings (#382) come later. Each builds on this contract and moves no source of truth.
+Bounded export (#376), projections and views (#377 to #381), and backend mappings (#382)
+come later. Each builds on this contract and moves no source of truth.
 Nothing here is hosted, live or billable.

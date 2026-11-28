@@ -45,7 +45,8 @@
     "io.werkrbee.step.status":                { "source": "house", "stability": "development", "type": "string", "class": "label" },
     "io.werkrbee.decision":                   { "source": "house", "stability": "development", "type": "string", "class": "label" },
     "io.werkrbee.signal.kind":                { "source": "house", "stability": "development", "type": "string", "class": "label" },
-    "io.werkrbee.cost.usd":                   { "source": "house", "stability": "development", "type": "double", "class": "measure" }
+    "io.werkrbee.cost.usd":                   { "source": "house", "stability": "development", "type": "double", "class": "measure" },
+    "io.werkrbee.usage.tokens":               { "source": "house", "stability": "development", "type": "int", "class": "measure" }
   },
   "names": {
     "span": ["invoke_agent", "chat", "execute_tool", "io.werkrbee.run", "io.werkrbee.step", "io.werkrbee.turn", "io.werkrbee.task"],

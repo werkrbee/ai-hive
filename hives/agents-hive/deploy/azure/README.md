@@ -426,6 +426,33 @@ container holds, or delete the account or the resource group. Lock it once the f
 weekly run has pushed to the copy and `assurance.sh check` passes. A deploy leaves a
 locked policy as it is.
 
+## Traces
+
+The image can send traces (the server README's "Traces"), but the deployment doesn't, and
+`main.bicep` sets no OTLP endpoint, so hosted Patricia and Barry send nothing and no
+request of theirs carries `traceparent`. Checked on 2026-11-28 against Microsoft Learn,
+turning it on waits for three things:
+
+- **A collector with an Entra identity.** Azure Monitor ingests OTLP natively. Its
+  documented route is an OpenTelemetry Collector that holds a Microsoft Entra token for
+  `https://monitor.azure.com/.default`, with the Monitoring Metrics Publisher role on the
+  data collection rule that receives the traces. The servers' sink sends static headers
+  only, so it can't hold a token that expires; a collector beside each app would. That
+  means a new container, a managed identity's role and an Application Insights resource
+  with OTLP support (or a data collection endpoint and rule): changes to Entra and Azure,
+  through `entra.sh` and `deploy.sh`, each with the maintainer's yes.
+- **Not the managed agent.** Container Apps' own OpenTelemetry agent is in preview and
+  takes gRPC only, and the sink speaks OTLP over HTTP with JSON. If the agent were turned
+  on, the endpoint it injects would leave tracing off with a warning; the apps would still
+  start.
+- **The cost.** Azure Monitor charges for what it ingests and keeps, by the gigabyte. That
+  rate hasn't been re-read here, and the deployment's $25 monthly budget covers everything
+  else it runs. Bounded export with sampling and a volume budget (observability-hive #376)
+  comes first, so the spend has a cap before any span is sent.
+
+Until then, traces are for local runs and tests, where any OTLP collector on localhost can
+receive them.
+
 ## Rolling back
 
 To roll Patricia back to an earlier passport version, deploy it again with `--rollback`.
