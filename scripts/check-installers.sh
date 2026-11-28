@@ -457,6 +457,8 @@ if [ "$code" -eq 0 ]; then pass "harness conformance"; else flunk "harness confo
 printf '%s\n' "$out" | sed 's/^/      /'
 # knowledge-hive: the audit log's hash rules, and the verifier's reports and anchors.
 run "knowledge-hive audit log tests" python3 -B -m unittest discover -s hives/knowledge-hive/tests
+# observability-hive: the signal contract's rules, migrations and trust-boundary helpers.
+run "observability-hive signal contract tests" python3 -B -m unittest discover -s hives/observability-hive/tests
 
 if [ "$(repo_status)" != "$before" ]; then
   flunk "installers left changes in the repo"; repo_status | sed 's/^/      /'

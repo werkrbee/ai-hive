@@ -34,6 +34,7 @@ hives/
   projects-hive/   containers — scaffolds that assemble the House per initiative
   workflows-hive/  orchestration — durable, resumable workflows and a reference engine
   knowledge-hive/  state — STATE.md, memory, results and usage ledgers
+  observability-hive/  observability — opt-in signal and privacy contract; owns no record
 docs/              factory-thesis, interface-independence, product-adoption, prompts, sprints
 .claude/           Claude Code adapter: commands, subagents, settings (see CLAUDE.md)
 .github/           OSS health, issue/PR templates, CI

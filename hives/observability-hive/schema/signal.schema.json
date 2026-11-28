@@ -1,0 +1,119 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/werkrbee/ai-hive/hives/observability-hive/schema/signal.schema.json",
+  "title": "Signal",
+  "description": "One observation of the House's agents: an event, a metric, a span or a reference to an evaluation, content-free by default. DESIGN.md defines each field; scripts/check_signals.py checks a signal against this schema and the rules in DESIGN.md that a schema can't state, such as the attribute registry in conventions.json.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contract", "kind", "name", "tenant", "source", "conventions", "observedAt", "basis"],
+  "properties": {
+    "contract": { "description": "The contract version, MAJOR.MINOR. A reader reads any minor of its own major.", "type": "string", "pattern": "^1\\.(0|[1-9][0-9]*)$" },
+    "kind": { "enum": ["event", "metric", "span", "evaluation"] },
+    "name": { "description": "From conventions.json's names for the kind. A span's name may add one target after a space, such as its model.", "type": "string", "pattern": "^[a-z0-9_.-]+( [A-Za-z0-9_.:/@-]{1,64})?$", "maxLength": 128 },
+    "tenant": { "description": "The opaque tenant the signal belongs to. Nothing joins across tenants.", "$ref": "#/$defs/opaque" },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["producer", "version"],
+      "properties": {
+        "producer": { "description": "What emitted it, as <hive>/<component>, or a backend adapter's name.", "type": "string", "pattern": "^[a-z0-9]+(-[a-z0-9]+)*/[a-z0-9]+(-[a-z0-9]+)*$" },
+        "version": { "description": "The producer's version or commit.", "type": "string", "pattern": "^[A-Za-z0-9._+-]{1,64}$" },
+        "adapter": { "description": "The adapter that translated it, when it didn't come from the producer directly.", "type": "string", "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$" }
+      }
+    },
+    "conventions": {
+      "description": "The semantic convention releases its names follow. A record from before GenAI left the core conventions has only core.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["core"],
+      "properties": {
+        "genai": { "type": "string", "pattern": "^v[0-9]+\\.[0-9]+\\.[0-9]+$" },
+        "core": { "type": "string", "pattern": "^v[0-9]+\\.[0-9]+\\.[0-9]+$" }
+      }
+    },
+    "observedAt": { "description": "Event time: when it happened, by the producer's clock.", "$ref": "#/$defs/time" },
+    "ingestedAt": { "description": "When a sink or reader received it, by its own clock.", "$ref": "#/$defs/time" },
+    "basis": { "description": "measured when the producer or provider counted it, estimated when it was computed, unknown when nobody knows.", "enum": ["measured", "estimated", "unknown"] },
+    "correlation": {
+      "description": "Opaque IDs that join the signal to its owners' records. Every one is optional; an absent one is unattributed, never guessed.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "agent": { "description": "The passport's name (agents-hive).", "type": "string", "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$" },
+        "agentVersion": { "description": "The passport's version.", "type": "integer", "minimum": 1 },
+        "passportSha256": { "description": "The passport's digest, as the audit log's agent.sha256.", "$ref": "#/$defs/hex64" },
+        "runId": { "description": "A workflows-hive run, as the run record's and the ledger's runId.", "type": "string", "pattern": "^[A-Za-z0-9_-]{1,128}$" },
+        "step": { "description": "A step of the run.", "$ref": "#/$defs/opaque" },
+        "turn": { "description": "A model turn of the run.", "type": "integer", "minimum": 0 },
+        "taskId": { "description": "An A2A task, as the ledger's taskId.", "$ref": "#/$defs/opaque" },
+        "client": { "description": "The calling client app's ID, as the ledger's client. An app, never a person.", "$ref": "#/$defs/opaque" },
+        "call": { "description": "The digest of a step's exact call, as the audit log's call.", "$ref": "#/$defs/digest" },
+        "approval": { "description": "An approval ID, as the run record's pending.id and the review queue's item.", "$ref": "#/$defs/digest" },
+        "evaluation": { "description": "A results.jsonl id (knowledge-hive).", "type": "string", "pattern": "^[A-Za-z0-9._:-]{1,128}$" },
+        "outcome": { "description": "A results.jsonl id recording the outcome the work produced.", "type": "string", "pattern": "^[A-Za-z0-9._:-]{1,128}$" },
+        "change": { "description": "The commit the producer ran on.", "type": "string", "pattern": "^[0-9a-f]{7,40}$" },
+        "deployment": { "description": "The deployment or revision it ran in.", "$ref": "#/$defs/opaque" }
+      }
+    },
+    "trace": {
+      "description": "W3C Trace Context IDs. A correlation handle, never an identity or a permission.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["traceId", "spanId"],
+      "properties": {
+        "traceId": { "type": "string", "pattern": "^(?!0{32})[0-9a-f]{32}$" },
+        "spanId": { "type": "string", "pattern": "^(?!0{16})[0-9a-f]{16}$" },
+        "parentSpanId": { "type": "string", "pattern": "^(?!0{16})[0-9a-f]{16}$" },
+        "sampled": { "type": "boolean" }
+      }
+    },
+    "sampling": {
+      "description": "The share of such signals kept. null when unknown; absent when nothing was sampled out.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["rate"],
+      "properties": { "rate": { "type": ["number", "null"], "exclusiveMinimum": 0, "maximum": 1 } }
+    },
+    "attributes": {
+      "description": "Only names in conventions.json; a metric's only of class label. Scalars only.",
+      "type": "object",
+      "propertyNames": { "pattern": "^[a-z0-9_]+(\\.[a-z0-9_-]+)+$" },
+      "additionalProperties": { "type": ["string", "integer", "number", "boolean"] }
+    },
+    "capture": {
+      "description": "A policy-controlled exception that lets named content attributes through. Absent by default.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["policy", "fields", "retentionDays"],
+      "properties": {
+        "policy": { "description": "Where the product's policy that allows it lives.", "type": "string", "minLength": 1, "maxLength": 256 },
+        "fields": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "type": "string" } },
+        "retentionDays": { "type": "integer", "minimum": 1, "maximum": 400 }
+      }
+    },
+    "startAt": { "$ref": "#/$defs/time" },
+    "endAt": { "$ref": "#/$defs/time" },
+    "status": { "description": "A span's status, as OpenTelemetry's.", "enum": ["unset", "ok", "error"] },
+    "value": { "description": "A metric's value. null is unknown, never zero.", "type": ["number", "null"] },
+    "unit": { "description": "A UCUM unit, as conventions.json gives for the metric.", "type": "string" },
+    "window": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["start", "end"],
+      "properties": { "start": { "$ref": "#/$defs/time" }, "end": { "$ref": "#/$defs/time" } }
+    },
+    "outcome": { "description": "An evaluation's outcome, as results.jsonl's, or unknown.", "enum": ["passed", "failed", "partial", "unknown"] },
+    "migratedFrom": { "description": "Set by a reader that migrated an older record: the conventions it was written under.", "type": "object" }
+  },
+  "allOf": [
+    { "if": { "properties": { "kind": { "const": "span" } } }, "then": { "required": ["trace", "startAt", "endAt", "status"] } },
+    { "if": { "properties": { "kind": { "const": "metric" } } }, "then": { "required": ["value", "unit", "window"] } },
+    { "if": { "properties": { "kind": { "const": "evaluation" } } }, "then": { "required": ["outcome", "correlation"] } }
+  ],
+  "$defs": {
+    "time": { "description": "ISO 8601 date-time in UTC, with Z.", "type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]{1,9})?Z$" },
+    "opaque": { "description": "An opaque ID: no spaces, no @, nothing that reads as a name or an address.", "type": "string", "pattern": "^[A-Za-z0-9_:.-]{1,128}$" },
+    "hex64": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "digest": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" }
+  }
+}

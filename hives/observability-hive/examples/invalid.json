@@ -1,0 +1,770 @@
+{
+  "$comment": "Synthetic signals check_signals.py must refuse, each with part of the error it gives. Every one starts from a valid signal and breaks one rule.",
+  "cases": [
+    {
+      "name": "a span without trace IDs",
+      "signal": {
+        "contract": "1.0",
+        "kind": "span",
+        "name": "io.werkrbee.step",
+        "tenant": "tenant-a",
+        "source": {
+          "producer": "workflows-hive/engine",
+          "version": "7c8e2cf"
+        },
+        "conventions": {
+          "genai": "v0.1.0",
+          "core": "v1.45.0"
+        },
+        "observedAt": "2026-11-27T14:00:10Z",
+        "basis": "measured",
+        "startAt": "2026-11-27T14:00:10Z",
+        "endAt": "2026-11-27T14:00:38Z",
+        "status": "ok"
+      },
+      "error": "a span needs trace"
+    },
+    {
+      "name": "a span that ends before it starts",
+      "signal": {
+        "contract": "1.0",
+        "kind": "span",
+        "name": "io.werkrbee.step",
+        "tenant": "tenant-a",
+        "source": {
+          "producer": "workflows-hive/engine",
+          "version": "7c8e2cf"
+        },
+        "conventions": {
+          "genai": "v0.1.0",
+          "core": "v1.45.0"
+        },
+        "observedAt": "2026-11-27T14:00:10Z",
+        "basis": "measured",
+        "trace": {
+          "traceId": "4bf92f3577b34da6a3ce929d0e0e4736",
+          "spanId": "b7ad6b7169203331"
+        },
+        "startAt": "2026-11-27T14:00:10Z",
+        "endAt": "2026-11-27T14:00:00Z",
+        "status": "ok"
+      },
+      "error": "endAt: before startAt"
+    },
+    {
+      "name": "a span that is its own parent",
+      "signal": {
+        "contract": "1.0",
+        "kind": "span",
+        "name": "io.werkrbee.step",
+        "tenant": "tenant-a",
+        "source": {
+          "producer": "workflows-hive/engine",
+          "version": "7c8e2cf"
+        },
+        "conventions": {
+          "genai": "v0.1.0",
+          "core": "v1.45.0"
+        },
+        "observedAt": "2026-11-27T14:00:10Z",
+        "basis": "measured",
+        "trace": {
+          "traceId": "4bf92f3577b34da6a3ce929d0e0e4736",
+          "spanId": "b7ad6b7169203331",
+          "parentSpanId": "b7ad6b7169203331"
+        },
+        "startAt": "2026-11-27T14:00:10Z",
+        "endAt": "2026-11-27T14:00:38Z",
+        "status": "ok"
+      },
+      "error": "its own parent"
+    },
+    {
+      "name": "an all-zero trace ID",
+      "signal": {
+        "contract": "1.0",
+        "kind": "span",
+        "name": "io.werkrbee.step",
+        "tenant": "tenant-a",
+        "source": {
+          "producer": "workflows-hive/engine",
+          "version": "7c8e2cf"
+        },
+        "conventions": {
+          "genai": "v0.1.0",
+          "core": "v1.45.0"
+        },
+        "observedAt": "2026-11-27T14:00:10Z",
+        "basis": "measured",
+        "trace": {
+          "traceId": "00000000000000000000000000000000",
+          "spanId": "b7ad6b7169203331"
+        },
+        "startAt": "2026-11-27T14:00:10Z",
+        "endAt": "2026-11-27T14:00:38Z",
+        "status": "ok"
+      },
+      "error": "signal.trace.traceId"
+    },
+    {
+      "name": "an attribute not in the registry",
+      "signal": {
+        "contract": "1.0",
+        "kind": "span",
+        "name": "io.werkrbee.step",
+        "tenant": "tenant-a",
+        "source": {
+          "producer": "workflows-hive/engine",
+          "version": "7c8e2cf"
+        },
+        "conventions": {
+          "genai": "v0.1.0",
+          "core": "v1.45.0"
+        },
+        "observedAt": "2026-11-27T14:00:10Z",
+        "basis": "measured",
+        "trace": {
+          "traceId": "4bf92f3577b34da6a3ce929d0e0e4736",
+          "spanId": "b7ad6b7169203331"
+        },
+        "startAt": "2026-11-27T14:00:10Z",
+        "endAt": "2026-11-27T14:00:38Z",
+        "status": "ok",
+        "attributes": {
+          "user.email_hash": "x"
+        }
+      },
+      "error": "isn't in conventions.json"
+    },
+    {
+      "name": "an attribute of the wrong type",
+      "signal": {
+        "contract": "1.0",
+        "kind": "span",
+        "name": "io.werkrbee.step",
+        "tenant": "tenant-a",
+        "source": {
+          "producer": "workflows-hive/engine",
+          "version": "7c8e2cf"
+        },
+        "conventions": {
+          "genai": "v0.1.0",
+          "core": "v1.45.0"
+        },
+        "observedAt": "2026-11-27T14:00:10Z",
+        "basis": "measured",
+        "trace": {
+          "traceId": "4bf92f3577b34da6a3ce929d0e0e4736",
+          "spanId": "b7ad6b7169203331"
+        },
+        "startAt": "2026-11-27T14:00:10Z",
+        "endAt": "2026-11-27T14:00:38Z",
+        "status": "ok",
+        "attributes": {
+          "gen_ai.usage.input_tokens": "1840"
+        }
+      },
+      "error": "must be int"
+    },
+    {
+      "name": "prompt content without a capture exception",
+      "signal": {
+        "contract": "1.0",
+        "kind": "span",
+        "name": "io.werkrbee.step",
+        "tenant": "tenant-a",
+        "source": {
+          "producer": "workflows-hive/engine",
+          "version": "7c8e2cf"
+        },
+        "conventions": {
+          "genai": "v0.1.0",
+          "core": "v1.45.0"
+        },
+        "observedAt": "2026-11-27T14:00:10Z",
+        "basis": "measured",
+        "trace": {
+          "traceId": "4bf92f3577b34da6a3ce929d0e0e4736",
+          "spanId": "b7ad6b7169203331"
+        },
+        "startAt": "2026-11-27T14:00:10Z",
+        "endAt": "2026-11-27T14:00:38Z",
+        "status": "ok",
+        "attributes": {
+          "gen_ai.input.messages": "Summarize my medical record"
+        }
+      },
+      "error": "kept only under a capture exception"
+    },
+    {
+      "name": "a capture exception naming a non-content attribute",
+      "signal": {
+        "contract": "1.0",
+        "kind": "span",
+        "name": "io.werkrbee.step",
+        "tenant": "tenant-a",
+        "source": {
+          "producer": "workflows-hive/engine",
+          "version": "7c8e2cf"
+        },
+        "conventions": {
+          "genai": "v0.1.0",
+          "core": "v1.45.0"
+        },
+        "observedAt": "2026-11-27T14:00:10Z",
+        "basis": "measured",
+        "trace": {
+          "traceId": "4bf92f3577b34da6a3ce929d0e0e4736",
+          "spanId": "b7ad6b7169203331"
+        },
+        "startAt": "2026-11-27T14:00:10Z",
+        "endAt": "2026-11-27T14:00:38Z",
+        "status": "ok",
+        "capture": {
+          "policy": "p",
+          "fields": [
+            "gen_ai.request.model"
+          ],
+          "retentionDays": 7
+        }
+      },
+      "error": "isn't a content attribute"
+    },
+    {
+      "name": "a bearer token in an attribute",
+      "signal": {
+        "contract": "1.0",
+        "kind": "span",
+        "name": "io.werkrbee.step",
+        "tenant": "tenant-a",
+        "source": {
+          "producer": "workflows-hive/engine",
+          "version": "7c8e2cf"
+        },
+        "conventions": {
+          "genai": "v0.1.0",
+          "core": "v1.45.0"
+        },
+        "observedAt": "2026-11-27T14:00:10Z",
+        "basis": "measured",
+        "trace": {
+          "traceId": "4bf92f3577b34da6a3ce929d0e0e4736",
+          "spanId": "b7ad6b7169203331"
+        },
+        "startAt": "2026-11-27T14:00:10Z",
+        "endAt": "2026-11-27T14:00:38Z",
+        "status": "ok",
+        "attributes": {
+          "gen_ai.tool.name": "Bearer eyJhbGciOiJIUzI1NiJ9.e30.x"
+        }
+      },
+      "error": "reads as a bearer token"
+    },
+    {
+      "name": "an API key in an attribute",
+      "signal": {
+        "contract": "1.0",
+        "kind": "span",
+        "name": "io.werkrbee.step",
+        "tenant": "tenant-a",
+        "source": {
+          "producer": "workflows-hive/engine",
+          "version": "7c8e2cf"
+        },
+        "conventions": {
+          "genai": "v0.1.0",
+          "core": "v1.45.0"
+        },
+        "observedAt": "2026-11-27T14:00:10Z",
+        "basis": "measured",
+        "trace": {
+          "traceId": "4bf92f3577b34da6a3ce929d0e0e4736",
+          "spanId": "b7ad6b7169203331"
+        },
+        "startAt": "2026-11-27T14:00:10Z",
+        "endAt": "2026-11-27T14:00:38Z",
+        "status": "ok",
+        "attributes": {
+          "gen_ai.request.model": "sk-live-0123456789abcdef"
+        }
+      },
+      "error": "reads as an API key"
+    },
+    {
+      "name": "an email address in an attribute",
+      "signal": {
+        "contract": "1.0",
+        "kind": "span",
+        "name": "io.werkrbee.step",
+        "tenant": "tenant-a",
+        "source": {
+          "producer": "workflows-hive/engine",
+          "version": "7c8e2cf"
+        },
+        "conventions": {
+          "genai": "v0.1.0",
+          "core": "v1.45.0"
+        },
+        "observedAt": "2026-11-27T14:00:10Z",
+        "basis": "measured",
+        "trace": {
+          "traceId": "4bf92f3577b34da6a3ce929d0e0e4736",
+          "spanId": "b7ad6b7169203331"
+        },
+        "startAt": "2026-11-27T14:00:10Z",
+        "endAt": "2026-11-27T14:00:38Z",
+        "status": "ok",
+        "attributes": {
+          "gen_ai.agent.name": "someone@example.com"
+        }
+      },
+      "error": "reads as an email address"
+    },
+    {
+      "name": "a URL with a query in an attribute",
+      "signal": {
+        "contract": "1.0",
+        "kind": "span",
+        "name": "io.werkrbee.step",
+        "tenant": "tenant-a",
+        "source": {
+          "producer": "workflows-hive/engine",
+          "version": "7c8e2cf"
+        },
+        "conventions": {
+          "genai": "v0.1.0",
+          "core": "v1.45.0"
+        },
+        "observedAt": "2026-11-27T14:00:10Z",
+        "basis": "measured",
+        "trace": {
+          "traceId": "4bf92f3577b34da6a3ce929d0e0e4736",
+          "spanId": "b7ad6b7169203331"
+        },
+        "startAt": "2026-11-27T14:00:10Z",
+        "endAt": "2026-11-27T14:00:38Z",
+        "status": "ok",
+        "attributes": {
+          "gen_ai.tool.name": "https://api.example.com/v1?key=abc"
+        }
+      },
+      "error": "a URL with credentials or a query"
+    },
+    {
+      "name": "an exception message with a home path as error.type",
+      "signal": {
+        "contract": "1.0",
+        "kind": "span",
+        "name": "io.werkrbee.step",
+        "tenant": "tenant-a",
+        "source": {
+          "producer": "workflows-hive/engine",
+          "version": "7c8e2cf"
+        },
+        "conventions": {
+          "genai": "v0.1.0",
+          "core": "v1.45.0"
+        },
+        "observedAt": "2026-11-27T14:00:10Z",
+        "basis": "measured",
+        "trace": {
+          "traceId": "4bf92f3577b34da6a3ce929d0e0e4736",
+          "spanId": "b7ad6b7169203331"
+        },
+        "startAt": "2026-11-27T14:00:10Z",
+        "endAt": "2026-11-27T14:00:38Z",
+        "status": "error",
+        "attributes": {
+          "error.type": "PermissionError: /Users/someone/.ssh/id_ed25519"
+        }
+      },
+      "error": "reads as a home path"
+    },
+    {
+      "name": "an attribute value past the length limit",
+      "signal": {
+        "contract": "1.0",
+        "kind": "span",
+        "name": "io.werkrbee.step",
+        "tenant": "tenant-a",
+        "source": {
+          "producer": "workflows-hive/engine",
+          "version": "7c8e2cf"
+        },
+        "conventions": {
+          "genai": "v0.1.0",
+          "core": "v1.45.0"
+        },
+        "observedAt": "2026-11-27T14:00:10Z",
+        "basis": "measured",
+        "trace": {
+          "traceId": "4bf92f3577b34da6a3ce929d0e0e4736",
+          "spanId": "b7ad6b7169203331"
+        },
+        "startAt": "2026-11-27T14:00:10Z",
+        "endAt": "2026-11-27T14:00:38Z",
+        "status": "ok",
+        "attributes": {
+          "gen_ai.tool.name": "ttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttt"
+        }
+      },
+      "error": "longer than 256"
+    },
+    {
+      "name": "a tenant that reads as an address",
+      "signal": {
+        "contract": "1.0",
+        "kind": "span",
+        "name": "io.werkrbee.step",
+        "tenant": "admin@tenant-a.example",
+        "source": {
+          "producer": "workflows-hive/engine",
+          "version": "7c8e2cf"
+        },
+        "conventions": {
+          "genai": "v0.1.0",
+          "core": "v1.45.0"
+        },
+        "observedAt": "2026-11-27T14:00:10Z",
+        "basis": "measured",
+        "trace": {
+          "traceId": "4bf92f3577b34da6a3ce929d0e0e4736",
+          "spanId": "b7ad6b7169203331"
+        },
+        "startAt": "2026-11-27T14:00:10Z",
+        "endAt": "2026-11-27T14:00:38Z",
+        "status": "ok"
+      },
+      "error": "signal.tenant"
+    },
+    {
+      "name": "a run ID with spaces",
+      "signal": {
+        "contract": "1.0",
+        "kind": "span",
+        "name": "io.werkrbee.step",
+        "tenant": "tenant-a",
+        "source": {
+          "producer": "workflows-hive/engine",
+          "version": "7c8e2cf"
+        },
+        "conventions": {
+          "genai": "v0.1.0",
+          "core": "v1.45.0"
+        },
+        "observedAt": "2026-11-27T14:00:10Z",
+        "basis": "measured",
+        "trace": {
+          "traceId": "4bf92f3577b34da6a3ce929d0e0e4736",
+          "spanId": "b7ad6b7169203331"
+        },
+        "startAt": "2026-11-27T14:00:10Z",
+        "endAt": "2026-11-27T14:00:38Z",
+        "status": "ok",
+        "correlation": {
+          "runId": "run 1; drop"
+        }
+      },
+      "error": "signal.correlation.runId"
+    },
+    {
+      "name": "a metric labelled with an ID",
+      "signal": {
+        "contract": "1.0",
+        "kind": "metric",
+        "name": "io.werkrbee.cost",
+        "tenant": "tenant-a",
+        "source": {
+          "producer": "agents-hive/a2a",
+          "version": "7c8e2cf"
+        },
+        "conventions": {
+          "genai": "v0.1.0",
+          "core": "v1.45.0"
+        },
+        "observedAt": "2026-11-27T15:00:00Z",
+        "basis": "measured",
+        "value": 0.0124,
+        "unit": "USD",
+        "window": {
+          "start": "2026-11-27T14:00:00Z",
+          "end": "2026-11-27T15:00:00Z"
+        },
+        "attributes": {
+          "a2a.task.id": "task-7f3a"
+        }
+      },
+      "error": "a metric takes labels only"
+    },
+    {
+      "name": "a metric carrying a run ID",
+      "signal": {
+        "contract": "1.0",
+        "kind": "metric",
+        "name": "io.werkrbee.cost",
+        "tenant": "tenant-a",
+        "source": {
+          "producer": "agents-hive/a2a",
+          "version": "7c8e2cf"
+        },
+        "conventions": {
+          "genai": "v0.1.0",
+          "core": "v1.45.0"
+        },
+        "observedAt": "2026-11-27T15:00:00Z",
+        "basis": "measured",
+        "value": 0.0124,
+        "unit": "USD",
+        "window": {
+          "start": "2026-11-27T14:00:00Z",
+          "end": "2026-11-27T15:00:00Z"
+        },
+        "correlation": {
+          "agent": "patricia",
+          "runId": "run_01J"
+        }
+      },
+      "error": "a metric can't carry runId"
+    },
+    {
+      "name": "an unknown metric recorded as zero",
+      "signal": {
+        "contract": "1.0",
+        "kind": "metric",
+        "name": "io.werkrbee.cost",
+        "tenant": "tenant-a",
+        "source": {
+          "producer": "agents-hive/a2a",
+          "version": "7c8e2cf"
+        },
+        "conventions": {
+          "genai": "v0.1.0",
+          "core": "v1.45.0"
+        },
+        "observedAt": "2026-11-27T15:00:00Z",
+        "basis": "unknown",
+        "value": 0,
+        "unit": "USD",
+        "window": {
+          "start": "2026-11-27T14:00:00Z",
+          "end": "2026-11-27T15:00:00Z"
+        }
+      },
+      "error": "null exactly when basis is unknown"
+    },
+    {
+      "name": "a measured metric with no value",
+      "signal": {
+        "contract": "1.0",
+        "kind": "metric",
+        "name": "io.werkrbee.cost",
+        "tenant": "tenant-a",
+        "source": {
+          "producer": "agents-hive/a2a",
+          "version": "7c8e2cf"
+        },
+        "conventions": {
+          "genai": "v0.1.0",
+          "core": "v1.45.0"
+        },
+        "observedAt": "2026-11-27T15:00:00Z",
+        "basis": "measured",
+        "unit": "USD",
+        "window": {
+          "start": "2026-11-27T14:00:00Z",
+          "end": "2026-11-27T15:00:00Z"
+        },
+        "value": null
+      },
+      "error": "null exactly when basis is unknown"
+    },
+    {
+      "name": "a metric in the wrong unit",
+      "signal": {
+        "contract": "1.0",
+        "kind": "metric",
+        "name": "io.werkrbee.cost",
+        "tenant": "tenant-a",
+        "source": {
+          "producer": "agents-hive/a2a",
+          "version": "7c8e2cf"
+        },
+        "conventions": {
+          "genai": "v0.1.0",
+          "core": "v1.45.0"
+        },
+        "observedAt": "2026-11-27T15:00:00Z",
+        "basis": "measured",
+        "value": 0.0124,
+        "unit": "EUR",
+        "window": {
+          "start": "2026-11-27T14:00:00Z",
+          "end": "2026-11-27T15:00:00Z"
+        }
+      },
+      "error": "is in USD"
+    },
+    {
+      "name": "a metric name with a target",
+      "signal": {
+        "contract": "1.0",
+        "kind": "metric",
+        "name": "io.werkrbee.cost model-b",
+        "tenant": "tenant-a",
+        "source": {
+          "producer": "agents-hive/a2a",
+          "version": "7c8e2cf"
+        },
+        "conventions": {
+          "genai": "v0.1.0",
+          "core": "v1.45.0"
+        },
+        "observedAt": "2026-11-27T15:00:00Z",
+        "basis": "measured",
+        "value": 0.0124,
+        "unit": "USD",
+        "window": {
+          "start": "2026-11-27T14:00:00Z",
+          "end": "2026-11-27T15:00:00Z"
+        }
+      },
+      "error": "has no target"
+    },
+    {
+      "name": "a span name not in the conventions",
+      "signal": {
+        "contract": "1.0",
+        "kind": "span",
+        "name": "send_email",
+        "tenant": "tenant-a",
+        "source": {
+          "producer": "workflows-hive/engine",
+          "version": "7c8e2cf"
+        },
+        "conventions": {
+          "genai": "v0.1.0",
+          "core": "v1.45.0"
+        },
+        "observedAt": "2026-11-27T14:00:10Z",
+        "basis": "measured",
+        "trace": {
+          "traceId": "4bf92f3577b34da6a3ce929d0e0e4736",
+          "spanId": "b7ad6b7169203331"
+        },
+        "startAt": "2026-11-27T14:00:10Z",
+        "endAt": "2026-11-27T14:00:38Z",
+        "status": "ok"
+      },
+      "error": "isn't a span name"
+    },
+    {
+      "name": "conventions nothing pins or migrates",
+      "signal": {
+        "contract": "1.0",
+        "kind": "span",
+        "name": "io.werkrbee.step",
+        "tenant": "tenant-a",
+        "source": {
+          "producer": "workflows-hive/engine",
+          "version": "7c8e2cf"
+        },
+        "conventions": {
+          "genai": "v0.2.0",
+          "core": "v1.46.0"
+        },
+        "observedAt": "2026-11-27T14:00:10Z",
+        "basis": "measured",
+        "trace": {
+          "traceId": "4bf92f3577b34da6a3ce929d0e0e4736",
+          "spanId": "b7ad6b7169203331"
+        },
+        "startAt": "2026-11-27T14:00:10Z",
+        "endAt": "2026-11-27T14:00:38Z",
+        "status": "ok"
+      },
+      "error": "isn't pinned and no migration"
+    },
+    {
+      "name": "a contract from another major",
+      "signal": {
+        "contract": "2.0",
+        "kind": "span",
+        "name": "io.werkrbee.step",
+        "tenant": "tenant-a",
+        "source": {
+          "producer": "workflows-hive/engine",
+          "version": "7c8e2cf"
+        },
+        "conventions": {
+          "genai": "v0.1.0",
+          "core": "v1.45.0"
+        },
+        "observedAt": "2026-11-27T14:00:10Z",
+        "basis": "measured",
+        "trace": {
+          "traceId": "4bf92f3577b34da6a3ce929d0e0e4736",
+          "spanId": "b7ad6b7169203331"
+        },
+        "startAt": "2026-11-27T14:00:10Z",
+        "endAt": "2026-11-27T14:00:38Z",
+        "status": "ok"
+      },
+      "error": "reads 1.x only"
+    },
+    {
+      "name": "a field the contract doesn't define",
+      "signal": {
+        "contract": "1.0",
+        "kind": "span",
+        "name": "io.werkrbee.step",
+        "tenant": "tenant-a",
+        "source": {
+          "producer": "workflows-hive/engine",
+          "version": "7c8e2cf"
+        },
+        "conventions": {
+          "genai": "v0.1.0",
+          "core": "v1.45.0"
+        },
+        "observedAt": "2026-11-27T14:00:10Z",
+        "basis": "measured",
+        "trace": {
+          "traceId": "4bf92f3577b34da6a3ce929d0e0e4736",
+          "spanId": "b7ad6b7169203331"
+        },
+        "startAt": "2026-11-27T14:00:10Z",
+        "endAt": "2026-11-27T14:00:38Z",
+        "status": "ok",
+        "prompt": "hello"
+      },
+      "error": "unknown field prompt"
+    },
+    {
+      "name": "a time without a zone",
+      "signal": {
+        "contract": "1.0",
+        "kind": "span",
+        "name": "io.werkrbee.step",
+        "tenant": "tenant-a",
+        "source": {
+          "producer": "workflows-hive/engine",
+          "version": "7c8e2cf"
+        },
+        "conventions": {
+          "genai": "v0.1.0",
+          "core": "v1.45.0"
+        },
+        "observedAt": "2026-11-27T14:00:10",
+        "basis": "measured",
+        "trace": {
+          "traceId": "4bf92f3577b34da6a3ce929d0e0e4736",
+          "spanId": "b7ad6b7169203331"
+        },
+        "startAt": "2026-11-27T14:00:10Z",
+        "endAt": "2026-11-27T14:00:38Z",
+        "status": "ok"
+      },
+      "error": "signal.observedAt"
+    }
+  ]
+}
