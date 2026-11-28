@@ -1,0 +1,109 @@
+{
+  "$comment": "The standards a signal is written against, pinned, and every attribute a signal may carry. DESIGN.md explains each part. Checked 2026-11-27 against the model files of each pinned release.",
+  "contract": "1.0",
+  "pins": {
+    "traceContext": { "spec": "W3C Trace Context Level 1", "status": "W3C Recommendation, 2021-11-23", "url": "https://www.w3.org/TR/trace-context/" },
+    "genai": { "version": "v0.1.0", "published": "2026-11-21", "stability": "development", "url": "https://github.com/open-telemetry/semantic-conventions-genai/tree/v0.1.0" },
+    "core": { "version": "v1.45.0", "published": "2026-11-02", "url": "https://github.com/open-telemetry/semantic-conventions/tree/v1.45.0" }
+  },
+  "namespace": "io.werkrbee.",
+  "classes": {
+    "label": "Low cardinality: may label a metric, a span or an event.",
+    "id": "High cardinality: a span's or an event's attribute, never a metric label.",
+    "measure": "A number: a span's or an event's attribute, never a metric label.",
+    "content": "What a model, a tool or a person said. Never kept without a capture exception."
+  },
+  "attributes": {
+    "gen_ai.operation.name":                  { "source": "genai", "stability": "development", "type": "string", "class": "label" },
+    "gen_ai.provider.name":                   { "source": "genai", "stability": "development", "type": "string", "class": "label" },
+    "gen_ai.request.model":                   { "source": "genai", "stability": "development", "type": "string", "class": "label" },
+    "gen_ai.response.model":                  { "source": "genai", "stability": "development", "type": "string", "class": "label" },
+    "gen_ai.agent.name":                      { "source": "genai", "stability": "development", "type": "string", "class": "label" },
+    "gen_ai.agent.version":                   { "source": "genai", "stability": "development", "type": "string", "class": "label" },
+    "gen_ai.tool.name":                       { "source": "genai", "stability": "development", "type": "string", "class": "label" },
+    "gen_ai.evaluation.name":                 { "source": "genai", "stability": "development", "type": "string", "class": "label" },
+    "gen_ai.evaluation.score.label":          { "source": "genai", "stability": "development", "type": "string", "class": "label" },
+    "gen_ai.usage.input_tokens":              { "source": "genai", "stability": "development", "type": "int", "class": "measure" },
+    "gen_ai.usage.output_tokens":             { "source": "genai", "stability": "development", "type": "int", "class": "measure" },
+    "gen_ai.usage.cache_read.input_tokens":   { "source": "genai", "stability": "development", "type": "int", "class": "measure" },
+    "gen_ai.usage.cache_write.input_tokens":  { "source": "genai", "stability": "development", "type": "int", "class": "measure" },
+    "gen_ai.input.messages":                  { "source": "genai", "stability": "development", "type": "any", "class": "content" },
+    "gen_ai.output.messages":                 { "source": "genai", "stability": "development", "type": "any", "class": "content" },
+    "gen_ai.system_instructions":             { "source": "genai", "stability": "development", "type": "any", "class": "content" },
+    "gen_ai.tool.call.arguments":             { "source": "genai", "stability": "development", "type": "any", "class": "content" },
+    "gen_ai.tool.call.result":                { "source": "genai", "stability": "development", "type": "any", "class": "content" },
+    "gen_ai.evaluation.explanation":          { "source": "genai", "stability": "development", "type": "string", "class": "content" },
+    "gen_ai.retrieval.query.text":            { "source": "genai", "stability": "development", "type": "string", "class": "content" },
+    "gen_ai.memory.query.text":               { "source": "genai", "stability": "development", "type": "string", "class": "content" },
+    "a2a.method.name":                        { "source": "genai", "stability": "development", "type": "string", "class": "label" },
+    "a2a.task.state":                         { "source": "genai", "stability": "development", "type": "string", "class": "label" },
+    "a2a.task.id":                            { "source": "genai", "stability": "development", "type": "string", "class": "id" },
+    "mcp.method.name":                        { "source": "genai", "stability": "development", "type": "string", "class": "label" },
+    "mcp.session.id":                         { "source": "genai", "stability": "development", "type": "string", "class": "id" },
+    "error.type":                             { "source": "core", "stability": "stable", "type": "string", "class": "label" },
+    "io.werkrbee.capability":                 { "source": "house", "stability": "development", "type": "string", "class": "label" },
+    "io.werkrbee.step.status":                { "source": "house", "stability": "development", "type": "string", "class": "label" },
+    "io.werkrbee.decision":                   { "source": "house", "stability": "development", "type": "string", "class": "label" },
+    "io.werkrbee.signal.kind":                { "source": "house", "stability": "development", "type": "string", "class": "label" },
+    "io.werkrbee.cost.usd":                   { "source": "house", "stability": "development", "type": "double", "class": "measure" }
+  },
+  "names": {
+    "span": ["invoke_agent", "chat", "execute_tool", "io.werkrbee.run", "io.werkrbee.step", "io.werkrbee.turn", "io.werkrbee.task"],
+    "metric": {
+      "gen_ai.client.inference.duration":                 { "source": "genai", "unit": "s" },
+      "gen_ai.client.invoke_agent.duration":              { "source": "genai", "unit": "s" },
+      "gen_ai.invoke_agent.duration":                     { "source": "genai", "unit": "s" },
+      "gen_ai.execute_tool.duration":                     { "source": "genai", "unit": "s" },
+      "gen_ai.client.inference.operation.input_tokens":   { "source": "genai", "unit": "{token}" },
+      "gen_ai.client.inference.operation.output_tokens":  { "source": "genai", "unit": "{token}" },
+      "io.werkrbee.cost":                                 { "source": "house", "unit": "USD" },
+      "io.werkrbee.coverage":                             { "source": "house", "unit": "1" },
+      "io.werkrbee.freshness":                            { "source": "house", "unit": "s" }
+    },
+    "event": ["io.werkrbee.run.started", "io.werkrbee.run.ended", "io.werkrbee.step.decided", "io.werkrbee.approval.answered",
+              "io.werkrbee.budget.refused", "io.werkrbee.request.refused", "io.werkrbee.change.deployed"],
+    "evaluation": ["io.werkrbee.trust-eval", "io.werkrbee.review"]
+  },
+  "migrations": [
+    {
+      "from": {
+        "core": "v1.41.0"
+      },
+      "to": {
+        "genai": "v0.1.0",
+        "core": "v1.45.0"
+      },
+      "$comment": "GenAI left the core conventions after v1.41.0. This covers v0.1.0's breaking changes to names the House uses; a record that used a name v0.1.0 gave a different meaning, with no replacement the House lists, is refused.",
+      "attributes": {
+        "gen_ai.workflow.name": "gen_ai.agent.name",
+        "gen_ai.usage.cache_creation.input_tokens": "gen_ai.usage.cache_write.input_tokens"
+      },
+      "values": {
+        "gen_ai.provider.name": {
+          "mistral_ai": "mistral"
+        }
+      },
+      "metrics": {
+        "gen_ai.client.token.usage": {
+          "by": "gen_ai.token.type",
+          "drop": true,
+          "values": {
+            "input": "gen_ai.client.inference.operation.input_tokens",
+            "output": "gen_ai.client.inference.operation.output_tokens"
+          }
+        },
+        "gen_ai.client.operation.duration": {
+          "by": "gen_ai.operation.name",
+          "drop": false,
+          "values": {
+            "chat": "gen_ai.client.inference.duration",
+            "generate_content": "gen_ai.client.inference.duration",
+            "text_completion": "gen_ai.client.inference.duration",
+            "invoke_agent": "gen_ai.client.invoke_agent.duration",
+            "execute_tool": "gen_ai.execute_tool.duration"
+          }
+        }
+      }
+    }
+  ]
+}

@@ -91,16 +91,21 @@ recorded here and the contracts below stay the same.
 
 ## What the hive contains
 
-The two-axis layout every hive uses:
+The layout:
 
 ```
 hives/observability-hive/
   schema/              the signal, mapping and privacy contracts (#375), JSON Schema
   scripts/             stdlib: emit, sanitize, project and read; a no-op unless configured
   examples/            synthetic records, valid and invalid, for every test
-  adapters/<backend>/  optional: exporters and backend mappings, one folder per backend
+  backends/<backend>/  optional: exporters and backend mappings, one folder per backend
   tests/
 ```
+
+Backend mappings go in `backends/`, not `adapters/`. In every hive `adapters/` is the
+harness axis, where an artifact runs, and the harness registry check holds it to exactly
+the harnesses in `harnesses.json`. A backend is a different axis, so it gets its own
+folder. (Corrected in #375; the note first said `adapters/<backend>/`.)
 
 - **The core is standard-library Python**, like the rest of the repo outside the hosted
   server. With observability off, which is the default, nothing changes for any agent and
@@ -109,7 +114,7 @@ hives/observability-hive/
   workflows-hive engine loads rules-hive and knowledge-hive scripts today. With no sink
   configured, it returns at once. A sink is configured by environment, a local file or an
   OTLP endpoint, and the OTLP exporter is imported only when that endpoint is set.
-- **Adapters depend on the core, never the reverse.** A backend adapter maps the portable
+- **Backends depend on the core, never the reverse.** A backend mapping takes the portable
   signals to one backend's features and says which it can't show. Microsoft Foundry and
   Azure Monitor are optional examples (#382), not requirements, and core tests need no
   credentials or billable calls.

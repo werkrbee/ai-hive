@@ -50,6 +50,10 @@ ARTIFACT_HIVES = [
     ("knowledge-hive", "state · STATE.md", ["Memory, results and usage", "ledgers, audit log"]),
 ]
 COMPOSITION_HIVES = ["plugins-hive", "projects-hive"]
+# The opt-in hive that reads the others and owns no record of its own, drawn beside the
+# assurance loop.
+OBSERVABILITY_HIVE = ("observability-hive", "observability · opt-in",
+                      ["Signal and privacy contract; reads", "every hive, owns no record"])
 
 # Each adapter directory under hives/*/adapters/ and the harness's name, in drawing order:
 # the order of harnesses.json, the harness registry.
@@ -117,7 +121,7 @@ def changed(where, found, known):
 
 def hives():
     changed("hives/", {p.name for p in (ROOT / "hives").iterdir() if p.is_dir()},
-            {h for h, _, _ in ARTIFACT_HIVES} | set(COMPOSITION_HIVES))
+            {h for h, _, _ in ARTIFACT_HIVES} | set(COMPOSITION_HIVES) | {OBSERVABILITY_HIVE[0]})
 
 
 def harnesses():
@@ -358,7 +362,9 @@ def draw():
             ("Audit log", "Hash-chained, tamper-evident record"),
             ("Rollback", "Back to an earlier version or state"),
             ("Human review queue", "Paused runs wait for approval"))):
-        s.card(1298, 384 + i * 186, 340, 104, title, [line], stroke=AMBER)
+        s.card(1298, 384 + i * 160, 340, 104, title, [line], stroke=AMBER)
+    name, tag, lines = OBSERVABILITY_HIVE
+    s.card(1298, 1194, 340, 112, name, lines, tag, fill=LIGHT)
 
     # Azure: an adapter, so it sits in its own frame.
     s.box(50, 1404, W - 100, 446, "#FFFFFF", BROWN, 2.5, rx=22, dash="12 8")

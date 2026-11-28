@@ -129,18 +129,23 @@
 <rect x="1298" y="384" width="340" height="104" rx="14" fill="#FFFFFF" stroke="#B9791A" stroke-width="2.5"/>
 <text x="1468.0" y="431.0" font-size="16" font-weight="700" fill="#17140F" text-anchor="middle">Passport</text>
 <text x="1468.0" y="449.0" font-size="12" font-weight="400" fill="#4A4030" text-anchor="middle">What each agent may and may not do</text>
-<rect x="1298" y="570" width="340" height="104" rx="14" fill="#FFFFFF" stroke="#B9791A" stroke-width="2.5"/>
-<text x="1468.0" y="617.0" font-size="16" font-weight="700" fill="#17140F" text-anchor="middle">Trust evaluation</text>
-<text x="1468.0" y="635.0" font-size="12" font-weight="400" fill="#4A4030" text-anchor="middle">Weekly eval that catches drift</text>
-<rect x="1298" y="756" width="340" height="104" rx="14" fill="#FFFFFF" stroke="#B9791A" stroke-width="2.5"/>
-<text x="1468.0" y="803.0" font-size="16" font-weight="700" fill="#17140F" text-anchor="middle">Audit log</text>
-<text x="1468.0" y="821.0" font-size="12" font-weight="400" fill="#4A4030" text-anchor="middle">Hash-chained, tamper-evident record</text>
-<rect x="1298" y="942" width="340" height="104" rx="14" fill="#FFFFFF" stroke="#B9791A" stroke-width="2.5"/>
-<text x="1468.0" y="989.0" font-size="16" font-weight="700" fill="#17140F" text-anchor="middle">Rollback</text>
-<text x="1468.0" y="1007.0" font-size="12" font-weight="400" fill="#4A4030" text-anchor="middle">Back to an earlier version or state</text>
-<rect x="1298" y="1128" width="340" height="104" rx="14" fill="#FFFFFF" stroke="#B9791A" stroke-width="2.5"/>
-<text x="1468.0" y="1175.0" font-size="16" font-weight="700" fill="#17140F" text-anchor="middle">Human review queue</text>
-<text x="1468.0" y="1193.0" font-size="12" font-weight="400" fill="#4A4030" text-anchor="middle">Paused runs wait for approval</text>
+<rect x="1298" y="544" width="340" height="104" rx="14" fill="#FFFFFF" stroke="#B9791A" stroke-width="2.5"/>
+<text x="1468.0" y="591.0" font-size="16" font-weight="700" fill="#17140F" text-anchor="middle">Trust evaluation</text>
+<text x="1468.0" y="609.0" font-size="12" font-weight="400" fill="#4A4030" text-anchor="middle">Weekly eval that catches drift</text>
+<rect x="1298" y="704" width="340" height="104" rx="14" fill="#FFFFFF" stroke="#B9791A" stroke-width="2.5"/>
+<text x="1468.0" y="751.0" font-size="16" font-weight="700" fill="#17140F" text-anchor="middle">Audit log</text>
+<text x="1468.0" y="769.0" font-size="12" font-weight="400" fill="#4A4030" text-anchor="middle">Hash-chained, tamper-evident record</text>
+<rect x="1298" y="864" width="340" height="104" rx="14" fill="#FFFFFF" stroke="#B9791A" stroke-width="2.5"/>
+<text x="1468.0" y="911.0" font-size="16" font-weight="700" fill="#17140F" text-anchor="middle">Rollback</text>
+<text x="1468.0" y="929.0" font-size="12" font-weight="400" fill="#4A4030" text-anchor="middle">Back to an earlier version or state</text>
+<rect x="1298" y="1024" width="340" height="104" rx="14" fill="#FFFFFF" stroke="#B9791A" stroke-width="2.5"/>
+<text x="1468.0" y="1071.0" font-size="16" font-weight="700" fill="#17140F" text-anchor="middle">Human review queue</text>
+<text x="1468.0" y="1089.0" font-size="12" font-weight="400" fill="#4A4030" text-anchor="middle">Paused runs wait for approval</text>
+<rect x="1298" y="1194" width="340" height="112" rx="14" fill="#F6DCA0" stroke="#17140F" stroke-width="2.5"/>
+<text x="1468.0" y="1227.0" font-size="16" font-weight="700" fill="#17140F" text-anchor="middle">observability-hive</text>
+<text x="1468.0" y="1246.0" font-size="12" font-weight="600" fill="#B9791A" text-anchor="middle">observability · opt-in</text>
+<text x="1468.0" y="1264.0" font-size="12" font-weight="400" fill="#4A4030" text-anchor="middle">Signal and privacy contract; reads</text>
+<text x="1468.0" y="1282.0" font-size="12" font-weight="400" fill="#4A4030" text-anchor="middle">every hive, owns no record</text>
 <rect x="50" y="1404" width="1620" height="446" rx="22" fill="#FFFFFF" stroke="#7A6B4F" stroke-width="2.5" stroke-dasharray="12 8"/>
 <rect x="74" y="1386" width="714.5" height="33" rx="16.5" fill="#17140F" stroke="#17140F" stroke-width="0"/>
 <text x="90" y="1406" font-size="15" font-weight="600" fill="#F7EFDD" text-anchor="start">Hosted on Azure · hives/agents-hive/deploy/azure — an adapter; the hives don't depend on it</text>

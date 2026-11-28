@@ -101,6 +101,7 @@ portable artifact worth versioning — and that's what earns a hive:
 | Tools | [`mcp-hive`](hives/mcp-hive) | MCP server configs | ✅ **built** |
 | Actors | [`agents-hive`](hives/agents-hive) | subagent / persona defs | ✅ **built** |
 | Orchestration | [`workflows-hive`](hives/workflows-hive) | durable workflow plans, designed around MCP Tasks | ✅ **built** |
+| Observability | [`observability-hive`](hives/observability-hive) | signal contract on OpenTelemetry and W3C Trace Context, opt-in | 🚧 **contract** |
 
 **Composition & delivery** (not layers, but how the above ship together):
 
@@ -114,7 +115,7 @@ standing alone — prompts live inside skills, evals ship beside the skill/agent
 they test, and hooks are per-harness config.
 
 <p align="center">
-  <img src="assets/architecture.svg" alt="ai-hive architecture: humans, Patricia and Barry over the six artifact hives, composed by plugins-hive and projects-hive into products on every harness, with the assurance loop and the Azure hosting" width="900">
+  <img src="assets/architecture.svg" alt="ai-hive architecture: humans, Patricia and Barry over the six artifact hives, composed by plugins-hive and projects-hive into products on every harness, with the assurance loop, the opt-in observability-hive and the Azure hosting" width="900">
 </p>
 
 The architecture diagram is drawn from the repo by `scripts/architecture.py`, which reads
@@ -182,6 +183,17 @@ file per durable fact, and append-only results and usage ledgers. It standardize
 status and memory files products used to hand-roll, with templates, a worked lineup
 example and a validator.
 → [`hives/knowledge-hive`](hives/knowledge-hive)
+
+### observability-hive — *observability* 🚧
+
+Evidence about the agents, read together: which run, who owns them, how they behave,
+what risks need attention, what they cost and whether accepted outcomes improve. It holds
+one signal contract every producer and reader uses, content-free by default and pinned
+to OpenTelemetry's GenAI conventions and W3C Trace Context. It owns no record: passports,
+run records, the ledger and the audit log stay with their hives. Opt-in; with it off,
+nothing changes. The contract is built; export and views come next
+(`docs/observability.md`).
+→ [`hives/observability-hive`](hives/observability-hive)
 
 ### plugins-hive & projects-hive — *composition*
 
