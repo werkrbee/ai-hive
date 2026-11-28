@@ -73,7 +73,7 @@
         "genai": "v0.1.0",
         "core": "v1.45.0"
       },
-      "$comment": "GenAI left the core conventions after v1.41.0. This covers v0.1.0's breaking changes to names the House uses; a record that used a name v0.1.0 gave a different meaning, with no faithful replacement, is refused.",
+      "$comment": "GenAI left the core conventions after v1.41.0. This covers v0.1.0's breaking changes to names the House uses; a record that used a name v0.1.0 gave a different meaning, with no replacement the House lists, is refused.",
       "attributes": {
         "gen_ai.workflow.name": "gen_ai.agent.name",
         "gen_ai.usage.cache_creation.input_tokens": "gen_ai.usage.cache_write.input_tokens"

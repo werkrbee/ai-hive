@@ -153,11 +153,22 @@ def sensitive(value):
     return None
 
 
+def finite(value):
+    """No NaN or infinity anywhere in a value, however deeply it nests."""
+    if isinstance(value, float):
+        return math.isfinite(value)
+    if isinstance(value, dict):
+        return all(finite(v) for v in value.values())
+    if isinstance(value, list):
+        return all(finite(v) for v in value)
+    return True
+
+
 def typed(value, spec):
     """Whether a value has its attribute's type. Only content, typed any, may be structured,
     as the pinned GenAI conventions require of message attributes."""
     if spec["type"] == "any":
-        return value is not None
+        return value is not None and finite(value)
     if isinstance(value, bool):
         return spec["type"] == "boolean"
     return isinstance(value, TYPES[spec["type"]]) and not (isinstance(value, float) and not math.isfinite(value))
@@ -277,14 +288,15 @@ def migrate(signal):
         if old in attrs:
             attrs[new] = attrs.pop(old)
     for key, renames in m.get("values", {}).items():
-        if attrs.get(key) in renames:
+        if isinstance(attrs.get(key), str) and attrs[key] in renames:
             attrs[key] = renames[attrs[key]]
     rule = m["metrics"].get(out.get("name"))
     if out.get("kind") == "metric" and rule:
         by = attrs.pop(rule["by"], None) if rule["drop"] else attrs.get(rule["by"])
-        if by not in rule["values"]:
-            raise Unreadable(f"{out['name']} with {rule['by']} {by!r}, written under core "
-                             f"{out['conventions']['core']}, has no faithful name under the pins")
+        if not isinstance(by, str) or by not in rule["values"]:
+            shown_by = repr(by) if by is None or isinstance(by, str) else "a structured value"
+            raise Unreadable(f"{out['name']} with {rule['by']} {shown_by}, written under core "
+                             f"{out['conventions']['core']}, has no replacement the House lists under the pins")
         out["name"] = rule["values"][by]
     out["migratedFrom"] = out["conventions"]
     out["conventions"] = dict(m["to"])

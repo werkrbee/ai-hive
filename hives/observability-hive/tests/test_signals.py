@@ -95,7 +95,18 @@ class Rules(unittest.TestCase):
             with self.assertRaises(cs.Unreadable):
                 cs.migrate(old)
             errors, _ = cs.check(old)
-            self.assertTrue(any("no faithful name" in e for e in errors), op)
+            self.assertTrue(any("no replacement the House lists" in e for e in errors), op)
+
+    def test_malformed_old_records_are_refused_never_crash(self):
+        for attrs in ({"gen_ai.provider.name": ["mistral_ai"]}, {"gen_ai.provider.name": {"v": 1}}):
+            old = copy.deepcopy(OLD[0])
+            old["attributes"] = attrs
+            self.assertTrue(cs.check(old)[0])
+        for value in ({"name": "chat"}, ["chat"], 3, True):
+            old = copy.deepcopy(OLD[2])
+            old["attributes"] = {"gen_ai.operation.name": value}
+            errors, _ = cs.check(old)
+            self.assertTrue(errors, value)
 
     def test_only_spans_are_sampled_and_numbers_are_finite(self):
         metric = copy.deepcopy(next(s for s in SLICE if s["name"] == "io.werkrbee.cost"))
@@ -115,6 +126,11 @@ class Rules(unittest.TestCase):
         self.assertEqual(errors, [])
         self.assertTrue(any("clock is ahead" in w for w in warnings))
         self.assertEqual(cs.check(signal(ingestedAt="2026-11-27T14:02:00Z")), ([], []))
+
+    def test_captured_content_is_finite_throughout(self):
+        captured = copy.deepcopy(next(s for s in SLICE if "capture" in s))
+        captured["attributes"]["gen_ai.input.messages"] = [{"parts": [{"score": float("inf")}]}]
+        self.assertTrue(cs.check(captured)[0])
 
     def test_a_content_attribute_passes_only_with_its_capture_exception(self):
         captured = next(s for s in SLICE if "capture" in s)
