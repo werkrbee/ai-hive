@@ -164,31 +164,40 @@ class Export(unittest.TestCase):
         self.assertEqual(refused.counts["failed"], 1)
 
     def test_a_redirect_is_a_failed_send_and_never_carries_the_credential(self):
-        landed = Collector()
-        self.addCleanup(landed.close)
+        landed = []  # every request that reaches the redirect's target, whatever its method
 
-        class Redirecting(http.server.BaseHTTPRequestHandler):
-            def do_POST(self):
-                self.rfile.read(int(self.headers["content-length"]))
-                self.send_response(302)
-                self.send_header("location", landed.url)
+        class Target(http.server.BaseHTTPRequestHandler):
+            def answer(self):
+                landed.append((self.command, {k.lower(): v for k, v in self.headers.items()}))
+                self.send_response(200)
                 self.end_headers()
-
-            def do_GET(self):
-                self.send_response(500)
-                self.end_headers()
+            do_GET = do_POST = answer
 
             def log_message(self, *a):
                 pass
-        server = http.server.HTTPServer(("127.0.0.1", 0), Redirecting)
-        threading.Thread(target=server.serve_forever, daemon=True).start()
-        self.addCleanup(server.server_close)
-        self.addCleanup(server.shutdown)
-        sink = signals.OtlpSink(f"http://127.0.0.1:{server.server_port}/v1/traces", {"authorization": "Bearer secret"})
-        emit(signals.Tracer("p/q", "1", sink, "tenant-a"))
-        self.assertTrue(sink.flush(5))
-        self.assertEqual(sink.counts["failed"], 1)
-        self.assertEqual(landed.received, [], "the redirect wasn't followed")
+
+        def serve(handler):
+            server = http.server.HTTPServer(("127.0.0.1", 0), handler)
+            threading.Thread(target=server.serve_forever, daemon=True).start()
+            self.addCleanup(server.server_close)
+            self.addCleanup(server.shutdown)
+            return f"http://127.0.0.1:{server.server_port}/v1/traces"
+        target = serve(Target)
+        for status in (301, 302, 303, 307, 308):
+            class Redirecting(http.server.BaseHTTPRequestHandler):
+                def do_POST(self):
+                    self.rfile.read(int(self.headers["content-length"]))
+                    self.send_response(status)
+                    self.send_header("location", target)
+                    self.end_headers()
+
+                def log_message(self, *a):
+                    pass
+            sink = signals.OtlpSink(serve(Redirecting), {"authorization": "Bearer secret"})
+            emit(signals.Tracer("p/q", "1", sink, "tenant-a"))
+            self.assertTrue(sink.flush(5))
+            self.assertEqual(sink.counts, {"sent": 0, "dropped": 0, "failed": 1}, status)
+        self.assertEqual(landed, [], "a redirect was followed")
 
     def test_an_encoding_failure_counts_and_the_sender_lives_on(self):
         c = Collector()
