@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.17.0](https://github.com/werkrbee/ai-hive/compare/v0.16.0...v0.17.0) (2026-11-28)
+
+
+### Features
+
+* **observability-hive:** define correlated signal and privacy contracts ([#386](https://github.com/werkrbee/ai-hive/issues/386)) ([05c6ffa](https://github.com/werkrbee/ai-hive/commit/05c6ffa7fc8c1eaab8e7fffbd3762bfb3249cce4))
+* trace runs and model calls with OpenTelemetry ([#387](https://github.com/werkrbee/ai-hive/issues/387)) ([ca291db](https://github.com/werkrbee/ai-hive/commit/ca291db0ebac5a5741bdd8030b9eb1e888e55ed3)), closes [#144](https://github.com/werkrbee/ai-hive/issues/144) [#140](https://github.com/werkrbee/ai-hive/issues/140) [#371](https://github.com/werkrbee/ai-hive/issues/371) [#369](https://github.com/werkrbee/ai-hive/issues/369)
+
+
+### Documentation
+
+* **claude:** list only the files a release changes in /release ([#366](https://github.com/werkrbee/ai-hive/issues/366)) ([7c8e2cf](https://github.com/werkrbee/ai-hive/commit/7c8e2cf576d25be2de2f5439691a9713e394fcb0))
+* decide the observability-hive boundary and delivery architecture ([#385](https://github.com/werkrbee/ai-hive/issues/385)) ([bc71c0e](https://github.com/werkrbee/ai-hive/commit/bc71c0e33e3346d820527c663608bda58bf22862)), closes [#374](https://github.com/werkrbee/ai-hive/issues/374) [#370](https://github.com/werkrbee/ai-hive/issues/370) [#369](https://github.com/werkrbee/ai-hive/issues/369)
+
 ## [0.16.0](https://github.com/werkrbee/ai-hive/compare/v0.15.1...v0.16.0) (2026-11-24)
 
 
