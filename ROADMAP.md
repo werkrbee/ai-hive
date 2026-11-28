@@ -218,6 +218,26 @@ unit and retail price.
 - **Keep it current (docs).** Cost per reference task, a monthly check of prices,
   rankings and capabilities, and one index of the harness guides.
 
+## P2.4 — AI observability
+
+Tracked under epic #369, with no milestone yet, worked in the order set in
+`docs/sprints/p2.4.md`. A person running agents needs to know which run, who owns them,
+how they behave, what risks need attention, what they cost and whether accepted outcomes
+improve. The House records most of the facts in separate files and none of it live. A new
+observability-hive will own the signal and privacy contracts, the export pipeline and
+read-only projections, and nothing else: every record keeps its owner
+(`docs/observability.md`, accepted). It extends #142, #143 and #144 and the FinOps work
+(#346) rather than repeating them.
+
+- **Boundary and contract (docs, observability-hive).** The decision and the correlated
+  signal and privacy contract. (#370: #374, #375)
+- **Instrumentation and views.** Bounded local and OTLP export, ownership and lifecycle
+  evidence, and health, performance and quality views. (#371: #376 to #378)
+- **Security, quality and value evidence.** Warnings and who they go to, drift against
+  change, and outcomes tied to cost. (#372: #379 to #381)
+- **Backends, expertise and adoption.** Backend capability maps, the operator's skill and
+  conformance on synthetic scenarios. (#373: #382 to #384)
+
 ## P3 — how to use AI
 
 Proposed; not yet a milestone or issues. ai-hive becomes an expert in how to use AI and
